@@ -29,6 +29,14 @@ export default function Dashboard() {
   }
 
   const firstName = user.firstName || "User";
+  
+  // Get time-based greeting
+  const getGreeting = () => {
+    const hour = new Date().getHours();
+    if (hour < 12) return "Good Morning";
+    if (hour < 17) return "Good Afternoon";
+    return "Good Evening";
+  };
 
   return (
     <div className="min-h-screen bg-gray-50">
@@ -75,7 +83,7 @@ export default function Dashboard() {
       {/* Main Content */}
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <div className="mb-8">
-          <h2 className="text-2xl font-bold text-gray-900 mb-2">Welcome, {firstName}!</h2>
+          <h2 className="text-2xl font-bold text-gray-900 mb-2">{getGreeting()}, {firstName}!</h2>
           <p className="text-gray-600">Select a tool below to get started.</p>
         </div>
 
