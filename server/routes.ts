@@ -3,6 +3,7 @@ import { createServer, type Server } from "http";
 import multer from "multer";
 import path from "path";
 import fs from "fs";
+import archiver from "archiver";
 import { storage } from "./storage";
 import { z } from "zod";
 import { parseProductData } from "./csv-parser";
@@ -25,6 +26,25 @@ function getCachedData(key: string) {
 
 function setCachedData(key: string, data: any) {
   cache.set(key, { data, timestamp: Date.now() });
+}
+
+function convertQuotesToCSV(quotes: any[]): string {
+  if (quotes.length === 0) {
+    return 'No quotes found\n';
+  }
+  
+  const headers = ['Quote Number', 'Customer Name', 'Customer Email', 'Total Amount', 'Created At', 'Sent Via', 'Status'];
+  const rows = quotes.map(quote => [
+    quote.quoteNumber,
+    quote.customerName,
+    quote.customerEmail || '',
+    quote.totalAmount,
+    quote.createdAt,
+    quote.sentVia,
+    quote.status
+  ]);
+  
+  return [headers, ...rows].map(row => row.join(',')).join('\n');
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
@@ -471,6 +491,51 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(quote);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch quote" });
+    }
+  });
+
+  // Download all database files (Admin only)
+  app.get("/api/download-data", requireAdmin, async (req, res) => {
+    try {
+      const archive = archiver('zip');
+      
+      // Set response headers
+      res.setHeader('Content-Type', 'application/zip');
+      res.setHeader('Content-Disposition', `attachment; filename="4sgraphics-data-${new Date().toISOString().split('T')[0]}.zip"`);
+      
+      // Pipe archive data to response
+      archive.pipe(res);
+      
+      // Add CSV files from attached_assets
+      const assetsDir = path.join(process.cwd(), 'attached_assets');
+      
+      if (fs.existsSync(assetsDir)) {
+        const files = fs.readdirSync(assetsDir);
+        const csvFiles = files.filter(file => file.endsWith('.csv'));
+        
+        csvFiles.forEach(file => {
+          const filePath = path.join(assetsDir, file);
+          if (fs.existsSync(filePath)) {
+            archive.file(filePath, { name: file });
+          }
+        });
+      }
+      
+      // Add exported data from database
+      try {
+        const quotes = await storage.getSentQuotes();
+        const quotesCSV = convertQuotesToCSV(quotes);
+        archive.append(quotesCSV, { name: 'sent_quotes.csv' });
+      } catch (error) {
+        console.error('Error exporting quotes:', error);
+      }
+      
+      // Finalize the archive
+      archive.finalize();
+      
+    } catch (error) {
+      console.error("Error creating download archive:", error);
+      res.status(500).json({ error: "Failed to create download archive" });
     }
   });
 

@@ -6,6 +6,8 @@ This is a full-stack TypeScript application that provides a quote calculator for
 
 ## Recent Changes
 
+- **Dashboard Redesign (2025-07-15)**: Redesigned dashboard with all apps in one horizontal line and separate admin section with download functionality for all databases
+- **Email Product Name Fix (2025-07-15)**: Fixed product name duplication in email composition to show only product type instead of brand + type combination
 - **Product Code Integration (2025-07-15)**: Added product code display to quote items table, email composition, and PDF generation. Updated all QuoteItem interfaces to include itemCode field from productSizes schema
 - **Email Signature Removal (2025-07-15)**: Removed company signature section from email composition at user request while keeping product codes in quote items
 - **Minimum Order Quantity Logic (2025-07-15)**: Implemented smart minimum order quantity display - Min Order Qty column appears only when needed, calculations use minimum when user quantity is below threshold
