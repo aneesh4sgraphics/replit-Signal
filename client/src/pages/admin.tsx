@@ -113,6 +113,28 @@ export default function Admin() {
     },
   });
 
+  const fixOscarRoleMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("/api/admin/fix-oscar-role", {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "Oscar's role updated",
+        description: "Oscar has been assigned admin role",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error updating Oscar's role",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
 
 
   const handleProductFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -349,9 +371,19 @@ export default function Admin() {
         {/* User Management Section */}
         <Card className="shadow-lg mb-8">
           <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5 text-primary" />
-              User Management
+            <CardTitle className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Users className="h-5 w-5 text-primary" />
+                User Management
+              </div>
+              <Button
+                onClick={() => fixOscarRoleMutation.mutate()}
+                disabled={fixOscarRoleMutation.isPending}
+                variant="outline"
+                size="sm"
+              >
+                Fix Oscar's Role
+              </Button>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">

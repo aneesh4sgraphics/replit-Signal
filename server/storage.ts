@@ -70,6 +70,7 @@ export interface IStorage {
   
   // Admin methods
   reinitializeData(): Promise<void>;
+  fixOscarRole(): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -447,6 +448,23 @@ export class MemStorage implements IStorage {
     
     // Reinitialize with fresh data
     this.initializeData();
+  }
+
+  async fixOscarRole(): Promise<void> {
+    // Find Oscar's user record and update his role to admin
+    const usersArray = Array.from(this.users.entries());
+    for (const [userId, user] of usersArray) {
+      if (user.email === "oscar@4sgraphics.com") {
+        const updatedUser = {
+          ...user,
+          role: "admin" as const,
+          updatedAt: new Date()
+        };
+        this.users.set(userId, updatedUser);
+        console.log("Fixed Oscar's role to admin:", updatedUser);
+        break;
+      }
+    }
   }
 }
 

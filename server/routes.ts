@@ -114,7 +114,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-
+  // Fix Oscar's role (temporary endpoint)
+  app.post('/api/admin/fix-oscar-role', requireAdmin, async (req: any, res) => {
+    try {
+      await storage.fixOscarRole();
+      res.json({ message: "Oscar's role has been fixed to admin" });
+    } catch (error) {
+      console.error("Error fixing Oscar's role:", error);
+      res.status(500).json({ message: "Failed to fix Oscar's role" });
+    }
+  });
 
   // Get all product categories
   app.get("/api/product-categories", async (req, res) => {
