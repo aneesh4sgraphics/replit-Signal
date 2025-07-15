@@ -290,6 +290,40 @@ export default function QuoteCalculator() {
     return quoteItems.reduce((sum, item) => sum + item.total, 0);
   };
 
+  const handleEmailQuote = () => {
+    const subject = "Price Quote from 4S Graphics";
+    const body = generateEmailBody();
+    
+    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
+    window.open(mailtoLink);
+  };
+
+  const generateEmailBody = () => {
+    let body = "Dear Customer,\n\n";
+    body += "Thank you for your interest in our products. Please find your price quote below:\n\n";
+    body += "QUOTE SUMMARY\n";
+    body += "=============\n\n";
+    
+    quoteItems.forEach((item, index) => {
+      body += `${index + 1}. ${item.productType}\n`;
+      body += `   Size: ${item.productSize}\n`;
+      body += `   Quantity: ${item.quantity}\n`;
+      body += `   Price per Sheet: $${item.pricePerSheet.toFixed(2)}\n`;
+      body += `   Total: $${item.total.toFixed(2)}\n`;
+      body += `   Added as: ${item.tierName}\n\n`;
+    });
+    
+    body += `TOTAL AMOUNT: $${getQuoteTotal().toFixed(2)}\n\n`;
+    body += "This quote is valid for 30 days from the date of issue.\n\n";
+    body += "If you have any questions or would like to proceed with your order, please don't hesitate to contact us.\n\n";
+    body += "Best regards,\n";
+    body += "4S Graphics Team\n";
+    body += "Email: sales@4sgraphics.com\n";
+    body += "Phone: (555) 123-4567";
+    
+    return body;
+  };
+
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-background">
       <div className="max-w-4xl mx-auto">
@@ -639,7 +673,11 @@ export default function QuoteCalculator() {
                 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button variant="outline" className="flex items-center gap-2">
+                  <Button 
+                    variant="outline" 
+                    className="flex items-center gap-2"
+                    onClick={handleEmailQuote}
+                  >
                     <Mail className="h-4 w-4" />
                     Email Quote
                   </Button>
