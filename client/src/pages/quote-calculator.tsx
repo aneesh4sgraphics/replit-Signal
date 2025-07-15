@@ -224,6 +224,8 @@ export default function QuoteCalculator() {
     setIsCustomSize(false);
     setCustomWidth("");
     setCustomHeight("");
+    setCustomWidthUnit("inch");
+    setCustomHeightUnit("inch");
     setCustomCalculation(null);
   };
 
@@ -391,10 +393,15 @@ export default function QuoteCalculator() {
               {/* Product Size */}
               <div className="space-y-2">
                 <Label htmlFor="size">Product Size</Label>
-                <Select value={selectedSize?.id.toString() || ""} onValueChange={(value) => {
-                  const size = sizes?.find(s => s.id.toString() === value);
-                  if (size) {
-                    handleSizeSelect(size);
+                <Select value={selectedSize?.id.toString() || (isCustomSize ? "custom" : "")} onValueChange={(value) => {
+                  if (value === "custom") {
+                    setIsCustomSize(true);
+                    setSelectedSize(null);
+                  } else {
+                    const size = sizes?.find(s => s.id.toString() === value);
+                    if (size) {
+                      handleSizeSelect(size);
+                    }
                   }
                 }} disabled={!selectedType}>
                   <SelectTrigger>
@@ -411,25 +418,26 @@ export default function QuoteCalculator() {
                         </div>
                       </SelectItem>
                     ))}
+                    <SelectItem value="custom">Custom Size</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
           </CardContent>
 
-          {/* Custom Size Option */}
-          {selectedType && (
+          {/* Custom Size Option - Only shown when Custom Size is selected */}
+          {selectedType && isCustomSize && (
             <>
               <CardHeader className="border-b">
                 <CardTitle className="flex items-center gap-2">
                   <Ruler className="h-5 w-5 text-primary" />
-                  Custom Size (Optional)
+                  Custom Size
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-6">
                 <Card className="bg-muted/50">
                   <CardHeader>
-                    <CardTitle className="text-lg">Custom Size</CardTitle>
+                    <CardTitle className="text-lg">Enter Custom Dimensions</CardTitle>
                   </CardHeader>
                   <CardContent>
                     <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
@@ -439,12 +447,22 @@ export default function QuoteCalculator() {
                           <Input
                             type="number"
                             value={customWidth}
-                            onChange={(e) => setCustomWidth(e.target.value)}
+                            onChange={(e) => {
+                              setCustomWidth(e.target.value);
+                              // Auto-calculate when both width and height are entered
+                              if (e.target.value && customHeight) {
+                                setTimeout(() => calculateCustomSize(), 100);
+                              }
+                            }}
                             placeholder="24"
                             className="rounded-r-none"
-                            onFocus={handleCustomSizeSelect}
                           />
-                          <Select value={customWidthUnit} onValueChange={setCustomWidthUnit}>
+                          <Select value={customWidthUnit} onValueChange={(value) => {
+                            setCustomWidthUnit(value);
+                            if (customWidth && customHeight) {
+                              setTimeout(() => calculateCustomSize(), 100);
+                            }
+                          }}>
                             <SelectTrigger className="w-20 rounded-l-none">
                               <SelectValue />
                             </SelectTrigger>
@@ -461,12 +479,22 @@ export default function QuoteCalculator() {
                           <Input
                             type="number"
                             value={customHeight}
-                            onChange={(e) => setCustomHeight(e.target.value)}
+                            onChange={(e) => {
+                              setCustomHeight(e.target.value);
+                              // Auto-calculate when both width and height are entered
+                              if (e.target.value && customWidth) {
+                                setTimeout(() => calculateCustomSize(), 100);
+                              }
+                            }}
                             placeholder="36"
                             className="rounded-r-none"
-                            onFocus={handleCustomSizeSelect}
                           />
-                          <Select value={customHeightUnit} onValueChange={setCustomHeightUnit}>
+                          <Select value={customHeightUnit} onValueChange={(value) => {
+                            setCustomHeightUnit(value);
+                            if (customWidth && customHeight) {
+                              setTimeout(() => calculateCustomSize(), 100);
+                            }
+                          }}>
                             <SelectTrigger className="w-20 rounded-l-none">
                               <SelectValue />
                             </SelectTrigger>
