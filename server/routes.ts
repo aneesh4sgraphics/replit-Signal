@@ -77,14 +77,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/users/:userId/approve', requireAdmin, async (req: any, res) => {
     try {
-      const userId = decodeURIComponent(req.params.userId);
+      const originalUserId = req.params.userId;
+      const userId = decodeURIComponent(originalUserId);
       const adminId = req.user.claims.sub;
+      
+      console.log('Approve user request:', { originalUserId, userId, adminId });
       
       const user = await storage.approveUser(userId, adminId);
       if (!user) {
+        console.log('User not found for approval:', userId);
         return res.status(404).json({ message: "User not found" });
       }
       
+      console.log('User approval successful:', user);
       res.json(user);
     } catch (error) {
       console.error("Error approving user:", error);
@@ -111,9 +116,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/users/:userId/role', requireAdmin, async (req: any, res) => {
     try {
-      const userId = decodeURIComponent(req.params.userId);
+      const originalUserId = req.params.userId;
+      const userId = decodeURIComponent(originalUserId);
       const adminId = req.user.claims.sub;
       const { role } = req.body;
+      
+      console.log('Role update request:', { originalUserId, userId, role, adminId });
       
       if (!role || !['admin', 'user'].includes(role)) {
         return res.status(400).json({ message: "Invalid role. Must be 'admin' or 'user'" });
@@ -121,9 +129,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const user = await storage.updateUserRole(userId, role, adminId);
       if (!user) {
+        console.log('User not found for role update:', userId);
         return res.status(404).json({ message: "User not found" });
       }
       
+      console.log('Role update successful:', user);
       res.json(user);
     } catch (error) {
       console.error("Error updating user role:", error);

@@ -411,7 +411,10 @@ export default function Admin() {
                             </Badge>
                             <Select
                               value={user.role}
-                              onValueChange={(newRole) => updateUserRoleMutation.mutate({ userId: user.id, role: newRole })}
+                              onValueChange={(newRole) => {
+                                console.log('Updating role:', { userId: user.id, currentRole: user.role, newRole });
+                                updateUserRoleMutation.mutate({ userId: user.id, role: newRole });
+                              }}
                               disabled={updateUserRoleMutation.isPending}
                             >
                               <SelectTrigger className="w-20 h-6 text-xs">
