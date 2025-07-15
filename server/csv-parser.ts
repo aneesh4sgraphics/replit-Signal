@@ -260,11 +260,8 @@ export function parseProductData(): {
   let pricingId = 1;
   
   tierPricing.forEach(tier => {
-    const typeKey = `${tier.productId}|${tier.productType}`;
-    const type = Array.from(typeMap.values()).find(t => {
-      const category = Array.from(categoryMap.values()).find(c => c.id === t.categoryId);
-      return category && typeKey.includes(category.name) && typeKey.includes(t.name);
-    });
+    // Find the matching type by product type name (exact match)
+    const type = Array.from(typeMap.values()).find(t => t.name === tier.productType);
     
     if (type) {
       const tierPrices = [
