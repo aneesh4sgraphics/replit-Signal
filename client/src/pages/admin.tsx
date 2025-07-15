@@ -71,7 +71,7 @@ export default function Admin() {
 
   const approveUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${userId}/approve`, {
+      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/approve`, {
         method: "POST",
       });
     },
@@ -93,7 +93,7 @@ export default function Admin() {
 
   const rejectUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${userId}/reject`, {
+      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/reject`, {
         method: "POST",
       });
     },
@@ -115,7 +115,7 @@ export default function Admin() {
 
   const updateUserRoleMutation = useMutation({
     mutationFn: async ({ userId, role }: { userId: string; role: string }) => {
-      return await apiRequest(`/api/admin/users/${userId}/role`, {
+      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/role`, {
         method: "POST",
         body: JSON.stringify({ role }),
         headers: {
