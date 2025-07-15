@@ -71,6 +71,7 @@ export interface IStorage {
   // Admin methods
   reinitializeData(): Promise<void>;
   fixOscarRole(): Promise<void>;
+  clearUser(userId: string): Promise<void>;
 }
 
 export class DatabaseStorage implements IStorage {
@@ -255,7 +256,14 @@ export class MemStorage implements IStorage {
   async upsertUser(userData: UpsertUser): Promise<User> {
     const existingUser = this.users.get(userData.id);
     if (existingUser) {
-      const updatedUser = { ...existingUser, ...userData, updatedAt: new Date() };
+      // Always update role and status for admins to ensure they get correct permissions
+      const updatedUser = { 
+        ...existingUser, 
+        ...userData, 
+        role: userData.role || existingUser.role,
+        status: userData.status || existingUser.status,
+        updatedAt: new Date() 
+      };
       this.users.set(userData.id, updatedUser);
       return updatedUser;
     } else {
@@ -465,6 +473,11 @@ export class MemStorage implements IStorage {
         break;
       }
     }
+  }
+
+  async clearUser(userId: string): Promise<void> {
+    this.users.delete(userId);
+    console.log("Cleared user from storage:", userId);
   }
 }
 

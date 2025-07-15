@@ -135,6 +135,28 @@ export default function Admin() {
     },
   });
 
+  const clearOscarSessionMutation = useMutation({
+    mutationFn: async () => {
+      return await apiRequest("/api/admin/clear-oscar-session", {
+        method: "POST",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
+      toast({
+        title: "Oscar's session cleared",
+        description: "Oscar can now log in fresh with admin role",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error clearing Oscar's session",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
 
 
   const handleProductFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -376,14 +398,24 @@ export default function Admin() {
                 <Users className="h-5 w-5 text-primary" />
                 User Management
               </div>
-              <Button
-                onClick={() => fixOscarRoleMutation.mutate()}
-                disabled={fixOscarRoleMutation.isPending}
-                variant="outline"
-                size="sm"
-              >
-                Fix Oscar's Role
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  onClick={() => fixOscarRoleMutation.mutate()}
+                  disabled={fixOscarRoleMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                >
+                  Fix Oscar's Role
+                </Button>
+                <Button
+                  onClick={() => clearOscarSessionMutation.mutate()}
+                  disabled={clearOscarSessionMutation.isPending}
+                  variant="outline"
+                  size="sm"
+                >
+                  Clear Oscar's Session
+                </Button>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-6">
