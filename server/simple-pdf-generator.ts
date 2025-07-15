@@ -43,13 +43,13 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
   // Generate table rows for quote items
   const itemRows = quoteItems.map((item, index) => `
     <tr>
-      <td style="text-align: center;">${index + 1}</td>
+      <td>${index + 1}</td>
       <td>${item.productType}</td>
       <td>${item.productSize}</td>
-      <td style="text-align: center;">${item.quantity}</td>
-      <td style="text-align: center;">${item.minOrderQty || 'N/A'}</td>
-      <td style="text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
-      <td style="text-align: right;">$${item.total.toFixed(2)}</td>
+      <td>${item.quantity}</td>
+      <td>${item.minOrderQty || 'N/A'}</td>
+      <td>$${item.pricePerSheet.toFixed(2)}</td>
+      <td>$${item.total.toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -122,62 +122,64 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
           border-collapse: collapse;
           margin-bottom: 20px;
           border: none;
+          font-size: 14px;
         }
         .items-table th {
-          background-color: #4a5568 !important;
+          background-color: #4a7c59 !important;
           color: white !important;
-          padding: 15px 12px;
-          text-align: left;
+          padding: 12px 8px;
+          text-align: center;
           font-weight: bold;
           border: none;
-          border-right: 1px solid #4a5568;
-        }
-        .items-table th:last-child {
-          border-right: none;
+          font-size: 14px;
         }
         .items-table th:nth-child(1) {
-          text-align: center;
-          width: 6%;
+          width: 8%;
         }
         .items-table th:nth-child(2) {
-          width: 30%;
+          width: 25%;
         }
         .items-table th:nth-child(3) {
           width: 12%;
         }
         .items-table th:nth-child(4) {
-          text-align: center;
-          width: 10%;
-        }
-        .items-table th:nth-child(5) {
-          text-align: center;
           width: 12%;
         }
-        .items-table th:nth-child(6),
+        .items-table th:nth-child(5) {
+          width: 18%;
+        }
+        .items-table th:nth-child(6) {
+          width: 12%;
+        }
         .items-table th:nth-child(7) {
-          text-align: right;
-          width: 15%;
+          width: 13%;
         }
         .items-table td {
-          padding: 12px;
+          padding: 12px 8px;
           border: none;
-          background-color: #f8f9fa;
+          background-color: #e8f5e8;
+          text-align: center;
+          font-size: 13px;
         }
         .items-table tr:nth-child(even) td {
-          background-color: #ffffff;
+          background-color: #f0f8f0;
+        }
+        .items-table tr:nth-child(odd) td {
+          background-color: #e8f5e8;
         }
         .total-row {
-          background-color: #e2e8f0 !important;
+          background-color: #ffffff !important;
           font-weight: bold;
         }
         .total-row td {
-          background-color: #e2e8f0 !important;
-          border-top: 2px solid #4a5568;
+          background-color: #ffffff !important;
+          border-top: 2px solid #4a7c59;
+          font-size: 16px;
         }
         .total-amount {
           font-size: 18px;
           font-weight: bold;
-          color: #7c3aed;
+          color: #4a7c59;
         }
         .footer {
           margin-top: 40px;
@@ -235,11 +237,11 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
       <table class="items-table">
         <thead>
           <tr>
-            <th>#</th>
-            <th>Product Type</th>
+            <th>Sl. No.</th>
+            <th>Product</th>
             <th>Size</th>
             <th>Quantity</th>
-            <th>Min Order Qty</th>
+            <th>Min Order Quantity</th>
             <th>Price/Sheet</th>
             <th>Total</th>
           </tr>
@@ -247,8 +249,8 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         <tbody>
           ${itemRows}
           <tr class="total-row">
-            <td colspan="6" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total Amount:</td>
-            <td style="text-align: right; font-weight: bold; padding: 15px 12px;">
+            <td colspan="6" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total</td>
+            <td style="text-align: center; font-weight: bold; padding: 15px 12px;">
               <span class="total-amount">$${totalAmount.toFixed(2)}</span>
             </td>
           </tr>
