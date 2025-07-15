@@ -77,7 +77,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/users/:userId/approve', requireAdmin, async (req: any, res) => {
     try {
-      const userId = req.params.userId;
+      const userId = decodeURIComponent(req.params.userId);
       const adminId = req.user.claims.sub;
       
       const user = await storage.approveUser(userId, adminId);
@@ -94,7 +94,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/users/:userId/reject', requireAdmin, async (req: any, res) => {
     try {
-      const userId = req.params.userId;
+      const userId = decodeURIComponent(req.params.userId);
       const adminId = req.user.claims.sub;
       
       const user = await storage.rejectUser(userId, adminId);
@@ -111,7 +111,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post('/api/admin/users/:userId/role', requireAdmin, async (req: any, res) => {
     try {
-      const userId = req.params.userId;
+      const userId = decodeURIComponent(req.params.userId);
       const adminId = req.user.claims.sub;
       const { role } = req.body;
       
