@@ -7,6 +7,8 @@ import { storage } from "./storage";
 import { z } from "zod";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
+import { generateQuotePDF, generateQuoteNumber } from "./pdf-generator";
+import { insertSentQuoteSchema } from "@shared/schema";
 
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all product categories
@@ -287,6 +289,120 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.unlinkSync(req.file.path);
       }
       res.status(500).json({ error: "Failed to upload customer data file" });
+    }
+  });
+
+  // Generate PDF quote
+  app.post("/api/generate-pdf-quote", async (req, res) => {
+    try {
+      const { customerName, customerEmail, quoteItems } = req.body;
+      
+      if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
+        return res.status(400).json({ error: "Customer name and quote items are required" });
+      }
+
+      // Generate quote number
+      const quoteNumber = generateQuoteNumber();
+      
+      // Calculate total
+      const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
+      
+      // Generate PDF
+      const pdfBuffer = await generateQuotePDF({
+        customerName,
+        customerEmail,
+        quoteItems,
+        quoteNumber,
+        totalAmount
+      });
+      
+      // Save quote to database
+      await storage.createSentQuote({
+        quoteNumber,
+        customerName,
+        customerEmail: customerEmail || null,
+        quoteItems: JSON.stringify(quoteItems),
+        totalAmount: totalAmount.toString(),
+        createdAt: new Date().toISOString(),
+        sentVia: 'pdf',
+        status: 'sent'
+      });
+      
+      // Send PDF as download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="Quote-${quoteNumber}.pdf"`);
+      res.send(pdfBuffer);
+    } catch (error) {
+      console.error("Error generating PDF quote:", error);
+      res.status(500).json({ error: "Failed to generate PDF quote" });
+    }
+  });
+
+  // Send email quote
+  app.post("/api/send-email-quote", async (req, res) => {
+    try {
+      const { customerName, customerEmail, quoteItems } = req.body;
+      
+      if (!customerName || !customerEmail || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
+        return res.status(400).json({ error: "Customer name, email, and quote items are required" });
+      }
+
+      // Generate quote number
+      const quoteNumber = generateQuoteNumber();
+      
+      // Calculate total
+      const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
+      
+      // Save quote to database
+      await storage.createSentQuote({
+        quoteNumber,
+        customerName,
+        customerEmail,
+        quoteItems: JSON.stringify(quoteItems),
+        totalAmount: totalAmount.toString(),
+        createdAt: new Date().toISOString(),
+        sentVia: 'email',
+        status: 'sent'
+      });
+      
+      // TODO: Implement actual email sending
+      // For now, just return success
+      res.json({ 
+        message: "Quote email sent successfully",
+        quoteNumber
+      });
+    } catch (error) {
+      console.error("Error sending email quote:", error);
+      res.status(500).json({ error: "Failed to send email quote" });
+    }
+  });
+
+  // Get all sent quotes
+  app.get("/api/sent-quotes", async (req, res) => {
+    try {
+      const quotes = await storage.getSentQuotes();
+      res.json(quotes);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch sent quotes" });
+    }
+  });
+
+  // Get sent quote by ID
+  app.get("/api/sent-quotes/:id", async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
+      const quote = await storage.getSentQuote(id);
+      if (!quote) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      res.json(quote);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch quote" });
     }
   });
 

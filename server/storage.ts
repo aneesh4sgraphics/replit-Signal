@@ -5,6 +5,7 @@ import {
   productSizes,
   pricingTiers,
   productPricing,
+  sentQuotes,
   type User, 
   type InsertUser,
   type ProductCategory,
@@ -16,7 +17,9 @@ import {
   type PricingTier,
   type InsertPricingTier,
   type ProductPricing,
-  type InsertProductPricing
+  type InsertProductPricing,
+  type SentQuote,
+  type InsertSentQuote
 } from "@shared/schema";
 import { parseProductData } from "./csv-parser";
 
@@ -53,6 +56,11 @@ export interface IStorage {
   getPriceForProductType(typeId: number, tierId: number): Promise<number>;
   getPriceForSquareMeters(squareMeters: number, typeId: number, tierId: number): Promise<number>;
   
+  // Sent Quotes
+  getSentQuotes(): Promise<SentQuote[]>;
+  getSentQuote(id: number): Promise<SentQuote | undefined>;
+  createSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
+  
   // Admin methods
   reinitializeData(): Promise<void>;
 }
@@ -64,12 +72,14 @@ export class MemStorage implements IStorage {
   private productSizes: Map<number, ProductSize>;
   private pricingTiers: Map<number, PricingTier>;
   private productPricing: Map<number, ProductPricing>;
+  private sentQuotes: Map<number, SentQuote>;
   private currentUserId: number;
   private currentCategoryId: number;
   private currentTypeId: number;
   private currentSizeId: number;
   private currentTierId: number;
   private currentPricingId: number;
+  private currentSentQuoteId: number;
 
   constructor() {
     this.users = new Map();
@@ -78,12 +88,14 @@ export class MemStorage implements IStorage {
     this.productSizes = new Map();
     this.pricingTiers = new Map();
     this.productPricing = new Map();
+    this.sentQuotes = new Map();
     this.currentUserId = 1;
     this.currentCategoryId = 1;
     this.currentTypeId = 1;
     this.currentSizeId = 1;
     this.currentTierId = 1;
     this.currentPricingId = 1;
+    this.currentSentQuoteId = 1;
     
     this.initializeData();
   }
@@ -259,6 +271,21 @@ export class MemStorage implements IStorage {
   async getPriceForSquareMeters(squareMeters: number, typeId: number, tierId: number): Promise<number> {
     const pricePerSqm = await this.getPriceForProductType(typeId, tierId);
     return squareMeters * pricePerSqm;
+  }
+
+  async getSentQuotes(): Promise<SentQuote[]> {
+    return Array.from(this.sentQuotes.values());
+  }
+
+  async getSentQuote(id: number): Promise<SentQuote | undefined> {
+    return this.sentQuotes.get(id);
+  }
+
+  async createSentQuote(quote: InsertSentQuote): Promise<SentQuote> {
+    const id = this.currentSentQuoteId++;
+    const newQuote: SentQuote = { ...quote, id };
+    this.sentQuotes.set(id, newQuote);
+    return newQuote;
   }
 
   async reinitializeData(): Promise<void> {

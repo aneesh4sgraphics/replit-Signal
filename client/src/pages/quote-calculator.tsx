@@ -8,7 +8,9 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
 import { Calculator, Box, Ruler, Layers, FileText, Save, Trash2, Mail, Download, User, MapPin, Tag, Settings } from "lucide-react";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
+import { useToast } from "@/hooks/use-toast";
 
 interface ProductCategory {
   id: number;
@@ -103,6 +105,13 @@ export default function QuoteCalculator() {
   const [customCalculation, setCustomCalculation] = useState<CustomSizeCalculation | null>(null);
   const [isCustomSize, setIsCustomSize] = useState<boolean>(false);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
+  const [showPDFDialog, setShowPDFDialog] = useState(false);
+  const [showEmailDialog, setShowEmailDialog] = useState(false);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [isPDFGenerating, setIsPDFGenerating] = useState(false);
+  const [isEmailSending, setIsEmailSending] = useState(false);
+  const { toast } = useToast();
 
   const { data: customers } = useQuery<Customer[]>({
     queryKey: ["/api/customers"],
@@ -320,33 +329,100 @@ export default function QuoteCalculator() {
     return quoteItems.reduce((sum, item) => sum + item.total, 0);
   };
 
-  const handleEmailQuote = () => {
-    const subject = "Price Quote from 4S Graphics";
-    const body = generateEmailBody();
-    
-    const mailtoLink = `mailto:?subject=${encodeURIComponent(subject)}&body=${encodeURIComponent(body)}`;
-    window.open(mailtoLink);
+  const handlePDFGeneration = async () => {
+    if (!customerName.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter a customer name",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsPDFGenerating(true);
+    try {
+      const response = await fetch("/api/generate-pdf-quote", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          customerName,
+          customerEmail: customerEmail || undefined,
+          quoteItems,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("Failed to generate PDF");
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `Quote-${new Date().toISOString().split('T')[0]}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      window.URL.revokeObjectURL(url);
+
+      toast({
+        title: "Success",
+        description: "PDF quote generated and downloaded successfully",
+      });
+
+      setShowPDFDialog(false);
+      setCustomerName("");
+      setCustomerEmail("");
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF quote",
+        variant: "destructive",
+      });
+    } finally {
+      setIsPDFGenerating(false);
+    }
   };
 
-  const generateEmailBody = () => {
-    let body = "Dear {{Client Name}},\n\n";
-    body += "Here below is the quote you requested.\n\n";
-    
-    quoteItems.forEach((item, index) => {
-      body += `${index + 1}. Quote Item:\n`;
-      body += `* Product Brand: ${item.productBrand}\n`;
-      body += `* Product Type: ${item.productType}\n`;
-      body += `* Product Size: ${item.productSize}\n`;
-      body += `* Total Quantity Requested: ${item.quantity}\n`;
-      body += `* Pricing per sheet: $${item.pricePerSheet.toFixed(2)}\n\n`;
-    });
-    
-    body += `Total Quote Amount: $${getQuoteTotal().toFixed(2)}\n\n`;
-    body += "Thank you for your business.\n\n";
-    body += "Best regards,\n";
-    body += "4S Graphics Team";
-    
-    return body;
+  const handleEmailQuote = async () => {
+    if (!customerName.trim() || !customerEmail.trim()) {
+      toast({
+        title: "Error",
+        description: "Please enter both customer name and email",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsEmailSending(true);
+    try {
+      const response = await apiRequest("POST", "/api/send-email-quote", {
+        customerName,
+        customerEmail,
+        quoteItems,
+      });
+
+      toast({
+        title: "Success",
+        description: `Quote email sent successfully. Quote #${response.quoteNumber}`,
+      });
+
+      setShowEmailDialog(false);
+      setCustomerName("");
+      setCustomerEmail("");
+    } catch (error) {
+      console.error("Error sending email:", error);
+      toast({
+        title: "Error",
+        description: "Failed to send email quote",
+        variant: "destructive",
+      });
+    } finally {
+      setIsEmailSending(false);
+    }
   };
 
   return (
@@ -738,18 +814,110 @@ export default function QuoteCalculator() {
                 
                 {/* Action Buttons */}
                 <div className="flex justify-end gap-3 pt-4">
-                  <Button 
-                    variant="outline" 
-                    className="flex items-center gap-2"
-                    onClick={handleEmailQuote}
-                  >
-                    <Mail className="h-4 w-4" />
-                    Email Quote
-                  </Button>
-                  <Button className="flex items-center gap-2 bg-purple-800 hover:bg-purple-900">
-                    <Download className="h-4 w-4" />
-                    Generate PDF of Full Quote
-                  </Button>
+                  <Dialog open={showEmailDialog} onOpenChange={setShowEmailDialog}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        variant="outline" 
+                        className="flex items-center gap-2"
+                        disabled={quoteItems.length === 0}
+                      >
+                        <Mail className="h-4 w-4" />
+                        Email Quote
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Send Email Quote</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="customerName">Customer Name *</Label>
+                          <Input
+                            id="customerName"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder="Enter customer name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="customerEmail">Customer Email *</Label>
+                          <Input
+                            id="customerEmail"
+                            type="email"
+                            value={customerEmail}
+                            onChange={(e) => setCustomerEmail(e.target.value)}
+                            placeholder="Enter customer email"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowEmailDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handleEmailQuote}
+                            disabled={isEmailSending}
+                          >
+                            {isEmailSending ? "Sending..." : "Send Email"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+
+                  <Dialog open={showPDFDialog} onOpenChange={setShowPDFDialog}>
+                    <DialogTrigger asChild>
+                      <Button 
+                        className="flex items-center gap-2 bg-purple-800 hover:bg-purple-900"
+                        disabled={quoteItems.length === 0}
+                      >
+                        <Download className="h-4 w-4" />
+                        Generate PDF of Full Quote
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Generate PDF Quote</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="pdfCustomerName">Customer Name *</Label>
+                          <Input
+                            id="pdfCustomerName"
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder="Enter customer name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="pdfCustomerEmail">Customer Email (Optional)</Label>
+                          <Input
+                            id="pdfCustomerEmail"
+                            type="email"
+                            value={customerEmail}
+                            onChange={(e) => setCustomerEmail(e.target.value)}
+                            placeholder="Enter customer email (optional)"
+                          />
+                        </div>
+                        <div className="flex justify-end gap-2">
+                          <Button 
+                            variant="outline" 
+                            onClick={() => setShowPDFDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            onClick={handlePDFGeneration}
+                            disabled={isPDFGenerating}
+                          >
+                            {isPDFGenerating ? "Generating..." : "Generate PDF"}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
                 </div>
               </div>
             </CardContent>

@@ -47,6 +47,18 @@ export const users = pgTable("users", {
   password: text("password").notNull(),
 });
 
+export const sentQuotes = pgTable("sent_quotes", {
+  id: serial("id").primaryKey(),
+  quoteNumber: varchar("quote_number", { length: 50 }).notNull(),
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  customerEmail: varchar("customer_email", { length: 255 }),
+  quoteItems: text("quote_items").notNull(), // JSON string of quote items
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }).notNull(),
+  createdAt: varchar("created_at", { length: 50 }).notNull(),
+  sentVia: varchar("sent_via", { length: 20 }).notNull(), // 'email' or 'pdf'
+  status: varchar("status", { length: 20 }).notNull().default("sent"), // 'sent', 'viewed', 'accepted'
+});
+
 export const insertProductCategorySchema = createInsertSchema(productCategories).omit({
   id: true,
 });
@@ -72,12 +84,17 @@ export const insertUserSchema = createInsertSchema(users).pick({
   password: true,
 });
 
+export const insertSentQuoteSchema = createInsertSchema(sentQuotes).omit({
+  id: true,
+});
+
 export type ProductCategory = typeof productCategories.$inferSelect;
 export type ProductType = typeof productTypes.$inferSelect;
 export type ProductSize = typeof productSizes.$inferSelect;
 export type PricingTier = typeof pricingTiers.$inferSelect;
 export type ProductPricing = typeof productPricing.$inferSelect;
 export type User = typeof users.$inferSelect;
+export type SentQuote = typeof sentQuotes.$inferSelect;
 
 export type InsertProductCategory = z.infer<typeof insertProductCategorySchema>;
 export type InsertProductType = z.infer<typeof insertProductTypeSchema>;
@@ -85,3 +102,4 @@ export type InsertProductSize = z.infer<typeof insertProductSizeSchema>;
 export type InsertPricingTier = z.infer<typeof insertPricingTierSchema>;
 export type InsertProductPricing = z.infer<typeof insertProductPricingSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
+export type InsertSentQuote = z.infer<typeof insertSentQuoteSchema>;
