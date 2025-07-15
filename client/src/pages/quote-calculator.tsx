@@ -294,6 +294,12 @@ export default function QuoteCalculator() {
                     </div>
                     <div className="text-sm text-muted-foreground">
                       <span className="block">{parseFloat(size.squareMeters).toFixed(2)} sq.m</span>
+                      {size.itemCode && (
+                        <span className="block text-xs">Code: {size.itemCode}</span>
+                      )}
+                      {size.minOrderQty && (
+                        <span className="block text-xs">Min: {size.minOrderQty}</span>
+                      )}
                       <span className="block text-primary font-medium">
                         {selectedTier ? `Tier pricing applies` : 'Select pricing tier'}
                       </span>

@@ -81,25 +81,55 @@ function parseCSV(csvContent: string): string[][] {
 }
 
 function parseSize(sizeStr: string): { width: number; height: number; widthUnit: string; heightUnit: string } {
-  // Remove quotes and extra spaces
-  const cleanSize = sizeStr.replace(/"/g, '').trim();
+  // Remove extra spaces and anything in parentheses
+  const cleanSize = sizeStr.trim().replace(/\s*\([^)]*\)\s*/g, '');
   
-  // Match patterns like: 12"x18", 24"x60', 8.5"x11", 20.9"x29.5"
-  const match = cleanSize.match(/^(\d+(?:\.\d+)?)"?×?x(\d+(?:\.\d+)?)["']?$/i);
+  // Handle common size formats by breaking them down step by step
+  const patterns = [
+    // Pattern 1: 12"x18" (both inches) - using Unicode curly quotes (8221)
+    /^(\d+(?:\.\d+)?)\u201D[\s]*[x×][\s]*(\d+(?:\.\d+)?)\u201D?$/i,
+    // Pattern 2: 36"x60' (inches x feet) - using Unicode curly quotes for inches, apostrophe for feet
+    /^(\d+(?:\.\d+)?)\u201D[\s]*[x×][\s]*(\d+(?:\.\d+)?)['\u2018\u2019\u201A\u2032]$/i,
+    // Pattern 3: 36'x60' (both feet) - using Unicode quotes for feet
+    /^(\d+(?:\.\d+)?)['\u2018\u2019\u201A\u2032][\s]*[x×][\s]*(\d+(?:\.\d+)?)['\u2018\u2019\u201A\u2032]$/i,
+    // Pattern 4: 12"x18" (regular quotes for inches)
+    /^(\d+(?:\.\d+)?)"[\s]*[x×][\s]*(\d+(?:\.\d+)?)"?$/i,
+    // Pattern 5: 12x18" (number x number with ending quote)
+    /^(\d+(?:\.\d+)?)[\s]*[x×][\s]*(\d+(?:\.\d+)?)"$/i,
+    // Pattern 6: Double quotes like 12""x18""
+    /^(\d+(?:\.\d+)?)""[\s]*[x×][\s]*(\d+(?:\.\d+)?)""|""$/i,
+    // Pattern 7: 12x18 (no units, assume inches)
+    /^(\d+(?:\.\d+)?)[\s]*[x×][\s]*(\d+(?:\.\d+)?)$/i
+  ];
   
-  if (match) {
-    const [, widthStr, heightStr] = match;
-    const width = parseFloat(widthStr);
-    const height = parseFloat(heightStr);
-    
-    // Determine units based on the original string
-    const widthUnit = cleanSize.includes("'") && cleanSize.lastIndexOf("'") > cleanSize.lastIndexOf('"') ? 'feet' : 'inch';
-    const heightUnit = cleanSize.includes("'") && cleanSize.lastIndexOf("'") > cleanSize.lastIndexOf('"') ? 'feet' : 'inch';
-    
-    return { width, height, widthUnit, heightUnit };
+  // Try each pattern
+  for (let i = 0; i < patterns.length; i++) {
+    const match = cleanSize.match(patterns[i]);
+    if (match) {
+      const width = parseFloat(match[1]);
+      const height = parseFloat(match[2]);
+      
+      // Determine units based on pattern
+      let widthUnit = 'inch';
+      let heightUnit = 'inch';
+      
+      // Pattern 2: inches x feet
+      if (i === 1) {
+        widthUnit = 'inch';
+        heightUnit = 'feet';
+      }
+      // Pattern 3: both feet
+      else if (i === 2) {
+        widthUnit = 'feet';
+        heightUnit = 'feet';
+      }
+      
+      return { width, height, widthUnit, heightUnit };
+    }
   }
   
   // Default fallback
+  console.warn(`Could not parse size: ${sizeStr}`);
   return { width: 12, height: 18, widthUnit: 'inch', heightUnit: 'inch' };
 }
 
@@ -192,8 +222,22 @@ export function parseProductData(): {
     if (type) {
       const sizeKey = `${typeKey}|${product.Size}`;
       if (!sizeMap.has(sizeKey)) {
+        // Debug: log the size before parsing
+        if (product.Size === '8.5"x11"') {
+          console.log('Raw size from CSV:', JSON.stringify(product.Size));
+          console.log('Characters:');
+          for (let i = 0; i < product.Size.length; i++) {
+            console.log('  ', i, ':', product.Size[i], 'code:', product.Size.charCodeAt(i));
+          }
+        }
+        
         const { width, height, widthUnit, heightUnit } = parseSize(product.Size);
         const squareMeters = calculateSquareMeters(width, height, widthUnit, heightUnit);
+        
+        // Debug: log the parsed size details
+        if (width === 12 && height === 18) {
+          console.log('Size parsing failed for:', product.Size, 'Got default values');
+        }
         
         sizeMap.set(sizeKey, {
           id: sizeId++,
