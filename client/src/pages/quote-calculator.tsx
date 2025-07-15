@@ -707,19 +707,11 @@ export default function QuoteCalculator() {
               <div className="space-y-2 text-sm">
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Product Brand:</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-blue-600">Graffiti</span>
-                    <sup className="text-xs">®</sup>
-                    <span>Polyester Paper</span>
-                  </div>
+                  <span className="text-blue-600 font-medium">{getSelectedCategoryName()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Product Type:</span>
-                  <div className="flex items-center gap-1">
-                    <span className="text-blue-600">Graffiti</span>
-                    <sup className="text-xs">®</sup>
-                    <span>Polyester Paper 5mil</span>
-                  </div>
+                  <span className="text-blue-600 font-medium">{getSelectedTypeName()}</span>
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Product Size:</span>
@@ -737,7 +729,7 @@ export default function QuoteCalculator() {
                 </div>
                 <div className="flex justify-between">
                   <span className="font-medium text-gray-700">Min. Order Qty:</span>
-                  <span>50 Sheets</span>
+                  <span>{selectedSize?.minOrderQty || "50 Sheets"}</span>
                 </div>
               </div>
 
@@ -802,9 +794,10 @@ export default function QuoteCalculator() {
                     {quoteItems.map((item) => (
                       <div key={item.id} className="grid grid-cols-6 gap-4 p-4 text-sm items-center">
                         <div className="font-medium">
-                          {item.productType}
+                          {item.productBrand}
                         </div>
                         <div className="text-muted-foreground">
+                          <div>Type: {item.productType}</div>
                           <div>Size: {item.productSize}</div>
                           <div>Added as: {item.tierName}</div>
                         </div>
