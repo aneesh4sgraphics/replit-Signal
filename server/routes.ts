@@ -10,11 +10,35 @@ import { parseCustomerData } from "./customer-parser";
 import { generateQuoteHTMLForDownload, generateQuoteNumber } from "./simple-pdf-generator";
 import { insertSentQuoteSchema } from "@shared/schema";
 
+// Simple in-memory cache for frequently accessed data
+const cache = new Map<string, { data: any; timestamp: number }>();
+const CACHE_DURATION = 5 * 60 * 1000; // 5 minutes
+
+function getCachedData(key: string) {
+  const cached = cache.get(key);
+  if (cached && Date.now() - cached.timestamp < CACHE_DURATION) {
+    return cached.data;
+  }
+  return null;
+}
+
+function setCachedData(key: string, data: any) {
+  cache.set(key, { data, timestamp: Date.now() });
+}
+
 export async function registerRoutes(app: Express): Promise<Server> {
   // Get all product categories
   app.get("/api/product-categories", async (req, res) => {
     try {
+      const cacheKey = "product-categories";
+      const cachedData = getCachedData(cacheKey);
+      
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const categories = await storage.getProductCategories();
+      setCachedData(cacheKey, categories);
       res.json(categories);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch product categories" });
@@ -29,7 +53,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid category ID" });
       }
       
+      const cacheKey = `product-types-${categoryId}`;
+      const cachedData = getCachedData(cacheKey);
+      
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const types = await storage.getProductTypesByCategory(categoryId);
+      setCachedData(cacheKey, types);
       res.json(types);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch product types" });
@@ -44,7 +76,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid type ID" });
       }
       
+      const cacheKey = `product-sizes-${typeId}`;
+      const cachedData = getCachedData(cacheKey);
+      
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const sizes = await storage.getProductSizesByType(typeId);
+      setCachedData(cacheKey, sizes);
       res.json(sizes);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch product sizes" });
@@ -54,7 +94,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all pricing tiers
   app.get("/api/pricing-tiers", async (req, res) => {
     try {
+      const cacheKey = "pricing-tiers";
+      const cachedData = getCachedData(cacheKey);
+      
+      if (cachedData) {
+        return res.json(cachedData);
+      }
+      
       const tiers = await storage.getPricingTiers();
+      setCachedData(cacheKey, tiers);
       res.json(tiers);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch pricing tiers" });
