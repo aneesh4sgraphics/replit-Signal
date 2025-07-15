@@ -96,16 +96,17 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
           margin: 20px 0;
         }
         .quote-header-info {
-          display: flex;
-          justify-content: space-between;
           margin-bottom: 30px;
           padding: 15px;
           background-color: #f8f9fa;
           border-radius: 8px;
         }
         .quote-field {
-          flex: 1;
+          margin-bottom: 8px;
           text-align: left;
+        }
+        .quote-field:last-child {
+          margin-bottom: 0;
         }
         .quote-field strong {
           font-weight: bold;
@@ -187,13 +188,13 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
 
       <div class="quote-header-info">
         <div class="quote-field">
-          <strong>1. Quote for:</strong> <span>${customerName}</span>
+          <strong>Quote for:</strong> <span>${customerName}</span>
         </div>
         <div class="quote-field">
-          <strong>2. Date Issued:</strong> <span>${currentDate}</span>
+          <strong>Date Issued:</strong> <span>${currentDate}</span>
         </div>
         <div class="quote-field">
-          <strong>3. Sales Rep:</strong> <span>${salesRep}</span>
+          <strong>Sales Rep:</strong> <span>${salesRep}</span>
         </div>
       </div>
 
