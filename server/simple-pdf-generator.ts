@@ -47,6 +47,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
       <td>${item.productType}</td>
       <td>${item.productSize}</td>
       <td style="text-align: center;">${item.quantity}</td>
+      <td style="text-align: center;">${item.minOrderQty || 'N/A'}</td>
       <td style="text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
       <td style="text-align: right;">$${item.total.toFixed(2)}</td>
     </tr>
@@ -123,29 +124,37 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
           border: none;
         }
         .items-table th {
-          background-color: #4a5568;
-          color: white;
+          background-color: #4a5568 !important;
+          color: white !important;
           padding: 15px 12px;
           text-align: left;
           font-weight: bold;
           border: none;
+          border-right: 1px solid #4a5568;
+        }
+        .items-table th:last-child {
+          border-right: none;
         }
         .items-table th:nth-child(1) {
           text-align: center;
-          width: 8%;
+          width: 6%;
         }
         .items-table th:nth-child(2) {
-          width: 35%;
+          width: 30%;
         }
         .items-table th:nth-child(3) {
-          width: 15%;
+          width: 12%;
         }
         .items-table th:nth-child(4) {
           text-align: center;
+          width: 10%;
+        }
+        .items-table th:nth-child(5) {
+          text-align: center;
           width: 12%;
         }
-        .items-table th:nth-child(5),
-        .items-table th:nth-child(6) {
+        .items-table th:nth-child(6),
+        .items-table th:nth-child(7) {
           text-align: right;
           width: 15%;
         }
@@ -230,6 +239,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
             <th>Product Type</th>
             <th>Size</th>
             <th>Quantity</th>
+            <th>Min Order Qty</th>
             <th>Price/Sheet</th>
             <th>Total</th>
           </tr>
@@ -237,7 +247,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         <tbody>
           ${itemRows}
           <tr class="total-row">
-            <td colspan="5" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total Amount:</td>
+            <td colspan="6" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total Amount:</td>
             <td style="text-align: right; font-weight: bold; padding: 15px 12px;">
               <span class="total-amount">$${totalAmount.toFixed(2)}</span>
             </td>
