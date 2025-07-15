@@ -36,8 +36,17 @@ interface ProductSize {
 
 interface PricingTier {
   id: number;
+  name: string;
+  description: string;
   minSquareMeters: string;
   maxSquareMeters: string;
+  pricePerSquareMeter: string;
+}
+
+interface ProductPricing {
+  id: number;
+  typeId: number;
+  tierId: number;
   pricePerSquareMeter: string;
 }
 
@@ -75,6 +84,11 @@ export default function QuoteCalculator() {
 
   const { data: pricingTiers } = useQuery<PricingTier[]>({
     queryKey: ["/api/pricing-tiers"],
+  });
+
+  const { data: productPricing } = useQuery<ProductPricing[]>({
+    queryKey: ["/api/product-pricing", selectedType],
+    enabled: !!selectedType,
   });
 
   const calculateCustomSize = async () => {
@@ -168,6 +182,24 @@ export default function QuoteCalculator() {
       return `${customWidth}${customWidthUnit === 'inch' ? '"' : "'"} × ${customHeight}${customHeightUnit === 'inch' ? '"' : "'"}`;
     }
     return selectedSize?.name || "-";
+  };
+
+  const getSelectedCategoryName = () => {
+    if (!selectedCategory || !categories) return '-';
+    const category = categories.find(c => c.id.toString() === selectedCategory);
+    return category ? category.name : '-';
+  };
+
+  const getSelectedTypeName = () => {
+    if (!selectedType || !types) return '-';
+    const type = types.find(t => t.id.toString() === selectedType);
+    return type ? type.name : '-';
+  };
+
+  const getMinOrderQuantity = () => {
+    if (!selectedSize?.minOrderQty) return 50;
+    const match = selectedSize.minOrderQty.match(/\d+/);
+    return match ? parseInt(match[0]) : 50;
   };
 
   const resetSelections = () => {
@@ -277,35 +309,30 @@ export default function QuoteCalculator() {
           </CardHeader>
           <CardContent className="p-6">
             {selectedType && sizes ? (
-              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 mb-6">
-                {sizes.map((size) => (
-                  <div
-                    key={size.id}
-                    className={`border rounded-lg p-4 cursor-pointer transition-all duration-200 hover:border-primary ${
-                      selectedSize?.id === size.id && !isCustomSize ? 'border-primary bg-primary/5' : 'border-border'
-                    }`}
-                    onClick={() => handleSizeSelect(size)}
-                  >
-                    <div className="flex items-center justify-between mb-2">
-                      <span className="font-medium">{size.name}</span>
-                      <div className={`w-4 h-4 border-2 rounded-full ${
-                        selectedSize?.id === size.id && !isCustomSize ? 'border-primary bg-primary' : 'border-muted-foreground'
-                      }`} />
-                    </div>
-                    <div className="text-sm text-muted-foreground">
-                      <span className="block">{parseFloat(size.squareMeters).toFixed(2)} sq.m</span>
-                      {size.itemCode && (
-                        <span className="block text-xs">Code: {size.itemCode}</span>
-                      )}
-                      {size.minOrderQty && (
-                        <span className="block text-xs">Min: {size.minOrderQty}</span>
-                      )}
-                      <span className="block text-primary font-medium">
-                        {selectedTier ? `Tier pricing applies` : 'Select pricing tier'}
-                      </span>
-                    </div>
-                  </div>
-                ))}
+              <div className="space-y-2 mb-6">
+                <Label htmlFor="size">Product Size</Label>
+                <Select value={selectedSize?.id.toString() || ""} onValueChange={(value) => {
+                  const size = sizes.find(s => s.id.toString() === value);
+                  if (size) {
+                    handleSizeSelect(size);
+                  }
+                }}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select Size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {sizes.map((size) => (
+                      <SelectItem key={size.id} value={size.id.toString()}>
+                        <div className="flex items-center justify-between w-full">
+                          <span>{size.name}</span>
+                          <span className="text-muted-foreground text-sm ml-2">
+                            {parseFloat(size.squareMeters).toFixed(3)} sq.m
+                          </span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
               </div>
             ) : (
               <div className="text-center text-muted-foreground py-8">
@@ -402,82 +429,93 @@ export default function QuoteCalculator() {
             </div>
           </CardContent>
 
-          {/* Price Calculation */}
-          <CardHeader className="border-b">
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5 text-primary" />
-              Price Calculation
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="p-6 bg-muted/50">
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-              {/* Calculation Details */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Calculation Details</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Selected Product:</span>
-                    <span className="font-medium">{getSelectedProductName()}</span>
+          {/* Quote Summary */}
+          {selectedSize && selectedType && selectedCategory && (
+            <>
+              <CardHeader className="border-b">
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-primary" />
+                  QUOTE SUMMARY
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6">
+                <div className="text-sm text-muted-foreground mb-6">
+                  Using default pricing.
+                </div>
+                
+                {/* Product Details */}
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-6 mb-6">
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Product Brand:</span>
+                      <span className="text-muted-foreground">{getSelectedCategoryName()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Product Type:</span>
+                      <span className="text-muted-foreground">{getSelectedTypeName()}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Product Size:</span>
+                      <span className="text-muted-foreground">{getSelectedSizeName()}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Size:</span>
-                    <span className="font-medium">{getSelectedSizeName()}</span>
+                  <div className="space-y-3">
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total Sqm:</span>
+                      <span className="text-muted-foreground">{getCurrentSquareMeters().toFixed(3)} sqm</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Total Quantity:</span>
+                      <div className="flex items-center gap-2">
+                        <span className="w-8 h-8 border border-red-500 rounded text-center text-red-500 font-bold text-sm leading-8">
+                          {quantity}
+                        </span>
+                      </div>
+                    </div>
+                    <div className="flex justify-between">
+                      <span className="font-medium">Min. Order Qty:</span>
+                      <span className="text-muted-foreground">{selectedSize?.minOrderQty || 'N/A'}</span>
+                    </div>
                   </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Square Meters:</span>
-                    <span className="font-medium">
-                      {getCurrentSquareMeters() > 0 ? `${getCurrentSquareMeters().toFixed(2)} sq.m` : '-'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Price per sq.m:</span>
-                    <span className="font-medium text-primary">
-                      {selectedTier ? `Tier-based pricing` : 'Select pricing tier'}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Quantity:</span>
-                    <span className="font-medium">{quantity}</span>
-                  </div>
-                  <Separator />
-                  <div className="flex justify-between">
-                    <span className="text-muted-foreground">Unit Price:</span>
-                    <span className="font-medium">${getUnitPrice().toFixed(2)}</span>
-                  </div>
-                </CardContent>
-              </Card>
+                </div>
 
-              {/* Total Price */}
-              <Card>
-                <CardHeader>
-                  <CardTitle className="text-lg">Total Price</CardTitle>
-                </CardHeader>
-                <CardContent>
-                  <div className="text-center">
-                    <div className="text-4xl font-bold text-primary mb-2">
-                      ${getTotalPrice().toFixed(2)}
-                    </div>
-                    <div className="text-muted-foreground mb-6">
-                      Total for {quantity} item(s)
-                    </div>
-                    
-                    <div className="space-y-3">
-                      <Button className="w-full" size="lg">
-                        <FileText className="mr-2 h-4 w-4" />
-                        Generate Quote
-                      </Button>
-                      <Button variant="outline" className="w-full" size="lg">
-                        <Save className="mr-2 h-4 w-4" />
-                        Save Calculation
-                      </Button>
+                {/* Pricing Table */}
+                <div className="border rounded-lg overflow-hidden">
+                  <div className="bg-muted/50 border-b">
+                    <div className="grid grid-cols-5 gap-4 p-4 text-sm font-medium">
+                      <div>Pricing Tier</div>
+                      <div className="text-center">$/m²</div>
+                      <div className="text-center">Price/Sheet</div>
+                      <div className="text-center">Min. Order Qty Price</div>
+                      <div className="text-center">Add</div>
                     </div>
                   </div>
-                </CardContent>
-              </Card>
-            </div>
-          </CardContent>
+                  <div className="divide-y">
+                    {pricingTiers?.map((tier) => {
+                      const pricing = productPricing?.find(p => p.tierId === tier.id);
+                      const pricePerSqm = pricing ? parseFloat(pricing.pricePerSquareMeter) : 0;
+                      const pricePerSheet = pricePerSqm * getCurrentSquareMeters();
+                      const minOrderPrice = pricePerSheet * (getMinOrderQuantity() || 1);
+                      
+                      return (
+                        <div key={tier.id} className="grid grid-cols-5 gap-4 p-4 text-sm items-center">
+                          <div className="font-medium">{tier.name}</div>
+                          <div className="text-center">${pricePerSqm.toFixed(2)}</div>
+                          <div className="text-center">${pricePerSheet.toFixed(2)}</div>
+                          <div className="text-center font-medium">${minOrderPrice.toFixed(2)}</div>
+                          <div className="text-center">
+                            <Button size="sm" className="w-8 h-8 rounded-full p-0">
+                              <span className="text-lg font-bold">+</span>
+                            </Button>
+                          </div>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </CardContent>
+            </>
+          )}
         </Card>
 
         {/* Footer */}

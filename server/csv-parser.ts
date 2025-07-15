@@ -222,22 +222,8 @@ export function parseProductData(): {
     if (type) {
       const sizeKey = `${typeKey}|${product.Size}`;
       if (!sizeMap.has(sizeKey)) {
-        // Debug: log the size before parsing
-        if (product.Size === '8.5"x11"') {
-          console.log('Raw size from CSV:', JSON.stringify(product.Size));
-          console.log('Characters:');
-          for (let i = 0; i < product.Size.length; i++) {
-            console.log('  ', i, ':', product.Size[i], 'code:', product.Size.charCodeAt(i));
-          }
-        }
-        
         const { width, height, widthUnit, heightUnit } = parseSize(product.Size);
         const squareMeters = calculateSquareMeters(width, height, widthUnit, heightUnit);
-        
-        // Debug: log the parsed size details
-        if (width === 12 && height === 18) {
-          console.log('Size parsing failed for:', product.Size, 'Got default values');
-        }
         
         sizeMap.set(sizeKey, {
           id: sizeId++,

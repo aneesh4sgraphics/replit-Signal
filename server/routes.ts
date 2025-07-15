@@ -54,6 +54,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product pricing by type ID
+  app.get("/api/product-pricing/:typeId", async (req, res) => {
+    try {
+      const typeId = parseInt(req.params.typeId);
+      if (isNaN(typeId)) {
+        return res.status(400).json({ error: "Invalid type ID" });
+      }
+      
+      const pricing = await storage.getProductPricingByType(typeId);
+      res.json(pricing);
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch product pricing" });
+    }
+  });
+
   // Get price for specific square meters with product type and tier
   app.get("/api/price/:squareMeters/:typeId/:tierId", async (req, res) => {
     try {
