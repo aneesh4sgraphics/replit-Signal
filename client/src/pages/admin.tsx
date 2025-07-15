@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Upload, FileText, CheckCircle, AlertCircle, Settings, Calendar, Mail, Download, Eye } from "lucide-react";
+import { Upload, FileText, CheckCircle, AlertCircle, Settings, Calendar, Mail, Download, Eye, ArrowLeft } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery } from "@tanstack/react-query";
 import { Badge } from "@/components/ui/badge";
+import { Link } from "wouter";
 import { 
   Table, 
   TableBody, 
@@ -249,15 +250,24 @@ export default function Admin() {
   return (
     <div className="min-h-screen py-8 px-4 sm:px-6 lg:px-8 bg-background">
       <div className="max-w-4xl mx-auto">
-        {/* Header */}
-        <div className="text-center mb-8">
-          <h1 className="text-3xl font-bold text-secondary mb-2 flex items-center justify-center gap-2">
-            <Settings className="h-8 w-8" />
-            Admin Panel
-          </h1>
-          <p className="text-muted-foreground">
-            Upload and manage CSV data files for the quote calculator
-          </p>
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between mb-8">
+          <Link href="/">
+            <Button variant="outline" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-secondary mb-2 flex items-center justify-center gap-2">
+              <Settings className="h-8 w-8" />
+              Admin Panel
+            </h1>
+            <p className="text-muted-foreground">
+              Upload and manage CSV data files for the quote calculator
+            </p>
+          </div>
+          <div className="w-32"></div> {/* Spacer for centering */}
         </div>
 
         {/* Important Notice */}

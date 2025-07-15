@@ -7,10 +7,11 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, Box, Ruler, Layers, FileText, Save, Trash2, Mail, Download, User, MapPin, Tag, Settings } from "lucide-react";
+import { Calculator, Box, Ruler, Layers, FileText, Save, Trash2, Mail, Download, User, MapPin, Tag, Settings, ArrowLeft, Home } from "lucide-react";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from "@/components/ui/dialog";
 import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Link } from "wouter";
 
 interface ProductCategory {
   id: number;
@@ -463,6 +464,21 @@ export default function QuoteCalculator() {
   return (
     <div className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
       <div className="max-w-6xl mx-auto space-y-6">
+        
+        {/* Header with Back Button */}
+        <div className="flex items-center justify-between">
+          <Link href="/">
+            <Button variant="outline" className="flex items-center gap-2">
+              <ArrowLeft className="h-4 w-4" />
+              Back to Dashboard
+            </Button>
+          </Link>
+          <div className="text-center">
+            <h1 className="text-3xl font-bold text-gray-900">Quote Calculator</h1>
+            <p className="text-gray-600">Calculate accurate quotes for your products</p>
+          </div>
+          <div className="w-32"></div> {/* Spacer for centering */}
+        </div>
         
         {/* Customer Selection Section */}
         <Card className="shadow-sm">
