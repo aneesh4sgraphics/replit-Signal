@@ -140,6 +140,45 @@ export class MemStorage implements IStorage {
       createdAt: new Date(),
       updatedAt: new Date(),
     });
+
+    // Initialize pre-approved users
+    const preApprovedUsers = [
+      {
+        id: "oscar_preapproved",
+        email: "oscar@4sgraphics.com",
+        firstName: "Oscar",
+        lastName: null,
+        role: "user",
+        status: "approved"
+      },
+      {
+        id: "santiago_preapproved",
+        email: "santiago@4sgraphics.com",
+        firstName: "Santiago",
+        lastName: null,
+        role: "user", 
+        status: "approved"
+      },
+      {
+        id: "patricio_preapproved",
+        email: "patricio@4sgraphics.com",
+        firstName: "Patricio",
+        lastName: null,
+        role: "user",
+        status: "approved"
+      }
+    ];
+
+    preApprovedUsers.forEach(userData => {
+      this.users.set(userData.id, {
+        ...userData,
+        profileImageUrl: null,
+        approvedBy: "system",
+        approvedAt: new Date(),
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+    });
     
     this.initializeData();
   }

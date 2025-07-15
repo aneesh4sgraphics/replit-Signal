@@ -62,7 +62,16 @@ async function upsertUser(claims: any) {
     throw new Error("Only 4sgraphics.com email addresses are allowed");
   }
   
+  // List of pre-approved emails
+  const preApprovedEmails = [
+    "aneesh@4sgraphics.com",
+    "oscar@4sgraphics.com", 
+    "santiago@4sgraphics.com",
+    "patricio@4sgraphics.com"
+  ];
+  
   const isAdmin = email === "aneesh@4sgraphics.com";
+  const isPreApproved = preApprovedEmails.includes(email);
   
   // Extract first name from email if not provided
   const firstName = claims["first_name"] || email.split('@')[0] || null;
@@ -74,7 +83,7 @@ async function upsertUser(claims: any) {
     lastName: claims["last_name"],
     profileImageUrl: claims["profile_image_url"],
     role: isAdmin ? "admin" : "user",
-    status: isAdmin ? "approved" : "pending",
+    status: isPreApproved ? "approved" : "pending",
   });
   
   await storage.upsertUser({
@@ -84,9 +93,9 @@ async function upsertUser(claims: any) {
     lastName: claims["last_name"] || null,
     profileImageUrl: claims["profile_image_url"] || null,
     role: isAdmin ? "admin" : "user",
-    status: isAdmin ? "approved" : "pending",
-    approvedBy: isAdmin ? "system" : null,
-    approvedAt: isAdmin ? new Date() : null,
+    status: isPreApproved ? "approved" : "pending",
+    approvedBy: isPreApproved ? "system" : null,
+    approvedAt: isPreApproved ? new Date() : null,
   });
 }
 
