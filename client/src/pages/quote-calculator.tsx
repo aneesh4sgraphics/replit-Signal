@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Separator } from "@/components/ui/separator";
 import { Badge } from "@/components/ui/badge";
-import { Calculator, Box, Ruler, Layers, FileText, Save } from "lucide-react";
+import { Calculator, Box, Ruler, Layers, FileText, Save, Trash2, Mail, Download } from "lucide-react";
 import { apiRequest } from "@/lib/queryClient";
 
 interface ProductCategory {
@@ -55,6 +55,20 @@ interface CustomSizeCalculation {
   price: number;
 }
 
+interface QuoteItem {
+  id: string;
+  productBrand: string;
+  productType: string;
+  productSize: string;
+  squareMeters: number;
+  pricePerSheet: number;
+  quantity: number;
+  total: number;
+  tierId: number;
+  tierName: string;
+  minOrderQty: string;
+}
+
 export default function QuoteCalculator() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedType, setSelectedType] = useState<string>("");
@@ -67,6 +81,7 @@ export default function QuoteCalculator() {
   const [customHeightUnit, setCustomHeightUnit] = useState<string>("inch");
   const [customCalculation, setCustomCalculation] = useState<CustomSizeCalculation | null>(null);
   const [isCustomSize, setIsCustomSize] = useState<boolean>(false);
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
 
   const { data: categories } = useQuery<ProductCategory[]>({
     queryKey: ["/api/product-categories"],
@@ -210,6 +225,69 @@ export default function QuoteCalculator() {
     setCustomWidth("");
     setCustomHeight("");
     setCustomCalculation(null);
+  };
+
+  const addToQuote = async () => {
+    if (!selectedCategory || !selectedType || (!selectedSize && !isCustomSize)) return;
+
+    // We'll add the item with the "Retail" tier pricing by default
+    const retailTier = pricingTiers?.find(tier => tier.name === "Retail");
+    if (!retailTier) return;
+
+    const squareMeters = getCurrentSquareMeters();
+    const pricePerSqm = await getPriceForTier(retailTier.id);
+    const pricePerSheet = squareMeters * pricePerSqm;
+    const total = pricePerSheet * quantity;
+
+    const newItem: QuoteItem = {
+      id: Date.now().toString(),
+      productBrand: getSelectedCategoryName(),
+      productType: getSelectedTypeName(),
+      productSize: getSelectedSizeName(),
+      squareMeters,
+      pricePerSheet,
+      quantity,
+      total,
+      tierId: retailTier.id,
+      tierName: retailTier.name,
+      minOrderQty: selectedSize?.minOrderQty || "50"
+    };
+
+    setQuoteItems(prev => [...prev, newItem]);
+  };
+
+  const removeFromQuote = (itemId: string) => {
+    setQuoteItems(prev => prev.filter(item => item.id !== itemId));
+  };
+
+  const updateQuantity = (itemId: string, newQuantity: number) => {
+    setQuoteItems(prev => 
+      prev.map(item => 
+        item.id === itemId 
+          ? { ...item, quantity: newQuantity, total: item.pricePerSheet * newQuantity }
+          : item
+      )
+    );
+  };
+
+  const getPriceForTier = async (tierId: number): Promise<number> => {
+    if (!selectedType) return 0;
+    
+    try {
+      const squareMeters = getCurrentSquareMeters();
+      const response = await fetch(`/api/price/${squareMeters}/${selectedType}/${tierId}`);
+      if (response.ok) {
+        const data = await response.json();
+        return data.pricePerSqm;
+      }
+    } catch (error) {
+      console.error("Failed to fetch pricing:", error);
+    }
+    return 0;
+  };
+
+  const getQuoteTotal = () => {
+    return quoteItems.reduce((sum, item) => sum + item.total, 0);
   };
 
   return (
@@ -460,7 +538,11 @@ export default function QuoteCalculator() {
                           <div className="text-center">${pricePerSheet.toFixed(2)}</div>
                           <div className="text-center font-medium">${minOrderPrice.toFixed(2)}</div>
                           <div className="text-center">
-                            <Button size="sm" className="w-8 h-8 rounded-full p-0">
+                            <Button 
+                              size="sm" 
+                              className="w-8 h-8 rounded-full p-0"
+                              onClick={() => addToQuote()}
+                            >
                               <span className="text-lg font-bold">+</span>
                             </Button>
                           </div>
@@ -473,6 +555,105 @@ export default function QuoteCalculator() {
             </>
           )}
         </Card>
+
+        {/* Added Items to Quote */}
+        {quoteItems.length > 0 && (
+          <Card className="shadow-lg mt-6">
+            <CardHeader className="border-b bg-muted/50">
+              <CardTitle className="flex items-center gap-2">
+                <FileText className="h-5 w-5 text-primary" />
+                Added Items to Quote
+              </CardTitle>
+              <p className="text-sm text-muted-foreground">
+                Review your finalized items and overall pricing.
+              </p>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 text-sm font-medium">
+                  <Box className="h-4 w-4" />
+                  Sheet Products
+                </div>
+                
+                {/* Quote Items Table */}
+                <div className="rounded-lg border overflow-hidden">
+                  <div className="bg-purple-800 text-white">
+                    <div className="grid grid-cols-6 gap-4 p-4 text-sm font-medium">
+                      <div>Product</div>
+                      <div>Details</div>
+                      <div className="text-center">Qty</div>
+                      <div className="text-center">Price/Sheet</div>
+                      <div className="text-center">Total</div>
+                      <div className="text-center">Actions</div>
+                    </div>
+                  </div>
+                  
+                  <div className="divide-y">
+                    {quoteItems.map((item) => (
+                      <div key={item.id} className="grid grid-cols-6 gap-4 p-4 text-sm items-center">
+                        <div className="font-medium">
+                          {item.productBrand}
+                          <sup>®</sup> {item.productType}
+                        </div>
+                        <div className="text-muted-foreground">
+                          <div>{item.productBrand}<sup>®</sup> {item.productType} {item.productSize.split('×')[0]}</div>
+                          <div>Size: {item.productSize}</div>
+                          <div>Added as: {item.tierName}</div>
+                        </div>
+                        <div className="text-center">
+                          <Input
+                            type="number"
+                            value={item.quantity}
+                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                            className="w-16 text-center"
+                            min="1"
+                          />
+                        </div>
+                        <div className="text-center font-medium">
+                          ${item.pricePerSheet.toFixed(2)}
+                        </div>
+                        <div className="text-center font-medium">
+                          ${item.total.toFixed(2)}
+                        </div>
+                        <div className="text-center">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => removeFromQuote(item.id)}
+                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+                
+                {/* Quote Total */}
+                <div className="flex justify-end">
+                  <div className="text-right">
+                    <div className="text-lg font-medium">
+                      Total: <span className="text-xl font-bold">${getQuoteTotal().toFixed(2)}</span>
+                    </div>
+                  </div>
+                </div>
+                
+                {/* Action Buttons */}
+                <div className="flex justify-end gap-3 pt-4">
+                  <Button variant="outline" className="flex items-center gap-2">
+                    <Mail className="h-4 w-4" />
+                    Email Quote
+                  </Button>
+                  <Button className="flex items-center gap-2 bg-purple-800 hover:bg-purple-900">
+                    <Download className="h-4 w-4" />
+                    Generate PDF of Full Quote
+                  </Button>
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Footer */}
         <div className="text-center mt-8 text-muted-foreground">
