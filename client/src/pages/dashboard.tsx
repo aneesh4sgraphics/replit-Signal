@@ -28,7 +28,8 @@ export default function Dashboard() {
     );
   }
 
-  const firstName = user.firstName || "User";
+  // Extract first name from user data
+  const firstName = user.firstName || user.email?.split('@')[0] || "User";
   
   // Get time-based greeting
   const getGreeting = () => {

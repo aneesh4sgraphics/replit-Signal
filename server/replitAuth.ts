@@ -64,12 +64,25 @@ async function upsertUser(claims: any) {
   
   const isAdmin = email === "aneesh@4sgraphics.com";
   
+  // Extract first name from email if not provided
+  const firstName = claims["first_name"] || email.split('@')[0] || null;
+  
+  console.log("Upserting user with data:", {
+    id: claims["sub"],
+    email: claims["email"],
+    firstName: firstName,
+    lastName: claims["last_name"],
+    profileImageUrl: claims["profile_image_url"],
+    role: isAdmin ? "admin" : "user",
+    status: isAdmin ? "approved" : "pending",
+  });
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
-    firstName: claims["first_name"],
-    lastName: claims["last_name"],
-    profileImageUrl: claims["profile_image_url"],
+    firstName: firstName,
+    lastName: claims["last_name"] || null,
+    profileImageUrl: claims["profile_image_url"] || null,
     role: isAdmin ? "admin" : "user",
     status: isAdmin ? "approved" : "pending",
     approvedBy: isAdmin ? "system" : null,
