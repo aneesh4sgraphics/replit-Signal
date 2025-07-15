@@ -40,18 +40,29 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
     day: 'numeric'
   });
 
+  // Check if any item has quantity below minimum order quantity
+  const hasMinOrderQtyDisplay = quoteItems.some(item => {
+    const minOrderQty = parseInt(item.minOrderQty) || 50;
+    return item.quantity < minOrderQty;
+  });
+
   // Generate table rows for quote items
-  const itemRows = quoteItems.map((item, index) => `
-    <tr>
-      <td>${index + 1}</td>
-      <td>${item.productType}</td>
-      <td>${item.productSize}</td>
-      <td>${item.quantity}</td>
-      <td>${item.minOrderQty || 'N/A'}</td>
-      <td>$${item.pricePerSheet.toFixed(2)}</td>
-      <td>$${item.total.toFixed(2)}</td>
-    </tr>
-  `).join('');
+  const itemRows = quoteItems.map((item, index) => {
+    const minOrderQty = parseInt(item.minOrderQty) || 50;
+    const isMinOrderQtyActive = item.quantity < minOrderQty;
+    
+    return `
+      <tr>
+        <td>${index + 1}</td>
+        <td>${item.productType}</td>
+        <td>${item.productSize}</td>
+        <td>${item.quantity}</td>
+        ${hasMinOrderQtyDisplay ? `<td>${isMinOrderQtyActive ? minOrderQty : '-'}</td>` : ''}
+        <td>$${item.pricePerSheet.toFixed(2)}</td>
+        <td>$${item.total.toFixed(2)}</td>
+      </tr>
+    `;
+  }).join('');
 
   const logoBase64 = getLogoBase64();
   const logoHtml = logoBase64 ? `<img src="data:image/jpeg;base64,${logoBase64}" alt="4S Graphics Logo" style="height: 60px; margin-right: 20px;">` : '';
@@ -156,27 +167,22 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
           -webkit-print-color-adjust: exact !important;
           print-color-adjust: exact !important;
         }
-        .items-table th:nth-child(1) {
-          width: 8%;
-        }
-        .items-table th:nth-child(2) {
-          width: 25%;
-        }
-        .items-table th:nth-child(3) {
-          width: 12%;
-        }
-        .items-table th:nth-child(4) {
-          width: 12%;
-        }
-        .items-table th:nth-child(5) {
-          width: 18%;
-        }
-        .items-table th:nth-child(6) {
-          width: 12%;
-        }
-        .items-table th:nth-child(7) {
-          width: 13%;
-        }
+        ${hasMinOrderQtyDisplay ? `
+        .items-table th:nth-child(1) { width: 8%; }
+        .items-table th:nth-child(2) { width: 25%; }
+        .items-table th:nth-child(3) { width: 12%; }
+        .items-table th:nth-child(4) { width: 12%; }
+        .items-table th:nth-child(5) { width: 18%; }
+        .items-table th:nth-child(6) { width: 12%; }
+        .items-table th:nth-child(7) { width: 13%; }
+        ` : `
+        .items-table th:nth-child(1) { width: 8%; }
+        .items-table th:nth-child(2) { width: 30%; }
+        .items-table th:nth-child(3) { width: 15%; }
+        .items-table th:nth-child(4) { width: 15%; }
+        .items-table th:nth-child(5) { width: 16%; }
+        .items-table th:nth-child(6) { width: 16%; }
+        `}
         .items-table td {
           padding: 12px 8px;
           border: none;
@@ -275,7 +281,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
             <th>Product</th>
             <th>Size</th>
             <th>Quantity</th>
-            <th>Min Order Quantity</th>
+            ${hasMinOrderQtyDisplay ? '<th>Min Order Quantity</th>' : ''}
             <th>Price/Sheet</th>
             <th>Total</th>
           </tr>
@@ -283,7 +289,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         <tbody>
           ${itemRows}
           <tr class="total-row">
-            <td colspan="6" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total</td>
+            <td colspan="${hasMinOrderQtyDisplay ? '6' : '5'}" style="text-align: right; font-weight: bold; padding: 15px 12px;">Total</td>
             <td style="text-align: center; font-weight: bold; padding: 15px 12px;">
               <span class="total-amount">$${totalAmount.toFixed(2)}</span>
             </td>

@@ -303,7 +303,11 @@ export default function QuoteCalculator() {
     const squareMeters = getCurrentSquareMeters();
     const pricePerSqm = await getPriceForTier(targetTier.id);
     const pricePerSheet = squareMeters * pricePerSqm;
-    const total = pricePerSheet * quantity;
+    const minOrderQty = selectedSize?.minOrderQty || "50";
+    const minOrderQtyNum = parseInt(minOrderQty) || 50;
+    // Use the higher of user quantity or minimum order quantity for total calculation
+    const effectiveQuantity = Math.max(quantity, minOrderQtyNum);
+    const total = pricePerSheet * effectiveQuantity;
 
     const newItem: QuoteItem = {
       id: Date.now().toString(),
@@ -316,7 +320,7 @@ export default function QuoteCalculator() {
       total,
       tierId: targetTier.id,
       tierName: targetTier.name,
-      minOrderQty: selectedSize?.minOrderQty || "50"
+      minOrderQty
     };
 
     setQuoteItems(prev => [...prev, newItem]);
@@ -328,11 +332,20 @@ export default function QuoteCalculator() {
 
   const updateQuantity = (itemId: string, newQuantity: number) => {
     setQuoteItems(prev => 
-      prev.map(item => 
-        item.id === itemId 
-          ? { ...item, quantity: newQuantity, total: item.pricePerSheet * newQuantity }
-          : item
-      )
+      prev.map(item => {
+        if (item.id === itemId) {
+          // Get minimum order quantity from the string
+          const minOrderQty = parseInt(item.minOrderQty) || 50;
+          // Use the higher of user quantity or minimum order quantity for total calculation
+          const effectiveQuantity = Math.max(newQuantity, minOrderQty);
+          return { 
+            ...item, 
+            quantity: newQuantity, 
+            total: item.pricePerSheet * effectiveQuantity 
+          };
+        }
+        return item;
+      })
     );
   };
 
@@ -354,6 +367,13 @@ export default function QuoteCalculator() {
 
   const getQuoteTotal = () => {
     return quoteItems.reduce((sum, item) => sum + item.total, 0);
+  };
+
+  const hasMinOrderQtyDisplay = () => {
+    return quoteItems.some(item => {
+      const minOrderQty = parseInt(item.minOrderQty) || 50;
+      return item.quantity < minOrderQty;
+    });
   };
 
   const handlePDFGeneration = async () => {
@@ -844,10 +864,11 @@ www.4sgraphics.com`;
                 {/* Quote Items Table */}
                 <div className="border rounded-lg overflow-hidden">
                   <div className="bg-purple-800 text-white">
-                    <div className="grid grid-cols-6 gap-4 p-4 text-sm font-medium">
+                    <div className={`grid gap-4 p-4 text-sm font-medium ${hasMinOrderQtyDisplay() ? 'grid-cols-7' : 'grid-cols-6'}`}>
                       <div>Product</div>
                       <div>Details</div>
                       <div className="text-center">Qty</div>
+                      {hasMinOrderQtyDisplay() && <div className="text-center">Min Order Qty</div>}
                       <div className="text-center">Price/Sheet</div>
                       <div className="text-center">Total</div>
                       <div className="text-center">Actions</div>
@@ -855,43 +876,57 @@ www.4sgraphics.com`;
                   </div>
                   
                   <div className="divide-y">
-                    {quoteItems.map((item) => (
-                      <div key={item.id} className="grid grid-cols-6 gap-4 p-4 text-sm items-center">
-                        <div className="font-medium">
-                          {item.productBrand}
+                    {quoteItems.map((item) => {
+                      const minOrderQty = parseInt(item.minOrderQty) || 50;
+                      const isMinOrderQtyActive = item.quantity < minOrderQty;
+                      
+                      return (
+                        <div key={item.id} className={`grid gap-4 p-4 text-sm items-center ${hasMinOrderQtyDisplay() ? 'grid-cols-7' : 'grid-cols-6'}`}>
+                          <div className="font-medium">
+                            {item.productBrand}
+                          </div>
+                          <div className="text-muted-foreground">
+                            <div>Type: {item.productType}</div>
+                            <div>Size: {item.productSize}</div>
+                            <div>Added as: {item.tierName}</div>
+                          </div>
+                          <div className="text-center">
+                            <Input
+                              type="number"
+                              value={item.quantity}
+                              onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
+                              className="w-16 text-center"
+                              min="1"
+                            />
+                          </div>
+                          {hasMinOrderQtyDisplay() && (
+                            <div className="text-center font-medium">
+                              {isMinOrderQtyActive ? (
+                                <span className="text-orange-600 font-bold">{minOrderQty}</span>
+                              ) : (
+                                <span className="text-muted-foreground">-</span>
+                              )}
+                            </div>
+                          )}
+                          <div className="text-center font-medium">
+                            ${item.pricePerSheet.toFixed(2)}
+                          </div>
+                          <div className="text-center font-medium">
+                            ${item.total.toFixed(2)}
+                          </div>
+                          <div className="text-center">
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              onClick={() => removeFromQuote(item.id)}
+                              className="text-red-500 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </div>
                         </div>
-                        <div className="text-muted-foreground">
-                          <div>Type: {item.productType}</div>
-                          <div>Size: {item.productSize}</div>
-                          <div>Added as: {item.tierName}</div>
-                        </div>
-                        <div className="text-center">
-                          <Input
-                            type="number"
-                            value={item.quantity}
-                            onChange={(e) => updateQuantity(item.id, parseInt(e.target.value) || 1)}
-                            className="w-16 text-center"
-                            min="1"
-                          />
-                        </div>
-                        <div className="text-center font-medium">
-                          ${item.pricePerSheet.toFixed(2)}
-                        </div>
-                        <div className="text-center font-medium">
-                          ${item.total.toFixed(2)}
-                        </div>
-                        <div className="text-center">
-                          <Button
-                            size="sm"
-                            variant="ghost"
-                            onClick={() => removeFromQuote(item.id)}
-                            className="text-red-500 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </div>
-                      </div>
-                    ))}
+                      );
+                    })}
                   </div>
                 </div>
                 
