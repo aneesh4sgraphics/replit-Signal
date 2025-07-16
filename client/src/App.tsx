@@ -4,6 +4,7 @@ import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
+import AppHeader from "@/components/AppHeader";
 import QuoteCalculator from "@/pages/quote-calculator";
 import AreaPricer from "@/pages/area-pricer";
 import CompetitorPricing from "@/pages/competitor-pricing";
@@ -45,14 +46,17 @@ function Router() {
           </div>
         )} />
       ) : (
-        <>
-          <Route path="/" component={Dashboard} />
-          <Route path="/quote-calculator" component={QuoteCalculator} />
-          <Route path="/area-pricer" component={AreaPricer} />
-          <Route path="/competitor-pricing" component={CompetitorPricing} />
-          <Route path="/admin" component={Admin} />
-          <Route component={NotFound} />
-        </>
+        <div className="min-h-screen bg-gray-50">
+          <AppHeader />
+          <Switch>
+            <Route path="/" component={Dashboard} />
+            <Route path="/quote-calculator" component={QuoteCalculator} />
+            <Route path="/area-pricer" component={AreaPricer} />
+            <Route path="/competitor-pricing" component={CompetitorPricing} />
+            <Route path="/admin" component={Admin} />
+            <Route component={NotFound} />
+          </Switch>
+        </div>
       )}
     </Switch>
   );
