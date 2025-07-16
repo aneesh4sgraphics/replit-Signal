@@ -86,6 +86,10 @@ async function upsertUser(claims: any) {
     status: isPreApproved ? "approved" : "pending",
   });
   
+  // Get current user to increment login count
+  const currentUser = await storage.getUser(claims["sub"]);
+  const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
+  
   await storage.upsertUser({
     id: claims["sub"],
     email: claims["email"],
@@ -96,6 +100,8 @@ async function upsertUser(claims: any) {
     status: isPreApproved ? "approved" : "pending",
     approvedBy: isPreApproved ? "system" : null,
     approvedAt: isPreApproved ? new Date() : null,
+    loginCount: (currentUser?.loginCount || 0) + 1,
+    lastLoginDate: currentDate,
   });
 }
 

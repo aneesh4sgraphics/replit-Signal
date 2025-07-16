@@ -10,11 +10,14 @@ export default function Dashboard() {
   const { user, isLoading } = useAuth();
   const [showWelcome, setShowWelcome] = useState(false);
   const [hasShownWelcome, setHasShownWelcome] = useState(false);
+  const [hasShownQuote, setHasShownQuote] = useState(false);
 
   useEffect(() => {
     if (user && !hasShownWelcome) {
       setShowWelcome(true);
       setHasShownWelcome(true);
+      // Mark that we haven't shown the quote yet for this session
+      setHasShownQuote(false);
     }
   }, [user, hasShownWelcome]);
 
@@ -119,6 +122,7 @@ export default function Dashboard() {
       {showWelcome && (
         <WelcomeAnimation
           userName={firstName}
+          user={user}
           onComplete={() => setShowWelcome(false)}
         />
       )}
@@ -129,9 +133,17 @@ export default function Dashboard() {
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{getGreeting()}, {firstName}!</h2>
           <p className="text-gray-600 mb-3">Select a tool below to get started.</p>
-          <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 p-4 rounded-lg">
-            <p className="text-sm font-medium text-gray-700 italic">"{getDailyQuote()}"</p>
-          </div>
+          {!hasShownQuote && (
+            <div className="bg-gradient-to-r from-blue-50 to-purple-50 border-l-4 border-blue-500 p-4 rounded-lg">
+              <p className="text-sm font-medium text-gray-700 italic">"{getDailyQuote()}"</p>
+            </div>
+          )}
+          
+          {/* Auto-hide quote after 5 seconds */}
+          {!hasShownQuote && (() => {
+            setTimeout(() => setHasShownQuote(true), 5000);
+            return null;
+          })()}
         </div>
 
         {/* User Tools - Single Row */}

@@ -1,191 +1,185 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Mail, Heart, Star, Trophy, ThumbsUp, Zap, CheckCircle, Send } from 'lucide-react';
+import { Mail, CheckCircle, Sparkles, Send, Star, Heart } from 'lucide-react';
 
 interface EmailCelebrationAnimationProps {
-  customerName: string;
-  onComplete: () => void;
+  isVisible: boolean;
+  onClose: () => void;
+  emailCount?: number;
+  recipientEmail?: string;
 }
 
-const celebrationMessages = [
-  "Excellent work! Your quote has been sent successfully!",
-  "Great job! Another quote on its way to your customer!",
-  "Outstanding! Your professional quote is now in their inbox!",
-  "Well done! You're building stronger customer relationships!",
-  "Fantastic! Your quote shows true professionalism!",
-  "Superb! Another step closer to closing the deal!",
-  "Amazing! Your detailed quote will impress the customer!",
-  "Perfect! Your quote reflects quality and expertise!",
-  "Brilliant! You're making great progress today!",
-  "Excellent! Your customer will appreciate this quick response!"
-];
+const FloatingIcon = ({ icon: Icon, delay = 0 }: { icon: any; delay?: number }) => (
+  <motion.div
+    className="absolute text-3xl"
+    initial={{ 
+      opacity: 0, 
+      scale: 0,
+      rotate: -180,
+      x: Math.random() * 100 - 50,
+      y: Math.random() * 100 - 50
+    }}
+    animate={{ 
+      opacity: [0, 1, 0],
+      scale: [0, 1.2, 0],
+      rotate: [0, 360],
+      y: [0, -80]
+    }}
+    transition={{ 
+      duration: 2.5,
+      delay: delay,
+      ease: "easeOut"
+    }}
+    style={{
+      left: `${Math.random() * 80 + 10}%`,
+      top: `${Math.random() * 80 + 10}%`,
+      color: `hsl(${Math.random() * 360}, 70%, 60%)`
+    }}
+  >
+    <Icon />
+  </motion.div>
+);
 
-const followUpMotivations = [
-  "Follow up in 2-3 days to show your commitment!",
-  "A quick follow-up call can make all the difference!",
-  "Stay connected - follow up to build trust!",
-  "Great salespeople always follow up professionally!",
-  "Your follow-up shows you care about their business!",
-  "Follow up with confidence - you've got this!",
-  "Persistence pays off - follow up to win the deal!",
-  "A thoughtful follow-up sets you apart from competitors!",
-  "Your follow-up could be the key to closing this sale!",
-  "Follow up with enthusiasm - success is within reach!"
-];
-
-const EmailCelebrationAnimation: React.FC<EmailCelebrationAnimationProps> = ({ customerName, onComplete }) => {
+const EmailCelebrationAnimation: React.FC<EmailCelebrationAnimationProps> = ({ 
+  isVisible, 
+  onClose, 
+  emailCount = 1, 
+  recipientEmail = "customer" 
+}) => {
+  const [showFireworks, setShowFireworks] = useState(false);
   const [currentStep, setCurrentStep] = useState(0);
-  const [showParticles, setShowParticles] = useState(false);
-  
-  const celebrationMessage = celebrationMessages[Math.floor(Math.random() * celebrationMessages.length)];
-  const followUpMessage = followUpMotivations[Math.floor(Math.random() * followUpMotivations.length)];
 
   useEffect(() => {
-    const timer1 = setTimeout(() => setCurrentStep(1), 600);
-    const timer2 = setTimeout(() => setShowParticles(true), 1000);
-    const timer3 = setTimeout(() => setCurrentStep(2), 2500);
-    const timer4 = setTimeout(() => setCurrentStep(3), 4500);
-    const timer5 = setTimeout(() => onComplete(), 6500);
+    if (isVisible) {
+      const timer1 = setTimeout(() => setCurrentStep(1), 500);
+      const timer2 = setTimeout(() => setShowFireworks(true), 1000);
+      const timer3 = setTimeout(() => setCurrentStep(2), 1500);
+      const timer4 = setTimeout(() => onClose(), 3000);
 
-    return () => {
-      clearTimeout(timer1);
-      clearTimeout(timer2);
-      clearTimeout(timer3);
-      clearTimeout(timer4);
-      clearTimeout(timer5);
-    };
-  }, [onComplete]);
+      return () => {
+        clearTimeout(timer1);
+        clearTimeout(timer2);
+        clearTimeout(timer3);
+        clearTimeout(timer4);
+      };
+    }
+  }, [isVisible, onClose]);
 
-  const floatingIcons = [
-    { icon: Mail, color: "text-blue-500", delay: 0 },
-    { icon: Heart, color: "text-red-500", delay: 0.2 },
-    { icon: Star, color: "text-yellow-500", delay: 0.4 },
-    { icon: Trophy, color: "text-orange-500", delay: 0.6 },
-    { icon: ThumbsUp, color: "text-green-500", delay: 0.8 },
-    { icon: Zap, color: "text-purple-500", delay: 1.0 },
-    { icon: CheckCircle, color: "text-teal-500", delay: 1.2 },
-    { icon: Send, color: "text-indigo-500", delay: 1.4 }
+  if (!isVisible) return null;
+
+  const celebrationMessages = [
+    "Email sent successfully! 🎉",
+    "Quote delivered! ✨",
+    "Another happy customer! 🚀",
+    "Professional quote on its way! 📧"
   ];
+
+  const message = celebrationMessages[Math.floor(Math.random() * celebrationMessages.length)];
 
   return (
     <AnimatePresence>
-      <motion.div
-        initial={{ opacity: 0 }}
-        animate={{ opacity: 1 }}
-        exit={{ opacity: 0 }}
-        className="fixed inset-0 bg-gradient-to-br from-green-400 via-blue-500 to-purple-600 flex items-center justify-center z-50"
-      >
-        <div className="text-center text-white relative">
-          
-          {/* Floating celebration icons */}
-          {showParticles && (
-            <div className="absolute inset-0 pointer-events-none">
-              {floatingIcons.map((item, index) => (
-                <motion.div
-                  key={index}
-                  className={`absolute ${item.color}`}
-                  initial={{ 
-                    opacity: 0, 
-                    scale: 0, 
-                    x: Math.random() * 800 - 400,
-                    y: Math.random() * 600 - 300
-                  }}
-                  animate={{ 
-                    opacity: [0, 1, 1, 0],
-                    scale: [0, 1.5, 1.5, 0],
-                    y: [0, -50, -100, -150],
-                    rotate: [0, 360, 720, 1080]
-                  }}
-                  transition={{ 
-                    duration: 3,
-                    delay: item.delay,
-                    repeat: Infinity,
-                    repeatDelay: 2
-                  }}
-                >
-                  <item.icon size={40} />
-                </motion.div>
-              ))}
-            </div>
-          )}
-
-          {/* Step 1: Success Message */}
-          {currentStep >= 1 && (
-            <motion.div
-              initial={{ opacity: 0, y: 30 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.6 }}
-              className="mb-8"
-            >
-              <motion.div
-                animate={{ scale: [1, 1.1, 1] }}
-                transition={{ duration: 0.5, repeat: 2 }}
-                className="text-5xl mb-4"
-              >
-                🎉
-              </motion.div>
-              <h1 className="text-3xl font-bold mb-4 text-shadow-lg">
-                Quote Sent Successfully!
-              </h1>
-              <p className="text-xl font-medium opacity-90">
-                {celebrationMessage}
-              </p>
-            </motion.div>
-          )}
-
-          {/* Step 2: Customer specific celebration */}
-          {currentStep >= 2 && (
-            <motion.div
-              initial={{ opacity: 0, scale: 0.8 }}
-              animate={{ opacity: 1, scale: 1 }}
-              transition={{ duration: 0.5 }}
-              className="mb-8"
-            >
-              <div className="bg-white/20 backdrop-blur-sm rounded-lg p-6 border border-white/30">
-                <h2 className="text-2xl font-semibold mb-3">
-                  Your quote is now with {customerName}!
-                </h2>
-                <p className="text-lg opacity-90">
-                  They'll be impressed by your professionalism and attention to detail.
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Step 3: Follow-up motivation */}
-          {currentStep >= 3 && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              transition={{ duration: 0.5 }}
-              className="mb-8"
-            >
-              <div className="bg-gradient-to-r from-yellow-400/20 to-orange-500/20 backdrop-blur-sm rounded-lg p-6 border border-yellow-300/30">
-                <div className="flex items-center justify-center mb-3">
-                  <Trophy className="w-8 h-8 text-yellow-300 mr-2" />
-                  <h3 className="text-xl font-bold">Pro Tip</h3>
-                </div>
-                <p className="text-lg font-medium">
-                  {followUpMessage}
-                </p>
-              </div>
-            </motion.div>
-          )}
-
-          {/* Success checkmark animation */}
+      {isVisible && (
+        <motion.div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center z-50"
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+        >
           <motion.div
-            initial={{ scale: 0 }}
-            animate={{ scale: currentStep >= 1 ? 1 : 0 }}
-            transition={{ duration: 0.3, delay: 0.2 }}
-            className="absolute -top-10 left-1/2 transform -translate-x-1/2"
+            className="bg-white rounded-2xl p-8 max-w-md mx-4 text-center shadow-2xl relative overflow-hidden"
+            initial={{ scale: 0.5, opacity: 0, y: 50 }}
+            animate={{ scale: 1, opacity: 1, y: 0 }}
+            exit={{ scale: 0.8, opacity: 0, y: -20 }}
+            transition={{ type: "spring", damping: 20, stiffness: 300 }}
           >
-            <div className="w-16 h-16 bg-green-500 rounded-full flex items-center justify-center">
-              <CheckCircle className="w-10 h-10 text-white" />
-            </div>
-          </motion.div>
+            {/* Fireworks Effect */}
+            {showFireworks && (
+              <div className="absolute inset-0 pointer-events-none">
+                {[...Array(6)].map((_, i) => (
+                  <FloatingIcon
+                    key={i}
+                    icon={[Mail, CheckCircle, Sparkles, Send, Star, Heart][i]}
+                    delay={i * 0.2}
+                  />
+                ))}
+              </div>
+            )}
 
-        </div>
-      </motion.div>
+            {/* Success Icon */}
+            <motion.div
+              className="w-16 h-16 bg-green-100 rounded-full flex items-center justify-center mx-auto mb-4"
+              initial={{ scale: 0, rotate: -180 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ delay: 0.2, type: "spring", damping: 10 }}
+            >
+              <CheckCircle className="w-8 h-8 text-green-600" />
+            </motion.div>
+
+            {/* Main Message */}
+            <AnimatePresence mode="wait">
+              {currentStep >= 0 && (
+                <motion.div
+                  key="message"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ delay: 0.3 }}
+                >
+                  <h3 className="text-2xl font-bold text-gray-900 mb-2">
+                    {message}
+                  </h3>
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Details */}
+            <AnimatePresence mode="wait">
+              {currentStep >= 1 && (
+                <motion.div
+                  key="details"
+                  initial={{ opacity: 0, y: 20 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  exit={{ opacity: 0, y: -20 }}
+                  transition={{ delay: 0.5 }}
+                  className="space-y-2"
+                >
+                  <p className="text-gray-600">
+                    Your professional quote has been sent to
+                  </p>
+                  <p className="text-blue-600 font-semibold">
+                    {recipientEmail}
+                  </p>
+                  {emailCount > 1 && (
+                    <p className="text-sm text-gray-500">
+                      ({emailCount} emails sent today)
+                    </p>
+                  )}
+                </motion.div>
+              )}
+            </AnimatePresence>
+
+            {/* Success Message */}
+            <AnimatePresence mode="wait">
+              {currentStep >= 2 && (
+                <motion.div
+                  key="success"
+                  initial={{ opacity: 0, scale: 0.8 }}
+                  animate={{ opacity: 1, scale: 1 }}
+                  exit={{ opacity: 0, scale: 0.8 }}
+                  transition={{ delay: 0.7 }}
+                  className="mt-4"
+                >
+                  <div className="p-3 bg-green-50 border border-green-200 rounded-lg">
+                    <p className="text-sm text-green-700 font-medium">
+                      Keep up the great work! 🌟
+                    </p>
+                  </div>
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </motion.div>
+      )}
     </AnimatePresence>
   );
 };

@@ -63,6 +63,8 @@ export const users = pgTable("users", {
   status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected'
   approvedBy: varchar("approved_by"),
   approvedAt: timestamp("approved_at"),
+  loginCount: integer("login_count").default(0),
+  lastLoginDate: varchar("last_login_date"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

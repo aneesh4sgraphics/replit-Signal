@@ -1,9 +1,11 @@
 import React, { useState, useEffect } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Star, Heart, Coffee, Sun, Zap } from 'lucide-react';
+import { Sparkles, Star, Heart, Coffee, Sun, Zap, Clock, Snail } from 'lucide-react';
+import { User } from '@shared/schema';
 
 interface WelcomeAnimationProps {
   userName: string;
+  user: User;
   onComplete: () => void;
 }
 
@@ -21,6 +23,22 @@ const motivationalQuotes = [
   "Success is the sum of small efforts!",
   "Make today amazing!",
   "You've got this! 🔥"
+];
+
+const sarcasticMessages = [
+  "Oh, look who's back! 😏",
+  "Did you miss us? We certainly missed you... 🙄",
+  "Welcome back, stranger! 👋",
+  "Finally decided to return? 😅",
+  "We were starting to think you forgot about us! 🤔"
+];
+
+const sarcasticQuotes = [
+  "Better late than never, right?",
+  "Good things come to those who... eventually show up!",
+  "Time flies when you're having fun elsewhere!",
+  "Absence makes the heart grow fonder... or forgetful!",
+  "We kept the lights on for you! 💡"
 ];
 
 const FloatingIcon = ({ icon: Icon, delay = 0 }: { icon: any; delay?: number }) => (
@@ -54,19 +72,51 @@ const FloatingIcon = ({ icon: Icon, delay = 0 }: { icon: any; delay?: number }) 
   </motion.div>
 );
 
-const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ userName, onComplete }) => {
+const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ userName, user, onComplete }) => {
   const [currentStep, setCurrentStep] = useState(0);
   const [showFireworks, setShowFireworks] = useState(false);
+  const [animationType, setAnimationType] = useState<'normal' | 'sarcastic'>('normal');
   
-  const message = welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
-  const quote = motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
+  // Skip animation entirely after 100 logins
+  const loginCount = user.loginCount || 0;
+  if (loginCount >= 100) {
+    // Store current activity time and go straight to dashboard
+    localStorage.setItem('lastActivity', Date.now().toString());
+    onComplete();
+    return null;
+  }
+  
+  // Check if user has been away for too long (more than 30 minutes)
+  const lastActivity = localStorage.getItem('lastActivity');
+  const isReturningUser = lastActivity && (Date.now() - parseInt(lastActivity)) > 30 * 60 * 1000;
+  
+  // Determine animation speed based on login count
+  const isNewUser = loginCount <= 10;
+  const speedMultiplier = isNewUser ? 1 : 0.6; // Slower for new users, faster for experienced users
+  
+  const message = isReturningUser 
+    ? sarcasticMessages[Math.floor(Math.random() * sarcasticMessages.length)]
+    : welcomeMessages[Math.floor(Math.random() * welcomeMessages.length)];
+    
+  const quote = isReturningUser
+    ? sarcasticQuotes[Math.floor(Math.random() * sarcasticQuotes.length)]
+    : motivationalQuotes[Math.floor(Math.random() * motivationalQuotes.length)];
 
   useEffect(() => {
-    const timer1 = setTimeout(() => setCurrentStep(1), 800);
-    const timer2 = setTimeout(() => setCurrentStep(2), 3000);
-    const timer3 = setTimeout(() => setShowFireworks(true), 3500);
-    const timer4 = setTimeout(() => setCurrentStep(3), 5000);
-    const timer5 = setTimeout(() => onComplete(), 7000);
+    if (isReturningUser) {
+      setAnimationType('sarcastic');
+    }
+    
+    // Adaptive timing based on login count
+    const timer1 = setTimeout(() => setCurrentStep(1), 800 * speedMultiplier);
+    const timer2 = setTimeout(() => setCurrentStep(2), 3000 * speedMultiplier);
+    const timer3 = setTimeout(() => setShowFireworks(true), 3500 * speedMultiplier);
+    const timer4 = setTimeout(() => setCurrentStep(3), 5000 * speedMultiplier);
+    const timer5 = setTimeout(() => {
+      // Store current activity time
+      localStorage.setItem('lastActivity', Date.now().toString());
+      onComplete();
+    }, 7000 * speedMultiplier);
 
     return () => {
       clearTimeout(timer1);
@@ -75,168 +125,196 @@ const WelcomeAnimation: React.FC<WelcomeAnimationProps> = ({ userName, onComplet
       clearTimeout(timer4);
       clearTimeout(timer5);
     };
-  }, [onComplete]);
+  }, [onComplete, speedMultiplier, isReturningUser]);
+
+  const containerVariants = {
+    hidden: { opacity: 0 },
+    visible: { 
+      opacity: 1,
+      transition: {
+        duration: 0.8,
+        ease: "easeOut"
+      }
+    },
+    exit: { 
+      opacity: 0,
+      scale: 0.8,
+      transition: {
+        duration: 0.5,
+        ease: "easeIn"
+      }
+    }
+  };
+
+  const textVariants = {
+    hidden: { 
+      opacity: 0, 
+      y: 30,
+      scale: 0.8
+    },
+    visible: { 
+      opacity: 1, 
+      y: 0,
+      scale: 1,
+      transition: {
+        duration: 0.8,
+        ease: "easeOut"
+      }
+    }
+  };
 
   return (
     <motion.div
-      className="fixed inset-0 bg-gradient-to-br from-blue-500 via-purple-500 to-pink-500 flex items-center justify-center z-50"
-      initial={{ opacity: 0 }}
-      animate={{ opacity: 1 }}
-      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-gradient-to-br from-blue-900 via-purple-900 to-indigo-900 flex items-center justify-center z-50"
+      variants={containerVariants}
+      initial="hidden"
+      animate="visible"
+      exit="exit"
     >
-      {/* Animated Background Particles */}
-      <div className="absolute inset-0 overflow-hidden">
-        {[...Array(20)].map((_, i) => (
+      <div className="relative text-center text-white max-w-2xl mx-auto px-8">
+        {/* Login Count Indicator for New Users */}
+        {isNewUser && (
           <motion.div
-            key={i}
-            className="absolute w-2 h-2 bg-white rounded-full"
-            initial={{ 
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
-              scale: 0
-            }}
-            animate={{
-              scale: [0, 1, 0],
-              opacity: [0, 1, 0],
-              x: Math.random() * window.innerWidth,
-              y: Math.random() * window.innerHeight,
-            }}
-            transition={{
-              duration: 3,
-              repeat: Infinity,
-              delay: Math.random() * 2,
-            }}
-          />
-        ))}
-      </div>
+            className="absolute -top-16 left-1/2 transform -translate-x-1/2 flex items-center gap-2 text-yellow-300 text-sm"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Snail className="w-4 h-4" />
+            <span>Login #{user.loginCount || 1} - Taking it slow for readability</span>
+          </motion.div>
+        )}
 
-      {/* Fireworks */}
-      {showFireworks && (
-        <div className="absolute inset-0">
-          {[Sparkles, Star, Heart, Coffee, Sun, Zap].map((Icon, i) => (
-            <FloatingIcon key={i} icon={Icon} delay={i * 0.2} />
-          ))}
-        </div>
-      )}
+        {/* Sarcastic Indicator for Returning Users */}
+        {isReturningUser && (
+          <motion.div
+            className="absolute -top-16 left-1/2 transform -translate-x-1/2 flex items-center gap-2 text-orange-300 text-sm"
+            initial={{ opacity: 0, y: -20 }}
+            animate={{ opacity: 1, y: 0 }}
+            transition={{ delay: 0.5 }}
+          >
+            <Clock className="w-4 h-4" />
+            <span>Long time no see! 😏</span>
+          </motion.div>
+        )}
 
-      {/* Main Content */}
-      <div className="text-center text-white z-10">
+        {/* Welcome Message */}
         <AnimatePresence mode="wait">
           {currentStep >= 0 && (
             <motion.div
               key="welcome"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -50, opacity: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut" }}
+              variants={textVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              className="mb-8"
             >
-              <motion.h1 
-                className="text-6xl font-bold mb-4"
-                animate={{ 
-                  scale: [1, 1.1, 1],
-                  textShadow: [
-                    "0 0 20px rgba(255,255,255,0.5)",
-                    "0 0 40px rgba(255,255,255,0.8)",
-                    "0 0 20px rgba(255,255,255,0.5)"
-                  ]
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                Hello, {userName}!
-              </motion.h1>
+              <h1 className="text-5xl font-bold bg-gradient-to-r from-yellow-400 via-pink-400 to-purple-400 bg-clip-text text-transparent mb-4">
+                {userName}
+              </h1>
+              <p className={`text-2xl ${animationType === 'sarcastic' ? 'text-orange-300' : 'text-blue-300'}`}>
+                {message}
+              </p>
             </motion.div>
           )}
+        </AnimatePresence>
 
+        {/* Motivational Message */}
+        <AnimatePresence mode="wait">
           {currentStep >= 1 && (
             <motion.div
-              key="message"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -50, opacity: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.3 }}
+              key="motivation"
+              variants={textVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              className="mb-8"
             >
-              <motion.p 
-                className="text-2xl mb-6"
-                animate={{ 
-                  y: [0, -10, 0],
-                }}
-                transition={{ 
-                  duration: 1.5,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                {message}
-              </motion.p>
+              <div className={`p-6 rounded-2xl ${animationType === 'sarcastic' ? 'bg-orange-500/20 border-orange-400/30' : 'bg-blue-500/20 border-blue-400/30'} border backdrop-blur-sm`}>
+                <p className="text-xl text-white/90 font-medium">
+                  {quote}
+                </p>
+              </div>
             </motion.div>
           )}
+        </AnimatePresence>
 
+        {/* Daily Quote */}
+        <AnimatePresence mode="wait">
           {currentStep >= 2 && (
             <motion.div
               key="quote"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              exit={{ y: -50, opacity: 0 }}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.6 }}
+              variants={textVariants}
+              initial="hidden"
+              animate="visible"
+              exit="hidden"
+              className="mb-8"
             >
-              <motion.p 
-                className="text-lg italic opacity-90"
-                animate={{ 
-                  opacity: [0.7, 1, 0.7],
-                }}
-                transition={{ 
-                  duration: 2,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                "{quote}"
-              </motion.p>
+              <div className="p-4 rounded-xl bg-gradient-to-r from-purple-500/20 to-pink-500/20 border border-purple-400/30 backdrop-blur-sm">
+                <p className="text-lg text-purple-200 italic">
+                  {animationType === 'sarcastic' 
+                    ? `"Productivity tip: Actually using the app helps with productivity!" 😉`
+                    : `"Today's productivity starts with the first click!" ⚡`
+                  }
+                </p>
+              </div>
             </motion.div>
           )}
+        </AnimatePresence>
 
+        {/* Fireworks Effect */}
+        {showFireworks && (
+          <div className="absolute inset-0 pointer-events-none">
+            {[...Array(8)].map((_, i) => (
+              <FloatingIcon
+                key={i}
+                icon={animationType === 'sarcastic' ? Clock : [Sparkles, Star, Heart, Coffee, Sun, Zap][i % 6]}
+                delay={i * 0.3}
+              />
+            ))}
+          </div>
+        )}
+
+        {/* Loading Indicator */}
+        <AnimatePresence mode="wait">
           {currentStep >= 3 && (
             <motion.div
-              key="enter"
-              initial={{ y: 50, opacity: 0 }}
-              animate={{ y: 0, opacity: 1 }}
-              transition={{ duration: 0.8, ease: "easeOut", delay: 0.9 }}
+              key="loading"
+              initial={{ opacity: 0, scale: 0.8 }}
+              animate={{ opacity: 1, scale: 1 }}
+              exit={{ opacity: 0, scale: 0.8 }}
+              className="mt-12"
             >
-              <motion.p 
-                className="text-xl mt-8"
-                animate={{ 
-                  scale: [1, 1.05, 1],
-                }}
-                transition={{ 
-                  duration: 1,
-                  repeat: Infinity,
-                  ease: "easeInOut"
-                }}
-              >
-                Entering your workspace...
-              </motion.p>
+              <div className="flex items-center justify-center gap-3">
+                <div className="flex gap-2">
+                  {[...Array(3)].map((_, i) => (
+                    <motion.div
+                      key={i}
+                      className="w-3 h-3 bg-white rounded-full"
+                      animate={{
+                        scale: [1, 1.2, 1],
+                        opacity: [0.5, 1, 0.5]
+                      }}
+                      transition={{
+                        duration: 1,
+                        delay: i * 0.2,
+                        repeat: Infinity,
+                        ease: "easeInOut"
+                      }}
+                    />
+                  ))}
+                </div>
+                <p className="text-white/70">
+                  {animationType === 'sarcastic' 
+                    ? "Dusting off your workspace..."
+                    : "Preparing your workspace..."
+                  }
+                </p>
+              </div>
             </motion.div>
           )}
         </AnimatePresence>
       </div>
-
-      {/* Pulse Animation */}
-      <motion.div
-        className="absolute inset-0 bg-white rounded-full opacity-10"
-        animate={{
-          scale: [0, 4],
-          opacity: [0.3, 0],
-        }}
-        transition={{
-          duration: 2,
-          repeat: Infinity,
-          ease: "easeOut"
-        }}
-      />
     </motion.div>
   );
 };
