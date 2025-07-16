@@ -320,6 +320,54 @@ export default function Admin() {
     }
   };
 
+  const downloadCompetitorPricing = () => {
+    const competitorData = localStorage.getItem('competitorData');
+    if (!competitorData) {
+      toast({
+        title: "No Data",
+        description: "No competitor pricing data available",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const parsedData = JSON.parse(competitorData);
+    const headers = ["Source", "Type", "Dimensions", "Pack Qty", "Input Price", "Thickness", "Product Kind", "Surface Finish", "Supplier", "Info From", "Price/in²", "Price/ft²", "Price/m²", "Notes", "Date"];
+    const csvContent = [
+      headers.join(","),
+      ...parsedData.map((item: any) => [
+        item.source,
+        item.type,
+        item.dimensions,
+        item.packQty,
+        `$${item.inputPrice.toFixed(2)}`,
+        `"${item.thickness}"`,
+        `"${item.productKind}"`,
+        `"${item.surfaceFinish}"`,
+        `"${item.supplierInfo}"`,
+        `"${item.infoReceivedFrom}"`,
+        `$${item.pricePerSqIn.toFixed(4)}`,
+        `$${item.pricePerSqFt.toFixed(4)}`,
+        `$${item.pricePerSqMeter.toFixed(4)}`,
+        `"${item.notes}"`,
+        new Date(item.timestamp).toLocaleDateString()
+      ].join(","))
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `competitor-pricing-data-${new Date().toISOString().split('T')[0]}.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+    
+    toast({
+      title: "Success",
+      description: "Competitor pricing data downloaded successfully",
+    });
+  };
+
   const getStatusIcon = (status: 'idle' | 'success' | 'error') => {
     switch (status) {
       case 'success':
@@ -710,6 +758,40 @@ export default function Admin() {
                     </span>
                   </div>
                 )}
+              </div>
+            </CardContent>
+          </Card>
+
+          {/* Competitor Pricing Data Download */}
+          <Card className="shadow-lg">
+            <CardHeader className="border-b">
+              <CardTitle className="flex items-center gap-2">
+                <TrendingUp className="h-5 w-5 text-primary" />
+                Competitor Pricing Data
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6">
+              <div className="space-y-4">
+                <div className="text-sm text-muted-foreground">
+                  <p className="mb-2">
+                    <strong>Source:</strong> Data collected from Area Pricer calculations
+                  </p>
+                  <p className="mb-2">
+                    <strong>Contains:</strong> Pricing information, product details, supplier info, and pricing per unit
+                  </p>
+                  <p>
+                    <strong>Format:</strong> CSV with all calculation details including dimensions, pricing tiers, and source information
+                  </p>
+                </div>
+
+                <Button
+                  onClick={downloadCompetitorPricing}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Competitor Pricing Data
+                </Button>
               </div>
             </CardContent>
           </Card>

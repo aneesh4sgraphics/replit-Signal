@@ -156,14 +156,16 @@ export default function Dashboard() {
             </Card>
 
             {/* Competitor Prices */}
-            <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white opacity-50 h-full">
-              <CardHeader className="text-center pb-3 pt-4">
-                <div className="w-12 h-12 mx-auto mb-2 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <TrendingUp className="w-6 h-6 text-orange-600" />
-                </div>
-                <CardTitle className="text-sm">Competitor Prices</CardTitle>
-              </CardHeader>
-            </Card>
+            <Link href="/competitor-pricing">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white h-full">
+                <CardHeader className="text-center pb-3 pt-4">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-orange-100 rounded-lg flex items-center justify-center">
+                    <TrendingUp className="w-6 h-6 text-orange-600" />
+                  </div>
+                  <CardTitle className="text-sm">Competitor Prices</CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
 
             {/* Area Pricer */}
             <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white opacity-50 h-full">
