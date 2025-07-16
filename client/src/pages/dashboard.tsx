@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield } from "lucide-react";
+import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield, Package } from "lucide-react";
 import { Link } from "wouter";
 
 export default function Dashboard() {
