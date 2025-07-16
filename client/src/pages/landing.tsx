@@ -10,12 +10,16 @@ export default function Landing() {
             <img 
               src={logo} 
               alt="4S Graphics Logo" 
-              className="w-32 h-32 mx-auto object-contain"
+              className="w-24 h-24 mx-auto object-contain"
             />
           </div>
-          <h1 className="text-2xl font-bold text-gray-900 mb-8">
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Employee Login
           </h1>
+          <p className="text-gray-600 text-sm mb-8 leading-relaxed">
+            Access pricing tools, quote generation, and customer management<br />
+            for 4S Graphics team members and authorized partners
+          </p>
           <Button 
             size="lg" 
             onClick={() => window.location.href = "/api/login"}
