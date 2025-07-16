@@ -199,6 +199,9 @@ export default function PriceList() {
       const squareMeters = parseFloat(item.size.squareMeters);
       const basePrice = pricePerSqm * squareMeters;
       
+      // Debug logging
+      console.log(`Product: ${item.size.name}, Price/SqM: ${pricePerSqm}, SqM: ${squareMeters}, Base Price: ${basePrice}, Tier: ${selectedTierData?.name}`);
+      
       // Apply 99-cent rounding only to the total price for retail pricing tier
       const adjustedPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
         ? roundToNinetyNine(basePrice) 
