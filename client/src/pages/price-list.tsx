@@ -191,24 +191,27 @@ export default function PriceList() {
       }));
     }) : [];
 
-  // Get price for selected tier
-  const getPriceForTier = (item: PriceListItem, tierId: number) => {
+  // Get price per sheet for selected tier
+  const getPricePerSheet = (item: PriceListItem, tierId: number) => {
     const tierPricing = item.pricing.find((p: ProductPricing) => p.tierId === tierId);
     if (tierPricing) {
-      // The CSV "pricePerSquareMeter" is actually the price per sheet in the system
-      const pricePerSheet = parseFloat(tierPricing.pricePerSquareMeter);
-      
-      // Debug logging
-      console.log(`Product: ${item.size.name}, Price per sheet: ${pricePerSheet}, Tier: ${selectedTierData?.name}`);
-      
-      // Apply 99-cent rounding only to the total price for retail pricing tier
-      const adjustedPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
-        ? roundToNinetyNine(pricePerSheet) 
-        : pricePerSheet;
-        
-      return adjustedPrice;
+      return parseFloat(tierPricing.pricePerSquareMeter);
     }
     return 0;
+  };
+
+  // Get price per pack (price per sheet × min order quantity) with rounding for retail
+  const getPricePerPack = (item: PriceListItem, tierId: number) => {
+    const pricePerSheet = getPricePerSheet(item, tierId);
+    const minOrderQty = parseInt(item.size.minOrderQty || "1");
+    const basePackPrice = pricePerSheet * minOrderQty;
+    
+    // Apply 99-cent rounding only to pack price for retail pricing tier
+    const adjustedPackPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
+      ? roundToNinetyNine(basePackPrice) 
+      : basePackPrice;
+      
+    return adjustedPackPrice;
   };
 
   // Generate price list function
@@ -820,17 +823,14 @@ export default function PriceList() {
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Size</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Item Code</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Min Qty</th>
-                                <th className="text-right py-3 px-4 font-medium text-gray-700">Price/Sq.M</th>
-                                <th className="text-right py-3 px-4 font-medium text-gray-700">Total Price</th>
+                                <th className="text-right py-3 px-4 font-medium text-gray-700">Price/Sheet</th>
+                                <th className="text-right py-3 px-4 font-medium text-gray-700">Price Per Pack</th>
                               </tr>
                             </thead>
                             <tbody>
                               {typeItems.map((item, index) => {
-                                const price = getPriceForTier(item, parseInt(selectedTier));
-                                const basePricePerSqm = item.pricing.find((p: ProductPricing) => p.tierId === parseInt(selectedTier))?.pricePerSquareMeter || "0";
-                                
-                                // Keep the price per square meter unchanged from CSV data
-                                const pricePerSqm = parseFloat(basePricePerSqm);
+                                const pricePerSheet = getPricePerSheet(item, parseInt(selectedTier));
+                                const pricePerPack = getPricePerPack(item, parseInt(selectedTier));
                                 
                                 const rowId = `${item.size.id}-${item.type.id}`;
                                 
@@ -850,10 +850,10 @@ export default function PriceList() {
                                     </td>
                                     <td className="py-3 px-4 text-sm">{item.size.minOrderQty}</td>
                                     <td className="py-3 px-4 text-sm text-right font-medium">
-                                      ${pricePerSqm.toFixed(2)}
+                                      ${pricePerSheet.toFixed(2)}
                                     </td>
                                     <td className="py-3 px-4 text-sm text-right font-bold text-green-600">
-                                      ${price.toFixed(2)}
+                                      ${pricePerPack.toFixed(2)}
                                     </td>
                                   </tr>
                                 );
