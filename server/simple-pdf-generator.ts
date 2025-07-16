@@ -128,10 +128,12 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         }
         
         .quote-info {
-          display: flex;
-          justify-content: space-between;
           margin-bottom: 30px;
           font-size: 12px;
+        }
+        
+        .quote-info div {
+          margin-bottom: 5px;
         }
         
         .price-quote-title {
@@ -218,11 +220,12 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
             <div class="company-address">Phone: ${companyDetails.phone} | Website: https://${companyDetails.website}/</div>
           </div>
         </div>
-        <div class="quote-date">Quote Date: ${currentDate}</div>
       </div>
       
       <div class="quote-info">
         <div>Quote Prepared for: ${customerName}</div>
+        <div>Quote Number: ${quoteNumber}</div>
+        <div>Quote Date: ${currentDate}</div>
       </div>
       
       <div class="price-quote-title">PRICE QUOTE</div>
@@ -258,7 +261,6 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
       
       <div class="footer-info">
         <p>Quote Prepared by: ${salesRep}</p>
-        <p>Date: ${currentDate}</p>
       </div>
       
       <div class="page-number">Page 1 of 1</div>
