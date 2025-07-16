@@ -32,9 +32,10 @@ export default function AreaPricer() {
   const [height, setHeight] = useState("");
   const [sheetsPerPack, setSheetsPerPack] = useState("");
   const [pricePerPack, setPricePerPack] = useState("");
-  const [notes, setNotes] = useState("");
+
   const [calculations, setCalculations] = useState<CalculationResult[]>([]);
   const [currentResult, setCurrentResult] = useState<CalculationResult | null>(null);
+  const [editingNotes, setEditingNotes] = useState<string | null>(null);
 
   const calculatePricing = () => {
     const w = parseFloat(width);
@@ -84,7 +85,7 @@ export default function AreaPricer() {
       totalSqIn,
       totalSqFt,
       totalSqMeter,
-      notes,
+      notes: "",
       timestamp: new Date()
     };
 
@@ -99,9 +100,15 @@ export default function AreaPricer() {
       setHeight("");
       setSheetsPerPack("");
       setPricePerPack("");
-      setNotes("");
       setCurrentResult(null);
     }
+  };
+
+  const updateNotes = (id: string, newNotes: string) => {
+    setCalculations(calculations.map(calc => 
+      calc.id === id ? { ...calc, notes: newNotes } : calc
+    ));
+    setEditingNotes(null);
   };
 
   const exportToExcel = () => {
@@ -224,16 +231,7 @@ export default function AreaPricer() {
                   />
                 </div>
               </div>
-              <div className="mt-4">
-                <Label htmlFor="notes">Notes (optional)</Label>
-                <Textarea
-                  id="notes"
-                  value={notes}
-                  onChange={(e) => setNotes(e.target.value)}
-                  placeholder="Add notes..."
-                  className="resize-none"
-                />
-              </div>
+
               <Button onClick={calculatePricing} className="w-full mt-6" size="lg">
                 <Calculator className="h-4 w-4 mr-2" />
                 Calculate Pricing
@@ -329,7 +327,34 @@ export default function AreaPricer() {
                       <TableCell>${calc.pricePerSqIn.toFixed(4)}</TableCell>
                       <TableCell>${calc.pricePerSqFt.toFixed(4)}</TableCell>
                       <TableCell>${calc.pricePerSqMeter.toFixed(4)}</TableCell>
-                      <TableCell>{calc.notes}</TableCell>
+                      <TableCell className="max-w-xs">
+                        {editingNotes === calc.id ? (
+                          <div className="space-y-2">
+                            <Textarea
+                              value={calc.notes}
+                              onChange={(e) => updateNotes(calc.id, e.target.value)}
+                              placeholder="Add notes..."
+                              className="min-h-[80px] text-sm"
+                            />
+                            <div className="flex space-x-2">
+                              <Button
+                                size="sm"
+                                onClick={() => setEditingNotes(null)}
+                                variant="outline"
+                              >
+                                Done
+                              </Button>
+                            </div>
+                          </div>
+                        ) : (
+                          <div 
+                            className="cursor-pointer hover:bg-gray-50 p-1 rounded min-h-[2rem] flex items-center"
+                            onClick={() => setEditingNotes(calc.id)}
+                          >
+                            {calc.notes || <span className="text-gray-400 text-sm">Click to add notes...</span>}
+                          </div>
+                        )}
+                      </TableCell>
                     </TableRow>
                   ))}
                 </TableBody>
