@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { useAuth } from "@/hooks/useAuth";
 import QuoteCalculator from "@/pages/quote-calculator";
+import AreaPricer from "@/pages/area-pricer";
 import Admin from "@/pages/admin";
 import Dashboard from "@/pages/dashboard";
 import Landing from "@/pages/landing";
@@ -46,6 +47,7 @@ function Router() {
         <>
           <Route path="/" component={Dashboard} />
           <Route path="/quote-calculator" component={QuoteCalculator} />
+          <Route path="/area-pricer" component={AreaPricer} />
           <Route path="/admin" component={Admin} />
           <Route component={NotFound} />
         </>

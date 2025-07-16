@@ -123,6 +123,18 @@ export default function Dashboard() {
               </Card>
             </Link>
 
+            {/* Area Pricer */}
+            <Link href="/area-pricer">
+              <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white h-full">
+                <CardHeader className="text-center pb-3 pt-4">
+                  <div className="w-12 h-12 mx-auto mb-2 bg-purple-100 rounded-lg flex items-center justify-center">
+                    <Calculator className="w-6 h-6 text-purple-600" />
+                  </div>
+                  <CardTitle className="text-sm">Area Pricer</CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
+
             {/* Saved Quotes */}
             <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white opacity-50 h-full">
               <CardHeader className="text-center pb-3 pt-4">
