@@ -41,12 +41,25 @@ function Router() {
               <p className="text-gray-600 mb-4">
                 Your account is waiting for admin approval. Please contact aneesh@4sgraphics.com
               </p>
-              <button 
-                onClick={() => window.location.href = "/api/logout"}
-                className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
-              >
-                Logout
-              </button>
+              <div className="space-x-4">
+                <button 
+                  onClick={() => {
+                    import("@/lib/authHelpers").then(({ refreshAuth }) => refreshAuth());
+                    window.location.reload();
+                  }}
+                  className="bg-blue-500 text-white px-4 py-2 rounded hover:bg-blue-600"
+                >
+                  Check Status
+                </button>
+                <button 
+                  onClick={() => {
+                    import("@/lib/authHelpers").then(({ forceLogout }) => forceLogout());
+                  }}
+                  className="bg-red-500 text-white px-4 py-2 rounded hover:bg-red-600"
+                >
+                  Logout & Clear Cache
+                </button>
+              </div>
             </div>
           </div>
         )} />
