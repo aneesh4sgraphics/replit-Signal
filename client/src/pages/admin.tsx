@@ -336,6 +336,32 @@ export default function Admin() {
     }
   };
 
+  const downloadData = async (endpoint: string, filename: string) => {
+    try {
+      const response = await fetch(endpoint);
+      
+      if (!response.ok) {
+        throw new Error('Download failed');
+      }
+
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to download data",
+        variant: "destructive",
+      });
+    }
+  };
+
   const getStatusIcon = (status: 'idle' | 'success' | 'error') => {
     switch (status) {
       case 'success':
@@ -561,6 +587,15 @@ export default function Admin() {
                   )}
                 </Button>
 
+                <Button
+                  onClick={() => downloadData('/api/admin/download-product-data', 'product-data.csv')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Product Data
+                </Button>
+
                 {productUploadStatus !== 'idle' && (
                   <div className="flex items-center gap-2 text-sm">
                     {getStatusIcon(productUploadStatus)}
@@ -636,6 +671,15 @@ export default function Admin() {
                   )}
                 </Button>
 
+                <Button
+                  onClick={() => downloadData('/api/admin/download-pricing-data', 'pricing-data.csv')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Pricing Data
+                </Button>
+
                 {pricingUploadStatus !== 'idle' && (
                   <div className="flex items-center gap-2 text-sm">
                     {getStatusIcon(pricingUploadStatus)}
@@ -709,6 +753,15 @@ export default function Admin() {
                       Upload Customer Data
                     </>
                   )}
+                </Button>
+
+                <Button
+                  onClick={() => downloadData('/api/admin/download-customer-data', 'customer-data.csv')}
+                  variant="outline"
+                  className="w-full"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download Customer Data
                 </Button>
 
                 {customerUploadStatus !== 'idle' && (

@@ -457,6 +457,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Download product data
+  app.get("/api/admin/download-product-data", async (req, res) => {
+    try {
+      const filePath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data.csv');
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Product data file not found" });
+      }
+      
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="product-data.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error downloading product data:", error);
+      res.status(500).json({ error: "Failed to download product data" });
+    }
+  });
+
+  // Download pricing data
+  app.get("/api/admin/download-pricing-data", async (req, res) => {
+    try {
+      const filePath = path.join(process.cwd(), 'attached_assets', 'tier_pricing_template.csv');
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Pricing data file not found" });
+      }
+      
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="pricing-data.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error downloading pricing data:", error);
+      res.status(500).json({ error: "Failed to download pricing data" });
+    }
+  });
+
+  // Download customer data
+  app.get("/api/admin/download-customer-data", async (req, res) => {
+    try {
+      const filePath = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Customer data file not found" });
+      }
+      
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="customer-data.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error downloading customer data:", error);
+      res.status(500).json({ error: "Failed to download customer data" });
+    }
+  });
+
   // Generate PDF quote HTML
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
