@@ -3,9 +3,20 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield, Package, Truck } from "lucide-react";
 import { Link } from "wouter";
+import { useState, useEffect } from "react";
+import WelcomeAnimation from "@/components/WelcomeAnimation";
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
+  const [showWelcome, setShowWelcome] = useState(false);
+  const [hasShownWelcome, setHasShownWelcome] = useState(false);
+
+  useEffect(() => {
+    if (user && !hasShownWelcome) {
+      setShowWelcome(true);
+      setHasShownWelcome(true);
+    }
+  }, [user, hasShownWelcome]);
 
   const handleDownloadData = async () => {
     try {
@@ -60,8 +71,16 @@ export default function Dashboard() {
   };
 
   return (
-    <div className="px-4 sm:px-6 lg:px-8 py-8">
-      <div className="max-w-7xl mx-auto">
+    <>
+      {showWelcome && (
+        <WelcomeAnimation
+          userName={firstName}
+          onComplete={() => setShowWelcome(false)}
+        />
+      )}
+      
+      <div className="px-4 sm:px-6 lg:px-8 py-8">
+        <div className="max-w-7xl mx-auto">
         {/* Welcome Section */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-2">{getGreeting()}, {firstName}!</h2>
@@ -215,7 +234,8 @@ export default function Dashboard() {
             </div>
           </div>
         )}
+        </div>
       </div>
-    </div>
+    </>
   );
 }
