@@ -1437,6 +1437,9 @@ function PricingTierRow({ tier, selectedType, getCurrentSquareMeters, getMinOrde
           ? roundToNinetyNine(fetchedPrice) 
           : fetchedPrice;
         
+        // Debug logging
+        console.log('Tier name:', tier.name, 'Original price:', fetchedPrice, 'Adjusted price:', adjustedPrice, 'Is retail?', tier.name.toLowerCase().includes('retail'));
+        
         setPrice(adjustedPrice);
         
         const sqm = getCurrentSquareMeters();

@@ -47,8 +47,9 @@ export default function Dashboard() {
     );
   }
 
-  // Extract first name from user data
-  const firstName = user.firstName || user.email?.split('@')[0] || "User";
+  // Extract first name from user data and capitalize it
+  const firstName = (user.firstName || user.email?.split('@')[0] || "User")
+    .charAt(0).toUpperCase() + (user.firstName || user.email?.split('@')[0] || "User").slice(1);
   
   // Get time-based greeting
   const getGreeting = () => {
