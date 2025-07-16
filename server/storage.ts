@@ -58,6 +58,7 @@ export interface IStorage {
   getSentQuotes(): Promise<SentQuote[]>;
   getSentQuote(id: number): Promise<SentQuote | undefined>;
   createSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
+  upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
   
   // Admin methods
   reinitializeData(): Promise<void>;
@@ -353,6 +354,27 @@ export class MemStorage implements IStorage {
     };
     this.sentQuotes.set(id, newQuote);
     return newQuote;
+  }
+
+  async upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote> {
+    // Check if quote with same quote number already exists
+    const existingQuote = Array.from(this.sentQuotes.values()).find(q => q.quoteNumber === quote.quoteNumber);
+    
+    if (existingQuote) {
+      // Update existing quote
+      const updatedQuote: SentQuote = {
+        ...existingQuote,
+        ...quote,
+        sentVia: quote.sentVia || existingQuote.sentVia,
+        createdAt: existingQuote.createdAt, // Keep original creation date
+        status: quote.status || existingQuote.status
+      };
+      this.sentQuotes.set(existingQuote.id, updatedQuote);
+      return updatedQuote;
+    } else {
+      // Create new quote
+      return await this.createSentQuote(quote);
+    }
   }
 
   async reinitializeData(): Promise<void> {

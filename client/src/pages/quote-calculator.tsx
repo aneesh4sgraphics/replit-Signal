@@ -117,6 +117,7 @@ export default function QuoteCalculator() {
   const [salesRep, setSalesRep] = useState("");
   const [isPDFGenerating, setIsPDFGenerating] = useState(false);
   const [isEmailSending, setIsEmailSending] = useState(false);
+  const [currentQuoteNumber, setCurrentQuoteNumber] = useState<string | null>(null);
   const { toast } = useToast();
 
   const { data: customers } = useQuery<Customer[]>({
@@ -310,6 +311,25 @@ export default function QuoteCalculator() {
     return match ? parseInt(match[0]) : 50;
   };
 
+  const generateQuoteNumber = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    const random = Math.floor(Math.random() * 1000).toString().padStart(3, '0');
+    
+    return `4SG-${year}${month}${day}-${random}`;
+  };
+
+  const getOrCreateQuoteNumber = () => {
+    if (!currentQuoteNumber) {
+      const newQuoteNumber = generateQuoteNumber();
+      setCurrentQuoteNumber(newQuoteNumber);
+      return newQuoteNumber;
+    }
+    return currentQuoteNumber;
+  };
+
   const resetSelections = () => {
     setSelectedType("");
     setSelectedSize(null);
@@ -320,6 +340,16 @@ export default function QuoteCalculator() {
     setCustomWidthUnit("inch");
     setCustomHeightUnit("inch");
     setCustomCalculation(null);
+  };
+
+  const clearQuote = () => {
+    setQuoteItems([]);
+    setCurrentQuoteNumber(null);
+    setCustomerName("");
+    setCustomerEmail("");
+    setSalesRep("");
+    setSelectedCustomer(null);
+    setCustomerSearchTerm("");
   };
 
   const addToQuote = async (tierId?: number) => {
@@ -430,6 +460,8 @@ export default function QuoteCalculator() {
           customerName,
           customerEmail: customerEmail || undefined,
           quoteItems,
+          quoteNumber: getOrCreateQuoteNumber(),
+          sentVia: 'pdf',
         }),
       });
 
@@ -439,26 +471,8 @@ export default function QuoteCalculator() {
 
       const { html, filename } = await response.json();
       
-      // Save quote to database
-      const quoteNumber = `Q${Date.now().toString().slice(-6)}`;
-      const totalAmount = getQuoteTotal();
-      
-      try {
-        await apiRequest("POST", "/api/sent-quotes", {
-          quoteNumber,
-          customerName,
-          customerEmail: customerEmail || null,
-          quoteItems,
-          totalAmount,
-          sentVia: 'pdf'
-        });
-        
-        // Invalidate quotes cache to refresh the admin panel
-        queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
-      } catch (saveError) {
-        console.error("Error saving quote:", saveError);
-        // Continue with PDF generation even if saving fails
-      }
+      // Invalidate quotes cache to refresh the admin panel
+      queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
       
       // Create a temporary window to generate PDF
       const printWindow = window.open('', '_blank');
@@ -481,9 +495,10 @@ export default function QuoteCalculator() {
       });
 
       setShowPDFDialog(false);
-      setCustomerName("");
-      setCustomerEmail("");
-      setSalesRep("");
+      // Keep customer info for the quote session
+      // setCustomerName("");
+      // setCustomerEmail("");
+      // setSalesRep("");
     } catch (error) {
       console.error("Error generating PDF:", error);
       toast({
@@ -518,6 +533,8 @@ export default function QuoteCalculator() {
           customerName,
           customerEmail: customerEmail || undefined,
           quoteItems,
+          quoteNumber: getOrCreateQuoteNumber(),
+          sentVia: 'email',
         }),
       });
 
@@ -527,28 +544,13 @@ export default function QuoteCalculator() {
 
       const { html } = await response.json();
       
-      // Extract quote details for email
-      const quoteNumber = `Q${Date.now().toString().slice(-6)}`;
+      // Get or create quote number for this session
+      const quoteNumber = getOrCreateQuoteNumber();
       const totalAmount = getQuoteTotal();
       const quoteDate = new Date().toLocaleDateString();
       
-      // Save quote to database
-      try {
-        await apiRequest("POST", "/api/sent-quotes", {
-          quoteNumber,
-          customerName,
-          customerEmail: customerEmail || null,
-          quoteItems,
-          totalAmount,
-          sentVia: 'email'
-        });
-        
-        // Invalidate quotes cache to refresh the admin panel
-        queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
-      } catch (saveError) {
-        console.error("Error saving quote:", saveError);
-        // Continue with email generation even if saving fails
-      }
+      // Invalidate quotes cache to refresh the admin panel
+      queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
       
       // Create email content
       const emailSubject = `Quote ${quoteNumber} - ${customerName}`;
@@ -590,9 +592,10 @@ Look forward for your order!`;
       });
 
       setShowEmailDialog(false);
-      setCustomerName("");
-      setCustomerEmail("");
-      setSalesRep("");
+      // Keep customer info for the quote session
+      // setCustomerName("");
+      // setCustomerEmail("");
+      // setSalesRep("");
     } catch (error) {
       console.error("Error preparing email:", error);
       toast({

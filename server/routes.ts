@@ -500,7 +500,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate PDF quote HTML
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
-      const { customerName, customerEmail, quoteItems } = req.body;
+      const { customerName, customerEmail, quoteItems, quoteNumber, sentVia } = req.body;
       
       if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
         return res.status(400).json({ error: "Customer name and quote items are required" });
@@ -509,8 +509,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current user's email from authenticated session
       const currentUserEmail = req.user?.claims?.email || "sales@4sgraphics.com";
 
-      // Generate quote number
-      const quoteNumber = generateQuoteNumber();
+      // Use provided quote number or generate new one
+      const finalQuoteNumber = quoteNumber || generateQuoteNumber();
       
       // Calculate total
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
@@ -520,32 +520,32 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerName,
         customerEmail,
         quoteItems,
-        quoteNumber,
+        quoteNumber: finalQuoteNumber,
         totalAmount,
         salesRep: currentUserEmail
       });
       
-      // Save quote to database
-      await storage.createSentQuote({
-        quoteNumber,
+      // Save quote to database (upsert to prevent duplicates)
+      await storage.upsertSentQuote({
+        quoteNumber: finalQuoteNumber,
         customerName,
         customerEmail: customerEmail || null,
         quoteItems: JSON.stringify(quoteItems),
         totalAmount: totalAmount.toString(),
         createdAt: new Date().toISOString(),
-        sentVia: 'pdf',
+        sentVia: sentVia || 'pdf',
         status: 'sent'
       });
       
       // Generate filename with QuoteNumber-ClientName-Date format
       const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20); // Remove special chars and limit length
-      const filename = `${quoteNumber}-${sanitizedCustomerName}-${currentDate}.pdf`;
+      const filename = `${finalQuoteNumber}-${sanitizedCustomerName}-${currentDate}.pdf`;
       
       // Return HTML and quote info
       res.json({
         html: htmlContent,
-        quoteNumber,
+        quoteNumber: finalQuoteNumber,
         totalAmount,
         filename
       });
@@ -623,7 +623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Save a new quote
+  // Save a new quote or update existing method
   app.post("/api/sent-quotes", isAuthenticated, async (req: any, res) => {
     try {
       const { quoteNumber, customerName, customerEmail, quoteItems, totalAmount, sentVia } = req.body;
@@ -632,18 +632,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields" });
       }
 
-      const newQuote = await storage.createSentQuote({
-        quoteNumber,
-        customerName,
-        customerEmail: customerEmail || null,
-        quoteItems: JSON.stringify(quoteItems),
-        totalAmount: totalAmount.toString(),
-        createdAt: new Date().toISOString(),
-        sentVia,
-        status: 'sent'
-      });
+      // Check if quote already exists
+      const existingQuotes = await storage.getSentQuotes();
+      const existingQuote = existingQuotes.find(q => q.quoteNumber === quoteNumber);
       
-      res.json(newQuote);
+      if (existingQuote) {
+        // Update the existing quote with new delivery method
+        const updatedSentVia = existingQuote.sentVia.includes(sentVia) 
+          ? existingQuote.sentVia 
+          : existingQuote.sentVia + `, ${sentVia}`;
+        
+        // For now, we'll just return the existing quote since we don't have an update method
+        // In a real database, we would update the sentVia field
+        res.json(existingQuote);
+      } else {
+        // Create new quote
+        const newQuote = await storage.createSentQuote({
+          quoteNumber,
+          customerName,
+          customerEmail: customerEmail || null,
+          quoteItems: JSON.stringify(quoteItems),
+          totalAmount: totalAmount.toString(),
+          createdAt: new Date().toISOString(),
+          sentVia,
+          status: 'sent'
+        });
+        
+        res.json(newQuote);
+      }
     } catch (error) {
       console.error("Error saving quote:", error);
       res.status(500).json({ error: "Failed to save quote" });
