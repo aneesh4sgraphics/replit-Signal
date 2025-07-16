@@ -6,6 +6,9 @@ import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { TrendingUp, Filter, Plus, Download, RotateCcw } from "lucide-react";
+import { useAuth } from "@/hooks/useAuth";
+import { Link } from "wouter";
+import { toast } from "@/hooks/use-toast";
 
 interface CompetitorData {
   id: string;
@@ -27,6 +30,7 @@ interface CompetitorData {
 }
 
 export default function CompetitorPricing() {
+  const { user } = useAuth();
   const [competitorData, setCompetitorData] = useState<CompetitorData[]>([]);
   const [filteredData, setFilteredData] = useState<CompetitorData[]>([]);
   
@@ -176,13 +180,15 @@ export default function CompetitorPricing() {
             <div className="text-left">
               <h1 className="text-3xl font-bold text-gray-900">Competitor Pricing Intelligence</h1>
               <p className="text-gray-600">Track, analyze, and contribute competitor pricing information.</p>
-              <p className="text-sm text-gray-500">Logged in as: aneesh@4sgraphics.com</p>
+              <p className="text-sm text-gray-500">Logged in as: {user?.email || 'Loading...'}</p>
             </div>
           </div>
-          <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-            <Plus className="w-4 h-4 mr-2" />
-            Add New Entry
-          </Button>
+          <Link href="/area-pricer">
+            <Button className="bg-purple-600 hover:bg-purple-700 text-white">
+              <Plus className="w-4 h-4 mr-2" />
+              Add New Entry
+            </Button>
+          </Link>
         </div>
       </div>
 
