@@ -218,17 +218,14 @@ export default function PriceList() {
 
     if (!response.ok) throw new Error('Failed to generate PDF');
 
-    const data = await response.json();
-    const { html, filename } = data;
-
-    // Create a blob from the HTML content
-    const blob = new Blob([html], { type: 'text/html' });
-    const url = window.URL.createObjectURL(blob);
+    // Get the PDF blob
+    const pdfBlob = await response.blob();
+    const url = window.URL.createObjectURL(pdfBlob);
     
     // Create a temporary link element
     const link = document.createElement('a');
     link.href = url;
-    link.download = filename.replace('.pdf', '.html');
+    link.download = `${selectedCategoryData?.name}_${clientName.trim().replace(/[^a-zA-Z0-9]/g, '')}.pdf`;
     link.style.display = 'none';
     
     // Add to document, click, and remove
@@ -239,11 +236,11 @@ export default function PriceList() {
     // Clean up the URL object
     window.URL.revokeObjectURL(url);
 
-    // Show instruction to user
+    // Show success toast
     toast({
-      title: "HTML file downloaded",
-      description: "Open the downloaded HTML file in your browser and use Print → Save as PDF to create a PDF file.",
-      duration: 8000,
+      title: "PDF downloaded successfully",
+      description: "The price list has been saved to your downloads folder.",
+      duration: 3000,
     });
   };
 
