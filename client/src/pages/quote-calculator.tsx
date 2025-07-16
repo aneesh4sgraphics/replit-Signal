@@ -13,6 +13,7 @@ import { apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { Link } from "wouter";
 import { queryClient } from "@/lib/queryClient";
+import EmailCelebrationAnimation from "@/components/EmailCelebrationAnimation";
 
 // Utility function to apply brand-specific fonts to individual words
 const applyBrandFonts = (text: string): JSX.Element => {
@@ -169,6 +170,8 @@ export default function QuoteCalculator() {
   const [isPDFGenerating, setIsPDFGenerating] = useState(false);
   const [isEmailSending, setIsEmailSending] = useState(false);
   const [currentQuoteNumber, setCurrentQuoteNumber] = useState<string | null>(null);
+  const [showEmailCelebration, setShowEmailCelebration] = useState(false);
+  const [emailCelebrationCustomer, setEmailCelebrationCustomer] = useState("");
   const { toast } = useToast();
 
   const { data: customers } = useQuery<Customer[]>({
@@ -713,10 +716,9 @@ Look forward for your order!`;
       
       window.location.href = mailtoUrl;
 
-      toast({
-        title: "Success",
-        description: "Email client opened with quote details and saved to database",
-      });
+      // Show celebration animation
+      setEmailCelebrationCustomer(customerName);
+      setShowEmailCelebration(true);
 
       setShowEmailDialog(false);
       // Keep customer info for the quote session
@@ -736,8 +738,16 @@ Look forward for your order!`;
   };
 
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-      <div className="max-w-6xl mx-auto space-y-6">
+    <>
+      {showEmailCelebration && (
+        <EmailCelebrationAnimation
+          customerName={emailCelebrationCustomer}
+          onComplete={() => setShowEmailCelebration(false)}
+        />
+      )}
+      
+      <div className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
+        <div className="max-w-6xl mx-auto space-y-6">
         
         {/* Header with Back Button */}
         <div className="flex items-center justify-between">
@@ -1409,6 +1419,7 @@ Look forward for your order!`;
         )}
       </div>
     </div>
+    </>
   );
 
 }
