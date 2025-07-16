@@ -133,6 +133,22 @@ function parseSize(sizeStr: string): { width: number; height: number; widthUnit:
   return { width: 12, height: 18, widthUnit: 'inch', heightUnit: 'inch' };
 }
 
+function cleanSizeName(sizeStr: string): string {
+  // Remove extra spaces and anything in parentheses
+  let cleanSize = sizeStr.trim().replace(/\s*\([^)]*\)\s*/g, '');
+  
+  // Replace double quotes with single quotes
+  cleanSize = cleanSize.replace(/""/g, '"');
+  
+  // Clean up various quote patterns and normalize to simple format
+  cleanSize = cleanSize
+    .replace(/\u201D/g, '"')  // Replace Unicode curly quotes with regular quotes
+    .replace(/['\u2018\u2019\u201A\u2032]/g, "'")  // Replace various apostrophes with regular apostrophe
+    .replace(/[\s]*[x×][\s]*/g, 'x');  // Normalize x separator
+  
+  return cleanSize;
+}
+
 function calculateSquareMeters(width: number, height: number, widthUnit: string, heightUnit: string): number {
   const widthInches = widthUnit === 'feet' ? width * 12 : width;
   const heightInches = heightUnit === 'feet' ? height * 12 : height;
@@ -228,7 +244,7 @@ export function parseProductData(): {
         sizeMap.set(sizeKey, {
           id: sizeId++,
           typeId: type.id,
-          name: product.Size,
+          name: cleanSizeName(product.Size),
           width: width.toString(),
           height: height.toString(),
           widthUnit,
