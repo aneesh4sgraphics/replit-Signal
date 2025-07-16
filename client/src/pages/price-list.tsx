@@ -195,17 +195,16 @@ export default function PriceList() {
   const getPriceForTier = (item: PriceListItem, tierId: number) => {
     const tierPricing = item.pricing.find((p: ProductPricing) => p.tierId === tierId);
     if (tierPricing) {
-      const pricePerSqm = parseFloat(tierPricing.pricePerSquareMeter);
-      const squareMeters = parseFloat(item.size.squareMeters);
-      const basePrice = pricePerSqm * squareMeters;
+      // The CSV "pricePerSquareMeter" is actually the price per sheet in the system
+      const pricePerSheet = parseFloat(tierPricing.pricePerSquareMeter);
       
       // Debug logging
-      console.log(`Product: ${item.size.name}, Price/SqM: ${pricePerSqm}, SqM: ${squareMeters}, Base Price: ${basePrice}, Tier: ${selectedTierData?.name}`);
+      console.log(`Product: ${item.size.name}, Price per sheet: ${pricePerSheet}, Tier: ${selectedTierData?.name}`);
       
       // Apply 99-cent rounding only to the total price for retail pricing tier
       const adjustedPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
-        ? roundToNinetyNine(basePrice) 
-        : basePrice;
+        ? roundToNinetyNine(pricePerSheet) 
+        : pricePerSheet;
         
       return adjustedPrice;
     }
