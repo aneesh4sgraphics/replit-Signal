@@ -221,6 +221,39 @@ export default function AreaPricer() {
     URL.revokeObjectURL(url);
   };
 
+  const addToCompInfo = () => {
+    if (calculations.length === 0) return;
+
+    // Store calculations in localStorage for Competitor Info app
+    const compData = calculations.map(calc => ({
+      id: calc.id,
+      timestamp: calc.timestamp,
+      type: calc.type,
+      dimensions: `${calc.width} × ${calc.length} ${calc.type === "roll" ? "ft" : "in"}`,
+      packQty: calc.packQty,
+      inputPrice: calc.inputPrice,
+      thickness: calc.thickness,
+      productKind: calc.productKind,
+      surfaceFinish: calc.surfaceFinish,
+      supplierInfo: calc.supplierInfo,
+      infoReceivedFrom: calc.infoReceivedFrom,
+      pricePerSqIn: calc.pricePerSqIn,
+      pricePerSqFt: calc.pricePerSqFt,
+      pricePerSqMeter: calc.pricePerSqMeter,
+      notes: calc.notes,
+      source: "Area Pricer"
+    }));
+
+    // Get existing competitor data or create new array
+    const existingData = JSON.parse(localStorage.getItem('competitorData') || '[]');
+    const updatedData = [...existingData, ...compData];
+    
+    localStorage.setItem('competitorData', JSON.stringify(updatedData));
+    
+    // Show success message
+    alert(`Successfully added ${calculations.length} calculation(s) to Competitor Info!`);
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="text-center mb-8">
@@ -601,6 +634,26 @@ export default function AreaPricer() {
                   ))}
                 </TableBody>
               </Table>
+            </div>
+          )}
+          
+          {/* Action Buttons */}
+          {calculations.length > 0 && (
+            <div className="mt-6 flex justify-center space-x-4">
+              <Button
+                onClick={exportToExcel}
+                className="bg-green-600 hover:bg-green-700 text-white"
+              >
+                <Download className="w-4 h-4 mr-2" />
+                Export Excel
+              </Button>
+              <Button
+                onClick={addToCompInfo}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Plus className="w-4 h-4 mr-2" />
+                Add to Comp Info
+              </Button>
             </div>
           )}
         </CardContent>
