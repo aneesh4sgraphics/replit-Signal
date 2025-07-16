@@ -16,9 +16,9 @@ export default function Landing() {
           <h1 className="text-2xl font-bold text-gray-900 mb-2">
             Employee Login
           </h1>
-          <p className="text-gray-600 text-sm mb-8 leading-relaxed">
+          <p className="text-gray-600 text-xs mb-8 leading-relaxed">
             Pricing tools, quote generation, and customer management<br />
-            for 4S Graphics team members and authorized partners
+            for 4S Graphics employees only
           </p>
           <Button 
             size="lg" 
