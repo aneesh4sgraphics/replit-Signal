@@ -62,7 +62,7 @@ interface EditingCell {
 }
 
 export default function ProductManagement() {
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedCategory, setSelectedCategory] = useState<string>("all");
   const [editingCell, setEditingCell] = useState<EditingCell | null>(null);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const { toast } = useToast();
@@ -94,7 +94,7 @@ export default function ProductManagement() {
   const isLoading = categoriesLoading || typesLoading || sizesLoading || tiersLoading || pricingLoading;
 
   // Get filtered data based on selected category
-  const categoryTypes = selectedCategory 
+  const categoryTypes = selectedCategory && selectedCategory !== "all"
     ? types.filter((type: ProductType) => type.categoryId === parseInt(selectedCategory))
     : types;
 
@@ -103,7 +103,9 @@ export default function ProductManagement() {
     categoryTypeIds.includes(size.typeId)
   );
 
-  const selectedCategoryData = categories.find((c: ProductCategory) => c.id === parseInt(selectedCategory));
+  const selectedCategoryData = selectedCategory && selectedCategory !== "all" 
+    ? categories.find((c: ProductCategory) => c.id === parseInt(selectedCategory))
+    : null;
 
   // Build product data for table display
   const productData = categorySizes.map((size: ProductSize) => {
@@ -235,7 +237,7 @@ export default function ProductManagement() {
                     <SelectValue placeholder="Select category (optional)" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="">All Categories</SelectItem>
+                    <SelectItem value="all">All Categories</SelectItem>
                     {categories.map((category: ProductCategory) => (
                       <SelectItem key={category.id} value={category.id.toString()}>
                         {category.name}
@@ -247,7 +249,7 @@ export default function ProductManagement() {
               <div className="space-y-2">
                 <label className="text-sm font-medium">Filter Info</label>
                 <div className="p-2 bg-gray-100 rounded-md text-sm">
-                  {selectedCategory ? (
+                  {selectedCategory && selectedCategory !== "all" ? (
                     <span>Showing products for: <Badge variant="secondary">{selectedCategoryData?.name}</Badge></span>
                   ) : (
                     <span>Showing all products</span>
