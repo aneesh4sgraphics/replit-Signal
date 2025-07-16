@@ -4,6 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown, LogOut, Settings, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
+import logoImage from "@assets/4s logo Clean High res_1752588087394.jpg";
 
 export default function AppHeader() {
   const { user } = useAuth();
@@ -13,8 +14,12 @@ export default function AppHeader() {
       <div className="flex items-center justify-between">
         {/* Logo and Title */}
         <Link href="/" className="flex items-center space-x-3 hover:opacity-80 transition-opacity">
-          <div className="w-8 h-8 bg-green-600 rounded flex items-center justify-center">
-            <span className="text-white font-bold text-lg">4S</span>
+          <div className="w-12 h-12 flex items-center justify-center">
+            <img 
+              src={logoImage} 
+              alt="4S Graphics Logo" 
+              className="w-full h-full object-contain"
+            />
           </div>
           <div>
             <h1 className="text-xl font-semibold text-gray-900">Employee Portal</h1>
