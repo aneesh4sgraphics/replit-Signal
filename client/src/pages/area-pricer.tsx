@@ -179,7 +179,13 @@ export default function AreaPricer() {
     setCalculations(calculations.map(calc => 
       calc.id === id ? { ...calc, notes: newNotes } : calc
     ));
-    setEditingNotes(null);
+  };
+
+  const handleNotesKeyDown = (e: React.KeyboardEvent) => {
+    e.stopPropagation();
+    if (e.key === 'Escape') {
+      setEditingNotes(null);
+    }
   };
 
   const exportToExcel = () => {
@@ -557,17 +563,22 @@ export default function AreaPricer() {
                       <TableCell>${calc.pricePerSqMeter.toFixed(4)}</TableCell>
                       <TableCell className="max-w-xs">
                         {editingNotes === calc.id ? (
-                          <div className="space-y-2">
+                          <div className="space-y-2" onClick={(e) => e.stopPropagation()}>
                             <Textarea
                               value={calc.notes}
                               onChange={(e) => updateNotes(calc.id, e.target.value)}
+                              onKeyDown={handleNotesKeyDown}
                               placeholder="Add notes..."
                               className="min-h-[80px] text-sm"
+                              autoFocus
                             />
                             <div className="flex space-x-2">
                               <Button
                                 size="sm"
-                                onClick={() => setEditingNotes(null)}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setEditingNotes(null);
+                                }}
                                 variant="outline"
                               >
                                 Done
@@ -577,7 +588,10 @@ export default function AreaPricer() {
                         ) : (
                           <div 
                             className="cursor-pointer hover:bg-gray-50 p-1 rounded min-h-[2rem] flex items-center"
-                            onClick={() => setEditingNotes(calc.id)}
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingNotes(calc.id);
+                            }}
                           >
                             {calc.notes || <span className="text-gray-400 text-sm">Click to add notes...</span>}
                           </div>
