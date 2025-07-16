@@ -5,7 +5,10 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, Download, DollarSign, Package, FileText, ChevronDown } from "lucide-react";
+import { Input } from "@/components/ui/input";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+import { ArrowLeft, Download, DollarSign, Package, FileText, ChevronDown, FileDown, User } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ProductCategory {
@@ -60,6 +63,10 @@ export default function PriceList() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTier, setSelectedTier] = useState<string>("");
   const [showPriceList, setShowPriceList] = useState<boolean>(false);
+  const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
+  const [clientName, setClientName] = useState<string>("");
+  const [showDownloadDialog, setShowDownloadDialog] = useState<boolean>(false);
+  const [downloadType, setDownloadType] = useState<"pdf" | "csv">("pdf");
   const { toast } = useToast();
 
   // Fetch all data
@@ -129,71 +136,126 @@ export default function PriceList() {
       return;
     }
     setShowPriceList(true);
+    setSelectedRows(new Set());
   };
 
-  // Export price list as CSV
-  const exportPriceList = () => {
-    if (priceListItems.length === 0) {
+  // Row selection handlers
+  const handleRowToggle = (rowId: string) => {
+    const newSelectedRows = new Set(selectedRows);
+    if (newSelectedRows.has(rowId)) {
+      newSelectedRows.delete(rowId);
+    } else {
+      newSelectedRows.add(rowId);
+    }
+    setSelectedRows(newSelectedRows);
+  };
+
+  const handleSelectAllRows = () => {
+    const allRowIds = priceListItems.map(item => `${item.size.id}-${item.type.id}`);
+    setSelectedRows(new Set(allRowIds));
+  };
+
+  const handleDeselectAllRows = () => {
+    setSelectedRows(new Set());
+  };
+
+  // Download functions
+  const handleDownload = async (type: "pdf" | "csv") => {
+    if (!clientName.trim()) {
       toast({
-        title: "No Data",
-        description: "No items to export. Please adjust your filters.",
+        title: "Client Name Required",
+        description: "Please enter a client name before downloading.",
         variant: "destructive",
       });
       return;
     }
 
-    const selectedTierData = tiers.find((t: PricingTier) => t.id === parseInt(selectedTier));
-    const tierName = selectedTierData?.name || "Unknown";
+    const selectedItems = selectedRows.size > 0 
+      ? priceListItems.filter(item => selectedRows.has(`${item.size.id}-${item.type.id}`))
+      : priceListItems;
 
-    const csvHeaders = [
-      "Category",
-      "Product Type", 
-      "Size",
-      "Item Code",
-      "Width",
-      "Height",
-      "Square Meters",
-      "Min Order Qty",
-      `Price per Sq.M (${tierName})`,
-      `Total Price (${tierName})`
-    ];
+    if (selectedItems.length === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select at least one item to download.",
+        variant: "destructive",
+      });
+      return;
+    }
 
-    const csvData = priceListItems.map(item => {
-      const price = getPriceForTier(item, parseInt(selectedTier));
-      const pricePerSqm = item.pricing.find((p: ProductPricing) => p.tierId === parseInt(selectedTier))?.pricePerSquareMeter || "0";
-      
-      return [
-        item.category.name,
-        item.type.name,
-        item.size.name,
-        item.size.itemCode,
-        `${item.size.width} ${item.size.widthUnit}`,
-        `${item.size.height} ${item.size.heightUnit}`,
-        item.size.squareMeters,
-        item.size.minOrderQty,
-        `$${parseFloat(pricePerSqm).toFixed(2)}`,
-        `$${price.toFixed(2)}`
-      ];
+    try {
+      if (type === "pdf") {
+        await downloadPDF(selectedItems);
+      } else {
+        await downloadCSV(selectedItems);
+      }
+      setShowDownloadDialog(false);
+      setClientName("");
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Failed to generate download. Please try again.",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const downloadPDF = async (items: PriceListItem[]) => {
+    const response = await fetch('/api/generate-price-list-pdf', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientName: clientName.trim(),
+        categoryName: selectedCategoryData?.name,
+        tierName: selectedTierData?.name,
+        items: items.map(item => ({
+          size: item.size,
+          type: item.type,
+          pricing: item.pricing.find(p => p.tierId === parseInt(selectedTier))
+        }))
+      })
     });
 
-    const csvContent = [csvHeaders, ...csvData]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
+    if (!response.ok) throw new Error('Failed to generate PDF');
 
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const link = document.createElement('a');
-    const url = URL.createObjectURL(blob);
-    link.setAttribute('href', url);
-    link.setAttribute('download', `price-list-${tierName}-${new Date().toISOString().split('T')[0]}.csv`);
-    link.style.visibility = 'hidden';
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategoryData?.name}_${selectedTierData?.name}_${clientName.trim()}.pdf`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
+  };
 
-    toast({
-      title: "Export Successful",
-      description: `Price list exported for ${tierName} tier with ${priceListItems.length} items.`,
+  const downloadCSV = async (items: PriceListItem[]) => {
+    const response = await fetch('/api/generate-price-list-csv', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        clientName: clientName.trim(),
+        categoryName: selectedCategoryData?.name,
+        tierName: selectedTierData?.name,
+        items: items.map(item => ({
+          size: item.size,
+          type: item.type,
+          pricing: item.pricing.find(p => p.tierId === parseInt(selectedTier))
+        }))
+      })
     });
+
+    if (!response.ok) throw new Error('Failed to generate CSV');
+
+    const blob = await response.blob();
+    const url = window.URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${selectedCategoryData?.name}_${selectedTierData?.name}_${clientName.trim()}.csv`;
+    document.body.appendChild(a);
+    a.click();
+    window.URL.revokeObjectURL(url);
+    document.body.removeChild(a);
   };
 
   if (isLoading) {
@@ -303,7 +365,67 @@ export default function PriceList() {
                     <ChevronDown className="h-4 w-4" />
                     Configure
                   </Button>
-                  <Button onClick={exportPriceList} className="flex items-center gap-2">
+                  <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
+                    <DialogTrigger asChild>
+                      <Button className="flex items-center gap-2">
+                        <FileDown className="h-4 w-4" />
+                        Download PDF
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Download Price List</DialogTitle>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Client Name *</label>
+                          <Input
+                            placeholder="Enter client name"
+                            value={clientName}
+                            onChange={(e) => setClientName(e.target.value)}
+                          />
+                        </div>
+                        <div className="space-y-2">
+                          <label className="text-sm font-medium">Download Type</label>
+                          <Select value={downloadType} onValueChange={(value: "pdf" | "csv") => setDownloadType(value)}>
+                            <SelectTrigger>
+                              <SelectValue />
+                            </SelectTrigger>
+                            <SelectContent>
+                              <SelectItem value="pdf">PDF</SelectItem>
+                              <SelectItem value="csv">CSV</SelectItem>
+                            </SelectContent>
+                          </Select>
+                        </div>
+                        <div className="text-sm text-gray-600">
+                          {selectedRows.size > 0 ? (
+                            <span>{selectedRows.size} rows selected</span>
+                          ) : (
+                            <span>All rows will be downloaded</span>
+                          )}
+                        </div>
+                        <div className="flex gap-2">
+                          <Button
+                            variant="outline"
+                            onClick={() => setShowDownloadDialog(false)}
+                          >
+                            Cancel
+                          </Button>
+                          <Button onClick={() => handleDownload(downloadType)}>
+                            Download {downloadType.toUpperCase()}
+                          </Button>
+                        </div>
+                      </div>
+                    </DialogContent>
+                  </Dialog>
+                  <Button 
+                    variant="outline" 
+                    onClick={() => {
+                      setDownloadType("csv");
+                      setShowDownloadDialog(true);
+                    }}
+                    className="flex items-center gap-2"
+                  >
                     <Download className="h-4 w-4" />
                     Export CSV
                   </Button>
@@ -317,8 +439,26 @@ export default function PriceList() {
                 </div>
               ) : (
                 <div className="space-y-4">
-                  <div className="text-sm text-gray-600">
-                    Showing {priceListItems.length} items
+                  <div className="flex items-center justify-between">
+                    <div className="text-sm text-gray-600">
+                      Showing {priceListItems.length} items
+                    </div>
+                    <div className="flex items-center gap-2">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleSelectAllRows}
+                      >
+                        Select All
+                      </Button>
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={handleDeselectAllRows}
+                      >
+                        Deselect All
+                      </Button>
+                    </div>
                   </div>
                   
                   {/* Group items by product type */}
@@ -335,10 +475,24 @@ export default function PriceList() {
                           <table className="w-full">
                             <thead>
                               <tr className="border-b border-gray-200">
+                                <th className="text-left py-3 px-4 font-medium text-gray-700 w-12">
+                                  <Checkbox 
+                                    checked={typeItems.every(item => selectedRows.has(`${item.size.id}-${item.type.id}`))}
+                                    onCheckedChange={(checked) => {
+                                      const typeRowIds = typeItems.map(item => `${item.size.id}-${item.type.id}`);
+                                      const newSelectedRows = new Set(selectedRows);
+                                      if (checked) {
+                                        typeRowIds.forEach(id => newSelectedRows.add(id));
+                                      } else {
+                                        typeRowIds.forEach(id => newSelectedRows.delete(id));
+                                      }
+                                      setSelectedRows(newSelectedRows);
+                                    }}
+                                  />
+                                </th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Size</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Item Code</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Dimensions</th>
-                                <th className="text-left py-3 px-4 font-medium text-gray-700">Sq.M</th>
                                 <th className="text-left py-3 px-4 font-medium text-gray-700">Min Qty</th>
                                 <th className="text-right py-3 px-4 font-medium text-gray-700">Price/Sq.M</th>
                                 <th className="text-right py-3 px-4 font-medium text-gray-700">Total Price</th>
@@ -348,9 +502,16 @@ export default function PriceList() {
                               {typeItems.map((item, index) => {
                                 const price = getPriceForTier(item, parseInt(selectedTier));
                                 const pricePerSqm = item.pricing.find((p: ProductPricing) => p.tierId === parseInt(selectedTier))?.pricePerSquareMeter || "0";
+                                const rowId = `${item.size.id}-${item.type.id}`;
                                 
                                 return (
-                                  <tr key={`${item.size.id}-${index}`} className="border-b border-gray-100 hover:bg-gray-50">
+                                  <tr key={`${item.size.id}-${index}`} className={`border-b border-gray-100 hover:bg-gray-50 ${selectedRows.has(rowId) ? 'bg-blue-50' : ''}`}>
+                                    <td className="py-3 px-4">
+                                      <Checkbox
+                                        checked={selectedRows.has(rowId)}
+                                        onCheckedChange={() => handleRowToggle(rowId)}
+                                      />
+                                    </td>
                                     <td className="py-3 px-4 text-sm">{item.size.name}</td>
                                     <td className="py-3 px-4 text-sm">
                                       <Badge variant="secondary" className="text-xs">
@@ -360,7 +521,6 @@ export default function PriceList() {
                                     <td className="py-3 px-4 text-sm">
                                       {item.size.width} {item.size.widthUnit} × {item.size.height} {item.size.heightUnit}
                                     </td>
-                                    <td className="py-3 px-4 text-sm">{item.size.squareMeters}</td>
                                     <td className="py-3 px-4 text-sm">{item.size.minOrderQty}</td>
                                     <td className="py-3 px-4 text-sm text-right font-medium">
                                       ${parseFloat(pricePerSqm).toFixed(2)}

@@ -293,3 +293,283 @@ export function generateQuoteNumber(): string {
 export function generateQuoteHTMLForDownload(request: PDFGenerationRequest): string {
   return generateQuoteHTML(request);
 }
+
+interface PriceListItem {
+  size: {
+    id: number;
+    name: string;
+    width: string;
+    height: string;
+    widthUnit: string;
+    heightUnit: string;
+    squareMeters: string;
+    itemCode: string;
+    minOrderQty: string;
+  };
+  type: {
+    id: number;
+    name: string;
+    description: string;
+  };
+  pricing: {
+    pricePerSquareMeter: string;
+  };
+}
+
+interface PriceListRequest {
+  clientName: string;
+  categoryName: string;
+  tierName: string;
+  items: PriceListItem[];
+}
+
+export function generatePriceListHTML(request: PriceListRequest): string {
+  const { clientName, categoryName, tierName, items } = request;
+  const currentDate = new Date().toLocaleDateString('en-US', {
+    month: 'numeric',
+    day: 'numeric',
+    year: 'numeric'
+  });
+
+  // Group items by product type
+  const itemsByType = items.reduce((acc, item) => {
+    if (!acc[item.type.name]) {
+      acc[item.type.name] = [];
+    }
+    acc[item.type.name].push(item);
+    return acc;
+  }, {} as Record<string, PriceListItem[]>);
+
+  // Generate table sections for each product type
+  const typeSections = Object.entries(itemsByType).map(([typeName, typeItems]) => {
+    const itemRows = typeItems.map((item) => {
+      const pricePerSqm = parseFloat(item.pricing.pricePerSquareMeter);
+      const squareMeters = parseFloat(item.size.squareMeters);
+      const totalPrice = pricePerSqm * squareMeters;
+      
+      return `
+        <tr>
+          <td>${item.size.name}</td>
+          <td>${item.size.itemCode}</td>
+          <td>${item.size.width} ${item.size.widthUnit} × ${item.size.height} ${item.size.heightUnit}</td>
+          <td>${item.size.minOrderQty}</td>
+          <td>$${pricePerSqm.toFixed(2)}</td>
+          <td>$${totalPrice.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
+    return `
+      <div class="product-type-section">
+        <h3 class="product-type-name">${typeName}</h3>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Size</th>
+              <th>Item Code</th>
+              <th>Dimensions</th>
+              <th>Min Qty</th>
+              <th>Price/Sq.M</th>
+              <th>Total Price</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
+
+  const logoBase64 = getLogoBase64();
+  const logoHtml = logoBase64 ? `<img src="data:image/jpeg;base64,${logoBase64}" alt="4S Graphics Logo" style="height: 80px; margin-right: 15px;">` : '';
+
+  return `
+    <!DOCTYPE html>
+    <html>
+    <head>
+      <meta charset="UTF-8">
+      <meta name="viewport" content="width=device-width, initial-scale=1.0">
+      <title>Price List - ${categoryName}</title>
+      <style>
+        body {
+          font-family: 'Roboto', Arial, sans-serif;
+          margin: 0;
+          padding: 20px;
+          background-color: #ffffff;
+          color: #333;
+        }
+        
+        .header-container {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+          margin-bottom: 30px;
+          padding-bottom: 20px;
+          border-bottom: 2px solid #333;
+        }
+        
+        .company-info {
+          display: flex;
+          align-items: center;
+        }
+        
+        .company-name {
+          font-size: 15px;
+          font-weight: bold;
+          margin-bottom: 5px;
+        }
+        
+        .company-address {
+          font-size: 10px;
+          margin-bottom: 2px;
+        }
+        
+        .price-list-info {
+          margin-bottom: 20px;
+        }
+        
+        .price-list-info div {
+          font-size: 12px;
+          margin-bottom: 5px;
+        }
+        
+        .price-list-title {
+          font-size: 18px;
+          font-weight: bold;
+          text-align: center;
+          margin: 30px 0 20px 0;
+        }
+        
+        .product-type-section {
+          margin-bottom: 30px;
+        }
+        
+        .product-type-name {
+          font-size: 14px;
+          font-weight: bold;
+          margin-bottom: 10px;
+          background-color: #f8f9fa;
+          padding: 8px 12px;
+          border-left: 4px solid #007bff;
+        }
+        
+        .items-table {
+          width: 100%;
+          border-collapse: collapse;
+          margin-bottom: 20px;
+        }
+        
+        .items-table th {
+          background-color: #f8f9fa;
+          font-size: 10px;
+          font-weight: bold;
+          padding: 8px 6px;
+          text-align: left;
+          border: 1px solid #dee2e6;
+        }
+        
+        .items-table td {
+          font-size: 10px;
+          padding: 6px;
+          border: 1px solid #dee2e6;
+        }
+        
+        .items-table tr:nth-child(even) {
+          background-color: #f8f9fa;
+        }
+        
+        .items-table tr:nth-child(odd) {
+          background-color: #ffffff;
+        }
+        
+        .footer-info {
+          margin-top: 30px;
+          font-size: 10px;
+          text-align: center;
+        }
+        
+        .page-number {
+          text-align: center;
+          font-size: 10px;
+          margin-top: 40px;
+        }
+
+        @media print {
+          body { margin: 0; padding: 15px; }
+          .header-container { page-break-inside: avoid; }
+          .product-type-section { page-break-inside: avoid; }
+        }
+      </style>
+    </head>
+    <body>
+      <div class="header-container">
+        <div class="company-info">
+          ${logoHtml}
+          <div class="company-details">
+            <div class="company-name">${companyDetails.name}</div>
+            <div class="company-address">${companyDetails.address}</div>
+            <div class="company-address">${companyDetails.city}</div>
+            <div class="company-address">Phone: ${companyDetails.phone} | Website: https://${companyDetails.website}/</div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="price-list-info">
+        <div>Price List for: ${clientName}</div>
+        <div>Product Category: ${categoryName}</div>
+        <div>Pricing Tier: ${tierName}</div>
+        <div>Date: ${currentDate}</div>
+      </div>
+      
+      <div class="price-list-title">PRICE LIST - ${categoryName.toUpperCase()}</div>
+      
+      ${typeSections}
+      
+      <div class="footer-info">
+        <p>This price list was generated on ${currentDate} for ${clientName}</p>
+        <p>Contact us at ${companyDetails.phone} or visit https://${companyDetails.website}/ for more information</p>
+      </div>
+      
+      <div class="page-number">Page 1 of 1</div>
+    </body>
+    </html>
+  `;
+}
+
+export function generatePriceListCSV(request: PriceListRequest): string {
+  const { clientName, categoryName, tierName, items } = request;
+  const currentDate = new Date().toLocaleDateString('en-US');
+
+  // Group items by product type
+  const itemsByType = items.reduce((acc, item) => {
+    if (!acc[item.type.name]) {
+      acc[item.type.name] = [];
+    }
+    acc[item.type.name].push(item);
+    return acc;
+  }, {} as Record<string, PriceListItem[]>);
+
+  let csvContent = `Price List for ${clientName}\n`;
+  csvContent += `Product Category: ${categoryName}\n`;
+  csvContent += `Pricing Tier: ${tierName}\n`;
+  csvContent += `Date: ${currentDate}\n\n`;
+
+  // Generate CSV sections for each product type
+  Object.entries(itemsByType).forEach(([typeName, typeItems]) => {
+    csvContent += `${typeName}\n`;
+    csvContent += `Size,Item Code,Dimensions,Min Qty,Price/Sq.M,Total Price\n`;
+    
+    typeItems.forEach((item) => {
+      const pricePerSqm = parseFloat(item.pricing.pricePerSquareMeter);
+      const squareMeters = parseFloat(item.size.squareMeters);
+      const totalPrice = pricePerSqm * squareMeters;
+      
+      csvContent += `"${item.size.name}","${item.size.itemCode}","${item.size.width} ${item.size.widthUnit} × ${item.size.height} ${item.size.heightUnit}","${item.size.minOrderQty}","$${pricePerSqm.toFixed(2)}","$${totalPrice.toFixed(2)}"\n`;
+    });
+    
+    csvContent += `\n`;
+  });
+
+  return csvContent;
+}

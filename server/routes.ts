@@ -9,7 +9,7 @@ import { z } from "zod";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
 
-import { generateQuoteHTMLForDownload, generateQuoteNumber } from "./simple-pdf-generator";
+import { generateQuoteHTMLForDownload, generateQuoteNumber, generatePriceListHTML, generatePriceListCSV } from "./simple-pdf-generator";
 import { insertSentQuoteSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 
@@ -762,6 +762,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating download archive:", error);
       res.status(500).json({ error: "Failed to create download archive" });
+    }
+  });
+
+  // Generate price list PDF
+  app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
+    try {
+      const { clientName, categoryName, tierName, items } = req.body;
+      
+      if (!clientName || !categoryName || !tierName || !items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Client name, category name, tier name, and items are required" });
+      }
+
+      const htmlContent = generatePriceListHTML({
+        clientName,
+        categoryName,
+        tierName,
+        items
+      });
+
+      res.setHeader('Content-Type', 'text/html');
+      res.send(htmlContent);
+    } catch (error) {
+      console.error("Error generating price list PDF:", error);
+      res.status(500).json({ error: "Failed to generate price list PDF" });
+    }
+  });
+
+  // Generate price list CSV
+  app.post("/api/generate-price-list-csv", isAuthenticated, async (req, res) => {
+    try {
+      const { clientName, categoryName, tierName, items } = req.body;
+      
+      if (!clientName || !categoryName || !tierName || !items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Client name, category name, tier name, and items are required" });
+      }
+
+      const csvContent = generatePriceListCSV({
+        clientName,
+        categoryName,
+        tierName,
+        items
+      });
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="price-list-${categoryName}-${tierName}.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error generating price list CSV:", error);
+      res.status(500).json({ error: "Failed to generate price list CSV" });
     }
   });
 
