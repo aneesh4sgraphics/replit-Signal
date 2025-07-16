@@ -221,29 +221,30 @@ export default function PriceList() {
     const data = await response.json();
     const { html, filename } = data;
 
-    // Create a new window for printing
-    const printWindow = window.open('', '_blank', 'width=800,height=600');
-    if (!printWindow) {
-      throw new Error('Failed to open print window');
-    }
+    // Create a blob from the HTML content
+    const blob = new Blob([html], { type: 'text/html' });
+    const url = window.URL.createObjectURL(blob);
+    
+    // Create a temporary link element
+    const link = document.createElement('a');
+    link.href = url;
+    link.download = filename.replace('.pdf', '.html');
+    link.style.display = 'none';
+    
+    // Add to document, click, and remove
+    document.body.appendChild(link);
+    link.click();
+    document.body.removeChild(link);
+    
+    // Clean up the URL object
+    window.URL.revokeObjectURL(url);
 
-    // Write HTML content to the new window
-    printWindow.document.write(html);
-    printWindow.document.close();
-
-    // Wait for content to load then print
-    printWindow.onload = () => {
-      printWindow.print();
-      printWindow.close();
-    };
-
-    // For browsers that don't trigger onload
-    setTimeout(() => {
-      if (!printWindow.closed) {
-        printWindow.print();
-        printWindow.close();
-      }
-    }, 1000);
+    // Show instruction to user
+    toast({
+      title: "HTML file downloaded",
+      description: "Open the downloaded HTML file in your browser and use Print → Save as PDF to create a PDF file.",
+      duration: 8000,
+    });
   };
 
   const downloadCSV = async (items: PriceListItem[]) => {
