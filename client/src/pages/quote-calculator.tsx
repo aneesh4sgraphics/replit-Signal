@@ -1432,19 +1432,20 @@ function PricingTierRow({ tier, selectedType, getCurrentSquareMeters, getMinOrde
       if (selectedType) {
         const fetchedPrice = await getPriceForTier(tier.id);
         
-        // Apply 99-cent rounding for retail pricing tier
-        const adjustedPrice = tier.name.toLowerCase().includes('retail') 
-          ? roundToNinetyNine(fetchedPrice) 
-          : fetchedPrice;
-        
-        // Debug logging
-        console.log('Tier name:', tier.name, 'Original price:', fetchedPrice, 'Adjusted price:', adjustedPrice, 'Is retail?', tier.name.toLowerCase().includes('retail'));
-        
-        setPrice(adjustedPrice);
+        // Keep the original price per square meter unchanged
+        setPrice(fetchedPrice);
         
         const sqm = getCurrentSquareMeters();
-        setPricePerSheet(adjustedPrice * sqm);
-        setMinOrderPrice(adjustedPrice * sqm * getMinOrderQuantity());
+        const baseSheetPrice = fetchedPrice * sqm;
+        const baseMinOrderPrice = baseSheetPrice * getMinOrderQuantity();
+        
+        // Apply 99-cent rounding only to the Min Order Quantity Price for retail tiers
+        const adjustedMinOrderPrice = tier.name.toLowerCase().includes('retail') 
+          ? roundToNinetyNine(baseMinOrderPrice) 
+          : baseMinOrderPrice;
+        
+        setPricePerSheet(baseSheetPrice);
+        setMinOrderPrice(adjustedMinOrderPrice);
       }
     };
     

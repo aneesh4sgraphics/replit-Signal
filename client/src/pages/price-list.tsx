@@ -197,13 +197,14 @@ export default function PriceList() {
     if (tierPricing) {
       const pricePerSqm = parseFloat(tierPricing.pricePerSquareMeter);
       const squareMeters = parseFloat(item.size.squareMeters);
+      const basePrice = pricePerSqm * squareMeters;
       
-      // Apply 99-cent rounding for retail pricing tier
-      const adjustedPricePerSqm = selectedTier?.name.toLowerCase().includes('retail') 
-        ? roundToNinetyNine(pricePerSqm) 
-        : pricePerSqm;
+      // Apply 99-cent rounding only to the total price for retail pricing tier
+      const adjustedPrice = selectedTier?.name.toLowerCase().includes('retail') 
+        ? roundToNinetyNine(basePrice) 
+        : basePrice;
         
-      return adjustedPricePerSqm * squareMeters;
+      return adjustedPrice;
     }
     return 0;
   };
