@@ -17,7 +17,7 @@ export default function Landing() {
             Employee Login
           </h1>
           <p className="text-gray-600 text-sm mb-8 leading-relaxed">
-            Access pricing tools, quote generation, and customer management<br />
+            Pricing tools, quote generation, and customer management<br />
             for 4S Graphics team members and authorized partners
           </p>
           <Button 
