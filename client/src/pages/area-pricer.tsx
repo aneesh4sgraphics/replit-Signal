@@ -18,10 +18,10 @@ interface CalculationResult {
   inputPrice: number;
   pricePerSqIn: number;
   pricePerSqFt: number;
-  pricePerCubicFt: number;
+  pricePerSqMeter: number;
   totalSqIn: number;
   totalSqFt: number;
-  totalCubicFt: number;
+  totalSqMeter: number;
   notes: string;
   timestamp: Date;
 }
@@ -46,40 +46,44 @@ export default function AreaPricer() {
       return;
     }
 
-    // Convert inches to feet for calculations
-    const widthFt = w / 12;
-    const heightFt = h / 12;
+    let areaPerSheetSqIn, areaPerSheetSqFt, areaPerSheetSqMeter;
     
-    // Calculate areas
-    const areaPerSheetSqIn = w * h;
-    const areaPerSheetSqFt = widthFt * heightFt;
+    if (calculationType === "roll") {
+      // For rolls: width and height are in feet, convert to square inches
+      areaPerSheetSqFt = w * h; // Already in square feet
+      areaPerSheetSqIn = areaPerSheetSqFt * 144; // Convert to square inches
+      areaPerSheetSqMeter = areaPerSheetSqFt * 0.092903; // Convert to square meters (1 sq ft = 0.092903 sq m)
+    } else {
+      // For sheets: width and height are in inches
+      areaPerSheetSqIn = w * h;
+      areaPerSheetSqFt = areaPerSheetSqIn / 144; // 144 sq inches in 1 sq foot
+      areaPerSheetSqMeter = areaPerSheetSqIn / 1550.0031; // 1550.0031 sq inches in 1 sq meter
+    }
+    
+    // Calculate total areas for the pack
     const totalSqIn = areaPerSheetSqIn * qty;
     const totalSqFt = areaPerSheetSqFt * qty;
-    
-    // For cubic feet, assuming standard thickness (this might need adjustment)
-    const thicknessFt = 0.01; // Default thickness in feet
-    const volumePerSheet = areaPerSheetSqFt * thicknessFt;
-    const totalCubicFt = volumePerSheet * qty;
+    const totalSqMeter = areaPerSheetSqMeter * qty;
     
     // Calculate prices per unit
     const pricePerSqIn = price / totalSqIn;
     const pricePerSqFt = price / totalSqFt;
-    const pricePerCubicFt = price / totalCubicFt;
+    const pricePerSqMeter = price / totalSqMeter;
 
     const result: CalculationResult = {
       id: Date.now().toString(),
       type: calculationType,
       width: w,
       length: h, // Using height as length for display
-      height: thicknessFt * 12, // Convert back to inches for display
+      height: 0, // Not needed for 2D calculations
       packQty: qty,
       inputPrice: price,
       pricePerSqIn,
       pricePerSqFt,
-      pricePerCubicFt,
+      pricePerSqMeter,
       totalSqIn,
       totalSqFt,
-      totalCubicFt,
+      totalSqMeter,
       notes,
       timestamp: new Date()
     };
@@ -103,19 +107,18 @@ export default function AreaPricer() {
   const exportToExcel = () => {
     if (calculations.length === 0) return;
 
-    const headers = ["Type", "Width (in)", "Length (in)", "Height (in)", "Pack Qty", "Input Price", "Price/in²", "Price/ft²", "Price/ft³", "Notes"];
+    const headers = ["Type", "Width", "Length", "Pack Qty", "Input Price", "Price/in²", "Price/ft²", "Price/m²", "Notes"];
     const csvContent = [
       headers.join(","),
       ...calculations.map(calc => [
         calc.type,
-        calc.width,
-        calc.length,
-        calc.height.toFixed(2),
+        `${calc.width} ${calc.type === "roll" ? "ft" : "in"}`,
+        `${calc.length} ${calc.type === "roll" ? "ft" : "in"}`,
         calc.packQty,
         `$${calc.inputPrice.toFixed(2)}`,
         `$${calc.pricePerSqIn.toFixed(4)}`,
         `$${calc.pricePerSqFt.toFixed(4)}`,
-        `$${calc.pricePerCubicFt.toFixed(4)}`,
+        `$${calc.pricePerSqMeter.toFixed(4)}`,
         `"${calc.notes}"`
       ].join(","))
     ].join("\n");
@@ -172,35 +175,41 @@ export default function AreaPricer() {
               <h3 className="text-lg font-medium mb-4">Enter Details</h3>
               <div className="grid grid-cols-2 gap-4">
                 <div>
-                  <Label htmlFor="width">Sheet Width (inches)</Label>
+                  <Label htmlFor="width">
+                    {calculationType === "roll" ? "Roll Width (feet)" : "Sheet Width (inches)"}
+                  </Label>
                   <Input
                     id="width"
                     type="number"
                     step="0.1"
                     value={width}
                     onChange={(e) => setWidth(e.target.value)}
-                    placeholder="12"
+                    placeholder={calculationType === "roll" ? "4" : "12"}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="height">Sheet Height (inches)</Label>
+                  <Label htmlFor="height">
+                    {calculationType === "roll" ? "Roll Length (feet)" : "Sheet Height (inches)"}
+                  </Label>
                   <Input
                     id="height"
                     type="number"
                     step="0.1"
                     value={height}
                     onChange={(e) => setHeight(e.target.value)}
-                    placeholder="18"
+                    placeholder={calculationType === "roll" ? "150" : "18"}
                   />
                 </div>
                 <div>
-                  <Label htmlFor="sheets">Sheets per Pack</Label>
+                  <Label htmlFor="sheets">
+                    {calculationType === "roll" ? "Rolls per Pack" : "Sheets per Pack"}
+                  </Label>
                   <Input
                     id="sheets"
                     type="number"
                     value={sheetsPerPack}
                     onChange={(e) => setSheetsPerPack(e.target.value)}
-                    placeholder="50"
+                    placeholder={calculationType === "roll" ? "1" : "50"}
                   />
                 </div>
                 <div>
@@ -253,9 +262,9 @@ export default function AreaPricer() {
                     <div className="text-xs text-gray-500 mt-1">Total ft²: {currentResult.totalSqFt.toFixed(4)}</div>
                   </div>
                   <div className="text-center p-4 bg-gray-50 rounded-lg">
-                    <div className="text-xs text-gray-500 mb-1">Price / ft³</div>
-                    <div className="text-2xl font-bold text-gray-900">${currentResult.pricePerCubicFt.toFixed(4)}</div>
-                    <div className="text-xs text-gray-500 mt-1">Total ft³: {currentResult.totalCubicFt.toFixed(4)}</div>
+                    <div className="text-xs text-gray-500 mb-1">Price / m²</div>
+                    <div className="text-2xl font-bold text-gray-900">${currentResult.pricePerSqMeter.toFixed(4)}</div>
+                    <div className="text-xs text-gray-500 mt-1">Total m²: {currentResult.totalSqMeter.toFixed(4)}</div>
                   </div>
                 </div>
                 
@@ -299,14 +308,13 @@ export default function AreaPricer() {
                 <TableHeader>
                   <TableRow>
                     <TableHead>Type</TableHead>
-                    <TableHead>Width (in)</TableHead>
-                    <TableHead>Length (in)</TableHead>
-                    <TableHead>Height (in)</TableHead>
+                    <TableHead>Width</TableHead>
+                    <TableHead>Length</TableHead>
                     <TableHead>Pack Qty</TableHead>
                     <TableHead>Input Price</TableHead>
                     <TableHead>Price/in²</TableHead>
                     <TableHead>Price/ft²</TableHead>
-                    <TableHead>Price/ft³</TableHead>
+                    <TableHead>Price/m²</TableHead>
                     <TableHead>Notes</TableHead>
                   </TableRow>
                 </TableHeader>
@@ -314,14 +322,13 @@ export default function AreaPricer() {
                   {calculations.map((calc) => (
                     <TableRow key={calc.id}>
                       <TableCell className="capitalize">{calc.type}</TableCell>
-                      <TableCell>{calc.width}</TableCell>
-                      <TableCell>{calc.length}</TableCell>
-                      <TableCell>{calc.height.toFixed(2)}</TableCell>
+                      <TableCell>{calc.width} {calc.type === "roll" ? "ft" : "in"}</TableCell>
+                      <TableCell>{calc.length} {calc.type === "roll" ? "ft" : "in"}</TableCell>
                       <TableCell>{calc.packQty}</TableCell>
                       <TableCell>${calc.inputPrice.toFixed(2)}</TableCell>
                       <TableCell>${calc.pricePerSqIn.toFixed(4)}</TableCell>
                       <TableCell>${calc.pricePerSqFt.toFixed(4)}</TableCell>
-                      <TableCell>${calc.pricePerCubicFt.toFixed(4)}</TableCell>
+                      <TableCell>${calc.pricePerSqMeter.toFixed(4)}</TableCell>
                       <TableCell>{calc.notes}</TableCell>
                     </TableRow>
                   ))}
