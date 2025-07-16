@@ -200,7 +200,7 @@ export default function PriceList() {
       const basePrice = pricePerSqm * squareMeters;
       
       // Apply 99-cent rounding only to the total price for retail pricing tier
-      const adjustedPrice = selectedTier?.name?.toLowerCase().includes('retail') 
+      const adjustedPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
         ? roundToNinetyNine(basePrice) 
         : basePrice;
         
@@ -828,7 +828,8 @@ export default function PriceList() {
                                 const basePricePerSqm = item.pricing.find((p: ProductPricing) => p.tierId === parseInt(selectedTier))?.pricePerSquareMeter || "0";
                                 
                                 // Apply 99-cent rounding for retail pricing tier display
-                                const adjustedPricePerSqm = selectedTier?.name.toLowerCase().includes('retail') 
+                                const selectedTierData = tiers.find((t: PricingTier) => t.id === parseInt(selectedTier));
+                                const adjustedPricePerSqm = selectedTierData?.name?.toLowerCase().includes('retail') 
                                   ? roundToNinetyNine(parseFloat(basePricePerSqm)) 
                                   : parseFloat(basePricePerSqm);
                                 
