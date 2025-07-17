@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Filter, Plus, Download, RotateCcw, Sheet } from "lucide-react";
+import { TrendingUp, Filter, Plus, Download, RotateCcw, Sheet, Trash2 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { toast } from "@/hooks/use-toast";
@@ -203,6 +203,18 @@ export default function CompetitorPricing() {
     URL.revokeObjectURL(url);
   };
 
+  const handleDeleteEntry = (id: string) => {
+    if (window.confirm("Are you sure you want to delete this entry?")) {
+      const updatedData = competitorData.filter(item => item.id !== id);
+      setCompetitorData(updatedData);
+      localStorage.setItem('competitorData', JSON.stringify(updatedData));
+      toast({
+        title: "Entry deleted",
+        description: "The competitor pricing entry has been removed.",
+      });
+    }
+  };
+
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="text-center mb-8">
@@ -377,6 +389,7 @@ export default function CompetitorPricing() {
                     <TableHead>Price/m²</TableHead>
                     <TableHead>Notes</TableHead>
                     <TableHead>Date</TableHead>
+                    {user?.role === 'admin' && <TableHead className="w-[80px]">Actions</TableHead>}
                   </TableRow>
                 </TableHeader>
                 <TableBody>
@@ -397,6 +410,18 @@ export default function CompetitorPricing() {
                       <TableCell>${item.pricePerSqMeter.toFixed(4)}</TableCell>
                       <TableCell className="max-w-xs truncate">{item.notes}</TableCell>
                       <TableCell>{item.timestamp.toLocaleDateString()}</TableCell>
+                      {user?.role === 'admin' && (
+                        <TableCell>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteEntry(item.id)}
+                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </TableCell>
+                      )}
                     </TableRow>
                   ))}
                 </TableBody>

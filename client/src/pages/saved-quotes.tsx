@@ -1,9 +1,12 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
-import { FileText, Mail, Download, ArrowLeft, Calendar, User, DollarSign } from "lucide-react";
+import { FileText, Mail, Download, ArrowLeft, Calendar, User, DollarSign, Trash2 } from "lucide-react";
 import { Link } from "wouter";
+import { useAuth } from "@/hooks/useAuth";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import { 
   Table, 
   TableBody, 
@@ -26,9 +29,41 @@ interface SentQuote {
 }
 
 export default function SavedQuotes() {
+  const { user } = useAuth();
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
   const { data: sentQuotes, isLoading: quotesLoading } = useQuery({
     queryKey: ["/api/sent-quotes"],
   });
+
+  const deleteQuoteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest(`/api/sent-quotes/${id}`, {
+        method: "DELETE",
+      });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
+      toast({
+        title: "Success",
+        description: "Quote deleted successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete quote",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleDeleteQuote = (id: number) => {
+    if (window.confirm("Are you sure you want to delete this quote?")) {
+      deleteQuoteMutation.mutate(id);
+    }
+  };
 
   return (
     <div className="py-4 sm:py-8 px-3 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
@@ -73,6 +108,7 @@ export default function SavedQuotes() {
                       <TableHead className="w-[120px]">Quote #</TableHead>
                       <TableHead className="w-[200px]">Customer</TableHead>
                       <TableHead className="w-[200px]">Email</TableHead>
+                      {user?.role === 'admin' && <TableHead className="w-[80px]">Actions</TableHead>}
                       <TableHead className="w-[120px]">Total Amount</TableHead>
                       <TableHead className="w-[120px]">Date</TableHead>
                       <TableHead className="w-[100px]">Method</TableHead>
@@ -92,6 +128,19 @@ export default function SavedQuotes() {
                         <TableCell className="text-sm text-gray-600">
                           {quote.customerEmail || 'N/A'}
                         </TableCell>
+                        {user?.role === 'admin' && (
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => handleDeleteQuote(quote.id)}
+                              disabled={deleteQuoteMutation.isPending}
+                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                            >
+                              <Trash2 className="h-4 w-4" />
+                            </Button>
+                          </TableCell>
+                        )}
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <DollarSign className="h-4 w-4 text-green-600" />

@@ -70,6 +70,7 @@ export interface IStorage {
   getSentQuote(id: number): Promise<SentQuote | undefined>;
   createSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
   upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
+  deleteSentQuote(id: number): Promise<boolean>;
   
   // Admin methods
   reinitializeData(): Promise<void>;
@@ -412,6 +413,10 @@ export class MemStorage implements IStorage {
       // Create new quote
       return await this.createSentQuote(quote);
     }
+  }
+
+  async deleteSentQuote(id: number): Promise<boolean> {
+    return this.sentQuotes.delete(id);
   }
 
   // Customer management methods

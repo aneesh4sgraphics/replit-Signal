@@ -151,9 +151,25 @@ export async function setupAuth(app: Express) {
   });
 
   app.get("/api/callback", (req, res, next) => {
-    passport.authenticate(`replitauth:${req.hostname}`, {
-      successReturnToOrRedirect: "/",
-      failureRedirect: "/api/login",
+    passport.authenticate(`replitauth:${req.hostname}`, (err, user, info) => {
+      if (err) {
+        return next(err);
+      }
+      if (!user) {
+        return res.redirect("/api/login");
+      }
+      req.logIn(user, (err) => {
+        if (err) {
+          return next(err);
+        }
+        // Set login flag in session storage via redirect with script
+        res.send(`
+          <script>
+            sessionStorage.setItem('justLoggedIn', 'true');
+            window.location.href = '/';
+          </script>
+        `);
+      });
     })(req, res, next);
   });
 

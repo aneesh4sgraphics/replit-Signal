@@ -13,13 +13,38 @@ export default function Dashboard() {
   const [hasShownQuote, setHasShownQuote] = useState(false);
 
   useEffect(() => {
-    if (user && !hasShownWelcome) {
+    // Check if user just logged in (from login flow, not dashboard navigation)
+    const justLoggedIn = sessionStorage.getItem('justLoggedIn') === 'true';
+    
+    if (user && !hasShownWelcome && justLoggedIn) {
       setShowWelcome(true);
       setHasShownWelcome(true);
       // Mark that we haven't shown the quote yet for this session
       setHasShownQuote(false);
+      // Clear the flag after showing animation
+      sessionStorage.removeItem('justLoggedIn');
     }
   }, [user, hasShownWelcome]);
+
+  // Automatic logout at midnight
+  useEffect(() => {
+    const checkMidnight = () => {
+      const now = new Date();
+      const midnight = new Date();
+      midnight.setHours(24, 0, 0, 0); // Next midnight
+      
+      const timeUntilMidnight = midnight.getTime() - now.getTime();
+      
+      setTimeout(() => {
+        // Logout at midnight
+        window.location.href = '/api/logout';
+      }, timeUntilMidnight);
+    };
+
+    if (user) {
+      checkMidnight();
+    }
+  }, [user]);
 
   const handleDownloadData = async () => {
     try {

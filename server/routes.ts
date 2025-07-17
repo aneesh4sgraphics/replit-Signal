@@ -849,6 +849,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.delete("/api/sent-quotes/:id", requireAdmin, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
+      await storage.deleteSentQuote(id);
+      res.json({ message: "Quote deleted successfully" });
+    } catch (error) {
+      console.error("Error deleting quote:", error);
+      res.status(500).json({ error: "Failed to delete quote" });
+    }
+  });
+
   // Get sent quote by ID
   app.get("/api/sent-quotes/:id", async (req, res) => {
     try {
