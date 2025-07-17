@@ -305,29 +305,45 @@ export default function CompetitorPricing() {
   // File upload mutation
   const uploadMutation = useMutation({
     mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/upload-competitor-pricing', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        throw new Error('Upload failed');
+      try {
+        console.log('Starting file upload:', file.name, file.size);
+        
+        const formData = new FormData();
+        formData.append('file', file);
+        
+        const response = await fetch('/api/upload-competitor-pricing', {
+          method: 'POST',
+          body: formData,
+        });
+        
+        console.log('Upload response status:', response.status);
+        
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+          console.error('Upload error:', errorData);
+          throw new Error(errorData.error || 'Upload failed');
+        }
+        
+        const result = await response.json();
+        console.log('Upload success:', result);
+        return result;
+        
+      } catch (error) {
+        console.error('Frontend upload error:', error);
+        throw error;
       }
-      
-      return response.json();
     },
     onSuccess: (data) => {
+      console.log('Upload mutation succeeded:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
       setUploadFile(null);
       toast({
         title: "Success",
-        description: `Competitor pricing data uploaded successfully. Data is now available for all users.`,
+        description: data.message || "Competitor pricing data uploaded successfully. Data is now available for all users.",
       });
     },
     onError: (error) => {
+      console.error('Upload mutation failed:', error);
       toast({
         title: "Upload Failed",
         description: error.message || "Failed to upload competitor pricing data",
@@ -338,7 +354,18 @@ export default function CompetitorPricing() {
 
   const handleFileUpload = () => {
     if (!uploadFile) return;
-    uploadMutation.mutate(uploadFile);
+    
+    try {
+      console.log('Starting file upload process...');
+      uploadMutation.mutate(uploadFile);
+    } catch (error) {
+      console.error('Error initiating file upload:', error);
+      toast({
+        title: "Upload Error",
+        description: "Failed to start file upload",
+        variant: "destructive",
+      });
+    }
   };
 
   if (isLoading) {
@@ -346,6 +373,20 @@ export default function CompetitorPricing() {
       <div className="container mx-auto p-6 max-w-7xl">
         <div className="flex justify-center items-center min-h-[400px]">
           <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="container mx-auto p-6 max-w-7xl">
+        <div className="text-center">
+          <div className="text-red-500 text-lg mb-4">Error Loading Data</div>
+          <p className="text-gray-600 mb-4">Unable to load competitor pricing data. Please try refreshing the page.</p>
+          <Button onClick={() => window.location.reload()} className="bg-blue-600 hover:bg-blue-700">
+            Refresh Page
+          </Button>
         </div>
       </div>
     );
