@@ -91,8 +91,13 @@ export default function CompetitorPricing() {
   // Migration function to move localStorage data to server
   const migrateLocalStorageData = useMutation({
     mutationFn: async () => {
+      // Check if we're in browser environment
+      if (typeof window === 'undefined' || typeof localStorage === 'undefined') {
+        return 0;
+      }
+      
       const storedData = localStorage.getItem('competitorData');
-      if (!storedData) return;
+      if (!storedData) return 0;
       
       const parsedData = JSON.parse(storedData);
       const migratedCount = parsedData.length;
@@ -128,7 +133,7 @@ export default function CompetitorPricing() {
       return migratedCount;
     },
     onSuccess: (migratedCount) => {
-      if (migratedCount > 0) {
+      if (migratedCount && migratedCount > 0) {
         queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
         toast({
           title: "Data migrated successfully",
@@ -147,9 +152,21 @@ export default function CompetitorPricing() {
 
   // Check for localStorage data and migrate on component mount
   useEffect(() => {
-    const storedData = localStorage.getItem('competitorData');
-    if (storedData && JSON.parse(storedData).length > 0) {
-      migrateLocalStorageData.mutate();
+    // Only run migration in browser environment
+    if (typeof window !== 'undefined' && typeof localStorage !== 'undefined') {
+      try {
+        const storedData = localStorage.getItem('competitorData');
+        if (storedData) {
+          const parsedData = JSON.parse(storedData);
+          if (Array.isArray(parsedData) && parsedData.length > 0) {
+            migrateLocalStorageData.mutate();
+          }
+        }
+      } catch (error) {
+        console.error('Error parsing localStorage data:', error);
+        // Remove corrupted data
+        localStorage.removeItem('competitorData');
+      }
     }
   }, []);
 
