@@ -1014,9 +1014,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Read the uploaded CSV file
       const csvContent = fs.readFileSync(filePath, 'utf-8');
+      console.log('CSV Content:', csvContent.substring(0, 500) + '...');
       
       // Parse CSV content
       const lines = csvContent.split('\n').filter(line => line.trim().length > 0);
+      console.log('Lines:', lines.length);
       
       if (lines.length === 0) {
         return res.status(400).json({ error: "Empty CSV file" });
@@ -1025,10 +1027,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
       const dataRows = lines.slice(1);
       
+      console.log('Headers:', headers);
+      console.log('Data rows:', dataRows.length);
+      
       let uploadedCount = 0;
       
-      for (const row of dataRows) {
+      for (let i = 0; i < dataRows.length; i++) {
+        const row = dataRows[i];
+        console.log(`Processing row ${i + 1}:`, row);
+        
         const values = row.split(',').map(v => v.trim().replace(/"/g, ''));
+        console.log('Values:', values);
         
         if (values.length !== headers.length) {
           console.warn(`Skipping row with incorrect number of columns: ${row}`);
@@ -1040,43 +1049,65 @@ export async function registerRoutes(app: Express): Promise<Server> {
           rowData[header] = values[index];
         });
         
-        // Parse dimensions to extract width and length
-        const dimensionsMatch = (rowData.Width && rowData.Length) ? 
-          null : (rowData.dimensions || '').match(/(\d+(?:\.\d+)?)\s*(?:in|inch|inches|ft|feet|"|')\s*[×x]\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|ft|feet|"|')/);
+        console.log('Row data:', rowData);
         
-        const width = parseFloat(String(rowData.Width || rowData.width || (dimensionsMatch ? dimensionsMatch[1] : '0')).replace(/[^0-9.]/g, '')) || 0;
-        const length = parseFloat(String(rowData.Length || rowData.length || (dimensionsMatch ? dimensionsMatch[2] : '0')).replace(/[^0-9.]/g, '')) || 0;
+        // Parse input price
+        const inputPriceStr = String(rowData['Input Price'] || '0');
+        const inputPrice = parseFloat(inputPriceStr.replace(/[$,]/g, ''));
+        console.log('Input Price:', inputPriceStr, '->', inputPrice);
         
-        // Map CSV columns to database fields (flexible header mapping)
+        // Parse per-unit prices
+        const pricePerSqInStr = String(rowData['Price/in²'] || '0');
+        const pricePerSqIn = parseFloat(pricePerSqInStr.replace(/[$,]/g, ''));
+        console.log('Price/in²:', pricePerSqInStr, '->', pricePerSqIn);
+        
+        const pricePerSqFtStr = String(rowData['Price/ft²'] || '0');
+        const pricePerSqFt = parseFloat(pricePerSqFtStr.replace(/[$,]/g, ''));
+        console.log('Price/ft²:', pricePerSqFtStr, '->', pricePerSqFt);
+        
+        const pricePerSqMeterStr = String(rowData['Price/m²'] || '0');
+        const pricePerSqMeter = parseFloat(pricePerSqMeterStr.replace(/[$,]/g, ''));
+        console.log('Price/m²:', pricePerSqMeterStr, '->', pricePerSqMeter);
+        
+        // Parse dimensions 
+        const widthStr = String(rowData.Width || '0');
+        const width = parseFloat(widthStr.replace(/[^0-9.]/g, ''));
+        
+        const lengthStr = String(rowData.Length || '0');
+        const length = parseFloat(lengthStr.replace(/[^0-9.]/g, ''));
+        
+        console.log('Dimensions:', widthStr, 'x', lengthStr, '->', width, 'x', length);
+        
+        // Create competitor data object
         const competitorData = {
-          type: rowData.Type || rowData.type || rowData.Product_Type || 'sheets',
-          dimensions: rowData.dimensions || rowData.Dimensions || rowData.Size || `${width} x ${length} in`,
+          type: rowData.Type || 'sheets',
+          dimensions: `${width} x ${length} in`,
           width: width,
           length: length,
           unit: 'in',
-          packQty: parseInt(rowData['Pack Qty'] || rowData.packQty || rowData.Quantity || '1') || 1,
-          inputPrice: parseFloat(String(rowData['Input Price'] || rowData.inputPrice || rowData.InputPrice || rowData.Input_Price || '0').replace(/[$,]/g, '')) || 0,
-          thickness: rowData.Thickness || rowData.thickness || rowData.Gauge || 'N/A',
-          productKind: rowData['Product Kind'] || rowData.productKind || rowData.Product_Kind || rowData.Type || 'Non Adhesive',
-          surfaceFinish: rowData['Surface Finish'] || rowData.surfaceFinish || rowData.Surface_Finish || rowData.Finish || 'N/A',
-          supplierInfo: rowData['Supplier Info'] || rowData.supplierInfo || rowData.Supplier_Info || rowData.Supplier || 'N/A',
-          infoReceivedFrom: rowData['Info Received From'] || rowData.infoReceivedFrom || rowData.Info_Received_From || rowData.Contact || 'N/A',
-          pricePerSqIn: parseFloat(String(rowData['Price/in²'] || rowData.pricePerSqIn || rowData.Price_Per_SqIn || '0').replace(/[$,]/g, '')) || 0,
-          pricePerSqFt: parseFloat(String(rowData['Price/ft²'] || rowData.pricePerSqFt || rowData.Price_Per_SqFt || '0').replace(/[$,]/g, '')) || 0,
-          pricePerSqMeter: parseFloat(String(rowData['Price/m²'] || rowData.pricePerSqMeter || rowData.Price_Per_SqMeter || '0').replace(/[$,]/g, '')) || 0,
-          notes: rowData.Notes || rowData.notes || rowData.Comments || 'N/A',
-          source: rowData.source || rowData.Source || 'CSV Upload',
-          addedBy: req.user?.claims?.sub || 'admin' // Use authenticated user ID
+          packQty: parseInt(rowData['Pack Qty'] || '1') || 1,
+          inputPrice: inputPrice,
+          thickness: rowData.Thickness || 'N/A',
+          productKind: rowData['Product Kind'] || 'Non Adhesive',
+          surfaceFinish: rowData['Surface Finish'] || 'N/A',
+          supplierInfo: rowData['Supplier Info'] || 'N/A',
+          infoReceivedFrom: rowData['Info Received From'] || 'N/A',
+          pricePerSqIn: pricePerSqIn,
+          pricePerSqFt: pricePerSqFt,
+          pricePerSqMeter: pricePerSqMeter,
+          notes: rowData.Notes || 'N/A',
+          source: 'CSV Upload',
+          addedBy: req.user?.claims?.sub || 'admin'
         };
         
-        console.log('Creating competitor pricing with data:', JSON.stringify(competitorData, null, 2));
+        console.log('Final competitor data:', JSON.stringify(competitorData, null, 2));
         
         try {
           const savedEntry = await storage.createCompetitorPricing(competitorData);
-          console.log('Saved entry:', JSON.stringify(savedEntry, null, 2));
+          console.log('Successfully saved entry:', JSON.stringify(savedEntry, null, 2));
           uploadedCount++;
         } catch (error) {
-          console.error(`Error saving competitor pricing data:`, error);
+          console.error(`Error saving competitor pricing data for row ${i + 1}:`, error);
         }
       }
       

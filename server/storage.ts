@@ -582,12 +582,23 @@ export class DatabaseStorage implements IStorage {
 
   async createCompetitorPricing(data: InsertCompetitorPricing): Promise<CompetitorPricing> {
     console.log('Storage: Creating competitor pricing entry with data:', JSON.stringify(data, null, 2));
-    const [entry] = await db
-      .insert(competitorPricing)
-      .values(data)
-      .returning();
-    console.log('Storage: Created entry:', JSON.stringify(entry, null, 2));
-    return entry;
+    
+    // Validate required fields
+    if (!data.inputPrice || data.inputPrice === 0) {
+      console.error('Invalid input price:', data.inputPrice);
+    }
+    
+    try {
+      const [entry] = await db
+        .insert(competitorPricing)
+        .values(data)
+        .returning();
+      console.log('Storage: Successfully created entry:', JSON.stringify(entry, null, 2));
+      return entry;
+    } catch (error) {
+      console.error('Storage: Database error:', error);
+      throw error;
+    }
   }
 
   async deleteCompetitorPricing(id: number): Promise<boolean> {
