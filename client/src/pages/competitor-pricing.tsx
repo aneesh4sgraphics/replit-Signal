@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Filter, Plus, Download, RotateCcw, Sheet, Trash2 } from "lucide-react";
+import { TrendingUp, Filter, Plus, Download, RotateCcw, Sheet, Trash2, Upload, FileText } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
 import { toast } from "@/hooks/use-toast";
@@ -54,6 +54,9 @@ export default function CompetitorPricing() {
   const [thicknesses, setThicknesses] = useState<string[]>([]);
   const [productKinds, setProductKinds] = useState<string[]>([]);
   const [surfaceFinishes, setSurfaceFinishes] = useState<string[]>([]);
+
+  // File upload state
+  const [uploadFile, setUploadFile] = useState<File | null>(null);
 
   // Fetch competitor pricing data from API
   const { data: competitorData = [], isLoading } = useQuery({
@@ -299,6 +302,45 @@ export default function CompetitorPricing() {
     }
   };
 
+  // File upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-competitor-pricing', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setUploadFile(null);
+      toast({
+        title: "Success",
+        description: `Competitor pricing data uploaded successfully. Data is now available for all users.`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload competitor pricing data",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleFileUpload = () => {
+    if (!uploadFile) return;
+    uploadMutation.mutate(uploadFile);
+  };
+
   if (isLoading) {
     return (
       <div className="container mx-auto p-6 max-w-7xl">
@@ -462,10 +504,54 @@ export default function CompetitorPricing() {
         <CardHeader>
           <div className="flex justify-between items-center">
             <CardTitle>Pricing Data ({filteredData.length} entries)</CardTitle>
-            <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700 text-white">
-              <Sheet className="w-4 h-4 mr-2" />
-              Export Excel
-            </Button>
+            <div className="flex gap-2">
+              {user?.role === 'admin' && (
+                <div className="flex items-center gap-2">
+                  <input
+                    type="file"
+                    accept=".csv"
+                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+                    className="hidden"
+                    id="upload-competitor-data"
+                  />
+                  <label htmlFor="upload-competitor-data">
+                    <Button
+                      variant="outline"
+                      className="cursor-pointer"
+                      asChild
+                    >
+                      <span>
+                        <FileText className="w-4 h-4 mr-2" />
+                        Choose File
+                      </span>
+                    </Button>
+                  </label>
+                  {uploadFile && (
+                    <Button
+                      onClick={handleFileUpload}
+                      disabled={uploadMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700 text-white"
+                    >
+                      {uploadMutation.isPending ? (
+                        <>
+                          <Upload className="w-4 h-4 mr-2 animate-spin" />
+                          Uploading...
+                        </>
+                      ) : (
+                        <>
+                          <Upload className="w-4 h-4 mr-2" />
+                          Upload Data
+                        </>
+                      )}
+                    </Button>
+                  )}
+                </div>
+              )}
+              <Button onClick={exportToExcel} className="bg-green-600 hover:bg-green-700 text-white">
+                <Sheet className="w-4 h-4 mr-2" />
+                Export Excel
+              </Button>
+            </div>
           </div>
         </CardHeader>
         <CardContent>

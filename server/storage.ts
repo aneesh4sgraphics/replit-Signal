@@ -17,10 +17,14 @@ import {
   type SentQuote,
   type InsertSentQuote,
   type CompetitorPricing,
-  type InsertCompetitorPricing
+  type InsertCompetitorPricing,
+  users,
+  competitorPricing
 } from "@shared/schema";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
+import { db } from "./db";
+import { eq, desc } from "drizzle-orm";
 
 export interface IStorage {
   // User operations for Replit Auth
@@ -516,4 +520,206 @@ export class MemStorage implements IStorage {
 
 }
 
-export const storage = new MemStorage();
+// Database Storage Implementation
+export class DatabaseStorage implements IStorage {
+  // User operations for Replit Auth
+  async getUser(id: string): Promise<User | undefined> {
+    const [user] = await db.select().from(users).where(eq(users.id, id));
+    return user;
+  }
+
+  async upsertUser(userData: UpsertUser): Promise<User> {
+    const [user] = await db
+      .insert(users)
+      .values(userData)
+      .onConflictDoUpdate({
+        target: users.id,
+        set: {
+          ...userData,
+          updatedAt: new Date(),
+        },
+      })
+      .returning();
+    return user;
+  }
+
+  async getAllUsers(): Promise<User[]> {
+    return await db.select().from(users);
+  }
+
+  async approveUser(userId: string, adminId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({
+        status: "approved",
+        approvedBy: adminId,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async rejectUser(userId: string, adminId: string): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({
+        status: "rejected",
+        approvedBy: adminId,
+        approvedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  // Competitor Pricing operations
+  async getCompetitorPricing(): Promise<CompetitorPricing[]> {
+    return await db.select().from(competitorPricing).orderBy(desc(competitorPricing.createdAt));
+  }
+
+  async createCompetitorPricing(data: InsertCompetitorPricing): Promise<CompetitorPricing> {
+    const [entry] = await db
+      .insert(competitorPricing)
+      .values(data)
+      .returning();
+    return entry;
+  }
+
+  async deleteCompetitorPricing(id: number): Promise<boolean> {
+    const result = await db
+      .delete(competitorPricing)
+      .where(eq(competitorPricing.id, id));
+    return result.rowCount > 0;
+  }
+
+  // For now, other methods will delegate to MemStorage
+  private memStorage = new MemStorage();
+
+  // Product Categories
+  async getProductCategories(): Promise<ProductCategory[]> {
+    return this.memStorage.getProductCategories();
+  }
+
+  async getProductCategory(id: number): Promise<ProductCategory | undefined> {
+    return this.memStorage.getProductCategory(id);
+  }
+
+  async createProductCategory(category: InsertProductCategory): Promise<ProductCategory> {
+    return this.memStorage.createProductCategory(category);
+  }
+
+  // Product Types
+  async getProductTypes(): Promise<ProductType[]> {
+    return this.memStorage.getProductTypes();
+  }
+
+  async getProductTypesByCategory(categoryId: number): Promise<ProductType[]> {
+    return this.memStorage.getProductTypesByCategory(categoryId);
+  }
+
+  async getProductType(id: number): Promise<ProductType | undefined> {
+    return this.memStorage.getProductType(id);
+  }
+
+  async createProductType(type: InsertProductType): Promise<ProductType> {
+    return this.memStorage.createProductType(type);
+  }
+
+  // Product Sizes
+  async getProductSizes(): Promise<ProductSize[]> {
+    return this.memStorage.getProductSizes();
+  }
+
+  async getProductSizesByType(typeId: number): Promise<ProductSize[]> {
+    return this.memStorage.getProductSizesByType(typeId);
+  }
+
+  async getProductSize(id: number): Promise<ProductSize | undefined> {
+    return this.memStorage.getProductSize(id);
+  }
+
+  async createProductSize(size: InsertProductSize): Promise<ProductSize> {
+    return this.memStorage.createProductSize(size);
+  }
+
+  async updateProductSize(id: number, size: Partial<InsertProductSize>): Promise<ProductSize | undefined> {
+    return this.memStorage.updateProductSize(id, size);
+  }
+
+  // Pricing Tiers
+  async getPricingTiers(): Promise<PricingTier[]> {
+    return this.memStorage.getPricingTiers();
+  }
+
+  async getPricingTier(id: number): Promise<PricingTier | undefined> {
+    return this.memStorage.getPricingTier(id);
+  }
+
+  async createPricingTier(tier: InsertPricingTier): Promise<PricingTier> {
+    return this.memStorage.createPricingTier(tier);
+  }
+
+  // Product Pricing
+  async getProductPricing(): Promise<ProductPricing[]> {
+    return this.memStorage.getProductPricing();
+  }
+
+  async getProductPricingByType(typeId: number): Promise<ProductPricing[]> {
+    return this.memStorage.getProductPricingByType(typeId);
+  }
+
+  async getPriceForProductType(typeId: number, tierId: number): Promise<number> {
+    return this.memStorage.getPriceForProductType(typeId, tierId);
+  }
+
+  async getPriceForSquareMeters(squareMeters: number, typeId: number, tierId: number): Promise<number> {
+    return this.memStorage.getPriceForSquareMeters(squareMeters, typeId, tierId);
+  }
+
+  // Customers
+  async getCustomers(): Promise<Customer[]> {
+    return this.memStorage.getCustomers();
+  }
+
+  async getCustomer(id: string): Promise<Customer | undefined> {
+    return this.memStorage.getCustomer(id);
+  }
+
+  async createCustomer(customer: InsertCustomer): Promise<Customer> {
+    return this.memStorage.createCustomer(customer);
+  }
+
+  async updateCustomer(id: string, customerData: Partial<InsertCustomer>): Promise<Customer | undefined> {
+    return this.memStorage.updateCustomer(id, customerData);
+  }
+
+  async deleteCustomer(id: string): Promise<boolean> {
+    return this.memStorage.deleteCustomer(id);
+  }
+
+  // Sent Quotes
+  async getSentQuotes(): Promise<SentQuote[]> {
+    return this.memStorage.getSentQuotes();
+  }
+
+  async getSentQuote(id: number): Promise<SentQuote | undefined> {
+    return this.memStorage.getSentQuote(id);
+  }
+
+  async createSentQuote(quote: InsertSentQuote): Promise<SentQuote> {
+    return this.memStorage.createSentQuote(quote);
+  }
+
+  async deleteSentQuote(id: number): Promise<boolean> {
+    return this.memStorage.deleteSentQuote(id);
+  }
+
+  async reinitializeData(): Promise<void> {
+    return this.memStorage.reinitializeData();
+  }
+}
+
+export const storage = new DatabaseStorage();
