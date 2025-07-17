@@ -581,10 +581,12 @@ export class DatabaseStorage implements IStorage {
   }
 
   async createCompetitorPricing(data: InsertCompetitorPricing): Promise<CompetitorPricing> {
+    console.log('Storage: Creating competitor pricing entry with data:', JSON.stringify(data, null, 2));
     const [entry] = await db
       .insert(competitorPricing)
       .values(data)
       .returning();
+    console.log('Storage: Created entry:', JSON.stringify(entry, null, 2));
     return entry;
   }
 

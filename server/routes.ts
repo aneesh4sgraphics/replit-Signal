@@ -1044,8 +1044,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const dimensionsMatch = (rowData.Width && rowData.Length) ? 
           null : (rowData.dimensions || '').match(/(\d+(?:\.\d+)?)\s*(?:in|inch|inches|ft|feet|"|')\s*[×x]\s*(\d+(?:\.\d+)?)\s*(?:in|inch|inches|ft|feet|"|')/);
         
-        const width = parseFloat(rowData.Width || rowData.width || (dimensionsMatch ? dimensionsMatch[1] : '0')) || 0;
-        const length = parseFloat(rowData.Length || rowData.length || (dimensionsMatch ? dimensionsMatch[2] : '0')) || 0;
+        const width = parseFloat(String(rowData.Width || rowData.width || (dimensionsMatch ? dimensionsMatch[1] : '0')).replace(/[^0-9.]/g, '')) || 0;
+        const length = parseFloat(String(rowData.Length || rowData.length || (dimensionsMatch ? dimensionsMatch[2] : '0')).replace(/[^0-9.]/g, '')) || 0;
         
         // Map CSV columns to database fields (flexible header mapping)
         const competitorData = {
@@ -1056,21 +1056,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
           unit: 'in',
           packQty: parseInt(rowData['Pack Qty'] || rowData.packQty || rowData.Quantity || '1') || 1,
           inputPrice: parseFloat(String(rowData['Input Price'] || rowData.inputPrice || rowData.InputPrice || rowData.Input_Price || '0').replace(/[$,]/g, '')) || 0,
-          thickness: rowData.Thickness || rowData.thickness || rowData.Gauge || '',
+          thickness: rowData.Thickness || rowData.thickness || rowData.Gauge || 'N/A',
           productKind: rowData['Product Kind'] || rowData.productKind || rowData.Product_Kind || rowData.Type || 'Non Adhesive',
-          surfaceFinish: rowData['Surface Finish'] || rowData.surfaceFinish || rowData.Surface_Finish || rowData.Finish || '',
-          supplierInfo: rowData['Supplier Info'] || rowData.supplierInfo || rowData.Supplier_Info || rowData.Supplier || '',
-          infoReceivedFrom: rowData['Info Received From'] || rowData.infoReceivedFrom || rowData.Info_Received_From || rowData.Contact || '',
+          surfaceFinish: rowData['Surface Finish'] || rowData.surfaceFinish || rowData.Surface_Finish || rowData.Finish || 'N/A',
+          supplierInfo: rowData['Supplier Info'] || rowData.supplierInfo || rowData.Supplier_Info || rowData.Supplier || 'N/A',
+          infoReceivedFrom: rowData['Info Received From'] || rowData.infoReceivedFrom || rowData.Info_Received_From || rowData.Contact || 'N/A',
           pricePerSqIn: parseFloat(String(rowData['Price/in²'] || rowData.pricePerSqIn || rowData.Price_Per_SqIn || '0').replace(/[$,]/g, '')) || 0,
           pricePerSqFt: parseFloat(String(rowData['Price/ft²'] || rowData.pricePerSqFt || rowData.Price_Per_SqFt || '0').replace(/[$,]/g, '')) || 0,
           pricePerSqMeter: parseFloat(String(rowData['Price/m²'] || rowData.pricePerSqMeter || rowData.Price_Per_SqMeter || '0').replace(/[$,]/g, '')) || 0,
-          notes: rowData.Notes || rowData.notes || rowData.Comments || '',
+          notes: rowData.Notes || rowData.notes || rowData.Comments || 'N/A',
           source: rowData.source || rowData.Source || 'CSV Upload',
           addedBy: req.user?.claims?.sub || 'admin' // Use authenticated user ID
         };
         
+        console.log('Creating competitor pricing with data:', JSON.stringify(competitorData, null, 2));
+        
         try {
-          await storage.createCompetitorPricing(competitorData);
+          const savedEntry = await storage.createCompetitorPricing(competitorData);
+          console.log('Saved entry:', JSON.stringify(savedEntry, null, 2));
           uploadedCount++;
         } catch (error) {
           console.error(`Error saving competitor pricing data:`, error);
