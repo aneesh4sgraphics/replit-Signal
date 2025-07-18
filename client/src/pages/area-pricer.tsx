@@ -11,6 +11,8 @@ import { Calculator, Download, Plus, Sheet } from "lucide-react";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { toast } from "@/hooks/use-toast";
+import { useAuth } from "@/hooks/useAuth";
+import { isUnauthorizedError } from "@/lib/authUtils";
 
 interface CalculationResult {
   id: string;
@@ -36,6 +38,7 @@ interface CalculationResult {
 }
 
 export default function AreaPricer() {
+  const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
   const [calculationType, setCalculationType] = useState<"sheets" | "roll">("sheets");
   const [width, setWidth] = useState("");
@@ -68,6 +71,17 @@ export default function AreaPricer() {
       });
     },
     onError: (error) => {
+      if (isUnauthorizedError(error)) {
+        toast({
+          title: "Authentication Required",
+          description: "You need to be logged in to add competitor data. Redirecting to login...",
+          variant: "destructive",
+        });
+        setTimeout(() => {
+          window.location.href = "/api/login";
+        }, 1000);
+        return;
+      }
       toast({
         title: "Error",
         description: error.message || "Failed to add competitor data",
@@ -305,13 +319,16 @@ export default function AreaPricer() {
       pricePerSqIn: calc.pricePerSqIn,
       pricePerSqFt: calc.pricePerSqFt,
       pricePerSqMeter: calc.pricePerSqMeter,
-      notes: calc.notes,
+      notes: calc.notes || "",
       source: "Area Pricer"
     }));
 
     // Add all entries to the server
     try {
+      console.log("Adding competitor entries:", competitorEntries);
+      
       for (const entry of competitorEntries) {
+        console.log("Adding entry:", entry);
         await addCompetitorDataMutation.mutateAsync(entry);
       }
       
@@ -320,6 +337,7 @@ export default function AreaPricer() {
         description: `Successfully added ${calculations.length} calculation(s) to Competitor Info!`,
       });
     } catch (error) {
+      console.error("Error adding to competitor info:", error);
       toast({
         title: "Error",
         description: "Failed to add some calculations to Competitor Info",
@@ -327,6 +345,18 @@ export default function AreaPricer() {
       });
     }
   };
+
+  // Show authentication loading state
+  if (authLoading) {
+    return (
+      <div className="min-h-screen flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto"></div>
+          <p className="mt-2 text-gray-600">Loading...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="container mx-auto p-3 sm:p-6 max-w-7xl">

@@ -985,12 +985,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user.claims.sub;
       const pricingData = req.body;
       
-      // Validate required fields
-      if (!pricingData.type || !pricingData.dimensions || !pricingData.packQty || 
-          !pricingData.inputPrice || !pricingData.thickness || !pricingData.productKind ||
+      console.log("Received competitor pricing data:", pricingData);
+      console.log("User ID:", userId);
+      
+      // Validate required fields (allow empty strings for optional fields like notes)
+      if (!pricingData.type || !pricingData.dimensions || 
+          pricingData.packQty === undefined || pricingData.packQty === null ||
+          pricingData.inputPrice === undefined || pricingData.inputPrice === null ||
+          !pricingData.thickness || !pricingData.productKind ||
           !pricingData.surfaceFinish || !pricingData.supplierInfo || !pricingData.infoReceivedFrom ||
-          !pricingData.pricePerSqIn || !pricingData.pricePerSqFt || !pricingData.pricePerSqMeter ||
-          !pricingData.notes || !pricingData.source) {
+          pricingData.pricePerSqIn === undefined || pricingData.pricePerSqIn === null ||
+          pricingData.pricePerSqFt === undefined || pricingData.pricePerSqFt === null ||
+          pricingData.pricePerSqMeter === undefined || pricingData.pricePerSqMeter === null ||
+          !pricingData.source) {
+        console.log("Validation failed for pricing data:", pricingData);
         return res.status(400).json({ error: "Missing required fields" });
       }
 
@@ -999,6 +1007,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         addedBy: userId
       });
       
+      console.log("Successfully created competitor pricing entry:", newEntry);
       res.json(newEntry);
     } catch (error) {
       console.error("Error creating competitor pricing:", error);
