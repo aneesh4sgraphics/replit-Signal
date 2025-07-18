@@ -47,6 +47,9 @@ export default function AreaPricer() {
   const [productKind, setProductKind] = useState("");
   const [surfaceFinish, setSurfaceFinish] = useState("");
   const [supplierInfo, setSupplierInfo] = useState("");
+  const [customSupplier, setCustomSupplier] = useState("");
+  const [showCustomSupplier, setShowCustomSupplier] = useState(false);
+  const [savedCustomSuppliers, setSavedCustomSuppliers] = useState<string[]>([]);
   const [infoReceivedFrom, setInfoReceivedFrom] = useState("");
   const [notes, setNotes] = useState("");
   
@@ -450,26 +453,13 @@ export default function AreaPricer() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <Label htmlFor="thickness" className="text-sm sm:text-base font-medium">Thickness</Label>
-                <Select value={thickness} onValueChange={setThickness}>
-                  <SelectTrigger className="mt-1">
-                    <SelectValue placeholder="Select thickness" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="1mil">1mil</SelectItem>
-                    <SelectItem value="2mil">2mil</SelectItem>
-                    <SelectItem value="3mil">3mil</SelectItem>
-                    <SelectItem value="4mil">4mil</SelectItem>
-                    <SelectItem value="5mil">5mil</SelectItem>
-                    <SelectItem value="6mil">6mil</SelectItem>
-                    <SelectItem value="7mil">7mil</SelectItem>
-                    <SelectItem value="8mil">8mil</SelectItem>
-                    <SelectItem value="10mil">10mil</SelectItem>
-                    <SelectItem value="12mil">12mil</SelectItem>
-                    <SelectItem value="15mil">15mil</SelectItem>
-                    <SelectItem value="20mil">20mil</SelectItem>
-                    <SelectItem value="Custom">Custom</SelectItem>
-                  </SelectContent>
-                </Select>
+                <Input
+                  id="thickness"
+                  value={thickness}
+                  onChange={(e) => setThickness(e.target.value)}
+                  placeholder="e.g., 3mil, 5mm, etc."
+                  className="mt-1"
+                />
               </div>
               <div>
                 <Label htmlFor="productKind" className="text-sm sm:text-base font-medium">Product Kind</Label>
@@ -478,15 +468,8 @@ export default function AreaPricer() {
                     <SelectValue placeholder="Select product kind" />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="Vinyl">Vinyl</SelectItem>
-                    <SelectItem value="Paper">Paper</SelectItem>
-                    <SelectItem value="Fabric">Fabric</SelectItem>
-                    <SelectItem value="Film">Film</SelectItem>
-                    <SelectItem value="Canvas">Canvas</SelectItem>
-                    <SelectItem value="Mesh">Mesh</SelectItem>
-                    <SelectItem value="Banner">Banner</SelectItem>
-                    <SelectItem value="Adhesive">Adhesive</SelectItem>
-                    <SelectItem value="Laminate">Laminate</SelectItem>
+                    <SelectItem value="Adhesive Type">Adhesive Type</SelectItem>
+                    <SelectItem value="Non Adhesive Type">Non Adhesive Type</SelectItem>
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
@@ -513,6 +496,62 @@ export default function AreaPricer() {
                     <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
+              </div>
+              <div>
+                <Label htmlFor="supplierInfo" className="text-sm sm:text-base font-medium">Supplier Info</Label>
+                <Select value={supplierInfo} onValueChange={(value) => {
+                  setSupplierInfo(value);
+                  if (value === "Other") {
+                    setShowCustomSupplier(true);
+                  } else {
+                    setShowCustomSupplier(false);
+                    setCustomSupplier("");
+                  }
+                }}>
+                  <SelectTrigger className="mt-1">
+                    <SelectValue placeholder="Select supplier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="Neekoosa">Neekoosa</SelectItem>
+                    <SelectItem value="GPA">GPA</SelectItem>
+                    <SelectItem value="MGX">MGX</SelectItem>
+                    <SelectItem value="Mac Papers">Mac Papers</SelectItem>
+                    <SelectItem value="Lindenmeyr">Lindenmeyr</SelectItem>
+                    {savedCustomSuppliers.map((supplier) => (
+                      <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                    ))}
+                    <SelectItem value="Other">Other</SelectItem>
+                  </SelectContent>
+                </Select>
+                {showCustomSupplier && (
+                  <div className="mt-2">
+                    <Input
+                      value={customSupplier}
+                      onChange={(e) => setCustomSupplier(e.target.value)}
+                      placeholder="Enter custom supplier name"
+                      onBlur={() => {
+                        if (customSupplier.trim() && !savedCustomSuppliers.includes(customSupplier.trim())) {
+                          setSavedCustomSuppliers(prev => [...prev, customSupplier.trim()]);
+                          setSupplierInfo(customSupplier.trim());
+                          setShowCustomSupplier(false);
+                          setCustomSupplier("");
+                        }
+                      }}
+                      onKeyDown={(e) => {
+                        if (e.key === 'Enter' && customSupplier.trim()) {
+                          if (!savedCustomSuppliers.includes(customSupplier.trim())) {
+                            setSavedCustomSuppliers(prev => [...prev, customSupplier.trim()]);
+                          }
+                          setSupplierInfo(customSupplier.trim());
+                          setShowCustomSupplier(false);
+                          setCustomSupplier("");
+                        }
+                      }}
+                      className="text-sm"
+                    />
+                    <p className="text-xs text-gray-500 mt-1">Press Enter or click away to save</p>
+                  </div>
+                )}
               </div>
               <div>
                 <Label htmlFor="supplierInfo" className="text-sm sm:text-base font-medium">Supplier Info</Label>
