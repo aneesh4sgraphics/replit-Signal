@@ -257,60 +257,60 @@ export default function Dashboard() {
               <Shield className="w-5 h-5 text-red-600" />
               <h3 className="text-lg font-semibold text-gray-900">Admin Tools</h3>
             </div>
-            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-4">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
               {/* Admin Panel */}
               <Link href="/admin">
-                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-rose-50 to-red-100 border-0 shadow-md">
-                  <CardHeader className="text-center pb-4">
-                    <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Settings className="w-6 h-6 text-white" />
+                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-rose-50 to-red-100 border-0 shadow-md h-full">
+                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-rose-500 to-red-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Settings className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <CardTitle className="text-sm font-semibold text-red-800">Admin Panel</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-red-800">Admin Panel</CardTitle>
                   </CardHeader>
                 </Card>
               </Link>
 
               {/* Customer Management */}
               <Link href="/customer-management">
-                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-blue-50 to-sky-100 border-0 shadow-md">
-                  <CardHeader className="text-center pb-4">
-                    <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Users className="w-6 h-6 text-white" />
+                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-blue-50 to-sky-100 border-0 shadow-md h-full">
+                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-sky-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Users className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <CardTitle className="text-sm font-semibold text-blue-800">Customer Management</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-blue-800">Customer Management</CardTitle>
                   </CardHeader>
                 </Card>
               </Link>
 
               {/* Product Management */}
               <Link href="/product-management">
-                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-indigo-50 to-purple-100 border-0 shadow-md">
-                  <CardHeader className="text-center pb-4">
-                    <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Package className="w-6 h-6 text-white" />
+                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-indigo-50 to-purple-100 border-0 shadow-md h-full">
+                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-indigo-500 to-purple-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Package className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                     </div>
-                    <CardTitle className="text-sm font-semibold text-indigo-800">Product Management</CardTitle>
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-indigo-800">Product Management</CardTitle>
                   </CardHeader>
                 </Card>
               </Link>
 
               {/* Download Databases */}
-              <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-emerald-50 to-teal-100 border-0 shadow-md" onClick={handleDownloadData}>
-                <CardHeader className="text-center pb-4">
-                  <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Download className="w-6 h-6 text-white" />
+              <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-emerald-50 to-teal-100 border-0 shadow-md h-full" onClick={handleDownloadData}>
+                <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                  <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-emerald-500 to-teal-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Download className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <CardTitle className="text-sm font-semibold text-emerald-800">Download Data</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-semibold text-emerald-800">Download Data</CardTitle>
                 </CardHeader>
               </Card>
 
               {/* User Management */}
-              <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-slate-50 to-gray-100 border-0 shadow-md opacity-50">
-                <CardHeader className="text-center pb-4">
-                  <div className="w-12 h-12 mx-auto mb-2 bg-gradient-to-br from-slate-400 to-gray-500 rounded-xl flex items-center justify-center shadow-lg">
-                    <Users className="w-6 h-6 text-white" />
+              <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-slate-50 to-gray-100 border-0 shadow-md opacity-50 h-full">
+                <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                  <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-slate-400 to-gray-500 rounded-xl flex items-center justify-center shadow-lg">
+                    <Users className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <CardTitle className="text-sm font-semibold text-slate-700">User Management</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-semibold text-slate-700">User Management</CardTitle>
                 </CardHeader>
               </Card>
             </div>
