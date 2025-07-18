@@ -392,15 +392,6 @@ export default function QuoteCalculator() {
     return `4SG-${year}${month}${day}-${random}`;
   };
 
-  const getOrCreateQuoteNumber = () => {
-    if (!currentQuoteNumber) {
-      const newQuoteNumber = generateQuoteNumber();
-      setCurrentQuoteNumber(newQuoteNumber);
-      return newQuoteNumber;
-    }
-    return currentQuoteNumber;
-  };
-
   const resetSelections = () => {
     setSelectedType("");
     setSelectedSize(null);
@@ -502,6 +493,12 @@ export default function QuoteCalculator() {
   const addToQuote = async (tierId?: number) => {
     if (!selectedCategory || !selectedType || (!selectedSize && !isCustomSize)) return;
 
+    // Generate quote number if this is the first item being added
+    if (quoteItems.length === 0 && !currentQuoteNumber) {
+      const newQuoteNumber = generateQuoteNumber();
+      setCurrentQuoteNumber(newQuoteNumber);
+    }
+
     // Use the provided tierId or default to Retail tier
     const targetTier = tierId 
       ? pricingTiers?.find(tier => tier.id === tierId)
@@ -537,7 +534,14 @@ export default function QuoteCalculator() {
   };
 
   const removeFromQuote = (itemId: string) => {
-    setQuoteItems(prev => prev.filter(item => item.id !== itemId));
+    setQuoteItems(prev => {
+      const newItems = prev.filter(item => item.id !== itemId);
+      // Clear quote number if no items remain
+      if (newItems.length === 0) {
+        setCurrentQuoteNumber(null);
+      }
+      return newItems;
+    });
   };
 
   const updateQuantity = (itemId: string, newQuantity: number) => {
@@ -607,7 +611,7 @@ export default function QuoteCalculator() {
           customerName,
           customerEmail: customerEmail || undefined,
           quoteItems,
-          quoteNumber: getOrCreateQuoteNumber(),
+          quoteNumber: currentQuoteNumber,
           sentVia: 'pdf',
         }),
       });
@@ -680,7 +684,7 @@ export default function QuoteCalculator() {
           customerName,
           customerEmail: customerEmail || undefined,
           quoteItems,
-          quoteNumber: getOrCreateQuoteNumber(),
+          quoteNumber: currentQuoteNumber,
           sentVia: 'email',
         }),
       });
@@ -691,8 +695,8 @@ export default function QuoteCalculator() {
 
       const { html } = await response.json();
       
-      // Get or create quote number for this session
-      const quoteNumber = getOrCreateQuoteNumber();
+      // Use existing quote number for this session
+      const quoteNumber = currentQuoteNumber;
       const totalAmount = getQuoteTotal();
       const quoteDate = new Date().toLocaleDateString();
       
@@ -1214,10 +1218,20 @@ Look forward for your order!`;
         {quoteItems.length > 0 && (
           <Card className="shadow-sm mt-6">
             <CardHeader className="pb-4">
-              <CardTitle className="text-lg font-bold">Added Items to Quote</CardTitle>
-              <p className="text-sm text-muted-foreground">
-                Review your selected items and finalize your quote.
-              </p>
+              <div className="flex justify-between items-start">
+                <div>
+                  <CardTitle className="text-lg font-bold">Added Items to Quote</CardTitle>
+                  <p className="text-sm text-muted-foreground">
+                    Review your selected items and finalize your quote.
+                  </p>
+                </div>
+                {currentQuoteNumber && (
+                  <div className="text-right">
+                    <div className="text-sm font-medium text-gray-700">Quote Number</div>
+                    <div className="text-lg font-bold text-blue-600">{currentQuoteNumber}</div>
+                  </div>
+                )}
+              </div>
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
