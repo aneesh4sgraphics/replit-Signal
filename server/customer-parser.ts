@@ -83,28 +83,17 @@ function parseCSV(csvContent: string): string[][] {
 export function parseCustomerData(): Customer[] {
   try {
     const csvPath = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
-    console.log('Reading customer CSV from:', csvPath);
     
     if (!fs.existsSync(csvPath)) {
-      console.log('Customer CSV file does not exist');
       return [];
     }
     
     const csvContent = fs.readFileSync(csvPath, 'utf-8');
-    console.log('CSV content length:', csvContent.length);
-    console.log('First 200 chars:', csvContent.substring(0, 200));
-    
     const rows = parseCSV(csvContent);
-    console.log('Parsed rows count:', rows.length);
     
     if (rows.length === 0) {
-      console.log('No rows parsed from CSV');
       return [];
     }
-    
-    console.log('Header row:', rows[0]);
-    console.log('First data row length:', rows[1]?.length);
-    console.log('First data row:', rows[1]);
     
     // Skip header row
     const dataRows = rows.slice(1);
@@ -133,12 +122,9 @@ export function parseCustomerData(): Customer[] {
         };
         
         customers.push(customer);
-      } else {
-        console.log('Skipping row with insufficient columns:', row.length, row);
       }
     }
     
-    console.log('Total customers parsed:', customers.length);
     return customers;
   } catch (error) {
     console.error('Error parsing customer data:', error);

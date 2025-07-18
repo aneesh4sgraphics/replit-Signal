@@ -600,24 +600,134 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Read the uploaded CSV file
-      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
-      
-      // Parse and update the database
-      const { categories, types, sizes } = parseProductData();
-      
-      // Save the file to the attached_assets directory
+      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
       const targetPath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data.csv');
-      fs.copyFileSync(req.file.path, targetPath);
+      
+      let mergedContent = newCsvContent;
+      let newCount = 0;
+      let duplicateCount = 0;
+      let totalCount = 0;
+      
+      // Check if existing product file exists
+      if (fs.existsSync(targetPath)) {
+        const existingContent = fs.readFileSync(targetPath, 'utf-8');
+        
+        // Parse both files
+        const parseProductCSV = (content: string) => {
+          const lines = content.split('\n').filter(line => line.trim());
+          return lines.map(line => line.split(',').map(cell => cell.trim()));
+        };
+        
+        const existingRows = parseProductCSV(existingContent);
+        const newRows = parseProductCSV(newCsvContent);
+        
+        if (existingRows.length > 0 && newRows.length > 0) {
+          const header = existingRows[0];
+          const existingData = existingRows.slice(1);
+          const newData = newRows.slice(1);
+          
+          // Create a map of existing product data for duplicate detection and updates
+          const existingDataMap = new Map(existingData.map(row => [row[0], row]));
+          
+          let updatedCount = 0;
+          const finalData = [...existingData];
+          
+          // Process new data to add new records or update existing ones
+          for (const newRow of newData) {
+            const productId = newRow[0];
+            
+            if (existingDataMap.has(productId)) {
+              // Check if any field has new/different data
+              const existingRow = existingDataMap.get(productId);
+              let hasUpdates = false;
+              const updatedRow = [...existingRow];
+              
+              // Compare each field and update if new data is not empty and different
+              for (let i = 0; i < newRow.length && i < existingRow.length; i++) {
+                const newValue = newRow[i]?.trim() || '';
+                const existingValue = existingRow[i]?.trim() || '';
+                
+                // Update if new value is not empty and different from existing
+                if (newValue && newValue !== existingValue) {
+                  updatedRow[i] = newValue;
+                  hasUpdates = true;
+                }
+              }
+              
+              if (hasUpdates) {
+                // Find and update the record in finalData
+                const index = finalData.findIndex(row => row[0] === productId);
+                if (index !== -1) {
+                  finalData[index] = updatedRow;
+                  updatedCount++;
+                }
+              } else {
+                duplicateCount++;
+              }
+            } else {
+              // New product
+              finalData.push(newRow);
+              newCount++;
+            }
+          }
+          
+          totalCount = finalData.length;
+          
+          // Reconstruct CSV
+          const mergedRows = [header, ...finalData];
+          mergedContent = mergedRows.map(row => row.join(',')).join('\n');
+        }
+      } else {
+        // No existing file, count new records
+        const lines = newCsvContent.split('\n').filter(line => line.trim());
+        newCount = lines.length - 1; // Subtract header
+        totalCount = newCount;
+      }
+      
+      // Save the merged file
+      fs.writeFileSync(targetPath, mergedContent, 'utf-8');
       
       // Clean up the temporary file
       fs.unlinkSync(req.file.path);
       
+      // Clear relevant caches to ensure fresh data is loaded
+      cache.delete('product-categories');
+      cache.delete('product-types');
+      cache.delete('product-sizes');
+      
       // Reinitialize storage with new data
       await storage.reinitializeData();
       
+      // Parse updated data for stats
+      const { categories, types, sizes } = parseProductData();
+      
+      console.log(`Product data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
+      
+      // Create appropriate message based on results
+      let message = "Product data uploaded successfully";
+      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
+        message = `Product data uploaded: ${newCount} new products added, ${updatedCount} products updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0 && updatedCount > 0) {
+        message = `Product data uploaded: ${newCount} new products added, ${updatedCount} products updated`;
+      } else if (newCount > 0 && duplicateCount > 0) {
+        message = `Product data uploaded: ${newCount} new products added, ${duplicateCount} duplicates not imported`;
+      } else if (updatedCount > 0 && duplicateCount > 0) {
+        message = `Product data uploaded: ${updatedCount} products updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0) {
+        message = `Product data uploaded: ${newCount} new products added successfully`;
+      } else if (updatedCount > 0) {
+        message = `Product data uploaded: ${updatedCount} products updated successfully`;
+      } else if (duplicateCount > 0) {
+        message = `Upload completed: ${duplicateCount} duplicate products found and not imported. No changes made.`;
+      }
+      
       res.json({ 
-        message: "Product data uploaded successfully",
+        message,
         stats: {
+          newProducts: newCount,
+          updatedProducts: updatedCount || 0,
+          duplicatesSkipped: duplicateCount,
+          totalProducts: totalCount,
           categories: categories.length,
           types: types.length,
           sizes: sizes.length
@@ -640,20 +750,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Read the uploaded CSV file
-      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
-      
-      // Save the file to the attached_assets directory
+      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
       const targetPath = path.join(process.cwd(), 'attached_assets', 'tier_pricing_template.csv');
-      fs.copyFileSync(req.file.path, targetPath);
+      
+      let mergedContent = newCsvContent;
+      let newCount = 0;
+      let duplicateCount = 0;
+      let totalCount = 0;
+      
+      // Check if existing pricing file exists
+      if (fs.existsSync(targetPath)) {
+        const existingContent = fs.readFileSync(targetPath, 'utf-8');
+        
+        // Parse both files
+        const parsePricingCSV = (content: string) => {
+          const lines = content.split('\n').filter(line => line.trim());
+          return lines.map(line => line.split(',').map(cell => cell.trim()));
+        };
+        
+        const existingRows = parsePricingCSV(existingContent);
+        const newRows = parsePricingCSV(newCsvContent);
+        
+        if (existingRows.length > 0 && newRows.length > 0) {
+          const header = existingRows[0];
+          const existingData = existingRows.slice(1);
+          const newData = newRows.slice(1);
+          
+          // Create a map of existing pricing data for duplicate detection and updates
+          const existingDataMap = new Map(existingData.map(row => [`${row[0]}_${row[1]}`, row]));
+          
+          let updatedCount = 0;
+          const finalData = [...existingData];
+          
+          // Process new data to add new records or update existing ones
+          for (const newRow of newData) {
+            const compositeKey = `${newRow[0]}_${newRow[1]}`;
+            
+            if (existingDataMap.has(compositeKey)) {
+              // Check if any field has new/different data
+              const existingRow = existingDataMap.get(compositeKey);
+              let hasUpdates = false;
+              const updatedRow = [...existingRow];
+              
+              // Compare each field and update if new data is not empty and different
+              for (let i = 0; i < newRow.length && i < existingRow.length; i++) {
+                const newValue = newRow[i]?.trim() || '';
+                const existingValue = existingRow[i]?.trim() || '';
+                
+                // Update if new value is not empty and different from existing
+                if (newValue && newValue !== existingValue) {
+                  updatedRow[i] = newValue;
+                  hasUpdates = true;
+                }
+              }
+              
+              if (hasUpdates) {
+                // Find and update the record in finalData
+                const index = finalData.findIndex(row => `${row[0]}_${row[1]}` === compositeKey);
+                if (index !== -1) {
+                  finalData[index] = updatedRow;
+                  updatedCount++;
+                }
+              } else {
+                duplicateCount++;
+              }
+            } else {
+              // New pricing entry
+              finalData.push(newRow);
+              newCount++;
+            }
+          }
+          
+          totalCount = finalData.length;
+          
+          // Reconstruct CSV
+          const mergedRows = [header, ...finalData];
+          mergedContent = mergedRows.map(row => row.join(',')).join('\n');
+        }
+      } else {
+        // No existing file, count new records
+        const lines = newCsvContent.split('\n').filter(line => line.trim());
+        newCount = lines.length - 1; // Subtract header
+        totalCount = newCount;
+      }
+      
+      // Save the merged file
+      fs.writeFileSync(targetPath, mergedContent, 'utf-8');
       
       // Clean up the temporary file
       fs.unlinkSync(req.file.path);
       
+      // Clear pricing-related caches
+      cache.delete('pricing-tiers');
+      cache.delete('product-pricing');
+      
       // Reinitialize storage with new data
       await storage.reinitializeData();
       
+      console.log(`Pricing data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
+      
+      // Create appropriate message based on results
+      let message = "Pricing data uploaded successfully";
+      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
+        message = `Pricing data uploaded: ${newCount} new entries added, ${updatedCount} entries updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0 && updatedCount > 0) {
+        message = `Pricing data uploaded: ${newCount} new entries added, ${updatedCount} entries updated`;
+      } else if (newCount > 0 && duplicateCount > 0) {
+        message = `Pricing data uploaded: ${newCount} new entries added, ${duplicateCount} duplicates not imported`;
+      } else if (updatedCount > 0 && duplicateCount > 0) {
+        message = `Pricing data uploaded: ${updatedCount} entries updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0) {
+        message = `Pricing data uploaded: ${newCount} new entries added successfully`;
+      } else if (updatedCount > 0) {
+        message = `Pricing data uploaded: ${updatedCount} entries updated successfully`;
+      } else if (duplicateCount > 0) {
+        message = `Upload completed: ${duplicateCount} duplicate entries found and not imported. No changes made.`;
+      }
+      
       res.json({ 
-        message: "Pricing data uploaded successfully"
+        message,
+        stats: {
+          newPricingEntries: newCount,
+          updatedPricingEntries: updatedCount || 0,
+          duplicatesSkipped: duplicateCount,
+          totalPricingEntries: totalCount
+        }
       });
     } catch (error) {
       console.error("Error uploading pricing data:", error);
@@ -672,23 +893,133 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Read the uploaded CSV file
-      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
-      
-      // Save the file to the attached_assets directory
+      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
       const targetPath = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
-      fs.copyFileSync(req.file.path, targetPath);
+      
+      let mergedContent = newCsvContent;
+      let newCount = 0;
+      let duplicateCount = 0;
+      let totalCount = 0;
+      
+      // Check if existing customer file exists
+      if (fs.existsSync(targetPath)) {
+        const existingContent = fs.readFileSync(targetPath, 'utf-8');
+        
+        // Parse both files
+        const parseCustomerCSV = (content: string) => {
+          const lines = content.split('\n').filter(line => line.trim());
+          const rows = [];
+          for (const line of lines) {
+            // Simple parsing - can be enhanced if needed
+            const cells = line.split(',').map(cell => cell.trim().replace(/^'|'$/g, ''));
+            rows.push(cells);
+          }
+          return rows;
+        };
+        
+        const existingRows = parseCustomerCSV(existingContent);
+        const newRows = parseCustomerCSV(newCsvContent);
+        
+        if (existingRows.length > 0 && newRows.length > 0) {
+          // Use the header from existing file
+          const header = existingRows[0];
+          const existingData = existingRows.slice(1);
+          const newData = newRows.slice(1);
+          
+          // Create a map of existing customer data for duplicate detection and updates
+          const existingDataMap = new Map(existingData.map(row => [row[0], row]));
+          
+          let updatedCount = 0;
+          const finalData = [...existingData];
+          
+          // Process new data to add new records or update existing ones
+          for (const newRow of newData) {
+            const customerId = newRow[0];
+            
+            if (existingDataMap.has(customerId)) {
+              // Check if any field has new/different data
+              const existingRow = existingDataMap.get(customerId);
+              let hasUpdates = false;
+              const updatedRow = [...existingRow];
+              
+              // Compare each field and update if new data is not empty and different
+              for (let i = 0; i < newRow.length && i < existingRow.length; i++) {
+                const newValue = newRow[i]?.trim() || '';
+                const existingValue = existingRow[i]?.trim() || '';
+                
+                // Update if new value is not empty and different from existing
+                if (newValue && newValue !== existingValue) {
+                  updatedRow[i] = newValue;
+                  hasUpdates = true;
+                }
+              }
+              
+              if (hasUpdates) {
+                // Find and update the record in finalData
+                const index = finalData.findIndex(row => row[0] === customerId);
+                if (index !== -1) {
+                  finalData[index] = updatedRow;
+                  updatedCount++;
+                }
+              } else {
+                duplicateCount++;
+              }
+            } else {
+              // New customer
+              finalData.push(newRow);
+              newCount++;
+            }
+          }
+          
+          totalCount = finalData.length;
+          
+          // Reconstruct CSV
+          const mergedRows = [header, ...finalData];
+          mergedContent = mergedRows.map(row => row.join(',')).join('\n');
+        }
+      } else {
+        // No existing file, count new records
+        const lines = newCsvContent.split('\n').filter(line => line.trim());
+        newCount = lines.length - 1; // Subtract header
+        totalCount = newCount;
+      }
+      
+      // Save the merged file
+      fs.writeFileSync(targetPath, mergedContent, 'utf-8');
       
       // Clean up the temporary file
       fs.unlinkSync(req.file.path);
       
-      // Count customer records for feedback
-      const lines = csvContent.split('\n').filter(line => line.trim().length > 0);
-      const customerCount = lines.length - 1; // Subtract header row
+      // Clear customer cache to ensure fresh data is loaded
+      cache.delete('customers');
+      
+      console.log(`Customer data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
+      
+      // Create appropriate message based on results
+      let message = "Customer data uploaded successfully";
+      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
+        message = `Customer data uploaded: ${newCount} new customers added, ${updatedCount} customers updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0 && updatedCount > 0) {
+        message = `Customer data uploaded: ${newCount} new customers added, ${updatedCount} customers updated`;
+      } else if (newCount > 0 && duplicateCount > 0) {
+        message = `Customer data uploaded: ${newCount} new customers added, ${duplicateCount} duplicates not imported`;
+      } else if (updatedCount > 0 && duplicateCount > 0) {
+        message = `Customer data uploaded: ${updatedCount} customers updated, ${duplicateCount} duplicates not imported`;
+      } else if (newCount > 0) {
+        message = `Customer data uploaded: ${newCount} new customers added successfully`;
+      } else if (updatedCount > 0) {
+        message = `Customer data uploaded: ${updatedCount} customers updated successfully`;
+      } else if (duplicateCount > 0) {
+        message = `Upload completed: ${duplicateCount} duplicate customers found and not imported. No changes made.`;
+      }
       
       res.json({ 
-        message: "Customer data uploaded successfully",
+        message,
         stats: {
-          customers: customerCount
+          newCustomers: newCount,
+          updatedCustomers: updatedCount || 0,
+          duplicatesSkipped: duplicateCount,
+          totalCustomers: totalCount
         }
       });
     } catch (error) {
