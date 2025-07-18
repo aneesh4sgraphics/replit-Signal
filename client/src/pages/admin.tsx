@@ -1035,13 +1035,20 @@ export default function Admin() {
                           <TableCell>${parseFloat(quote.totalAmount).toFixed(2)}</TableCell>
                           <TableCell>{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell>
-                            <Badge variant={quote.sentVia === 'email' ? 'default' : 'secondary'}>
-                              {quote.sentVia === 'email' ? (
-                                <><Mail className="h-3 w-3 mr-1" />Email</>
-                              ) : (
-                                <><Download className="h-3 w-3 mr-1" />PDF</>
-                              )}
-                            </Badge>
+                            <div className="flex gap-1 flex-wrap">
+                              {quote.sentVia.split(',').map((method, index) => {
+                                const trimmedMethod = method.trim();
+                                return (
+                                  <Badge key={index} variant={trimmedMethod === 'email' ? 'default' : 'secondary'}>
+                                    {trimmedMethod === 'email' ? (
+                                      <><Mail className="h-3 w-3 mr-1" />Email</>
+                                    ) : (
+                                      <><Download className="h-3 w-3 mr-1" />PDF</>
+                                    )}
+                                  </Badge>
+                                );
+                              })}
+                            </div>
                           </TableCell>
                           <TableCell>
                             <Badge variant={quote.status === 'sent' ? 'default' : 'secondary'}>

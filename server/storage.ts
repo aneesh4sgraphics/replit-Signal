@@ -415,11 +415,19 @@ export class MemStorage implements IStorage {
     const existingQuote = Array.from(this.sentQuotes.values()).find(q => q.quoteNumber === quote.quoteNumber);
     
     if (existingQuote) {
-      // Update existing quote
+      // Merge delivery methods
+      const existingMethods = existingQuote.sentVia.split(',').map(m => m.trim());
+      const newMethod = quote.sentVia;
+      
+      // Add new method if not already present
+      const allMethods = [...new Set([...existingMethods, newMethod])];
+      const combinedSentVia = allMethods.join(', ');
+      
+      // Update existing quote with merged delivery methods
       const updatedQuote: SentQuote = {
         ...existingQuote,
         ...quote,
-        sentVia: quote.sentVia || existingQuote.sentVia,
+        sentVia: combinedSentVia,
         createdAt: existingQuote.createdAt, // Keep original creation date
         status: quote.status || existingQuote.status
       };
