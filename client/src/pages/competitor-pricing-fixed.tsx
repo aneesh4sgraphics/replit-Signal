@@ -5,7 +5,7 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Filter, Plus, RotateCcw, Sheet, Trash2, Upload, FileText } from "lucide-react";
+import { TrendingUp, Filter, Plus, RotateCcw, Sheet, Trash2, Upload, FileText, Search } from "lucide-react";
 import { RippleButton } from "@/components/ui/micro-interactions";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
@@ -49,6 +49,8 @@ export default function CompetitorPricing() {
   const [surfaceFinishFilter, setSurfaceFinishFilter] = useState("all");
   const [minPrice, setMinPrice] = useState("");
   const [maxPrice, setMaxPrice] = useState("");
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const [duplicateGroups, setDuplicateGroups] = useState<number[][]>([]);
 
   // Show authentication check first
   if (authLoading) {
@@ -222,6 +224,83 @@ export default function CompetitorPricing() {
     setSurfaceFinishFilter("all");
     setMinPrice("");
     setMaxPrice("");
+  };
+
+  // Find duplicates function
+  const findDuplicates = () => {
+    const groups: number[][] = [];
+    const processed = new Set<number>();
+    
+    filteredData.forEach((item1, index1) => {
+      if (processed.has(index1)) return;
+      
+      const duplicates = [index1];
+      
+      filteredData.forEach((item2, index2) => {
+        if (index1 !== index2 && !processed.has(index2)) {
+          // Check if all relevant columns match exactly
+          const matches = 
+            item1.type === item2.type &&
+            item1.dimensions === item2.dimensions &&
+            parseFloat(item1.packQty).toFixed(2) === parseFloat(item2.packQty).toFixed(2) &&
+            parseFloat(item1.inputPrice).toFixed(2) === parseFloat(item2.inputPrice).toFixed(2) &&
+            item1.thickness === item2.thickness &&
+            item1.productKind === item2.productKind &&
+            item1.surfaceFinish === item2.surfaceFinish &&
+            item1.supplierInfo === item2.supplierInfo &&
+            item1.infoReceivedFrom === item2.infoReceivedFrom &&
+            parseFloat(item1.pricePerSqMeter).toFixed(4) === parseFloat(item2.pricePerSqMeter).toFixed(4) &&
+            item1.notes === item2.notes;
+            
+          if (matches) {
+            duplicates.push(index2);
+          }
+        }
+      });
+      
+      if (duplicates.length > 1) {
+        groups.push(duplicates);
+        duplicates.forEach(idx => processed.add(idx));
+      }
+    });
+    
+    setDuplicateGroups(groups);
+    setShowDuplicates(true);
+    
+    if (groups.length === 0) {
+      toast({
+        title: "No Duplicates Found",
+        description: "No exact duplicate entries were found in the current filtered data.",
+      });
+    } else {
+      const totalDuplicates = groups.reduce((sum, group) => sum + group.length, 0);
+      toast({
+        title: "Duplicates Found",
+        description: `Found ${groups.length} duplicate groups with ${totalDuplicates} total entries.`,
+      });
+    }
+  };
+
+  // Get row color based on duplicate status
+  const getRowColor = (index: number) => {
+    if (!showDuplicates) return "";
+    
+    const groupIndex = duplicateGroups.findIndex(group => group.includes(index));
+    if (groupIndex === -1) return "";
+    
+    // Alternate colors for different duplicate groups
+    const colors = [
+      "bg-red-50 border-l-4 border-red-400",
+      "bg-blue-50 border-l-4 border-blue-400", 
+      "bg-green-50 border-l-4 border-green-400",
+      "bg-yellow-50 border-l-4 border-yellow-400",
+      "bg-purple-50 border-l-4 border-purple-400",
+      "bg-pink-50 border-l-4 border-pink-400",
+      "bg-indigo-50 border-l-4 border-indigo-400",
+      "bg-orange-50 border-l-4 border-orange-400"
+    ];
+    
+    return colors[groupIndex % colors.length];
   };
 
   // Export to CSV
@@ -432,6 +511,27 @@ export default function CompetitorPricing() {
             <Sheet className="w-4 h-4 mr-2" />
             Export CSV ({filteredData.length} entries)
           </Button>
+          <Button
+            onClick={findDuplicates}
+            disabled={filteredData.length === 0}
+            variant={showDuplicates ? "default" : "outline"}
+            className={showDuplicates ? "bg-orange-600 hover:bg-orange-700" : ""}
+          >
+            <Search className="w-4 h-4 mr-2" />
+            {showDuplicates ? "Hide Duplicates" : "Find Duplicates"}
+          </Button>
+          {showDuplicates && (
+            <Button
+              onClick={() => {
+                setShowDuplicates(false);
+                setDuplicateGroups([]);
+              }}
+              variant="ghost"
+              className="text-gray-600"
+            >
+              Clear Highlighting
+            </Button>
+          )}
         </div>
         
         {isAdmin && (
@@ -496,8 +596,8 @@ export default function CompetitorPricing() {
                 </TableRow>
               </TableHeader>
               <TableBody>
-                {filteredData.map((item) => (
-                  <TableRow key={item.id}>
+                {filteredData.map((item, index) => (
+                  <TableRow key={item.id} className={getRowColor(index)}>
                     <TableCell className="whitespace-nowrap">{item.source}</TableCell>
                     <TableCell className="whitespace-nowrap">{item.type}</TableCell>
                     <TableCell className="whitespace-nowrap">{item.dimensions}</TableCell>
