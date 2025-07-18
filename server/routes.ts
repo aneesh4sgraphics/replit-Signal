@@ -988,19 +988,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Received competitor pricing data:", pricingData);
       console.log("User ID:", userId);
       
-      // Validate required fields (allow empty strings for optional fields like notes)
-      if (!pricingData.type || !pricingData.dimensions || 
-          pricingData.packQty === undefined || pricingData.packQty === null ||
-          pricingData.inputPrice === undefined || pricingData.inputPrice === null ||
-          !pricingData.thickness || !pricingData.productKind ||
-          !pricingData.surfaceFinish || !pricingData.supplierInfo || !pricingData.infoReceivedFrom ||
-          pricingData.pricePerSqIn === undefined || pricingData.pricePerSqIn === null ||
-          pricingData.pricePerSqFt === undefined || pricingData.pricePerSqFt === null ||
-          pricingData.pricePerSqMeter === undefined || pricingData.pricePerSqMeter === null ||
-          !pricingData.source) {
-        console.log("Validation failed for pricing data:", pricingData);
-        return res.status(400).json({ error: "Missing required fields" });
+      // Validate required fields - allow "Unknown" for optional fields
+      const requiredFields = ['type', 'dimensions', 'source'];
+      const numericFields = ['packQty', 'inputPrice', 'pricePerSqIn', 'pricePerSqFt', 'pricePerSqMeter'];
+      
+      // Check required string fields
+      for (const field of requiredFields) {
+        if (!pricingData[field]) {
+          console.log(`Missing required field: ${field}`);
+          return res.status(400).json({ error: `Missing required field: ${field}` });
+        }
       }
+      
+      // Check numeric fields
+      for (const field of numericFields) {
+        if (pricingData[field] === undefined || pricingData[field] === null) {
+          console.log(`Missing numeric field: ${field}`);
+          return res.status(400).json({ error: `Missing numeric field: ${field}` });
+        }
+      }
+      
+      console.log("All validation checks passed");
 
       const newEntry = await storage.createCompetitorPricing({
         ...pricingData,

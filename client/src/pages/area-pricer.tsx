@@ -330,11 +330,11 @@ export default function AreaPricer() {
         unit: calc.type === "roll" ? "ft" : "in",
         packQty: Number(calc.packQty),
         inputPrice: Number(calc.inputPrice),
-        thickness: calc.thickness || "",
-        productKind: calc.productKind || "",
-        surfaceFinish: calc.surfaceFinish || "",
-        supplierInfo: calc.supplierInfo || "",
-        infoReceivedFrom: calc.infoReceivedFrom || "",
+        thickness: calc.thickness || "Unknown",
+        productKind: calc.productKind || "Unknown",
+        surfaceFinish: calc.surfaceFinish || "Unknown",
+        supplierInfo: calc.supplierInfo || "Unknown",
+        infoReceivedFrom: calc.infoReceivedFrom || "Unknown",
         pricePerSqIn: Number(calc.pricePerSqIn),
         pricePerSqFt: Number(calc.pricePerSqFt),
         pricePerSqMeter: Number(calc.pricePerSqMeter),
@@ -342,6 +342,14 @@ export default function AreaPricer() {
         source: "Area Pricer"
       };
       console.log("Converted entry:", entry);
+      
+      // Check for missing required fields
+      const requiredFields = ['type', 'dimensions', 'thickness', 'productKind', 'surfaceFinish', 'supplierInfo', 'infoReceivedFrom'];
+      const missingFields = requiredFields.filter(field => !entry[field] || entry[field] === "");
+      if (missingFields.length > 0) {
+        console.warn("Missing required fields:", missingFields, "in entry:", entry);
+      }
+      
       return entry;
     });
 
@@ -794,10 +802,17 @@ export default function AreaPricer() {
                 Export Excel
               </Button>
               <Button
-                onClick={() => {
+                onClick={(e) => {
+                  console.log("=== BUTTON CLICKED ===");
+                  console.log("Event:", e);
                   console.log("ADD TO COMP INFO button clicked!");
                   console.log("Calculations available:", calculations.length);
-                  addToCompInfo();
+                  console.log("Current calculations:", calculations);
+                  try {
+                    addToCompInfo();
+                  } catch (error) {
+                    console.error("Error calling addToCompInfo:", error);
+                  }
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
