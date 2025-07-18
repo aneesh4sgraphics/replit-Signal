@@ -14,26 +14,26 @@ import { apiRequest } from "@/lib/queryClient";
 
 interface CompetitorData {
   id: number;
-  timestamp: Date;
+  timestamp: Date | string;
   type: string;
   dimensions: string;
-  width?: number;
-  length?: number;
+  width?: number | string;
+  length?: number | string;
   unit?: string;
-  packQty: number;
-  inputPrice: number;
+  packQty: number | string;
+  inputPrice: number | string;
   thickness: string;
   productKind: string;
   surfaceFinish: string;
   supplierInfo: string;
   infoReceivedFrom: string;
-  pricePerSqIn: number;
-  pricePerSqFt: number;
-  pricePerSqMeter: number;
+  pricePerSqIn: number | string;
+  pricePerSqFt: number | string;
+  pricePerSqMeter: number | string;
   notes: string;
   source: string;
   addedBy: string;
-  createdAt: Date;
+  createdAt: Date | string;
 }
 
 export default function CompetitorPricing() {
@@ -203,12 +203,12 @@ export default function CompetitorPricing() {
     
     if (minPrice) {
       const min = parseFloat(minPrice);
-      filtered = filtered.filter(item => item.pricePerSqMeter >= min);
+      filtered = filtered.filter(item => parseFloat(item.pricePerSqMeter) >= min);
     }
     
     if (maxPrice) {
       const max = parseFloat(maxPrice);
-      filtered = filtered.filter(item => item.pricePerSqMeter <= max);
+      filtered = filtered.filter(item => parseFloat(item.pricePerSqMeter) <= max);
     }
     
     setFilteredData(filtered);
@@ -236,17 +236,17 @@ export default function CompetitorPricing() {
         item.type,
         item.dimensions,
         item.packQty,
-        `$${item.inputPrice.toFixed(2)}`,
+        `$${parseFloat(item.inputPrice).toFixed(2)}`,
         `"${item.thickness}"`,
         `"${item.productKind}"`,
         `"${item.surfaceFinish}"`,
         `"${item.supplierInfo}"`,
         `"${item.infoReceivedFrom}"`,
-        `$${item.pricePerSqIn.toFixed(4)}`,
-        `$${item.pricePerSqFt.toFixed(4)}`,
-        `$${item.pricePerSqMeter.toFixed(4)}`,
+        `$${parseFloat(item.pricePerSqIn).toFixed(4)}`,
+        `$${parseFloat(item.pricePerSqFt).toFixed(4)}`,
+        `$${parseFloat(item.pricePerSqMeter).toFixed(4)}`,
         `"${item.notes}"`,
-        item.timestamp.toLocaleDateString()
+        new Date(item.timestamp).toLocaleDateString()
       ].join(","))
     ].join("\n");
 
@@ -505,17 +505,17 @@ export default function CompetitorPricing() {
                       <TableCell className="capitalize">{item.type}</TableCell>
                       <TableCell>{item.dimensions}</TableCell>
                       <TableCell>{item.packQty}</TableCell>
-                      <TableCell>${item.inputPrice.toFixed(2)}</TableCell>
+                      <TableCell>${parseFloat(item.inputPrice).toFixed(2)}</TableCell>
                       <TableCell>{item.thickness}</TableCell>
                       <TableCell>{item.productKind}</TableCell>
                       <TableCell>{item.surfaceFinish}</TableCell>
                       <TableCell>{item.supplierInfo}</TableCell>
                       <TableCell>{item.infoReceivedFrom}</TableCell>
-                      <TableCell>${item.pricePerSqIn.toFixed(4)}</TableCell>
-                      <TableCell>${item.pricePerSqFt.toFixed(4)}</TableCell>
-                      <TableCell>${item.pricePerSqMeter.toFixed(4)}</TableCell>
+                      <TableCell>${parseFloat(item.pricePerSqIn).toFixed(4)}</TableCell>
+                      <TableCell>${parseFloat(item.pricePerSqFt).toFixed(4)}</TableCell>
+                      <TableCell>${parseFloat(item.pricePerSqMeter).toFixed(4)}</TableCell>
                       <TableCell className="max-w-xs truncate">{item.notes}</TableCell>
-                      <TableCell>{item.timestamp.toLocaleDateString()}</TableCell>
+                      <TableCell>{new Date(item.timestamp).toLocaleDateString()}</TableCell>
                       {isAdmin && (
                         <TableCell>
                           <Button
