@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -39,7 +39,6 @@ interface CompetitorData {
 export default function CompetitorPricing() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   const queryClient = useQueryClient();
-  const [filteredData, setFilteredData] = useState<CompetitorData[]>([]);
   const [uploadFile, setUploadFile] = useState<File | null>(null);
   
   // Filter states
@@ -153,17 +152,24 @@ export default function CompetitorPricing() {
     }
   };
 
-  // Get filter options from data
-  const suppliers = competitorData ? [...new Set(competitorData.map(item => item.supplierInfo).filter(Boolean))] : [];
-  const thicknesses = competitorData ? [...new Set(competitorData.map(item => item.thickness).filter(Boolean))] : [];
-  const productKinds = competitorData ? [...new Set(competitorData.map(item => item.productKind).filter(Boolean))] : [];
-  const surfaceFinishes = competitorData ? [...new Set(competitorData.map(item => item.surfaceFinish).filter(Boolean))] : [];
-
-  // Filter data based on selected filters
-  useEffect(() => {
+  // Get filter options using useMemo to prevent recalculation
+  const { suppliers, thicknesses, productKinds, surfaceFinishes } = useMemo(() => {
     if (!competitorData || !Array.isArray(competitorData)) {
-      setFilteredData([]);
-      return;
+      return { suppliers: [], thicknesses: [], productKinds: [], surfaceFinishes: [] };
+    }
+
+    return {
+      suppliers: [...new Set(competitorData.map(item => item.supplierInfo).filter(Boolean))],
+      thicknesses: [...new Set(competitorData.map(item => item.thickness).filter(Boolean))],
+      productKinds: [...new Set(competitorData.map(item => item.productKind).filter(Boolean))],
+      surfaceFinishes: [...new Set(competitorData.map(item => item.surfaceFinish).filter(Boolean))],
+    };
+  }, [competitorData]);
+
+  // Filter data using useMemo
+  const filteredData = useMemo(() => {
+    if (!competitorData || !Array.isArray(competitorData)) {
+      return [];
     }
     
     let filtered = [...competitorData];
@@ -204,7 +210,7 @@ export default function CompetitorPricing() {
       }
     }
     
-    setFilteredData(filtered);
+    return filtered;
   }, [competitorData, supplierFilter, thicknessFilter, productKindFilter, surfaceFinishFilter, minPrice, maxPrice]);
 
   // Reset filters
@@ -377,156 +383,167 @@ export default function CompetitorPricing() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
             <div>
               <Label htmlFor="minPrice">Min Price ($/m²)</Label>
               <Input
                 id="minPrice"
                 type="number"
                 step="0.01"
+                placeholder="0.00"
                 value={minPrice}
                 onChange={(e) => setMinPrice(e.target.value)}
-                placeholder="e.g., 10.00"
               />
             </div>
+            
             <div>
               <Label htmlFor="maxPrice">Max Price ($/m²)</Label>
               <Input
                 id="maxPrice"
                 type="number"
                 step="0.01"
+                placeholder="999.99"
                 value={maxPrice}
                 onChange={(e) => setMaxPrice(e.target.value)}
-                placeholder="e.g., 50.00"
               />
             </div>
-          </div>
-          
-          <div className="flex justify-end">
-            <Button onClick={resetFilters} variant="outline">
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset Filters
-            </Button>
+            
+            <div className="flex items-end">
+              <Button 
+                onClick={resetFilters} 
+                variant="outline" 
+                className="w-full"
+              >
+                <RotateCcw className="w-4 h-4 mr-2" />
+                Reset Filters
+              </Button>
+            </div>
           </div>
         </CardContent>
       </Card>
 
+      {/* Actions */}
+      <div className="flex justify-between items-center mb-6">
+        <div className="flex gap-2">
+          <Button
+            onClick={exportToCSV}
+            disabled={filteredData.length === 0}
+            className="bg-green-600 hover:bg-green-700"
+          >
+            <Sheet className="w-4 h-4 mr-2" />
+            Export CSV ({filteredData.length} entries)
+          </Button>
+        </div>
+        
+        {isAdmin && (
+          <div className="flex gap-2 items-center">
+            <input
+              type="file"
+              accept=".csv"
+              onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
+              className="hidden"
+              id="csv-upload"
+            />
+            <label htmlFor="csv-upload">
+              <Button variant="outline" className="cursor-pointer" asChild>
+                <span>
+                  <Upload className="w-4 h-4 mr-2" />
+                  Choose CSV File
+                </span>
+              </Button>
+            </label>
+            {uploadFile && (
+              <Button
+                onClick={handleFileUpload}
+                disabled={uploadMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {uploadMutation.isPending ? "Uploading..." : "Upload"}
+              </Button>
+            )}
+          </div>
+        )}
+      </div>
+
       {/* Data Table */}
       <Card>
         <CardHeader>
-          <div className="flex justify-between items-center">
-            <CardTitle>Pricing Data ({filteredData.length} entries)</CardTitle>
-            <div className="flex gap-2">
-              {isAdmin && (
-                <div className="flex items-center gap-2">
-                  <input
-                    type="file"
-                    accept=".csv"
-                    onChange={(e) => setUploadFile(e.target.files?.[0] || null)}
-                    className="hidden"
-                    id="upload-file"
-                  />
-                  <label htmlFor="upload-file">
-                    <Button variant="outline" className="cursor-pointer" asChild>
-                      <span>
-                        <FileText className="w-4 h-4 mr-2" />
-                        Choose File
-                      </span>
-                    </Button>
-                  </label>
-                  {uploadFile && (
-                    <Button
-                      onClick={handleFileUpload}
-                      disabled={uploadMutation.isPending}
-                      className="bg-blue-600 hover:bg-blue-700 text-white"
-                    >
-                      {uploadMutation.isPending ? (
-                        <>
-                          <Upload className="w-4 h-4 mr-2 animate-spin" />
-                          Uploading...
-                        </>
-                      ) : (
-                        <>
-                          <Upload className="w-4 h-4 mr-2" />
-                          Upload Data
-                        </>
-                      )}
-                    </Button>
-                  )}
-                </div>
-              )}
-              <Button onClick={exportToCSV} className="bg-green-600 hover:bg-green-700 text-white">
-                <Sheet className="w-4 h-4 mr-2" />
-                Export Excel
-              </Button>
-            </div>
-          </div>
+          <CardTitle className="flex items-center justify-between">
+            <span className="flex items-center">
+              <FileText className="w-5 h-5 mr-2" />
+              Competitor Pricing Data ({filteredData.length} entries)
+            </span>
+          </CardTitle>
         </CardHeader>
         <CardContent>
-          {filteredData.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-gray-500">No competitor pricing data available.</p>
-              <p className="text-sm text-gray-400">Add data from the Area Pricer or upload a CSV file.</p>
-            </div>
-          ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead>Source</TableHead>
-                    <TableHead>Type</TableHead>
-                    <TableHead>Dimensions</TableHead>
-                    <TableHead>Pack Qty</TableHead>
-                    <TableHead>Input Price</TableHead>
-                    <TableHead>Thickness</TableHead>
-                    <TableHead>Product Kind</TableHead>
-                    <TableHead>Surface Finish</TableHead>
-                    <TableHead>Supplier</TableHead>
-                    <TableHead>Info From</TableHead>
-                    <TableHead>Price/in²</TableHead>
-                    <TableHead>Price/ft²</TableHead>
-                    <TableHead>Price/m²</TableHead>
-                    <TableHead>Notes</TableHead>
-                    <TableHead>Date</TableHead>
-                    {isAdmin && <TableHead>Actions</TableHead>}
+          <div className="overflow-x-auto">
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Source</TableHead>
+                  <TableHead>Type</TableHead>
+                  <TableHead>Dimensions</TableHead>
+                  <TableHead>Pack Qty</TableHead>
+                  <TableHead>Input Price</TableHead>
+                  <TableHead>Thickness</TableHead>
+                  <TableHead>Product Kind</TableHead>
+                  <TableHead>Surface Finish</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead>Info From</TableHead>
+                  <TableHead>Price/in²</TableHead>
+                  <TableHead>Price/ft²</TableHead>
+                  <TableHead>Price/m²</TableHead>
+                  <TableHead>Notes</TableHead>
+                  <TableHead>Date</TableHead>
+                  {isAdmin && <TableHead>Actions</TableHead>}
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {filteredData.map((item) => (
+                  <TableRow key={item.id}>
+                    <TableCell>{item.source}</TableCell>
+                    <TableCell>{item.type}</TableCell>
+                    <TableCell>{item.dimensions}</TableCell>
+                    <TableCell>{item.packQty}</TableCell>
+                    <TableCell>${parseFloat(item.inputPrice).toFixed(2)}</TableCell>
+                    <TableCell>{item.thickness}</TableCell>
+                    <TableCell>{item.productKind}</TableCell>
+                    <TableCell>{item.surfaceFinish}</TableCell>
+                    <TableCell>{item.supplierInfo}</TableCell>
+                    <TableCell>{item.infoReceivedFrom}</TableCell>
+                    <TableCell>${parseFloat(item.pricePerSqIn).toFixed(4)}</TableCell>
+                    <TableCell>${parseFloat(item.pricePerSqFt).toFixed(4)}</TableCell>
+                    <TableCell>${parseFloat(item.pricePerSqMeter).toFixed(4)}</TableCell>
+                    <TableCell>{item.notes}</TableCell>
+                    <TableCell>
+                      {new Date(item.timestamp || item.createdAt).toLocaleDateString()}
+                    </TableCell>
+                    {isAdmin && (
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => handleDeleteEntry(item.id)}
+                          className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                        >
+                          <Trash2 className="w-4 h-4" />
+                        </Button>
+                      </TableCell>
+                    )}
                   </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredData.map((item) => (
-                    <TableRow key={item.id}>
-                      <TableCell>{item.source}</TableCell>
-                      <TableCell className="capitalize">{item.type}</TableCell>
-                      <TableCell>{item.dimensions}</TableCell>
-                      <TableCell>{item.packQty}</TableCell>
-                      <TableCell>${parseFloat(item.inputPrice).toFixed(2)}</TableCell>
-                      <TableCell>{item.thickness}</TableCell>
-                      <TableCell>{item.productKind}</TableCell>
-                      <TableCell>{item.surfaceFinish}</TableCell>
-                      <TableCell>{item.supplierInfo}</TableCell>
-                      <TableCell>{item.infoReceivedFrom}</TableCell>
-                      <TableCell>${parseFloat(item.pricePerSqIn).toFixed(4)}</TableCell>
-                      <TableCell>${parseFloat(item.pricePerSqFt).toFixed(4)}</TableCell>
-                      <TableCell>${parseFloat(item.pricePerSqMeter).toFixed(4)}</TableCell>
-                      <TableCell className="max-w-xs truncate">{item.notes}</TableCell>
-                      <TableCell>{new Date(item.timestamp).toLocaleDateString()}</TableCell>
-                      {isAdmin && (
-                        <TableCell>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleDeleteEntry(item.id)}
-                            className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-4 w-4" />
-                          </Button>
-                        </TableCell>
-                      )}
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            </div>
-          )}
+                ))}
+              </TableBody>
+            </Table>
+            {filteredData.length === 0 && (
+              <div className="text-center py-8 text-gray-500">
+                No data matches your current filters. Try adjusting the filters or{" "}
+                <Link href="/area-pricer" className="text-blue-600 hover:underline">
+                  add new entries
+                </Link>
+                .
+              </div>
+            )}
+          </div>
         </CardContent>
       </Card>
     </div>

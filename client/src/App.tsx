@@ -7,7 +7,7 @@ import { useAuth } from "@/hooks/useAuth";
 import AppHeader from "@/components/AppHeader";
 import QuoteCalculator from "@/pages/quote-calculator";
 import AreaPricer from "@/pages/area-pricer-fixed";
-import CompetitorPricing from "@/pages/competitor-pricing";
+import CompetitorPricing from "@/pages/competitor-pricing-fixed";
 import SavedQuotes from "@/pages/saved-quotes";
 import PriceList from "@/pages/price-list";
 import CustomerManagement from "@/pages/customer-management";
