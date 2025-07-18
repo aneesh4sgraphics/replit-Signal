@@ -88,11 +88,6 @@ export default function CompetitorPricing() {
   // Fetch competitor pricing data
   const { data: competitorData = [], isLoading, error } = useQuery({
     queryKey: ["/api/competitor-pricing"],
-    select: (data) => data.map((item: any) => ({
-      ...item,
-      timestamp: new Date(item.timestamp || item.createdAt),
-      createdAt: new Date(item.createdAt)
-    })),
     retry: false,
     enabled: isAuthenticated
   });
@@ -100,9 +95,7 @@ export default function CompetitorPricing() {
   // Delete mutation
   const deleteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/competitor-pricing/${id}`, {
-        method: "DELETE",
-      });
+      await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
@@ -170,7 +163,7 @@ export default function CompetitorPricing() {
 
   // Update filter options when data changes
   useEffect(() => {
-    if (competitorData.length > 0) {
+    if (competitorData && competitorData.length > 0) {
       const uniqueSuppliers = [...new Set(competitorData.map(item => item.supplierInfo).filter(Boolean))];
       const uniqueThicknesses = [...new Set(competitorData.map(item => item.thickness).filter(Boolean))];
       const uniqueProductKinds = [...new Set(competitorData.map(item => item.productKind).filter(Boolean))];
@@ -181,10 +174,15 @@ export default function CompetitorPricing() {
       setProductKinds(uniqueProductKinds);
       setSurfaceFinishes(uniqueSurfaceFinishes);
     }
-  }, [competitorData]);
+  }, [competitorData?.length]);
 
   // Filter data based on selected filters
   useEffect(() => {
+    if (!competitorData || !Array.isArray(competitorData)) {
+      setFilteredData([]);
+      return;
+    }
+    
     let filtered = [...competitorData];
     
     if (supplierFilter && supplierFilter !== "all") {
@@ -205,12 +203,22 @@ export default function CompetitorPricing() {
     
     if (minPrice) {
       const min = parseFloat(minPrice);
-      filtered = filtered.filter(item => parseFloat(item.pricePerSqMeter) >= min);
+      if (!isNaN(min)) {
+        filtered = filtered.filter(item => {
+          const price = parseFloat(item.pricePerSqMeter);
+          return !isNaN(price) && price >= min;
+        });
+      }
     }
     
     if (maxPrice) {
       const max = parseFloat(maxPrice);
-      filtered = filtered.filter(item => parseFloat(item.pricePerSqMeter) <= max);
+      if (!isNaN(max)) {
+        filtered = filtered.filter(item => {
+          const price = parseFloat(item.pricePerSqMeter);
+          return !isNaN(price) && price <= max;
+        });
+      }
     }
     
     setFilteredData(filtered);
@@ -248,7 +256,7 @@ export default function CompetitorPricing() {
         `$${parseFloat(item.pricePerSqFt).toFixed(4)}`,
         `$${parseFloat(item.pricePerSqMeter).toFixed(4)}`,
         `"${item.notes}"`,
-        new Date(item.timestamp).toLocaleDateString()
+        new Date(item.timestamp || item.createdAt).toLocaleDateString()
       ].join(","))
     ].join("\n");
 
