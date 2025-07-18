@@ -175,14 +175,14 @@ export default function Dashboard() {
         <div className="mb-8 sm:mb-12">
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Applications</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
-            {/* Quote Calculator */}
+            {/* QuickQuotes */}
             <Link href="/quote-calculator">
               <Card className="cursor-pointer hover:shadow-lg transition-shadow duration-200 bg-white h-full">
                 <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
                   <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-blue-100 rounded-lg flex items-center justify-center">
                     <Calculator className="w-6 h-6 sm:w-6 sm:h-6 text-blue-600" />
                   </div>
-                  <CardTitle className="text-xs sm:text-sm">Quote Calc</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm">QuickQuotes</CardTitle>
                 </CardHeader>
               </Card>
             </Link>

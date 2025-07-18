@@ -779,7 +779,7 @@ Look forward for your order!`;
             </Button>
           </Link>
           <div className="text-center sm:text-center flex-1">
-            <h1 className="text-xl sm:text-3xl font-bold text-gray-900">Quote Calculator</h1>
+            <h1 className="text-xl sm:text-3xl font-bold text-gray-900">QuickQuotes</h1>
             <p className="text-sm sm:text-base text-gray-600">Calculate accurate quotes for your products</p>
           </div>
           <div className="hidden sm:block w-32"></div> {/* Spacer for centering */}

@@ -19,12 +19,12 @@ export default function DashboardSimple() {
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {/* Quote Calculator */}
+        {/* QuickQuotes */}
         <Card className="hover:shadow-lg transition-shadow cursor-pointer">
           <CardHeader>
             <CardTitle className="flex items-center">
               <Calculator className="w-5 h-5 mr-2 text-blue-600" />
-              Quote Calculator
+              QuickQuotes
             </CardTitle>
           </CardHeader>
           <CardContent>
