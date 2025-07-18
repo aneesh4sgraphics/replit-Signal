@@ -1,10 +1,9 @@
-import { useState } from "react";
+import React, { useState } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Calculator, Plus, Sheet, Trash2 } from "lucide-react";
@@ -34,7 +33,7 @@ interface CalculationResult {
   timestamp: Date;
 }
 
-export default function AreaPricerNew() {
+export default function AreaPricer() {
   const { user, isAuthenticated, isLoading: authLoading } = useAuth();
   
   // Form state
@@ -235,7 +234,7 @@ export default function AreaPricerNew() {
 
   const addToCompInfo = async () => {
     // Alert to confirm button click registration
-    alert("ADD TO COMP INFO button clicked! Check console for details.");
+    alert("ADD TO COMP INFO button clicked! Function is working.");
     
     console.log("=== BUTTON CLICK DETECTED ===");
     console.log("Function called successfully");
@@ -254,7 +253,6 @@ export default function AreaPricerNew() {
 
     setIsAddingToCompInfo(true);
     console.log("=== Starting ADD TO COMP INFO ===");
-    console.log("Calculations to add:", calculations.length);
 
     try {
       let successCount = 0;
@@ -612,11 +610,7 @@ export default function AreaPricerNew() {
                   Export Excel
                 </Button>
                 <Button
-                  onClick={() => {
-                    console.log("BUTTON CLICKED - Direct Handler");
-                    alert("Button clicked! This confirms click registration works.");
-                    addToCompInfo();
-                  }}
+                  onClick={addToCompInfo}
                   disabled={isAddingToCompInfo}
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
