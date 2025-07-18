@@ -802,22 +802,69 @@ export default function AreaPricer() {
                 Export Excel
               </Button>
               <Button
-                onClick={(e) => {
+                onClick={() => {
+                  alert("Button clicked! Check console for logs.");
                   console.log("=== BUTTON CLICKED ===");
-                  console.log("Event:", e);
-                  console.log("ADD TO COMP INFO button clicked!");
                   console.log("Calculations available:", calculations.length);
                   console.log("Current calculations:", calculations);
-                  try {
-                    addToCompInfo();
-                  } catch (error) {
-                    console.error("Error calling addToCompInfo:", error);
+                  
+                  // Simple test - just add one item to competitor pricing
+                  if (calculations.length > 0) {
+                    const testData = {
+                      type: "sheets",
+                      dimensions: "50 × 100 in",
+                      width: 50,
+                      length: 100,
+                      unit: "in",
+                      packQty: 1,
+                      inputPrice: 100,
+                      thickness: "1mil",
+                      productKind: "Non Adhesive",
+                      surfaceFinish: "Gloss",
+                      supplierInfo: "Test Supplier",
+                      infoReceivedFrom: "Test Source",
+                      pricePerSqIn: 0.0001,
+                      pricePerSqFt: 0.0200,
+                      pricePerSqMeter: 0.2153,
+                      notes: "Test from Area Pricer",
+                      source: "Area Pricer"
+                    };
+                    
+                    console.log("Sending test data:", testData);
+                    
+                    // Direct API call
+                    fetch('/api/competitor-pricing', {
+                      method: 'POST',
+                      headers: {
+                        'Content-Type': 'application/json',
+                      },
+                      body: JSON.stringify(testData)
+                    })
+                    .then(response => {
+                      console.log("Response status:", response.status);
+                      return response.json();
+                    })
+                    .then(data => {
+                      console.log("Success:", data);
+                      toast({
+                        title: "Success",
+                        description: "Test data added successfully",
+                      });
+                    })
+                    .catch(error => {
+                      console.error("Error:", error);
+                      toast({
+                        title: "Error",
+                        description: "Failed to add test data",
+                        variant: "destructive",
+                      });
+                    });
                   }
                 }}
                 className="bg-blue-600 hover:bg-blue-700 text-white"
               >
                 <Plus className="w-4 h-4 mr-2" />
-                Add to Comp Info
+                Add to Comp Info (TEST)
               </Button>
             </div>
           )}
