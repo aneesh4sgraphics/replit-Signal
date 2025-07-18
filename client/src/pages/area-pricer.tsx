@@ -58,10 +58,10 @@ export default function AreaPricer() {
   // Add competitor data mutation
   const addCompetitorDataMutation = useMutation({
     mutationFn: async (data: any) => {
-      await apiRequest("/api/competitor-pricing", {
-        method: "POST",
-        body: JSON.stringify(data),
-      });
+      console.log("Sending data to API:", data);
+      const response = await apiRequest("POST", "/api/competitor-pricing", data);
+      console.log("API response:", response);
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
