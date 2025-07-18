@@ -726,6 +726,10 @@ export class DatabaseStorage implements IStorage {
     return this.memStorage.createSentQuote(quote);
   }
 
+  async upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote> {
+    return this.memStorage.upsertSentQuote(quote);
+  }
+
   async deleteSentQuote(id: number): Promise<boolean> {
     return this.memStorage.deleteSentQuote(id);
   }
