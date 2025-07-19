@@ -1047,6 +1047,13 @@ export default function Admin() {
                               {typeof quote.sentVia === 'string' && quote.sentVia.trim()
                                 ? quote.sentVia.split(',').map((method, index) => {
                                     const trimmed = method.trim().toLowerCase();
+                                    if (trimmed === 'not known') {
+                                      return (
+                                        <Badge key={index} variant="outline">
+                                          <FileText className="h-3 w-3 mr-1" />Not Known
+                                        </Badge>
+                                      );
+                                    }
                                     return (
                                       <Badge key={index} variant={trimmed === 'email' ? 'default' : 'secondary'}>
                                         {trimmed === 'email' ? (
@@ -1058,8 +1065,8 @@ export default function Admin() {
                                     );
                                   })
                                 : (
-                                  <Badge variant="secondary">
-                                    <Download className="h-3 w-3 mr-1" />PDF
+                                  <Badge variant="outline">
+                                    <FileText className="h-3 w-3 mr-1" />Not Known
                                   </Badge>
                                 )}
                             </div>

@@ -1530,9 +1530,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { quoteNumber, customerName, customerEmail, quoteItems, totalAmount, sentVia } = req.body;
       
-      if (!quoteNumber || !customerName || !quoteItems || !totalAmount || !sentVia) {
+      if (!quoteNumber || !customerName || !quoteItems || !totalAmount) {
         return res.status(400).json({ error: "Missing required fields" });
       }
+
+      // Default sentVia to "Not Known" if missing or empty
+      const finalSentVia = sentVia && sentVia.trim() ? sentVia.trim() : "Not Known";
 
       // Check if quote already exists
       const existingQuotes = await storage.getSentQuotes();
@@ -1540,9 +1543,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (existingQuote) {
         // Update the existing quote with new delivery method
-        const updatedSentVia = existingQuote.sentVia.includes(sentVia) 
+        const updatedSentVia = existingQuote.sentVia.includes(finalSentVia) 
           ? existingQuote.sentVia 
-          : existingQuote.sentVia + `, ${sentVia}`;
+          : existingQuote.sentVia + `, ${finalSentVia}`;
         
         // For now, we'll just return the existing quote since we don't have an update method
         // In a real database, we would update the sentVia field
@@ -1556,7 +1559,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           quoteItems: JSON.stringify(quoteItems),
           totalAmount: totalAmount.toString(),
           createdAt: new Date().toISOString(),
-          sentVia,
+          sentVia: finalSentVia,
           status: 'sent'
         });
         
