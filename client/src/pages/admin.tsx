@@ -1044,23 +1044,28 @@ export default function Admin() {
                           <TableCell>{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
-                              {quote.sentVia && quote.sentVia.trim() && quote.sentVia.split(',').map((method, index) => {
-                                const trimmedMethod = method.trim();
-                                return (
-                                  <Badge key={index} variant={trimmedMethod === 'email' ? 'default' : 'secondary'}>
-                                    {trimmedMethod === 'email' ? (
-                                      <><Mail className="h-3 w-3 mr-1" />Email</>
-                                    ) : (
-                                      <><Download className="h-3 w-3 mr-1" />PDF</>
-                                    )}
-                                  </Badge>
-                                );
-                              })}
-                              {(!quote.sentVia || !quote.sentVia.trim()) && (
-                                <Badge variant="secondary">
-                                  <Download className="h-3 w-3 mr-1" />PDF
-                                </Badge>
-                              )}
+                              {(() => {
+                                if (!quote.sentVia || typeof quote.sentVia !== 'string' || !quote.sentVia.trim()) {
+                                  return (
+                                    <Badge variant="secondary">
+                                      <Download className="h-3 w-3 mr-1" />PDF
+                                    </Badge>
+                                  );
+                                }
+                                
+                                return quote.sentVia.split(',').map((method, index) => {
+                                  const trimmedMethod = method.trim();
+                                  return (
+                                    <Badge key={index} variant={trimmedMethod === 'email' ? 'default' : 'secondary'}>
+                                      {trimmedMethod === 'email' ? (
+                                        <><Mail className="h-3 w-3 mr-1" />Email</>
+                                      ) : (
+                                        <><Download className="h-3 w-3 mr-1" />PDF</>
+                                      )}
+                                    </Badge>
+                                  );
+                                });
+                              })()}
                             </div>
                           </TableCell>
                           <TableCell>
