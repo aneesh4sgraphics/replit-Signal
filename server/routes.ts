@@ -1583,17 +1583,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Pipe archive data to response
       archive.pipe(res);
       
-      // Add CSV files from attached_assets
+      // Add CSV files from attached_assets (only main files, no duplicates)
       const assetsDir = path.join(process.cwd(), 'attached_assets');
       
       if (fs.existsSync(assetsDir)) {
         const files = fs.readdirSync(assetsDir);
         const csvFiles = files.filter(file => file.endsWith('.csv'));
         
-        csvFiles.forEach(file => {
-          const filePath = path.join(assetsDir, file);
+        // Define main file patterns to include (exclude timestamped duplicates)
+        const mainFiles = [
+          'customers_export.csv',
+          'PricePAL_All_Product_Data.csv', 
+          'tier_pricing_template.csv'
+        ];
+        
+        // Find the latest area pricing file (if any)
+        const areaPricingFiles = csvFiles.filter(file => 
+          file.startsWith('area-pricing-calculations-') && !file.includes('(1)')
+        );
+        
+        if (areaPricingFiles.length > 0) {
+          // Sort by modification time and get the most recent
+          const latestAreaFile = areaPricingFiles
+            .map(file => ({
+              name: file,
+              path: path.join(assetsDir, file),
+              mtime: fs.statSync(path.join(assetsDir, file)).mtime
+            }))
+            .sort((a, b) => b.mtime - a.mtime)[0];
+          
+          mainFiles.push(latestAreaFile.name);
+        }
+        
+        // Add only the main files
+        mainFiles.forEach(fileName => {
+          const filePath = path.join(assetsDir, fileName);
           if (fs.existsSync(filePath)) {
-            archive.file(filePath, { name: file });
+            archive.file(filePath, { name: fileName });
           }
         });
       }
