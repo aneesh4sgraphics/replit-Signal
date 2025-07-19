@@ -37,6 +37,12 @@ export default function SavedQuotes() {
     queryKey: ["/api/sent-quotes"],
     retry: 3,
     retryDelay: 1000,
+    onError: (error) => {
+      console.error("Query error:", error);
+    },
+    onSuccess: (data) => {
+      console.log("Query success:", data);
+    }
   });
 
   const deleteQuoteMutation = useMutation({
@@ -66,6 +72,11 @@ export default function SavedQuotes() {
       deleteQuoteMutation.mutate(id);
     }
   };
+
+  console.log("SavedQuotes render - user:", user);
+  console.log("SavedQuotes render - sentQuotes:", sentQuotes);
+  console.log("SavedQuotes render - quotesLoading:", quotesLoading);
+  console.log("SavedQuotes render - quotesError:", quotesError);
 
   return (
     <div className="py-4 sm:py-8 px-3 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
