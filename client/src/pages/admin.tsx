@@ -1032,11 +1032,11 @@ export default function Admin() {
                           <TableCell className="font-medium">{quote.quoteNumber}</TableCell>
                           <TableCell>{quote.customerName}</TableCell>
                           <TableCell>{quote.customerEmail || 'N/A'}</TableCell>
-                          <TableCell>${parseFloat(quote.totalAmount).toFixed(2)}</TableCell>
+                          <TableCell>${quote.totalAmount ? parseFloat(quote.totalAmount).toFixed(2) : '0.00'}</TableCell>
                           <TableCell>{new Date(quote.createdAt).toLocaleDateString()}</TableCell>
                           <TableCell>
                             <div className="flex gap-1 flex-wrap">
-                              {quote.sentVia.split(',').map((method, index) => {
+                              {quote.sentVia && quote.sentVia.split(',').map((method, index) => {
                                 const trimmedMethod = method.trim();
                                 return (
                                   <Badge key={index} variant={trimmedMethod === 'email' ? 'default' : 'secondary'}>
@@ -1048,6 +1048,11 @@ export default function Admin() {
                                   </Badge>
                                 );
                               })}
+                              {!quote.sentVia && (
+                                <Badge variant="secondary">
+                                  <Download className="h-3 w-3 mr-1" />PDF
+                                </Badge>
+                              )}
                             </div>
                           </TableCell>
                           <TableCell>
