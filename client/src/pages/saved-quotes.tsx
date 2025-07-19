@@ -144,7 +144,7 @@ export default function SavedQuotes() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <DollarSign className="h-4 w-4 text-green-600" />
-                            ${parseFloat(quote.totalAmount).toFixed(2)}
+                            ${quote.totalAmount ? parseFloat(quote.totalAmount).toFixed(2) : '0.00'}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -155,7 +155,7 @@ export default function SavedQuotes() {
                         </TableCell>
                         <TableCell>
                           <div className="flex gap-1 flex-wrap">
-                            {quote.sentVia.split(',').map((method, index) => {
+                            {quote.sentVia && quote.sentVia.split(',').map((method, index) => {
                               const trimmedMethod = method.trim();
                               return (
                                 <Badge key={index} variant={trimmedMethod === 'email' ? 'default' : 'secondary'}>
@@ -167,6 +167,11 @@ export default function SavedQuotes() {
                                 </Badge>
                               );
                             })}
+                            {!quote.sentVia && (
+                              <Badge variant="secondary">
+                                <Download className="h-3 w-3 mr-1" />PDF
+                              </Badge>
+                            )}
                           </div>
                         </TableCell>
                         <TableCell>
