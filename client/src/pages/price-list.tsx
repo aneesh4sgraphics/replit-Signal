@@ -8,7 +8,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { ArrowLeft, Download, DollarSign, Package, FileText, ChevronDown, FileDown, User, Sheet } from "lucide-react";
+import { ArrowLeft, Download, DollarSign, Package, FileText, ChevronDown, FileDown, User, Sheet, Hash } from "lucide-react";
+import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -132,6 +133,7 @@ export default function PriceList() {
   const [showDownloadDialog, setShowDownloadDialog] = useState<boolean>(false);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState<boolean>(false);
   const [downloadType, setDownloadType] = useState<"pdf" | "csv">("pdf");
+  const [currentQuoteNumber, setCurrentQuoteNumber] = useState<string>("");
   const [newCustomer, setNewCustomer] = useState({
     company: "",
     address1: "",
@@ -253,6 +255,10 @@ export default function PriceList() {
       });
       return;
     }
+    
+    // Generate a quote number for this price list
+    const quoteNumber = `4SG-${Date.now().toString().slice(-8)}-${Math.random().toString(36).substr(2, 3).toUpperCase()}`;
+    setCurrentQuoteNumber(quoteNumber);
     setShowPriceList(true);
     setSelectedRows(new Set());
   };
@@ -384,6 +390,13 @@ export default function PriceList() {
         await downloadCSV(selectedItems);
       }
       setShowDownloadDialog(false);
+      
+      // Show quote number in success message
+      toast({
+        title: "Download Complete",
+        description: `Price list downloaded successfully. Quote: ${currentQuoteNumber}`,
+        duration: 5000,
+      });
     } catch (error) {
       toast({
         title: "Download Failed",
@@ -401,6 +414,7 @@ export default function PriceList() {
         clientName: selectedCustomerData?.company || null,
         categoryName: selectedCategoryData?.name,
         tierName: selectedTierData?.name,
+        quoteNumber: currentQuoteNumber,
         items: items.map(item => ({
           size: item.size,
           type: item.type,
@@ -478,6 +492,7 @@ export default function PriceList() {
         clientName: selectedCustomerData?.company || null,
         categoryName: selectedCategoryData?.name,
         tierName: selectedTierData?.name,
+        quoteNumber: currentQuoteNumber,
         items: items.map(item => ({
           size: item.size,
           type: item.type,
@@ -575,21 +590,16 @@ export default function PriceList() {
               <div className="space-y-3">
                 <label className="block text-base font-medium text-gray-900">Select Customer</label>
                 <div className="flex gap-2">
-                  <Select value={selectedCustomer} onValueChange={setSelectedCustomer}>
-                    <SelectTrigger className="flex-1 h-12 text-base">
-                      <SelectValue placeholder="Choose a customer..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {customers.map((customer: Customer) => (
-                        <SelectItem key={customer.id} value={customer.id}>
-                          {customer.company} - {customer.firstName} {customer.lastName}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
+                  <SearchableCustomerSelect
+                    customers={customers}
+                    selectedCustomer={selectedCustomer}
+                    onCustomerSelect={setSelectedCustomer}
+                    onNewCustomer={() => setShowNewCustomerDialog(true)}
+                    placeholder="Search and select customer..."
+                  />
                   <Dialog open={showNewCustomerDialog} onOpenChange={setShowNewCustomerDialog}>
                     <DialogTrigger asChild>
-                      <Button variant="outline" className="h-12 px-6">
+                      <Button variant="outline" className="h-12 px-6" style={{ display: 'none' }}>
                         <User className="h-4 w-4 mr-2" />
                         New Customer
                       </Button>
@@ -708,9 +718,17 @@ export default function PriceList() {
                     <Package className="h-5 w-5" />
                     Price List - {applyBrandFonts(selectedCategoryData.name)}
                   </CardTitle>
-                  <p className="text-sm text-gray-600 mt-1">
-                    Pricing tier: <Badge variant="secondary">{selectedTierData.name}</Badge>
-                  </p>
+                  <div className="flex items-center gap-4 mt-1">
+                    <p className="text-sm text-gray-600">
+                      Pricing tier: <Badge variant="secondary">{selectedTierData.name}</Badge>
+                    </p>
+                    {currentQuoteNumber && (
+                      <p className="text-sm text-gray-600">
+                        <Hash className="h-4 w-4 inline mr-1" />
+                        Quote: <Badge variant="outline" className="font-mono">{currentQuoteNumber}</Badge>
+                      </p>
+                    )}
+                  </div>
                 </div>
                 <div className="flex items-center gap-2">
                   <Dialog open={showDownloadDialog} onOpenChange={setShowDownloadDialog}>
