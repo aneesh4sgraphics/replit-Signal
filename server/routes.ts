@@ -772,6 +772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             
             if (existingDataMap.has(productId)) {
               // Update existing product
+              console.log(`Processing existing product: ${productId}`);
               const existingRow = existingDataMap.get(productId);
               if (existingRow) {
                 let hasUpdates = false;
@@ -782,13 +783,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
                   updatedRow.push('');
                 }
                 
-                // Compare each field and update if new data is not empty and different
+                // Compare each field and update if new data should be added
                 for (let i = 0; i < newRow.length && i < updatedRow.length; i++) {
                   const newValue = newRow[i]?.trim() || '';
                   const existingValue = updatedRow[i]?.trim() || '';
                   
-                  // Update if new value is not empty and different from existing
-                  if (newValue && newValue !== existingValue) {
+                  // Update in these cases:
+                  // 1. Existing field is empty and new value is provided (append missing data)
+                  // 2. New value is different from existing value (update existing data)
+                  if (newValue && (existingValue === '' || newValue !== existingValue)) {
+                    const actionType = existingValue === '' ? 'added' : 'updated';
+                    console.log(`  Field ${i} (${header[i] || 'unknown'}): ${actionType} "${existingValue}" → "${newValue}"`);
                     updatedRow[i] = newValue;
                     hasUpdates = true;
                   }
