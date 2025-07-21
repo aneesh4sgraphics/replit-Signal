@@ -620,10 +620,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
+      console.log(`Processing upload: ${req.file.originalname}, Size: ${req.file.size} bytes`);
+
       // Read the uploaded CSV file
       const newCsvContent = safeReadFile(req.file.path);
       if (!newCsvContent) {
-        return res.status(400).json({ error: "Failed to read uploaded file" });
+        return res.status(400).json({ error: "Failed to read uploaded file. Please ensure the file is not corrupted." });
       }
       
       const targetPath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data.csv');
@@ -634,138 +636,277 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let mergedContent = newCsvContent;
       let newCount = 0;
       let duplicateCount = 0;
+      let updatedCount = 0;
       let totalCount = 0;
+      let parseErrors: string[] = [];
       
-      // Check if existing product file exists
+      // Enhanced CSV parsing with proper quote handling
+      const parseProductCSV = (content: string) => {
+        try {
+          const lines = content.split('\n').filter(line => line.trim());
+          if (lines.length === 0) {
+            throw new Error("Empty CSV file");
+          }
+          
+          const rows: string[][] = [];
+          for (let i = 0; i < lines.length; i++) {
+            try {
+              // Handle CSV with proper quote parsing
+              const line = lines[i];
+              const cells: string[] = [];
+              let currentCell = '';
+              let inQuotes = false;
+              let j = 0;
+              
+              while (j < line.length) {
+                const char = line[j];
+                const nextChar = line[j + 1];
+                
+                if (char === '"') {
+                  if (inQuotes && nextChar === '"') {
+                    // Escaped quote
+                    currentCell += '"';
+                    j += 2;
+                  } else {
+                    // Toggle quote state
+                    inQuotes = !inQuotes;
+                    j++;
+                  }
+                } else if (char === ',' && !inQuotes) {
+                  // End of cell
+                  cells.push(currentCell.trim());
+                  currentCell = '';
+                  j++;
+                } else {
+                  currentCell += char;
+                  j++;
+                }
+              }
+              
+              // Add the last cell
+              cells.push(currentCell.trim());
+              rows.push(cells);
+            } catch (error) {
+              parseErrors.push(`Line ${i + 1}: Failed to parse - ${error}`);
+              continue;
+            }
+          }
+          
+          return rows;
+        } catch (error) {
+          throw new Error(`CSV parsing failed: ${error}`);
+        }
+      };
+      
+      let existingRows: string[][] = [];
+      let newRows: string[][] = [];
+      
+      try {
+        newRows = parseProductCSV(newCsvContent);
+        console.log(`Parsed ${newRows.length} rows from uploaded file`);
+      } catch (error) {
+        console.error("Failed to parse uploaded CSV:", error);
+        return res.status(400).json({ 
+          error: `Failed to parse uploaded CSV file: ${error}`,
+          parseErrors: parseErrors.slice(0, 10) // Limit to first 10 errors
+        });
+      }
+      
+      if (newRows.length < 2) {
+        return res.status(400).json({ 
+          error: "CSV file must contain at least a header row and one data row" 
+        });
+      }
+      
+      // Check if existing product file exists and merge
       if (safeFileExists(targetPath)) {
         const existingContent = safeReadFile(targetPath);
         if (!existingContent) {
           return res.status(500).json({ error: "Failed to read existing product file" });
         }
         
-        // Parse both files
-        const parseProductCSV = (content: string) => {
-          const lines = content.split('\n').filter(line => line.trim());
-          return lines.map(line => line.split(',').map(cell => cell.trim()));
-        };
-        
-        const existingRows = parseProductCSV(existingContent);
-        const newRows = parseProductCSV(newCsvContent);
+        try {
+          existingRows = parseProductCSV(existingContent);
+          console.log(`Found existing file with ${existingRows.length} rows`);
+        } catch (error) {
+          console.error("Failed to parse existing CSV:", error);
+          return res.status(500).json({ 
+            error: `Failed to parse existing product data: ${error}` 
+          });
+        }
         
         if (existingRows.length > 0 && newRows.length > 0) {
-          const header = existingRows[0];
+          const header = newRows[0]; // Use new header to ensure all columns are included
           const existingData = existingRows.slice(1);
           const newData = newRows.slice(1);
           
-          // Create a map of existing product data for duplicate detection and updates
-          const existingDataMap = new Map(existingData.map(row => [row[0], row]));
+          // Create a map for faster lookups - use ProductID (first column) as key
+          const existingDataMap = new Map<string, string[]>();
+          existingData.forEach(row => {
+            const productId = row[0]?.trim();
+            if (productId) {
+              existingDataMap.set(productId, row);
+            }
+          });
           
-          let updatedCount = 0;
-          const finalData = [...existingData];
+          const finalData: string[][] = [];
+          const processedIds = new Set<string>();
           
-          // Process new data to add new records or update existing ones
-          for (const newRow of newData) {
-            const productId = newRow[0];
+          // Process each new row
+          for (let rowIndex = 0; rowIndex < newData.length; rowIndex++) {
+            const newRow = newData[rowIndex];
+            const productId = newRow[0]?.trim();
+            
+            if (!productId) {
+              parseErrors.push(`Row ${rowIndex + 2}: Missing ProductID`);
+              continue;
+            }
+            
+            if (processedIds.has(productId)) {
+              parseErrors.push(`Row ${rowIndex + 2}: Duplicate ProductID ${productId} in uploaded file`);
+              duplicateCount++;
+              continue;
+            }
+            
+            processedIds.add(productId);
             
             if (existingDataMap.has(productId)) {
-              // Check if any field has new/different data
+              // Update existing product
               const existingRow = existingDataMap.get(productId);
-              let hasUpdates = false;
-              const updatedRow = [...existingRow];
-              
-              // Compare each field and update if new data is not empty and different
-              for (let i = 0; i < newRow.length && i < existingRow.length; i++) {
-                const newValue = newRow[i]?.trim() || '';
-                const existingValue = existingRow[i]?.trim() || '';
+              if (existingRow) {
+                let hasUpdates = false;
+                const updatedRow = [...existingRow];
                 
-                // Update if new value is not empty and different from existing
-                if (newValue && newValue !== existingValue) {
-                  updatedRow[i] = newValue;
-                  hasUpdates = true;
+                // Ensure the updated row has the same length as the new header
+                while (updatedRow.length < header.length) {
+                  updatedRow.push('');
                 }
-              }
-              
-              if (hasUpdates) {
-                // Find and update the record in finalData
-                const index = finalData.findIndex(row => row[0] === productId);
-                if (index !== -1) {
-                  finalData[index] = updatedRow;
+                
+                // Compare each field and update if new data is not empty and different
+                for (let i = 0; i < newRow.length && i < updatedRow.length; i++) {
+                  const newValue = newRow[i]?.trim() || '';
+                  const existingValue = updatedRow[i]?.trim() || '';
+                  
+                  // Update if new value is not empty and different from existing
+                  if (newValue && newValue !== existingValue) {
+                    updatedRow[i] = newValue;
+                    hasUpdates = true;
+                  }
+                }
+                
+                finalData.push(updatedRow);
+                if (hasUpdates) {
                   updatedCount++;
+                } else {
+                  duplicateCount++;
                 }
-              } else {
-                duplicateCount++;
               }
             } else {
-              // New product
-              finalData.push(newRow);
+              // New product - ensure it has the same number of columns as header
+              const newProduct = [...newRow];
+              while (newProduct.length < header.length) {
+                newProduct.push('');
+              }
+              finalData.push(newProduct);
               newCount++;
+            }
+          }
+          
+          // Add any remaining existing products that weren't in the new file
+          for (const [productId, existingRow] of existingDataMap) {
+            if (!processedIds.has(productId)) {
+              // Ensure existing row has the same length as the new header
+              const paddedRow = [...existingRow];
+              while (paddedRow.length < header.length) {
+                paddedRow.push('');
+              }
+              finalData.push(paddedRow);
             }
           }
           
           totalCount = finalData.length;
           
-          // Reconstruct CSV
+          // Reconstruct CSV with proper quote escaping
+          const escapeCsvCell = (cell: string) => {
+            const cellStr = String(cell || '');
+            if (cellStr.includes(',') || cellStr.includes('"') || cellStr.includes('\n')) {
+              return `"${cellStr.replace(/"/g, '""')}"`;
+            }
+            return cellStr;
+          };
+          
           const mergedRows = [header, ...finalData];
-          mergedContent = mergedRows.map(row => row.join(',')).join('\n');
+          mergedContent = mergedRows.map(row => 
+            row.map(escapeCsvCell).join(',')
+          ).join('\n');
+          
+          console.log(`Merge complete: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates`);
         }
       } else {
         // No existing file, count new records
-        const lines = newCsvContent.split('\n').filter(line => line.trim());
-        newCount = lines.length - 1; // Subtract header
+        const dataRows = newRows.slice(1);
+        newCount = dataRows.length;
         totalCount = newCount;
+        console.log(`New file created with ${newCount} products`);
       }
       
       // Save the merged file
       if (!safeWriteFile(targetPath, mergedContent)) {
-        return res.status(500).json({ error: "Failed to save product data file" });
+        return res.status(500).json({ error: "Failed to save product data file to disk" });
       }
       
       // Clean up the temporary file
       safeDeleteFile(req.file.path);
       
-      // Clear relevant caches to ensure fresh data is loaded
-      cache.delete('product-categories');
-      cache.delete('product-types');
-      cache.delete('product-sizes');
-      
-      // Reinitialize storage with new data
-      await storage.reinitializeData();
-      
-      // Parse updated data for stats
-      const { categories, types, sizes } = parseProductData();
-      
-      console.log(`Product data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
-      
-      // Create appropriate message based on results
-      let message = "Product data uploaded successfully";
-      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
-        message = `Product data uploaded: ${newCount} new products added, ${updatedCount} products updated, ${duplicateCount} duplicates not imported`;
-      } else if (newCount > 0 && updatedCount > 0) {
-        message = `Product data uploaded: ${newCount} new products added, ${updatedCount} products updated`;
-      } else if (newCount > 0 && duplicateCount > 0) {
-        message = `Product data uploaded: ${newCount} new products added, ${duplicateCount} duplicates not imported`;
-      } else if (updatedCount > 0 && duplicateCount > 0) {
-        message = `Product data uploaded: ${updatedCount} products updated, ${duplicateCount} duplicates not imported`;
-      } else if (newCount > 0) {
-        message = `Product data uploaded: ${newCount} new products added successfully`;
-      } else if (updatedCount > 0) {
-        message = `Product data uploaded: ${updatedCount} products updated successfully`;
-      } else if (duplicateCount > 0) {
-        message = `Upload completed: ${duplicateCount} duplicate products found and not imported. No changes made.`;
+      // Clear product cache and reinitialize storage
+      try {
+        storage.clearCache();
+        await storage.initializeFromFiles();
+        console.log('Product data cache refreshed');
+      } catch (error) {
+        console.error('Failed to refresh cache:', error);
+        // Don't fail the upload if cache refresh fails
       }
       
-      res.json({ 
+      console.log(`Product data upload completed: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates`);
+      
+      // Create detailed success message based on results
+      let message = "Product data uploaded successfully";
+      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
+        message = `Upload complete: ${newCount} new products added, ${updatedCount} existing products updated, ${duplicateCount} duplicates skipped`;
+      } else if (newCount > 0 && updatedCount > 0) {
+        message = `Upload complete: ${newCount} new products added and ${updatedCount} existing products updated`;
+      } else if (newCount > 0 && duplicateCount > 0) {
+        message = `Upload complete: ${newCount} new products added, ${duplicateCount} duplicates skipped`;
+      } else if (updatedCount > 0 && duplicateCount > 0) {
+        message = `Upload complete: ${updatedCount} existing products updated, ${duplicateCount} duplicates skipped`;
+      } else if (newCount > 0) {
+        message = `Upload complete: ${newCount} new products added successfully`;
+      } else if (updatedCount > 0) {
+        message = `Upload complete: ${updatedCount} existing products updated successfully`;
+      } else if (duplicateCount > 0) {
+        message = `Upload complete: All ${duplicateCount} products were duplicates, no changes made`;
+      }
+      
+      const response = {
+        success: true,
         message,
         stats: {
           newProducts: newCount,
-          updatedProducts: updatedCount || 0,
+          updatedProducts: updatedCount,
           duplicatesSkipped: duplicateCount,
-          totalProducts: totalCount,
-          categories: categories.length,
-          types: types.length,
-          sizes: sizes.length
+          totalProducts: totalCount
+        },
+        details: {
+          filename: req.file.originalname,
+          fileSize: req.file.size,
+          rowsProcessed: newRows.length - 1,
+          parseErrors: parseErrors.length > 0 ? parseErrors.slice(0, 10) : undefined
         }
-      });
+      };
+      
+      console.log('Upload response:', JSON.stringify(response, null, 2));
+      res.json(response);
     } catch (error) {
       console.error("Error uploading product data:", error);
       if (req.file) {
