@@ -922,13 +922,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up the temporary file
       safeDeleteFile(req.file.path);
       
-      // Reinitialize storage to refresh data
+      // Refresh data in storage
+      console.log('Refreshing product data in storage...');
       try {
-        await storage.initializeFromFiles();
-        console.log('Product data cache refreshed');
+        await storage.reinitializeData();
+        console.log('Product data storage refreshed successfully');
       } catch (error) {
-        console.error('Failed to refresh cache:', error);
-        // Don't fail the upload if cache refresh fails
+        console.error('Failed to refresh storage:', error);
       }
       
       console.log(`Product data upload completed: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates`);

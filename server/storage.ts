@@ -134,8 +134,21 @@ export class MemStorage implements IStorage {
   }
 
   private initializeData() {
+    this.loadDataFromCsv();
+  }
+
+  private loadDataFromCsv() {
     try {
+      console.log('Loading product data from CSV files...');
       const csvData = parseProductData();
+      
+      // Clear existing data
+      this.productCategories.clear();
+      this.productTypes.clear();
+      this.productSizes.clear();
+      this.pricingTiers.clear();
+      this.productPricing.clear();
+      this.customers.clear();
       
       // Initialize categories
       csvData.categories.forEach(category => {
@@ -176,6 +189,8 @@ export class MemStorage implements IStorage {
           updatedAt: new Date()
         });
       });
+      
+      console.log(`Loaded ${this.productSizes.size} product sizes from CSV`);
       
     } catch (error) {
       console.error('Error initializing CSV data:', error);
