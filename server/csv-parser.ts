@@ -322,39 +322,39 @@ export function parseProductData(): {
   // First try to load from separate pricing file
   const types = Array.from(typeMap.values());
   
-  // Create a mapping function to match product types between files
+  // Create a mapping function to match product types between files with category awareness
   const createProductTypeMapping = () => {
-    const mapping = new Map<string, string>();
+    const mapping = new Map<string, {typeName: string, categoryId: number}>();
     
-    // For Graffiti Polyester Paper products
-    mapping.set("graffiti polyester paper 5mil", "thickness: 5mil");
-    mapping.set("graffiti polyester paper 8mil", "thickness: 8mil");
-    mapping.set("graffiti polyester paper 10mil", "thickness: 10mil");
-    mapping.set("graffiti polyester paper 11mil", "thickness: 11mil");
-    mapping.set("graffiti polyester paper 14mil", "thickness: 14mil");
-    mapping.set("graffiti blockout polyester 11mil", "thickness: blockout 11mil");
+    // For Graffiti Polyester Paper products (Category 1)
+    mapping.set("graffiti polyester paper 5mil", {typeName: "thickness: 5mil", categoryId: 1});
+    mapping.set("graffiti polyester paper 8mil", {typeName: "thickness: 8mil", categoryId: 1});
+    mapping.set("graffiti polyester paper 10mil", {typeName: "thickness: 10mil", categoryId: 1});
+    mapping.set("graffiti polyester paper 11mil", {typeName: "thickness: 11mil", categoryId: 1});
+    mapping.set("graffiti polyester paper 14mil", {typeName: "thickness: 14mil", categoryId: 1});
+    mapping.set("graffiti blockout polyester 11mil", {typeName: "thickness: blockout 11mil", categoryId: 1});
     
-    // For Metallic products
-    mapping.set("graffiti metallic gold 8mil", "gold 8mil");
-    mapping.set("graffiti metallic gold 11mil", "gold 11mil");
-    mapping.set("graffiti metallic silver 8mil", "silver 8mil");
-    mapping.set("graffiti metallic silver 11mil", "silver 11mil");
-    mapping.set("graffiti metallic rose 8mil", "rose 8mil");
-    mapping.set("graffiti metallic rose 11mil", "rose 11mil");
-    mapping.set("graffiti metallic mirror 8mil", "mirror 8mil");
+    // For Metallic products (Category 1)
+    mapping.set("graffiti metallic gold 8mil", {typeName: "gold 8mil", categoryId: 1});
+    mapping.set("graffiti metallic gold 11mil", {typeName: "gold 11mil", categoryId: 1});
+    mapping.set("graffiti metallic silver 8mil", {typeName: "silver 8mil", categoryId: 1});
+    mapping.set("graffiti metallic silver 11mil", {typeName: "silver 11mil", categoryId: 1});
+    mapping.set("graffiti metallic rose 8mil", {typeName: "rose 8mil", categoryId: 1});
+    mapping.set("graffiti metallic rose 11mil", {typeName: "rose 11mil", categoryId: 1});
+    mapping.set("graffiti metallic mirror 8mil", {typeName: "mirror 8mil", categoryId: 1});
     
-    // For CoHo products
-    mapping.set("coho dtf films for fabrics", "coho films for fabrics");
+    // For CoHo products (Category 10)
+    mapping.set("coho dtf films for fabrics", {typeName: "coho films for fabrics", categoryId: 10});
     
-    // For Graffiti Blended Poly products
-    mapping.set("graffiti blended poly 8mil", "thickness: 8mil");
-    mapping.set("graffiti blended poly 11mil", "thickness: 11mil");
-    mapping.set("graffiti blended poly 14mil", "thickness: 14mil");
+    // For Graffiti Blended Poly products (Category 2)
+    mapping.set("graffiti blended poly 8mil", {typeName: "thickness: 8mil", categoryId: 2});
+    mapping.set("graffiti blended poly 11mil", {typeName: "thickness: 11mil", categoryId: 2});
+    mapping.set("graffiti blended poly 14mil", {typeName: "thickness: 14mil", categoryId: 2});
     
-    // For Graffiti SOFT Poly products
-    mapping.set("graffiti soft poly 8mil", "thickness: 8mil");
-    mapping.set("graffiti soft poly 11mil", "thickness: 11mil");
-    mapping.set("graffiti soft poly 14mil", "thickness: 14mil");
+    // For Graffiti SOFT Poly products (Category 3)
+    mapping.set("graffiti soft poly 8mil", {typeName: "thickness: 8mil", categoryId: 3});
+    mapping.set("graffiti soft poly 11mil", {typeName: "thickness: 11mil", categoryId: 3});
+    mapping.set("graffiti soft poly 14mil", {typeName: "thickness: 14mil", categoryId: 3});
     
     return mapping;
   };
@@ -470,10 +470,17 @@ export function parsePricingData(types: ProductType[], pricingToProductMapping: 
       
       // If no exact match, try mapping through the pricing-to-product mapping
       if (!matchedType) {
-        const mappedTypeName = pricingToProductMapping.get(productTypeFromCsv.toLowerCase());
-        if (mappedTypeName) {
-          matchedType = typeMap.get(mappedTypeName.toLowerCase());
-          console.log(`  Mapped "${productTypeFromCsv}" to "${mappedTypeName}"`);
+        const mappingResult = pricingToProductMapping.get(productTypeFromCsv.toLowerCase());
+        if (mappingResult) {
+          // Find the type that matches both name and category
+          const candidateType = Array.from(typeMap.values()).find(type => 
+            type.name.toLowerCase() === mappingResult.typeName.toLowerCase() && 
+            type.categoryId === mappingResult.categoryId
+          );
+          if (candidateType) {
+            matchedType = candidateType;
+            console.log(`  Mapped "${productTypeFromCsv}" to "${mappingResult.typeName}" in category ${mappingResult.categoryId}`);
+          }
         }
       }
       
