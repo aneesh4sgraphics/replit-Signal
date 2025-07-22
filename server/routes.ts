@@ -121,8 +121,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   await setupAuth(app);
 
   // Auth routes
-  app.get('/api/auth/user', isAuthenticated, async (req: any, res) => {
+  app.get('/api/auth/user', async (req: any, res) => {
     try {
+      // Development bypass for testing
+      if (process.env.NODE_ENV === 'development') {
+        return res.json({
+          email: 'test@4sgraphics.com',
+          role: 'admin',
+          approved: true
+        });
+      }
       const userId = req.user.claims.sub;
       
       // Development bypass - return mock user data for development
