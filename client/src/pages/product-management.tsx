@@ -367,6 +367,35 @@ export default function ProductManagement() {
           </CardContent>
         </Card>
 
+        {/* Current Data Source Info */}
+        <Card className="mb-6 bg-blue-50 border-blue-200">
+          <CardHeader className="pb-3">
+            <CardTitle className="flex items-center gap-2 text-blue-800">
+              <FileText className="h-5 w-5" />
+              Current Data Source
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="flex items-center justify-between">
+              <div className="space-y-1">
+                <div className="flex items-center gap-2">
+                  <Badge variant="secondary">Active File</Badge>
+                  <span className="font-medium">PricePAL_All_Product_Data.csv</span>
+                </div>
+                <div className="text-sm text-gray-600">
+                  Last updated: {new Date().toLocaleDateString()} at {new Date().toLocaleTimeString()}
+                </div>
+                <div className="text-sm text-gray-600">
+                  Total products loaded: {productData.length}
+                </div>
+              </div>
+              <div className="text-right text-sm text-gray-500">
+                This data is used by Quote Calculator and Price List apps
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Product Table */}
         <Card>
           <CardHeader>

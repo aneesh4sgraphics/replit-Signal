@@ -930,6 +930,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clean up the temporary file
       safeDeleteFile(req.file.path);
       
+      // Create file upload tracking record
+      try {
+        await storage.createFileUpload({
+          fileName: 'PricePAL_All_Product_Data.csv',
+          originalFileName: req.file.originalname,
+          fileType: 'product_data',
+          fileSize: req.file.size,
+          uploadedBy: 'test@4sgraphics.com', // For development
+          recordsProcessed: newRows.length - 1,
+          recordsAdded: newCount,
+          recordsUpdated: updatedCount,
+          isActive: true
+        });
+      } catch (error) {
+        console.error('Failed to create file upload record:', error);
+      }
+
       // Refresh data in storage
       console.log('Refreshing product data in storage...');
       try {

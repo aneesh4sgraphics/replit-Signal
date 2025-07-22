@@ -18,8 +18,11 @@ import {
   type InsertSentQuote,
   type CompetitorPricing,
   type InsertCompetitorPricing,
+  type FileUpload,
+  type InsertFileUpload,
   users,
-  competitorPricing
+  competitorPricing,
+  fileUploads
 } from "@shared/schema";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
@@ -83,6 +86,12 @@ export interface IStorage {
   getCompetitorPricingById(id: number): Promise<CompetitorPricing | undefined>;
   createCompetitorPricing(pricing: InsertCompetitorPricing): Promise<CompetitorPricing>;
   deleteCompetitorPricing(id: number): Promise<boolean>;
+  
+  // File Upload Tracking
+  getFileUploads(): Promise<FileUpload[]>;
+  getActiveFileUpload(fileType: string): Promise<FileUpload | undefined>;
+  createFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
+  setActiveFileUpload(id: number, fileType: string): Promise<void>;
   
   // Admin methods
   reinitializeData(): Promise<void>;
@@ -481,6 +490,39 @@ export class MemStorage implements IStorage {
 
   async deleteCompetitorPricing(id: number): Promise<boolean> {
     return this.competitorPricing.delete(id);
+  }
+
+  // File Upload Tracking methods
+  async getFileUploads(): Promise<FileUpload[]> {
+    // For MemStorage, return empty array since we don't persist file tracking
+    return [];
+  }
+
+  async getActiveFileUpload(fileType: string): Promise<FileUpload | undefined> {
+    // For MemStorage, return undefined since we don't persist file tracking
+    return undefined;
+  }
+
+  async createFileUpload(upload: InsertFileUpload): Promise<FileUpload> {
+    // For MemStorage, return a mock upload since we don't persist file tracking
+    return {
+      id: 1,
+      fileName: upload.fileName,
+      originalFileName: upload.originalFileName,
+      fileType: upload.fileType,
+      fileSize: upload.fileSize,
+      uploadedBy: upload.uploadedBy,
+      uploadedAt: new Date(),
+      recordsProcessed: upload.recordsProcessed || 0,
+      recordsAdded: upload.recordsAdded || 0,
+      recordsUpdated: upload.recordsUpdated || 0,
+      isActive: upload.isActive || true
+    };
+  }
+
+  async setActiveFileUpload(id: number, fileType: string): Promise<void> {
+    // For MemStorage, no persistence needed
+    return;
   }
 
   // Customer management methods

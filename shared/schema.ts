@@ -69,6 +69,21 @@ export const users = pgTable("users", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// File upload tracking for product data
+export const fileUploads = pgTable("file_uploads", {
+  id: serial("id").primaryKey(),
+  fileName: varchar("file_name", { length: 255 }).notNull(),
+  originalFileName: varchar("original_file_name", { length: 255 }).notNull(),
+  fileType: varchar("file_type", { length: 50 }).notNull(), // 'product_data', 'customer_data', etc.
+  fileSize: integer("file_size").notNull(),
+  uploadedBy: varchar("uploaded_by").notNull(),
+  uploadedAt: timestamp("uploaded_at").defaultNow(),
+  recordsProcessed: integer("records_processed").default(0),
+  recordsAdded: integer("records_added").default(0),
+  recordsUpdated: integer("records_updated").default(0),
+  isActive: boolean("is_active").default(true), // Current active file for this type
+});
+
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().notNull(),
   firstName: varchar("first_name", { length: 255 }).notNull(),
@@ -193,3 +208,8 @@ export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
 export type InsertSentQuote = z.infer<typeof insertSentQuoteSchema>;
 export type InsertCompetitorPricing = z.infer<typeof insertCompetitorPricingSchema>;
+
+// File upload types
+export const insertFileUploadSchema = createInsertSchema(fileUploads);
+export type FileUpload = typeof fileUploads.$inferSelect;
+export type InsertFileUpload = z.infer<typeof insertFileUploadSchema>;
