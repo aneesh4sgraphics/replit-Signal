@@ -166,11 +166,7 @@ export function parseProductData(): {
   pricingTiers: PricingTier[];
   productPricing: ProductPricing[];
 } {
-  // Try to read from current working file first, fallback to original if not available
-  let productDataPath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data.csv');
-  if (!fs.existsSync(productDataPath)) {
-    productDataPath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data_1752538891953.csv');
-  }
+  const productDataPath = path.join(process.cwd(), 'attached_assets', 'PricePAL_All_Product_Data.csv');
   const tierPricingPath = path.join(process.cwd(), 'attached_assets', 'tier_pricing_template-June10-2025_1752538891954.csv');
   
   const productCsvContent = fs.readFileSync(productDataPath, 'utf-8');
