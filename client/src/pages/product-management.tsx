@@ -399,11 +399,6 @@ export default function ProductManagement() {
                       <TableHead className="w-24">Sq Meters</TableHead>
                       <TableHead className="w-24">Item Code</TableHead>
                       <TableHead className="w-24">Min Qty</TableHead>
-                      {(tiers as PricingTier[]).map((tier: PricingTier) => (
-                        <TableHead key={tier.id} className="w-24">
-                          {tier.name}
-                        </TableHead>
-                      ))}
                     </TableRow>
                   </TableHeader>
                   <TableBody>
@@ -507,11 +502,7 @@ export default function ProductManagement() {
                             product.minOrderQty
                           )}
                         </TableCell>
-                        {(tiers as PricingTier[]).map((tier: PricingTier) => (
-                          <TableCell key={tier.id} className="text-center">
-                            {getPriceForTier(product.pricing, tier.id)}
-                          </TableCell>
-                        ))}
+
                       </TableRow>
                     ))}
                   </TableBody>
