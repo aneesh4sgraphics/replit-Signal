@@ -343,6 +343,19 @@ export function parseProductData(): {
     mapping.set("graffiti metallic rose 11mil", "rose 11mil");
     mapping.set("graffiti metallic mirror 8mil", "mirror 8mil");
     
+    // For CoHo products
+    mapping.set("coho dtf films for fabrics", "coho films for fabrics");
+    
+    // For Graffiti Blended Poly products
+    mapping.set("graffiti blended poly 8mil", "thickness: 8mil");
+    mapping.set("graffiti blended poly 11mil", "thickness: 11mil");
+    mapping.set("graffiti blended poly 14mil", "thickness: 14mil");
+    
+    // For Graffiti SOFT Poly products
+    mapping.set("graffiti soft poly 8mil", "thickness: 8mil");
+    mapping.set("graffiti soft poly 11mil", "thickness: 11mil");
+    mapping.set("graffiti soft poly 14mil", "thickness: 14mil");
+    
     return mapping;
   };
   
@@ -466,7 +479,8 @@ export function parsePricingData(types: ProductType[], pricingToProductMapping: 
       
       // If still no match, try direct product type name matching
       if (!matchedType) {
-        for (const [typeName, type] of typeMap.entries()) {
+        const typeEntries = Array.from(typeMap.entries());
+        for (const [typeName, type] of typeEntries) {
           if (typeName.toLowerCase() === productTypeFromCsv.toLowerCase()) {
             matchedType = type;
             break;
