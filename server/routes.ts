@@ -1991,6 +1991,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Pricing Management API endpoints
+  app.get("/api/pricing-data", isAuthenticated, async (req, res) => {
+    try {
+      const pricingData = await storage.getPricingDataWithDetails();
+      res.json(pricingData);
+    } catch (error) {
+      console.error("Error fetching pricing data:", error);
+      res.status(500).json({ error: "Failed to fetch pricing data" });
+    }
+  });
+
+  app.get("/api/product-types-all", isAuthenticated, async (req, res) => {
+    try {
+      const productTypes = await storage.getProductTypesWithCategories();
+      res.json(productTypes);
+    } catch (error) {
+      console.error("Error fetching product types:", error);
+      res.status(500).json({ error: "Failed to fetch product types" });
+    }
+  });
+
+  app.put("/api/pricing/:id", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const { pricePerSquareMeter } = req.body;
+
+      if (!pricePerSquareMeter || isNaN(parseFloat(pricePerSquareMeter))) {
+        return res.status(400).json({ error: "Valid price per square meter is required" });
+      }
+
+      const result = await storage.updateProductPricing(parseInt(id), parseFloat(pricePerSquareMeter));
+      
+      if (!result) {
+        return res.status(404).json({ error: "Pricing entry not found" });
+      }
+
+      res.json({ success: true, message: "Price updated successfully" });
+    } catch (error) {
+      console.error("Error updating price:", error);
+      res.status(500).json({ error: "Failed to update price" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

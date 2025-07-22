@@ -1,7 +1,7 @@
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield, Package, Truck, Zap, BarChart3, Target, PieChart, Sparkles, Layers } from "lucide-react";
+import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield, Package, Truck, Zap, BarChart3, Target, PieChart, Sparkles, Layers, DollarSign } from "lucide-react";
 import { Link } from "wouter";
 import { useState, useEffect } from "react";
 import WelcomeAnimation from "@/components/WelcomeAnimation";
@@ -280,6 +280,18 @@ export default function Dashboard() {
                       <Package className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                     </div>
                     <CardTitle className="text-xs sm:text-sm font-semibold text-indigo-800">Product Management</CardTitle>
+                  </CardHeader>
+                </Card>
+              </Link>
+
+              {/* Price Management */}
+              <Link href="/price-management">
+                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-yellow-50 to-amber-100 border-0 shadow-md h-full">
+                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-yellow-500 to-amber-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <DollarSign className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-yellow-800">Price Management</CardTitle>
                   </CardHeader>
                 </Card>
               </Link>

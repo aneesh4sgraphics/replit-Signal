@@ -66,6 +66,9 @@ export interface IStorage {
   getProductPricingByType(typeId: number): Promise<ProductPricing[]>;
   getPriceForProductType(typeId: number, tierId: number): Promise<number>;
   getPriceForSquareMeters(squareMeters: number, typeId: number, tierId: number): Promise<number>;
+  getPricingDataWithDetails(): Promise<any[]>;
+  getProductTypesWithCategories(): Promise<any[]>;
+  updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean>;
   
   // Customers
   getCustomers(): Promise<Customer[]>;
@@ -582,6 +585,55 @@ export class MemStorage implements IStorage {
     this.initializeData();
   }
 
+  // Pricing Management methods
+  async getPricingDataWithDetails(): Promise<any[]> {
+    const result = [];
+    for (const pricing of this.productPricing.values()) {
+      const productType = this.productTypes.get(pricing.productTypeId);
+      const tier = this.pricingTiers.get(pricing.tierId);
+      const category = productType ? this.productCategories.get(productType.categoryId) : undefined;
+      
+      result.push({
+        id: pricing.id,
+        productTypeId: pricing.productTypeId,
+        tierId: pricing.tierId,
+        pricePerSquareMeter: pricing.pricePerSquareMeter,
+        categoryName: category?.name,
+        productTypeName: productType?.name,
+        tierName: tier?.name,
+      });
+    }
+    return result;
+  }
+
+  async getProductTypesWithCategories(): Promise<any[]> {
+    const result = [];
+    for (const productType of this.productTypes.values()) {
+      const category = this.productCategories.get(productType.categoryId);
+      result.push({
+        id: productType.id,
+        name: productType.name,
+        categoryName: category?.name || 'Unknown',
+      });
+    }
+    return result;
+  }
+
+  async updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean> {
+    const pricing = this.productPricing.get(id);
+    if (!pricing) {
+      return false;
+    }
+    
+    const updatedPricing = {
+      ...pricing,
+      pricePerSquareMeter: pricePerSquareMeter.toString(),
+    };
+    
+    this.productPricing.set(id, updatedPricing);
+    return true;
+  }
+
 
 }
 
@@ -899,6 +951,19 @@ export class DatabaseStorage implements IStorage {
 
   async reinitializeData(): Promise<void> {
     return this.memStorage.reinitializeData();
+  }
+
+  // Pricing Management methods
+  async getPricingDataWithDetails(): Promise<any[]> {
+    return this.memStorage.getPricingDataWithDetails();
+  }
+
+  async getProductTypesWithCategories(): Promise<any[]> {
+    return this.memStorage.getProductTypesWithCategories();
+  }
+
+  async updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean> {
+    return this.memStorage.updateProductPricing(id, pricePerSquareMeter);
   }
 }
 

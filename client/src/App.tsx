@@ -13,6 +13,7 @@ import SavedQuotes from "@/pages/saved-quotes";
 import PriceList from "@/pages/price-list";
 import CustomerManagement from "@/pages/customer-management";
 import ProductManagement from "@/pages/product-management";
+import PriceManagement from "@/pages/price-management";
 import ShippingCalculator from "@/pages/shipping-calculator";
 import Admin from "@/pages/admin";
 import Dashboard from "@/pages/dashboard";
@@ -120,6 +121,7 @@ function Router() {
         <Route path="/price-list" component={PriceList} />
         <Route path="/customer-management" component={CustomerManagement} />
         <Route path="/product-management" component={ProductManagement} />
+        <Route path="/price-management" component={PriceManagement} />
         <Route path="/shipping-calculator" component={ShippingCalculator} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
