@@ -229,10 +229,19 @@ export function parseProductData(): {
   let categoryId = 1;
   
   products.forEach(product => {
-    if (!categoryMap.has(product.ProductName)) {
-      categoryMap.set(product.ProductName, {
+    // Extract base category name by removing redundant prefixes from ProductType
+    let categoryName = product.ProductName;
+    
+    // Handle cases where ProductType contains the ProductName redundantly
+    if (product.ProductType && product.ProductType.startsWith(product.ProductName)) {
+      // Keep the original ProductName as category, ProductType will be processed separately
+      categoryName = product.ProductName;
+    }
+    
+    if (!categoryMap.has(categoryName)) {
+      categoryMap.set(categoryName, {
         id: categoryId++,
-        name: product.ProductName,
+        name: categoryName,
         description: null
       });
     }
@@ -243,14 +252,25 @@ export function parseProductData(): {
   let typeId = 1;
   
   products.forEach(product => {
-    const typeKey = `${product.ProductName}|${product.ProductType}`;
+    let categoryName = product.ProductName;
+    let typeName = product.ProductType;
+    
+    // Clean up type name by removing redundant category prefix
+    if (typeName && typeName.startsWith(product.ProductName)) {
+      // Remove the category name from the beginning of the type name
+      typeName = typeName.replace(product.ProductName, '').trim();
+      // Clean up any leading spaces, hyphens, or other separators
+      typeName = typeName.replace(/^[\s\-_]+/, '');
+    }
+    
+    const typeKey = `${categoryName}|${typeName}`;
     if (!typeMap.has(typeKey)) {
-      const category = categoryMap.get(product.ProductName);
+      const category = categoryMap.get(categoryName);
       if (category) {
         typeMap.set(typeKey, {
           id: typeId++,
           categoryId: category.id,
-          name: product.ProductType,
+          name: typeName,
           description: null
         });
       }
