@@ -1311,6 +1311,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Upload pricing CSV for Price Management
+  app.post("/api/upload-pricing-csv", upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      console.log(`Processing pricing upload: ${req.file.originalname}, Size: ${req.file.size} bytes`);
+
+      // Read the uploaded CSV file
+      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
+      const targetPath = path.join(process.cwd(), 'attached_assets', 'tier_pricing_template.csv');
+      
+      // Save the new pricing file
+      fs.writeFileSync(targetPath, newCsvContent);
+      
+      // Clean up the temporary file
+      fs.unlinkSync(req.file.path);
+      
+      // Clear pricing-related caches
+      cache.delete('pricing-tiers');
+      cache.delete('product-pricing');
+      
+      // Reinitialize storage with new data
+      await storage.reinitializeData();
+      
+      // Count updated entries
+      const lines = newCsvContent.split('\n').filter(line => line.trim());
+      const updatedCount = lines.length - 1; // Subtract header
+      
+      console.log(`Pricing upload complete: ${updatedCount} pricing entries updated`);
+      
+      res.json({ 
+        success: true,
+        updated: updatedCount,
+        message: `Upload successful! Updated ${updatedCount} pricing entries` 
+      });
+    } catch (error) {
+      console.error("Error uploading pricing data:", error);
+      if (req.file) {
+        fs.unlinkSync(req.file.path);
+      }
+      res.status(500).json({ error: "Failed to upload pricing data file" });
+    }
+  });
+
   // Upload competitor pricing data file
   app.post("/api/admin/upload-competitor-data", requireAdmin, upload.single('file'), async (req, res) => {
     try {

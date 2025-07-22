@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { ArrowLeft, DollarSign, Search, Edit, Save, X, Filter, ArrowUp, ArrowDown } from "lucide-react";
+import { ArrowLeft, DollarSign, Search, Edit, Save, X, Filter, ArrowUp, ArrowDown, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 
@@ -53,6 +53,58 @@ export default function PriceManagement() {
   });
   
   const { toast } = useToast();
+
+  // CSV Upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-pricing-csv', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorText = await response.text();
+        throw new Error(errorText || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Upload Successful",
+        description: `Updated ${data.updated || 0} pricing entries`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-data"] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      if (!file.name.toLowerCase().endsWith('.csv')) {
+        toast({
+          title: "Invalid File Type",
+          description: "Please select a CSV file",
+          variant: "destructive",
+        });
+        return;
+      }
+      
+      uploadMutation.mutate(file);
+    }
+    // Reset the input
+    event.target.value = '';
+  };
 
   // Fetch pricing data with joins
   const { data: pricingData = [], isLoading: pricingLoading, error: pricingError } = useQuery<PricingEntry[]>({
@@ -238,7 +290,21 @@ export default function PriceManagement() {
             </h1>
             <p className="text-gray-600">Edit and manage product pricing across all tiers</p>
           </div>
-          <div className="w-32"></div> {/* Spacer for centering */}
+          <div className="flex items-center gap-2">
+            <label htmlFor="csv-upload-price">
+              <Button variant="outline" className="flex items-center gap-2 cursor-pointer">
+                <Upload className="h-4 w-4" />
+                Upload Pricing CSV
+              </Button>
+            </label>
+            <input
+              id="csv-upload-price"
+              type="file"
+              accept=".csv"
+              className="hidden"
+              onChange={handleCsvUpload}
+            />
+          </div>
         </div>
 
         {/* Search and Filters */}

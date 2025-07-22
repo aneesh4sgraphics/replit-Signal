@@ -255,29 +255,17 @@ export function parseProductData(): {
     let categoryName = product.ProductName;
     let typeName = product.ProductType;
     
-    // For pricing data compatibility, we need to keep the full product type name
-    // that matches what's in the pricing CSV (e.g., "Graffiti SOFT Poly 8mil")
-    // But also create a cleaned version for the product catalog display
+    // Use the original ProductType name from the CSV data for exact matching
+    // This should match the productType field in the pricing CSV
+    const typeKey = `${categoryName}|${typeName}`;
     
-    // Create the full type name that matches pricing data
-    let fullTypeName = `${categoryName} ${typeName}`;
-    
-    // Clean up type name by removing redundant category prefix for display
-    if (typeName && typeName.startsWith(product.ProductName)) {
-      // Remove the category name from the beginning of the type name
-      typeName = typeName.replace(product.ProductName, '').trim();
-      // Clean up any leading spaces, hyphens, or other separators
-      typeName = typeName.replace(/^[\s\-_]+/, '');
-    }
-    
-    const typeKey = `${categoryName}|${product.ProductType}`;
     if (!typeMap.has(typeKey)) {
       const category = categoryMap.get(categoryName);
       if (category) {
         typeMap.set(typeKey, {
           id: typeId++,
           categoryId: category.id,
-          name: fullTypeName, // Use full name for pricing compatibility
+          name: typeName, // Use original ProductType for exact matching
           description: null
         });
       }
@@ -420,6 +408,7 @@ export function parsePricingData(types: ProductType[]): ProductPricing[] {
     });
     
     console.log('Available product types:', Array.from(typeMap.keys()));
+    console.log('Sample product types values:', Array.from(typeMap.values()).slice(0, 10).map(t => t.name));
 
     pricingData.forEach((row, index) => {
       const data: any = {};
@@ -436,49 +425,12 @@ export function parsePricingData(types: ProductType[]): ProductPricing[] {
       // First try exact match
       matchedType = typeMap.get(productTypeFromCsv.toLowerCase());
       
-      // If no exact match, try more precise partial matches
+      // If no exact match, try direct product type name matching
       if (!matchedType) {
-        // Try to extract thickness or key specifications for better matching
-        const csvTypeLower = productTypeFromCsv.toLowerCase();
-        
-        // Extract thickness pattern (e.g., "8mil", "11mil", "14mil")
-        const thicknessMatch = csvTypeLower.match(/(\d+(?:\.\d+)?)\s*mil/);
-        const gsmMatch = csvTypeLower.match(/(\d+)\s*gsm/);
-        
         for (const [typeName, type] of typeMap.entries()) {
-          // For thickness-based matches, ensure exact thickness match
-          if (thicknessMatch) {
-            const typeThicknessMatch = typeName.match(/(\d+(?:\.\d+)?)\s*mil/);
-            if (typeThicknessMatch && typeThicknessMatch[1] === thicknessMatch[1]) {
-              matchedType = type;
-              break;
-            }
-          }
-          // For GSM-based matches, ensure exact GSM match
-          else if (gsmMatch) {
-            const typeGsmMatch = typeName.match(/(\d+)\s*gsm/);
-            if (typeGsmMatch && typeGsmMatch[1] === gsmMatch[1]) {
-              matchedType = type;
-              break;
-            }
-          }
-          // For other products, try broader keyword matching but more carefully
-          else {
-            // Remove common prefixes and suffixes for comparison
-            const cleanCsvType = csvTypeLower
-              .replace(/^(graffiti|solvit|cliq|rang|eie|ele)\s*/i, '')
-              .replace(/\s*(thickness:|paper|vinyl|film|canvas|media)\s*/gi, ' ')
-              .trim();
-            const cleanTypeName = typeName
-              .replace(/^(graffiti|solvit|cliq|rang|eie|ele)\s*/i, '')
-              .replace(/\s*(thickness:|paper|vinyl|film|canvas|media)\s*/gi, ' ')
-              .trim();
-            
-            if (cleanCsvType && cleanTypeName && 
-                (cleanCsvType.includes(cleanTypeName) || cleanTypeName.includes(cleanCsvType))) {
-              matchedType = type;
-              break;
-            }
+          if (typeName.toLowerCase() === productTypeFromCsv.toLowerCase()) {
+            matchedType = type;
+            break;
           }
         }
       }
