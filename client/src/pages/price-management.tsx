@@ -54,22 +54,33 @@ export default function PriceManagement() {
   const { toast } = useToast();
 
   // Fetch pricing data with joins
-  const { data: pricingData = [], isLoading: pricingLoading } = useQuery<PricingEntry[]>({
+  const { data: pricingData = [], isLoading: pricingLoading, error: pricingError } = useQuery<PricingEntry[]>({
     queryKey: ["/api/pricing-data"],
     staleTime: 2 * 60 * 1000,
     gcTime: 5 * 60 * 1000,
   });
 
-  // Fetch product types for filtering
-  const { data: productTypes = [] } = useQuery<ProductType[]>({
+  // Fetch product types for filtering  
+  const { data: productTypes = [], error: typesError } = useQuery<ProductType[]>({
     queryKey: ["/api/product-types-all"],
     staleTime: 5 * 60 * 1000,
   });
 
   // Fetch pricing tiers for filtering
-  const { data: pricingTiers = [] } = useQuery<PricingTier[]>({
+  const { data: pricingTiers = [], error: tiersError } = useQuery<PricingTier[]>({
     queryKey: ["/api/pricing-tiers"],
     staleTime: 5 * 60 * 1000,
+  });
+
+  // Debug console logs
+  console.log("Price Management Debug:", {
+    pricingData,
+    pricingLoading,
+    pricingError,
+    productTypes,
+    pricingTiers,
+    typesError,
+    tiersError
   });
 
   const updatePriceMutation = useMutation({
@@ -137,7 +148,7 @@ export default function PriceManagement() {
   };
 
   // Get unique categories for filtering
-  const uniqueCategories = [...new Set(pricingData.map(item => item.categoryName).filter(Boolean))].sort();
+  const uniqueCategories = Array.from(new Set(pricingData.map(item => item.categoryName).filter(Boolean))).sort();
 
   // Filter and sort pricing data
   const filteredAndSortedData = pricingData
@@ -345,6 +356,11 @@ export default function PriceManagement() {
               <div className="text-center py-8">
                 <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
                 <p className="mt-2 text-gray-500">Loading pricing data...</p>
+              </div>
+            ) : pricingError ? (
+              <div className="text-center py-8">
+                <div className="text-red-600 mb-2">Error loading pricing data</div>
+                <p className="text-gray-500 text-sm">{pricingError.message}</p>
               </div>
             ) : filteredAndSortedData.length === 0 ? (
               <div className="text-center py-8">
