@@ -116,7 +116,9 @@ function parseSize(sizeStr: string): { width: number; height: number; widthUnit:
     /^(\d+(?:\.\d+)?)""[\s]*[x×][\s]*(\d+(?:\.\d+)?)['\u2018\u2019\u201A\u2032]$/i,
     // Pattern 7: Double quotes both sides like 12""x18""
     /^(\d+(?:\.\d+)?)""[\s]*[x×][\s]*(\d+(?:\.\d+)?)""|""$/i,
-    // Pattern 8: 12x18 (no units, assume inches)
+    // Pattern 8: 24x100' (number x number with ending apostrophe for feet) 
+    /^(\d+(?:\.\d+)?)[\s]*[x×][\s]*(\d+(?:\.\d+)?)['\u2018\u2019\u201A\u2032]$/i,
+    // Pattern 9: 12x18 (no units, assume inches)
     /^(\d+(?:\.\d+)?)[\s]*[x×][\s]*(\d+(?:\.\d+)?)$/i
   ];
   
@@ -143,6 +145,11 @@ function parseSize(sizeStr: string): { width: number; height: number; widthUnit:
       }
       // Pattern 6: double quotes x feet (54""x100')
       else if (i === 5) {
+        widthUnit = 'inch';
+        heightUnit = 'feet';
+      }
+      // Pattern 8: inches x feet (24x100')
+      else if (i === 7) {
         widthUnit = 'inch';
         heightUnit = 'feet';
       }

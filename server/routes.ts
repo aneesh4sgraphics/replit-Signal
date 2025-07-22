@@ -992,6 +992,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let mergedContent = newCsvContent;
       let newCount = 0;
+      let updatedCount = 0;
       let duplicateCount = 0;
       let totalCount = 0;
       
@@ -1086,7 +1087,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Reinitialize storage with new data
       await storage.reinitializeData();
       
-      console.log(`Pricing data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
+      console.log(`Pricing data upload completed: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
       
       // Create appropriate message based on results
       let message = "Pricing data uploaded successfully";
@@ -1137,6 +1138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       let mergedContent = newCsvContent;
       let newCount = 0;
+      let updatedCount = 0;
       let duplicateCount = 0;
       let totalCount = 0;
       
@@ -1234,7 +1236,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Clear customer cache to ensure fresh data is loaded
       cache.delete('customers');
       
-      console.log(`Customer data upload completed: ${newCount} new, ${updatedCount || 0} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
+      console.log(`Customer data upload completed: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
       
       // Create appropriate message based on results
       let message = "Customer data uploaded successfully";

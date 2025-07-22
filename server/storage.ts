@@ -612,7 +612,7 @@ export class DatabaseStorage implements IStorage {
     const decimalFields = ['width', 'length'];
     
     for (const field of numericFields) {
-      const value = data[field];
+      const value = (data as any)[field];
       if (value !== undefined && value !== null) {
         const cleanValue = typeof value === 'string' ? value.replace(/[$,]/g, '') : String(value);
         const numValue = parseFloat(cleanValue);
@@ -628,7 +628,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     for (const field of integerFields) {
-      const value = data[field];
+      const value = (data as any)[field];
       if (value !== undefined && value !== null) {
         const numValue = typeof value === 'string' ? parseInt(value.replace(/[$,]/g, ''), 10) : Number(value);
         if (isNaN(numValue) || !isFinite(numValue)) {
@@ -643,7 +643,7 @@ export class DatabaseStorage implements IStorage {
     }
     
     for (const field of decimalFields) {
-      const value = data[field];
+      const value = (data as any)[field];
       if (value !== undefined && value !== null) {
         const cleanValue = typeof value === 'string' ? value.replace(/[$,]/g, '') : String(value);
         const numValue = parseFloat(cleanValue);
@@ -676,11 +676,16 @@ export class DatabaseStorage implements IStorage {
     }
   }
 
+  async getCompetitorPricingById(id: number): Promise<CompetitorPricing | undefined> {
+    const [entry] = await db.select().from(competitorPricing).where(eq(competitorPricing.id, id));
+    return entry;
+  }
+
   async deleteCompetitorPricing(id: number): Promise<boolean> {
     const result = await db
       .delete(competitorPricing)
       .where(eq(competitorPricing.id, id));
-    return result.rowCount > 0;
+    return (result.rowCount || 0) > 0;
   }
 
   // For now, other methods will delegate to MemStorage
