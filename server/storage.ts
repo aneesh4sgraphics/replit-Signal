@@ -27,7 +27,7 @@ import {
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
 import { db } from "./db";
-import { eq, desc } from "drizzle-orm";
+import { eq, desc, and } from "drizzle-orm";
 
 export interface IStorage {
   // User operations for Replit Auth
@@ -854,6 +854,47 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSentQuote(id: number): Promise<boolean> {
     return this.memStorage.deleteSentQuote(id);
+  }
+
+  // File Upload Tracking methods
+  async getFileUploads(): Promise<FileUpload[]> {
+    return await db.select().from(fileUploads).orderBy(desc(fileUploads.uploadedAt));
+  }
+
+  async getActiveFileUpload(fileType: string): Promise<FileUpload | undefined> {
+    const [activeFile] = await db.select()
+      .from(fileUploads)
+      .where(and(eq(fileUploads.fileType, fileType), eq(fileUploads.isActive, true)))
+      .orderBy(desc(fileUploads.uploadedAt))
+      .limit(1);
+    return activeFile;
+  }
+
+  async createFileUpload(upload: InsertFileUpload): Promise<FileUpload> {
+    // Set all previous files of this type to inactive
+    await db.update(fileUploads)
+      .set({ isActive: false })
+      .where(eq(fileUploads.fileType, upload.fileType));
+
+    // Insert new file upload record as active
+    const [newUpload] = await db
+      .insert(fileUploads)
+      .values({ ...upload, isActive: true })
+      .returning();
+    
+    return newUpload;
+  }
+
+  async setActiveFileUpload(id: number, fileType: string): Promise<void> {
+    // Set all files of this type to inactive
+    await db.update(fileUploads)
+      .set({ isActive: false })
+      .where(eq(fileUploads.fileType, fileType));
+
+    // Set the specified file to active
+    await db.update(fileUploads)
+      .set({ isActive: true })
+      .where(eq(fileUploads.id, id));
   }
 
   async reinitializeData(): Promise<void> {
