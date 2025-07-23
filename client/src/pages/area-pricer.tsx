@@ -6,9 +6,21 @@ import { Button } from "@/components/ui/button";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
-import { Calculator, Plus, Sheet, Trash2 } from "lucide-react";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Calculator, Plus, Sheet, Trash2, Download } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { apiRequest } from "@/lib/queryClient";
+
+// Utility function to check for authentication errors
+function isUnauthorizedError(error: unknown): boolean {
+  return error instanceof Error && (
+    error.message.includes('401') || 
+    error.message.includes('Unauthorized') ||
+    error.message.includes('authentication required')
+  );
+}
 
 interface CalculationResult {
   id: string;
@@ -54,9 +66,13 @@ export default function AreaPricer() {
   // Add competitor data mutation
   const addCompetitorDataMutation = useMutation({
     mutationFn: async (data: any) => {
-      console.log("Sending data to API:", data);
+      if (import.meta.env.DEV) {
+        console.log("Sending data to API:", data);
+      }
       const response = await apiRequest("POST", "/api/competitor-pricing", data);
-      console.log("API response:", response);
+      if (import.meta.env.DEV) {
+        console.log("API response:", response);
+      }
       return response.json();
     },
     onSuccess: () => {
@@ -66,10 +82,14 @@ export default function AreaPricer() {
         description: "Competitor data added successfully",
       });
     },
-    onError: (error) => {
-      console.error("Mutation error details:", error);
-      console.error("Error message:", error.message);
-      console.error("Error stack:", error.stack);
+    onError: (error: unknown) => {
+      if (import.meta.env.DEV) {
+        console.error("Mutation error details:", error);
+        if (error instanceof Error) {
+          console.error("Error message:", error.message);
+          console.error("Error stack:", error.stack);
+        }
+      }
       
       if (isUnauthorizedError(error)) {
         toast({
@@ -85,7 +105,7 @@ export default function AreaPricer() {
       
       // More detailed error reporting
       let errorMessage = "Failed to add competitor data";
-      if (error.message) {
+      if (error instanceof Error && error.message) {
         errorMessage = error.message;
       }
       

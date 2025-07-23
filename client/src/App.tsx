@@ -50,7 +50,9 @@ const PendingPage = () => (
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
 
-  console.log("Router render - isAuthenticated:", isAuthenticated, "isLoading:", isLoading, "user:", user);
+  if (import.meta.env.DEV) {
+    console.log("Router render - isAuthenticated:", isAuthenticated, "isLoading:", isLoading, "user:", user);
+  }
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -64,7 +66,9 @@ function Router() {
 
   // Handle unauthenticated users
   if (!isAuthenticated || !user) {
-    console.log("Showing landing page - isAuthenticated:", isAuthenticated, "user:", user);
+    if (import.meta.env.DEV) {
+      console.log("Showing landing page - isAuthenticated:", isAuthenticated, "user:", user);
+    }
     return (
       <Switch>
         <Route path="/" component={Landing} />
@@ -73,7 +77,9 @@ function Router() {
     );
   }
 
-  console.log("Showing dashboard - isAuthenticated:", isAuthenticated, "user:", user);
+  if (import.meta.env.DEV) {
+    console.log("Showing dashboard - isAuthenticated:", isAuthenticated, "user:", user);
+  }
 
   // Handle pending users
   if ((user as any)?.status === "pending") {

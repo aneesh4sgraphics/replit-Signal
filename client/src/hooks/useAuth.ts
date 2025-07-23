@@ -8,7 +8,9 @@ export function useAuth() {
     gcTime: 0, // Don't keep in cache
   });
 
-  console.log("useAuth - user:", user, "isLoading:", isLoading, "error:", error);
+  if (import.meta.env.DEV) {
+    console.log("useAuth - user:", user, "isLoading:", isLoading, "error:", error);
+  }
 
   return {
     user,
