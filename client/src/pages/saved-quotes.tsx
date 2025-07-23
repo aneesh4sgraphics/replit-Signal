@@ -1,7 +1,9 @@
+import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { FileText, Mail, Download, ArrowLeft, Calendar, User, DollarSign, Trash2 } from "lucide-react";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
@@ -32,18 +34,29 @@ export default function SavedQuotes() {
   const { user } = useAuth();
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
+  const [quoteToDelete, setQuoteToDelete] = useState<number | null>(null);
   
   const { data: sentQuotes, isLoading: quotesLoading, error: quotesError } = useQuery({
     queryKey: ["/api/sent-quotes"],
+    queryFn: async () => {
+      const response = await apiRequest("GET", "/api/sent-quotes");
+      if (!response.ok) {
+        throw new Error("Failed to fetch quotes");
+      }
+      return response.json();
+    },
     retry: 3,
     retryDelay: 1000,
   });
 
   const deleteQuoteMutation = useMutation({
     mutationFn: async (id: number) => {
-      await apiRequest(`/api/sent-quotes/${id}`, {
-        method: "DELETE",
-      });
+      const response = await apiRequest("DELETE", `/api/sent-quotes/${id}`);
+      if (!response.ok) {
+        throw new Error("Failed to delete quote");
+      }
+      return response.json();
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
@@ -51,19 +64,39 @@ export default function SavedQuotes() {
         title: "Success",
         description: "Quote deleted successfully",
       });
+      setDeleteDialogOpen(false);
+      setQuoteToDelete(null);
     },
     onError: (error) => {
       toast({
         title: "Error",
-        description: error.message || "Failed to delete quote",
+        description: error instanceof Error ? error.message : "Failed to delete quote",
         variant: "destructive",
       });
+      setDeleteDialogOpen(false);
+      setQuoteToDelete(null);
     },
   });
 
   const handleDeleteQuote = (id: number) => {
-    if (window.confirm("Are you sure you want to delete this quote?")) {
-      deleteQuoteMutation.mutate(id);
+    setQuoteToDelete(id);
+    setDeleteDialogOpen(true);
+  };
+
+  const confirmDelete = () => {
+    if (quoteToDelete) {
+      deleteQuoteMutation.mutate(quoteToDelete);
+    }
+  };
+
+  // Safe date formatting function
+  const formatDate = (dateString: string | null | undefined): string => {
+    if (!dateString) return "N/A";
+    try {
+      const date = new Date(dateString);
+      return isNaN(date.getTime()) ? "N/A" : date.toLocaleDateString();
+    } catch {
+      return "N/A";
     }
   };
 
@@ -106,7 +139,9 @@ export default function SavedQuotes() {
               <div className="text-center py-8 text-red-600">
                 <FileText className="h-12 w-12 mx-auto mb-4 opacity-50" />
                 <p>Error loading quotes. Please refresh the page.</p>
-                <p className="text-sm mt-2">{quotesError.message}</p>
+                <p className="text-sm mt-2">
+                  {quotesError instanceof Error ? quotesError.message : "Unknown error occurred"}
+                </p>
               </div>
             ) : sentQuotes && Array.isArray(sentQuotes) && sentQuotes.length > 0 ? (
               <div className="overflow-x-auto">
@@ -116,7 +151,7 @@ export default function SavedQuotes() {
                       <TableHead className="w-[120px]">Quote #</TableHead>
                       <TableHead className="w-[200px]">Customer</TableHead>
                       <TableHead className="w-[200px]">Email</TableHead>
-                      {user?.role === 'admin' && <TableHead className="w-[80px]">Actions</TableHead>}
+                      {(user as any)?.role === 'admin' && <TableHead className="w-[80px]">Actions</TableHead>}
                       <TableHead className="w-[120px]">Total Amount</TableHead>
                       <TableHead className="w-[120px]">Date</TableHead>
                       <TableHead className="w-[100px]">Method</TableHead>
@@ -136,7 +171,7 @@ export default function SavedQuotes() {
                         <TableCell className="text-sm text-gray-600">
                           {quote.customerEmail || 'N/A'}
                         </TableCell>
-                        {user?.role === 'admin' && (
+                        {(user as any)?.role === 'admin' && (
                           <TableCell>
                             <Button
                               variant="ghost"
@@ -155,7 +190,7 @@ export default function SavedQuotes() {
                         <TableCell>
                           <div className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-gray-400" />
-                            {new Date(quote.createdAt).toLocaleDateString()}
+                            {formatDate(quote.createdAt)}
                           </div>
                         </TableCell>
                         <TableCell>
@@ -213,6 +248,36 @@ export default function SavedQuotes() {
             )}
           </CardContent>
         </Card>
+
+        {/* Delete Confirmation Dialog */}
+        <Dialog open={deleteDialogOpen} onOpenChange={setDeleteDialogOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Delete Quote</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-4">
+              <p className="text-sm text-gray-600">
+                Are you sure you want to delete this quote? This action cannot be undone.
+              </p>
+              <div className="flex justify-end space-x-2">
+                <Button
+                  variant="outline"
+                  onClick={() => setDeleteDialogOpen(false)}
+                  disabled={deleteQuoteMutation.isPending}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  variant="destructive"
+                  onClick={confirmDelete}
+                  disabled={deleteQuoteMutation.isPending}
+                >
+                  {deleteQuoteMutation.isPending ? "Deleting..." : "Delete Quote"}
+                </Button>
+              </div>
+            </div>
+          </DialogContent>
+        </Dialog>
       </div>
     </div>
   );
