@@ -1326,32 +1326,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log(`Processing pricing upload: ${req.file.originalname}, Size: ${req.file.size} bytes`);
 
       // Read the uploaded CSV file
-      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
-      const targetPath = path.join(process.cwd(), 'attached_assets', 'tier_pricing_template.csv');
+      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
       
-      // Save the new pricing file
-      fs.writeFileSync(targetPath, newCsvContent);
+      // Parse CSV content
+      const lines = csvContent.split('\n').filter(line => line.trim());
+      if (lines.length < 2) {
+        return res.status(400).json({ error: "CSV file must contain at least a header and one data row" });
+      }
+
+      const headers = lines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+      const dataRows = lines.slice(1);
+      
+      let newRecords = 0;
+      let updatedRecords = 0;
+      
+      for (const row of dataRows) {
+        const values = row.split(',').map(v => v.trim().replace(/"/g, '').replace(/\$/g, ''));
+        
+        if (values.length !== headers.length) {
+          console.warn(`Skipping row with incorrect number of columns: ${row}`);
+          continue;
+        }
+        
+        const rowData: any = {};
+        headers.forEach((header, index) => {
+          rowData[header] = values[index];
+        });
+        
+        // Map CSV data to database schema (ensure all prices are strings)
+        const pricingEntry = {
+          productId: rowData.productId || '',
+          productType: rowData.productType || '',
+          exportPrice: rowData.EXPORT_pricePerSqm ? String(rowData.EXPORT_pricePerSqm) : null,
+          masterDistributorPrice: rowData.MASTER_DISTRIBUTOR_pricePerSqm ? String(rowData.MASTER_DISTRIBUTOR_pricePerSqm) : null,
+          dealerPrice: rowData.DEALER_pricePerSqm ? String(rowData.DEALER_pricePerSqm) : null,
+          dealer2Price: rowData.DEALER_2_pricePerSqm ? String(rowData.DEALER_2_pricePerSqm) : null,
+          approvalRetailPrice: rowData.Approval_Retail__pricePerSqm ? String(rowData.Approval_Retail__pricePerSqm) : null,
+          stage25Price: rowData.Stage25_pricePerSqm ? String(rowData.Stage25_pricePerSqm) : null,
+          stage2Price: rowData.Stage2_pricePerSqm ? String(rowData.Stage2_pricePerSqm) : null,
+          stage15Price: rowData.Stage15_pricePerSqm ? String(rowData.Stage15_pricePerSqm) : null,
+          stage1Price: rowData.Stage1_pricePerSqm ? String(rowData.Stage1_pricePerSqm) : null,
+          retailPrice: rowData.Retail_pricePerSqm ? String(rowData.Retail_pricePerSqm) : null,
+        };
+        
+        try {
+          // Check if record exists
+          const existing = await storage.getPricingDataByProductId(pricingEntry.productId);
+          
+          if (existing) {
+            // Update existing record
+            await storage.updatePricingDataByProductId(pricingEntry.productId, pricingEntry);
+            updatedRecords++;
+          } else {
+            // Create new record
+            await storage.createPricingData(pricingEntry);
+            newRecords++;
+          }
+        } catch (error) {
+          console.error(`Error processing pricing data for ${pricingEntry.productId}:`, error);
+        }
+      }
       
       // Clean up the temporary file
       fs.unlinkSync(req.file.path);
       
-      // Clear pricing-related caches
-      cache.delete('pricing-tiers');
-      cache.delete('product-pricing');
-      
-      // Reinitialize storage with new data
-      await storage.reinitializeData();
-      
-      // Count updated entries
-      const lines = newCsvContent.split('\n').filter(line => line.trim());
-      const updatedCount = lines.length - 1; // Subtract header
-      
-      console.log(`Pricing upload complete: ${updatedCount} pricing entries updated`);
+      console.log(`Pricing upload complete: ${newRecords} new, ${updatedRecords} updated`);
       
       res.json({ 
         success: true,
-        updated: updatedCount,
-        message: `Upload successful! Updated ${updatedCount} pricing entries` 
+        newRecords,
+        updatedRecords,
+        totalProcessed: newRecords + updatedRecords,
+        message: `Upload successful! ${newRecords} new entries added, ${updatedRecords} entries updated`
       });
     } catch (error) {
       console.error("Error uploading pricing data:", error);
@@ -1359,6 +1405,84 @@ export async function registerRoutes(app: Express): Promise<Server> {
         fs.unlinkSync(req.file.path);
       }
       res.status(500).json({ error: "Failed to upload pricing data file" });
+    }
+  });
+
+  // Get pricing data for Price Management
+  app.get("/api/pricing-data", isAuthenticated, async (req, res) => {
+    try {
+      const pricingData = await storage.getAllPricingData();
+      res.json(pricingData);
+    } catch (error) {
+      console.error("Error fetching pricing data:", error);
+      res.status(500).json({ error: "Failed to fetch pricing data" });
+    }
+  });
+
+  // Update pricing data entry
+  app.patch("/api/pricing-data/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { id } = req.params;
+      const updates = req.body;
+      
+      const updatedEntry = await storage.updatePricingData(parseInt(id), updates);
+      
+      if (!updatedEntry) {
+        return res.status(404).json({ error: "Pricing entry not found" });
+      }
+      
+      res.json(updatedEntry);
+    } catch (error) {
+      console.error("Error updating pricing data:", error);
+      res.status(500).json({ error: "Failed to update pricing data" });
+    }
+  });
+
+  // Export pricing data as CSV
+  app.get("/api/pricing-data/export", isAuthenticated, async (req, res) => {
+    try {
+      const pricingData = await storage.getAllPricingData();
+      
+      // Create CSV headers matching original format
+      const headers = [
+        'productId',
+        'productType', 
+        'EXPORT_pricePerSqm',
+        'MASTER_DISTRIBUTOR_pricePerSqm',
+        'DEALER_pricePerSqm',
+        'DEALER_2_pricePerSqm',
+        'Approval_Retail__pricePerSqm',
+        'Stage25_pricePerSqm',
+        'Stage2_pricePerSqm',
+        'Stage15_pricePerSqm',
+        'Stage1_pricePerSqm',
+        'Retail_pricePerSqm'
+      ];
+      
+      // Convert data to CSV format
+      const csvRows = pricingData.map(entry => [
+        entry.productId,
+        entry.productType,
+        entry.exportPrice || '',
+        entry.masterDistributorPrice || '',
+        entry.dealerPrice || '',
+        entry.dealer2Price || '',
+        entry.approvalRetailPrice || '',
+        entry.stage25Price || '',
+        entry.stage2Price || '',
+        entry.stage15Price || '',
+        entry.stage1Price || '',
+        entry.retailPrice || ''
+      ]);
+      
+      const csvContent = [headers, ...csvRows].map(row => row.join(',')).join('\n');
+      
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', 'attachment; filename="pricing-data-export.csv"');
+      res.send(csvContent);
+    } catch (error) {
+      console.error("Error exporting pricing data:", error);
+      res.status(500).json({ error: "Failed to export pricing data" });
     }
   });
 
