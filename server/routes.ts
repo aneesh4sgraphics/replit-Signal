@@ -1341,10 +1341,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let updatedRecords = 0;
       
       for (const row of dataRows) {
-        const values = row.split(',').map(v => v.trim().replace(/"/g, '').replace(/\$/g, ''));
+        // Handle CSV parsing more carefully - handle quoted values and dollar signs
+        const values = [];
+        let currentValue = '';
+        let inQuotes = false;
+        
+        for (let i = 0; i < row.length; i++) {
+          const char = row[i];
+          
+          if (char === '"') {
+            inQuotes = !inQuotes;
+          } else if (char === ',' && !inQuotes) {
+            values.push(currentValue.trim().replace(/"/g, '').replace(/\$/g, '').replace(/\s+$/, ''));
+            currentValue = '';
+          } else {
+            currentValue += char;
+          }
+        }
+        
+        // Don't forget the last value
+        if (currentValue) {
+          values.push(currentValue.trim().replace(/"/g, '').replace(/\$/g, '').replace(/\s+$/, ''));
+        }
         
         if (values.length !== headers.length) {
-          console.warn(`Skipping row with incorrect number of columns: ${row}`);
+          console.warn(`Skipping row with incorrect number of columns. Expected ${headers.length}, got ${values.length}: ${row.substring(0, 100)}...`);
           continue;
         }
         
