@@ -12,6 +12,8 @@ import {
   type InsertPricingTier,
   type ProductPricing,
   type InsertProductPricing,
+  type PricingData,
+  type InsertPricingData,
   type Customer,
   type InsertCustomer,
   type SentQuote,
@@ -22,7 +24,8 @@ import {
   type InsertFileUpload,
   users,
   competitorPricing,
-  fileUploads
+  fileUploads,
+  pricingData
 } from "@shared/schema";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerData } from "./customer-parser";
@@ -96,6 +99,13 @@ export interface IStorage {
   createFileUpload(upload: InsertFileUpload): Promise<FileUpload>;
   setActiveFileUpload(id: number, fileType: string): Promise<void>;
   
+  // Pricing Data
+  getAllPricingData(): Promise<PricingData[]>;
+  getPricingDataByProductId(productId: string): Promise<PricingData | undefined>;
+  createPricingData(pricingData: InsertPricingData): Promise<PricingData>;
+  updatePricingData(id: number, updates: Partial<InsertPricingData>): Promise<PricingData | undefined>;
+  updatePricingDataByProductId(productId: string, updates: Partial<InsertPricingData>): Promise<PricingData | undefined>;
+
   // Admin methods
   reinitializeData(): Promise<void>;
 }
@@ -577,6 +587,32 @@ export class MemStorage implements IStorage {
     return this.customers.delete(id);
   }
 
+  // Pricing Data operations (stub implementations for MemStorage)
+  async getAllPricingData(): Promise<PricingData[]> {
+    return [];
+  }
+
+  async getPricingDataByProductId(productId: string): Promise<PricingData | undefined> {
+    return undefined;
+  }
+
+  async createPricingData(data: InsertPricingData): Promise<PricingData> {
+    return {
+      id: 1,
+      ...data,
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    } as PricingData;
+  }
+
+  async updatePricingData(id: number, updates: Partial<InsertPricingData>): Promise<PricingData | undefined> {
+    return undefined;
+  }
+
+  async updatePricingDataByProductId(productId: string, updates: Partial<InsertPricingData>): Promise<PricingData | undefined> {
+    return undefined;
+  }
+
   async reinitializeData(): Promise<void> {
     // Clear existing data
     this.productCategories.clear();
@@ -975,6 +1011,52 @@ export class DatabaseStorage implements IStorage {
 
   async updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean> {
     return this.memStorage.updateProductPricing(id, pricePerSquareMeter);
+  }
+
+  // Pricing Data operations
+  async getAllPricingData(): Promise<PricingData[]> {
+    return await db.select().from(pricingData).orderBy(pricingData.productId);
+  }
+
+  async getPricingDataByProductId(productId: string): Promise<PricingData | undefined> {
+    const [data] = await db.select().from(pricingData).where(eq(pricingData.productId, productId));
+    return data;
+  }
+
+  async createPricingData(data: InsertPricingData): Promise<PricingData> {
+    const [result] = await db
+      .insert(pricingData)
+      .values({
+        ...data,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .returning();
+    return result;
+  }
+
+  async updatePricingData(id: number, updates: Partial<InsertPricingData>): Promise<PricingData | undefined> {
+    const [result] = await db
+      .update(pricingData)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(pricingData.id, id))
+      .returning();
+    return result;
+  }
+
+  async updatePricingDataByProductId(productId: string, updates: Partial<InsertPricingData>): Promise<PricingData | undefined> {
+    const [result] = await db
+      .update(pricingData)
+      .set({
+        ...updates,
+        updatedAt: new Date(),
+      })
+      .where(eq(pricingData.productId, productId))
+      .returning();
+    return result;
   }
 }
 

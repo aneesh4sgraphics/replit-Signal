@@ -2114,14 +2114,102 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
 
 
-  // Pricing Management API endpoints
+  // Pricing Data Management API endpoints
+  
+  // Get all pricing data
   app.get("/api/pricing-data", isAuthenticated, async (req, res) => {
     try {
-      const pricingData = await storage.getPricingDataWithDetails();
+      const pricingData = await storage.getAllPricingData();
       res.json(pricingData);
     } catch (error) {
       console.error("Error fetching pricing data:", error);
       res.status(500).json({ error: "Failed to fetch pricing data" });
+    }
+  });
+
+  // Update pricing data field
+  app.patch("/api/pricing-data/:id", isAuthenticated, async (req, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const updates = req.body;
+      
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid pricing data ID" });
+      }
+
+      await storage.updatePricingData(id, updates);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error updating pricing data:", error);
+      res.status(500).json({ error: "Failed to update pricing data" });
+    }
+  });
+
+  // Upload pricing CSV
+  app.post("/api/upload-pricing-csv", isAuthenticated, upload.single('file'), async (req, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: "No file uploaded" });
+      }
+
+      const fileContent = req.file.buffer.toString();
+      const lines = fileContent.split('\n').filter(line => line.trim());
+      
+      if (lines.length < 2) {
+        return res.status(400).json({ error: "CSV file must have header and at least one data row" });
+      }
+
+      // Parse CSV data
+      let newRecords = 0;
+      let updatedRecords = 0;
+
+      for (let i = 1; i < lines.length; i++) {
+        const line = lines[i].trim();
+        if (!line) continue;
+
+        const values = line.split(',').map(v => v.trim().replace(/^\$/, ''));
+        
+        if (values.length < 2) continue;
+
+        const record = {
+          productId: values[0] || '',
+          productType: values[1] || '',
+          exportPrice: parseFloat(values[2]) || null,
+          masterDistributorPrice: parseFloat(values[3]) || null,
+          dealerPrice: parseFloat(values[4]) || null,
+          dealer2Price: parseFloat(values[5]) || null,
+          approvalRetailPrice: parseFloat(values[6]) || null,
+          stage25Price: parseFloat(values[7]) || null,
+          stage2Price: parseFloat(values[8]) || null,
+          stage15Price: parseFloat(values[9]) || null,
+          stage1Price: parseFloat(values[10]) || null,
+          retailPrice: parseFloat(values[11]) || null,
+        };
+
+        if (record.productId && record.productType) {
+          // Check if record exists
+          const existing = await storage.getPricingDataByProductId(record.productId);
+          if (existing) {
+            await storage.updatePricingDataByProductId(record.productId, record);
+            updatedRecords++;
+          } else {
+            await storage.createPricingData(record);
+            newRecords++;
+          }
+        }
+      }
+
+      res.json({
+        success: true,
+        message: "Pricing data uploaded successfully",
+        newRecords,
+        updatedRecords,
+        totalProcessed: newRecords + updatedRecords
+      });
+
+    } catch (error) {
+      console.error("Error uploading pricing CSV:", error);
+      res.status(500).json({ error: "Failed to upload pricing CSV" });
     }
   });
 

@@ -42,6 +42,25 @@ export const productPricing = pgTable("product_pricing", {
   sizeId: integer("size_id"), // Optional size-specific pricing
 });
 
+// Pricing data table for CSV uploads and management
+export const pricingData = pgTable("pricing_data", {
+  id: serial("id").primaryKey(),
+  productId: varchar("product_id", { length: 255 }).notNull(),
+  productType: varchar("product_type", { length: 255 }).notNull(),
+  exportPrice: decimal("export_price", { precision: 10, scale: 2 }),
+  masterDistributorPrice: decimal("master_distributor_price", { precision: 10, scale: 2 }),
+  dealerPrice: decimal("dealer_price", { precision: 10, scale: 2 }),
+  dealer2Price: decimal("dealer2_price", { precision: 10, scale: 2 }),
+  approvalRetailPrice: decimal("approval_retail_price", { precision: 10, scale: 2 }),
+  stage25Price: decimal("stage25_price", { precision: 10, scale: 2 }),
+  stage2Price: decimal("stage2_price", { precision: 10, scale: 2 }),
+  stage15Price: decimal("stage15_price", { precision: 10, scale: 2 }),
+  stage1Price: decimal("stage1_price", { precision: 10, scale: 2 }),
+  retailPrice: decimal("retail_price", { precision: 10, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
 // Session storage table for authentication
 export const sessions = pgTable(
   "sessions",
@@ -163,6 +182,12 @@ export const insertProductPricingSchema = createInsertSchema(productPricing).omi
   id: true,
 });
 
+export const insertPricingDataSchema = createInsertSchema(pricingData).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
 export const upsertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
@@ -194,6 +219,7 @@ export type ProductType = typeof productTypes.$inferSelect;
 export type ProductSize = typeof productSizes.$inferSelect;
 export type PricingTier = typeof pricingTiers.$inferSelect;
 export type ProductPricing = typeof productPricing.$inferSelect;
+export type PricingData = typeof pricingData.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type SentQuote = typeof sentQuotes.$inferSelect;
@@ -204,6 +230,7 @@ export type InsertProductType = z.infer<typeof insertProductTypeSchema>;
 export type InsertProductSize = z.infer<typeof insertProductSizeSchema>;
 export type InsertPricingTier = z.infer<typeof insertPricingTierSchema>;
 export type InsertProductPricing = z.infer<typeof insertProductPricingSchema>;
+export type InsertPricingData = z.infer<typeof insertPricingDataSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
