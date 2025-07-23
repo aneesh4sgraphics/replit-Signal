@@ -85,8 +85,8 @@ export default function Dashboard() {
   }
 
   // Extract first name from user data and capitalize it
-  const firstName = (user.firstName || user.email?.split('@')[0] || "User")
-    .charAt(0).toUpperCase() + (user.firstName || user.email?.split('@')[0] || "User").slice(1);
+  const firstName = ((user as any)?.firstName || (user as any)?.email?.split('@')[0] || "User")
+    .charAt(0).toUpperCase() + ((user as any)?.firstName || (user as any)?.email?.split('@')[0] || "User").slice(1);
   
   // Get time-based greeting
   const getGreeting = () => {
@@ -135,7 +135,7 @@ export default function Dashboard() {
   const getDailyQuote = () => {
     const now = new Date();
     const start = new Date(now.getFullYear(), 0, 0);
-    const diff = now - start;
+    const diff = now.getTime() - start.getTime();
     const dayOfYear = Math.floor(diff / (1000 * 60 * 60 * 24));
     return dailyMotivationalQuotes[dayOfYear % dailyMotivationalQuotes.length];
   };
@@ -145,7 +145,7 @@ export default function Dashboard() {
       {showWelcome && (
         <WelcomeAnimation
           userName={firstName}
-          user={user}
+          user={user as any}
           onComplete={() => setShowWelcome(false)}
         />
       )}
@@ -166,7 +166,7 @@ export default function Dashboard() {
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Applications</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
             {/* QuickQuotes */}
-            <Link href="/quote-calculator">
+            <Link href="/quick-quotes">
               <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-blue-50 to-indigo-100 border-0 shadow-md h-full">
                 <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
                   <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
@@ -241,7 +241,7 @@ export default function Dashboard() {
         </div>
 
         {/* Admin Section - Only show for admin users */}
-        {user.role === 'admin' && (
+        {(user as any)?.role === 'admin' && (
           <div className="mb-8">
             <div className="flex items-center gap-2 mb-4">
               <Shield className="w-5 h-5 text-red-600" />

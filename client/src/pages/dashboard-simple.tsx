@@ -11,7 +11,7 @@ export default function DashboardSimple() {
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-8">
         <h1 className="text-3xl font-bold text-gray-900">
-          Welcome back, {user?.firstName || 'User'}!
+          Welcome back, {(user as any)?.firstName || 'User'}!
         </h1>
         <p className="text-gray-600 mt-2">
           4S Graphics Employee Portal - Your business tools in one place
@@ -29,7 +29,7 @@ export default function DashboardSimple() {
           </CardHeader>
           <CardContent>
             <p className="text-gray-600 mb-4">Generate professional quotes with pricing tiers</p>
-            <Link href="/quote-calculator">
+            <Link href="/quick-quotes">
               <Button className="w-full">Open Calculator</Button>
             </Link>
           </CardContent>
@@ -84,7 +84,7 @@ export default function DashboardSimple() {
         </Card>
 
         {/* Admin Tools */}
-        {user?.role === 'admin' && (
+        {(user as any)?.role === 'admin' && (
           <Card className="hover:shadow-lg transition-shadow cursor-pointer">
             <CardHeader>
               <CardTitle className="flex items-center">

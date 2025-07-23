@@ -501,7 +501,7 @@ export default function SavedQuotes() {
                     : 'Generate quotes from the Quote Calculator to see them here.'}
                 </p>
                 {!searchTerm && statusFilter === 'all' && (
-                  <Link href="/quote-calculator">
+                  <Link href="/quick-quotes">
                     <Button className="mt-4">
                       Go to Quote Calculator
                     </Button>

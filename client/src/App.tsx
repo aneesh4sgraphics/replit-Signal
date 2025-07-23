@@ -97,7 +97,7 @@ function Router() {
       <AppHeader />
       <Switch>
         <Route path="/" component={Dashboard} />
-        <Route path="/quote-calculator" component={QuoteCalculator} />
+        <Route path="/quick-quotes" component={QuoteCalculator} />
         <Route path="/area-pricer" component={AreaPricer} />
         <Route path="/competitor-pricing" component={CompetitorPricing} />
         <Route path="/saved-quotes" component={SavedQuotes} />
