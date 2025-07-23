@@ -40,9 +40,7 @@ export default function Admin() {
 
   const approveUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/approve`, {
-        method: "POST",
-      });
+      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/approve`, "POST");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -62,9 +60,7 @@ export default function Admin() {
 
   const rejectUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/reject`, {
-        method: "POST",
-      });
+      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/reject`, "POST");
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
