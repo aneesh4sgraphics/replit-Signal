@@ -64,36 +64,7 @@
   }
 }
 
-/* Brand-specific font classes */
-.font-graffiti {
-  font-family: 'Lobster', cursive;
-  font-weight: 400;
-}
 
-.font-solvit {
-  font-family: 'Inter', sans-serif;
-  font-weight: 700;
-}
-
-.font-cliq {
-  font-family: 'Franklin Gothic Medium', sans-serif;
-  font-weight: 500;
-}
-
-.font-rang {
-  font-family: 'Inter', sans-serif;
-  font-weight: 400;
-}
-
-.font-ele {
-  font-family: 'Roboto', sans-serif;
-  font-weight: 400;
-}
-
-.font-eie {
-  font-family: 'Roboto', sans-serif;
-  font-weight: 400;
-}
 
 /* PDF and CSV button styles */
 .btn-pdf {

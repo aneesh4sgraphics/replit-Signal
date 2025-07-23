@@ -5,6 +5,19 @@ export default {
   content: ["./client/index.html", "./client/src/**/*.{js,jsx,ts,tsx}"],
   theme: {
     extend: {
+      fontFamily: {
+        graffiti: ['Lobster', 'cursive'],
+        solvit: ['Inter', 'sans-serif'],
+        cliq: ['"Franklin Gothic Medium"', 'sans-serif'],
+        ele: ['Roboto', 'sans-serif'],
+        eie: ['Roboto', 'sans-serif'],
+        rang: ['Inter', 'sans-serif'],
+        polyester: ['Roboto', 'sans-serif'],
+        paper: ['Roboto', 'sans-serif'],
+        blended: ['Roboto', 'sans-serif'],
+        poly: ['Roboto', 'sans-serif'],
+        stick: ['Roboto', 'sans-serif'],
+      },
       borderRadius: {
         lg: "var(--radius)",
         md: "calc(var(--radius) - 2px)",
