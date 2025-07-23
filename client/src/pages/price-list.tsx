@@ -180,13 +180,15 @@ export default function PriceList() {
 
   // Get filtered pricing tiers based on user role and hide zero-price tiers
   const getFilteredPricingTiers = () => {
-    if (!tiers || !allPricing || !user) return [];
+    if (!tiers || !user) return [];
     
     const userRole = getUserRoleFromEmail((user as any).email);
     const roleFilteredTiers = filterTiersByRole(tiers, userRole);
     
-    // If no category selected, return all role-filtered tiers
-    if (!selectedCategory) return roleFilteredTiers;
+    // If no category selected or no pricing data loaded yet, return all role-filtered tiers
+    if (!selectedCategory || !allPricing || allPricing.length === 0) {
+      return roleFilteredTiers;
+    }
     
     // Filter out tiers with zero pricing for any product in the selected category
     return roleFilteredTiers.filter(tier => {

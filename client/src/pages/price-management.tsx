@@ -307,9 +307,13 @@ export default function PriceManagement() {
           </div>
           <div className="flex items-center gap-2">
             <label htmlFor="csv-upload-price">
-              <Button variant="outline" className="flex items-center gap-2 cursor-pointer">
+              <Button 
+                variant="outline" 
+                className="flex items-center gap-2 cursor-pointer"
+                disabled={uploadMutation.isPending}
+              >
                 <Upload className="h-4 w-4" />
-                Upload Pricing CSV
+                {uploadMutation.isPending ? "Uploading..." : "Upload Pricing CSV"}
               </Button>
             </label>
             <input
