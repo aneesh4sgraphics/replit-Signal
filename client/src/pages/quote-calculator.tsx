@@ -1044,11 +1044,11 @@ Look forward for your order!`;
               {/* Predefined Size */}
               <div className="space-y-2">
                 <Label htmlFor="size">Predefined Size</Label>
-                <Select value={selectedSize?.id.toString() || (isCustomSize ? "custom" : "")} onValueChange={(value) => {
+                <Select value={selectedSize?.id.toString() || (isCustomSize ? "custom" : "no-selection")} onValueChange={(value) => {
                   if (value === "custom") {
                     setIsCustomSize(true);
                     setSelectedSize(null);
-                  } else {
+                  } else if (value !== "no-selection" && value !== "no-sizes") {
                     setIsCustomSize(false);
                     const size = sizes?.find(s => s.id.toString() === value);
                     setSelectedSize(size || null);
@@ -1058,6 +1058,7 @@ Look forward for your order!`;
                     <SelectValue placeholder={sizes && sizes.length > 0 ? "Choose from available sizes" : "Select size..."} />
                   </SelectTrigger>
                   <SelectContent>
+                    <SelectItem value="no-selection" disabled>Please select a size...</SelectItem>
                     {sizes && sizes.length > 0 ? (
                       sizes.map((size) => (
                         <SelectItem key={size.id} value={size.id.toString()}>
