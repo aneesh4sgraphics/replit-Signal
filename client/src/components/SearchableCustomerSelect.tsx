@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { useDebounce } from '@/hooks/useDebounce';
 
 interface Customer {
   id: string;
@@ -42,11 +43,12 @@ export default function SearchableCustomerSelect({
 }: SearchableCustomerSelectProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
 
-  // Sort customers by company name and filter by search term
+  // Sort customers by company name and filter by search term (debounced for performance)
   const filteredAndSortedCustomers = useMemo(() => {
     const filtered = customers.filter(customer => {
-      const searchLower = searchTerm.toLowerCase();
+      const searchLower = debouncedSearchTerm.toLowerCase();
       return (
         customer.company.toLowerCase().includes(searchLower) ||
         customer.firstName.toLowerCase().includes(searchLower) ||
@@ -56,7 +58,7 @@ export default function SearchableCustomerSelect({
     });
 
     return filtered.sort((a, b) => a.company.localeCompare(b.company));
-  }, [customers, searchTerm]);
+  }, [customers, debouncedSearchTerm]);
 
   const selectedCustomerData = customers.find(c => c.id === selectedCustomer);
 

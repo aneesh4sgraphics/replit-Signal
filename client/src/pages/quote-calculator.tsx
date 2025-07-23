@@ -16,6 +16,7 @@ import { queryClient } from "@/lib/queryClient";
 import EmailCelebrationAnimation from "@/components/EmailCelebrationAnimation";
 import { useAuth } from "@/hooks/useAuth";
 import { filterTiersByRole, getUserRoleFromEmail } from "@/utils/roleBasedTiers";
+import { useDebounce } from "@/hooks/useDebounce";
 
 // Utility function to apply brand-specific fonts to individual words
 const applyBrandFonts = (text: string): JSX.Element => {

@@ -11,6 +11,7 @@ import { Badge } from "@/components/ui/badge";
 import { ArrowLeft, DollarSign, Search, Edit, Save, X, Filter, ArrowUp, ArrowDown, Upload } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface PricingEntry {
   id: number;
@@ -39,6 +40,7 @@ type SortDirection = 'asc' | 'desc';
 export default function PriceManagement() {
   console.log("PriceManagement component rendering...");
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValue, setEditValue] = useState("");
   

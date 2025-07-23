@@ -13,6 +13,7 @@ import { Separator } from "@/components/ui/separator";
 import { ArrowLeft, User, Users, Plus, Search, Edit, Trash2, Mail, Phone, MapPin, Building, Tag, ArrowUpDown, ArrowUp, ArrowDown, Filter, X } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import { useDebounce } from "@/hooks/useDebounce";
 
 interface Customer {
   id: string;
@@ -39,6 +40,7 @@ type SortDirection = 'asc' | 'desc';
 
 export default function CustomerManagement() {
   const [searchTerm, setSearchTerm] = useState("");
+  const debouncedSearchTerm = useDebounce(searchTerm, 300);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState(false);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showEditDialog, setShowEditDialog] = useState(false);
@@ -299,8 +301,8 @@ export default function CustomerManagement() {
   // Filter and sort customers
   const filteredAndSortedCustomers = (customers || [])
     .filter((customer: Customer) => {
-      // Search term filter
-      const searchLower = searchTerm.toLowerCase();
+      // Search term filter (debounced for better performance)
+      const searchLower = debouncedSearchTerm.toLowerCase();
       const fullName = `${customer.firstName} ${customer.lastName}`.toLowerCase();
       const company = customer.company?.toLowerCase() || "";
       const email = customer.email?.toLowerCase() || "";
