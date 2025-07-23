@@ -79,6 +79,8 @@ interface ProductSize {
   widthUnit: string;
   heightUnit: string;
   squareMeters: string;
+  itemCode: string | null;
+  minOrderQty: string | null;
 }
 
 interface PricingTier {
@@ -1050,14 +1052,18 @@ Look forward for your order!`;
                   }
                 }} disabled={!selectedType}>
                   <SelectTrigger>
-                    <SelectValue placeholder="Select size..." />
+                    <SelectValue placeholder={sizes && sizes.length > 0 ? "Choose from available sizes" : "Select size..."} />
                   </SelectTrigger>
                   <SelectContent>
-                    {sizes?.map((size) => (
-                      <SelectItem key={size.id} value={size.id.toString()}>
-                        {size.name}
-                      </SelectItem>
-                    ))}
+                    {sizes && sizes.length > 0 ? (
+                      sizes.map((size) => (
+                        <SelectItem key={size.id} value={size.id.toString()}>
+                          {size.name} {size.itemCode ? `- ${size.itemCode}` : ''}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="" disabled>No sizes available for this product type</SelectItem>
+                    )}
                     <SelectItem value="custom">Custom Size</SelectItem>
                   </SelectContent>
                 </Select>

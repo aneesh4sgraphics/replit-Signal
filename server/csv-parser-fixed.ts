@@ -263,11 +263,13 @@ export function parseProductDataAndPricing() {
       // Create product size
       sizes.push({
         id: sizeId++,
-        productTypeId: type.id,
-        size: size,
-        width: width,
-        height: height,
-        squareMeters: squareMeters,
+        typeId: type.id,
+        name: size,
+        width: width.toString(),
+        height: height.toString(),
+        widthUnit: "inch",
+        heightUnit: "inch", 
+        squareMeters: squareMeters.toString(),
         itemCode: itemCode,
         minOrderQty: minOrderQty
       });
