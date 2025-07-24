@@ -71,230 +71,296 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
     year: 'numeric'
   });
 
-  // Check if any item has quantity below minimum order quantity
-  const hasMinOrderQtyDisplay = quoteItems.some(item => {
-    const minOrderQty = parseInt(item.minOrderQty) || 50;
-    return item.quantity < minOrderQty;
-  });
+  // Generate filename following the requested format: QuickQuotes_4SGraphics_Date_for_CustomerName.pdf
+  const filename = `QuickQuotes_4SGraphics_${currentDate.replace(/\//g, '-')}_for_${customerName.replace(/[^a-zA-Z0-9]/g, '_')}.pdf`;
 
-  // Generate table rows for quote items
-  const itemRows = quoteItems.map((item, index) => {
-    const minOrderQty = parseInt(item.minOrderQty) || 50;
-    const isMinOrderQtyActive = item.quantity < minOrderQty;
-    
+  // Group items by category for better organization
+  const groupedItems = quoteItems.reduce((acc, item) => {
+    const category = item.productBrand || 'Other';
+    if (!acc[category]) {
+      acc[category] = [];
+    }
+    acc[category].push(item);
+    return acc;
+  }, {} as Record<string, any[]>);
+
+  // Calculate subtotal (assuming no tax)
+  const subtotal = totalAmount;
+
+  // Generate category sections
+  const categorySections = Object.entries(groupedItems).map(([category, items]) => {
+    const categoryRows = items.map(item => {
+      const pricePerSqM = item.pricePerSheet / (item.squareMeters || 1);
+      const pricePerPack = parseFloat(item.pricePerSheet) * parseInt(item.minOrderQty || '1');
+      
+      return `
+        <tr>
+          <td>${item.productSize}</td>
+          <td>${item.itemCode || '-'}</td>
+          <td class="min-qty-display">1 Roll</td>
+          <td class="price-column">$${pricePerSqM.toFixed(2)}</td>
+          <td class="price-column">$${parseFloat(item.pricePerSheet).toFixed(2)}</td>
+          <td class="price-column price-per-pack">$${pricePerPack.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
+
     return `
-      <tr>
-        <td>${applyBrandFonts(item.productBrand)}</td>
-        <td>${applyBrandFonts(item.productType)}</td>
-        <td>${item.productSize}</td>
-        <td>${item.quantity}</td>
-        ${hasMinOrderQtyDisplay ? `<td>${isMinOrderQtyActive ? minOrderQty : '-'}</td>` : ''}
-        <td>$${item.pricePerSheet.toFixed(2)}</td>
-        <td>$${item.total.toFixed(2)}</td>
-      </tr>
+      <div class="category-section">
+        <div class="category-title">${applyBrandFonts(category)}</div>
+        <table class="items-table">
+          <thead>
+            <tr>
+              <th>Size</th>
+              <th>Item Code</th>
+              <th>Min Quantity</th>
+              <th>Price/Sq.M</th>
+              <th>Price/Sheet</th>
+              <th>Price Per Pack</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${categoryRows}
+          </tbody>
+        </table>
+      </div>
     `;
   }).join('');
-
-  const logoBase64 = getLogoBase64();
-  const logoHtml = logoBase64 ? `<img src="data:image/jpeg;base64,${logoBase64}" alt="4S Graphics Logo" style="height: 80px; margin-right: 15px;">` : '';
 
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Quote ${quoteNumber}</title>
+      <title>${filename}</title>
       <link href="https://fonts.googleapis.com/css2?family=Lobster&display=swap" rel="stylesheet">
       <link href="https://fonts.googleapis.com/css2?family=Inter:wght@100;200;300;400;500;600;700;800;900&display=swap" rel="stylesheet">
       <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@100;300;400;500;700;900&display=swap" rel="stylesheet">
       <link href="https://fonts.googleapis.com/css2?family=Franklin+Gothic+Medium&display=swap" rel="stylesheet">
       <style>
-        * {
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+        @page {
+          margin: 0.5in;
+          size: A4;
         }
         
         body {
-          font-family: 'Inter', sans-serif;
-          font-size: 12px;
+          font-family: 'Roboto', Arial, sans-serif;
           margin: 0;
-          padding: 30px;
-          background-color: white;
-          color: #000;
+          padding: 20px;
           line-height: 1.4;
+          color: #333;
+          font-size: 10px;
         }
         
-        .header-container {
-          display: flex;
-          justify-content: space-between;
-          align-items: flex-start;
+        .header {
+          text-align: center;
           margin-bottom: 30px;
-          border-bottom: 2px solid #000;
-          padding-bottom: 20px;
-        }
-        
-        .company-info {
-          display: flex;
-          align-items: flex-start;
-        }
-        
-        .company-details {
-          margin-left: 15px;
+          border-bottom: 2px solid #2563eb;
+          padding-bottom: 15px;
         }
         
         .company-name {
-          font-size: 18px;
+          font-family: 'Roboto', Arial, sans-serif;
+          font-size: 16px;
           font-weight: bold;
-          color: #000;
+          color: #1e40af;
           margin-bottom: 5px;
         }
         
+        .company-tagline {
+          font-family: 'Roboto', Arial, sans-serif;
+          font-size: 10px;
+          color: #666;
+          margin-bottom: 8px;
+        }
+        
         .company-address {
-          font-size: 12px;
-          color: #000;
+          font-family: 'Roboto', Arial, sans-serif;
+          font-size: 10px;
+          color: #666;
           margin-bottom: 2px;
         }
         
-        .quote-date {
-          font-size: 12px;
-          color: #000;
-          text-align: right;
-        }
-        
         .quote-info {
-          margin-bottom: 30px;
-          font-size: 12px;
+          background-color: #f8fafc;
+          padding: 15px;
+          border-radius: 5px;
+          margin-bottom: 20px;
+          border: 1px solid #e2e8f0;
+          text-align: left;
         }
         
         .quote-info div {
           margin-bottom: 5px;
+          font-size: 11px;
         }
         
         .price-quote-title {
           text-align: center;
           font-size: 18px;
           font-weight: bold;
-          color: #000;
-          margin: 30px 0;
+          color: #1e40af;
+          margin: 20px 0;
+          text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        
+        .category-section {
+          margin-bottom: 25px;
+        }
+        
+        .category-title {
+          font-size: 14px;
+          font-weight: bold;
+          color: #1e40af;
+          margin-bottom: 10px;
+          padding: 8px 0;
+          border-bottom: 2px solid #1e40af;
         }
         
         .items-table {
           width: 100%;
           border-collapse: collapse;
-          margin-bottom: 20px;
-          border: 1px solid #000;
+          margin-bottom: 15px;
+          border: 1px solid #d1d5db;
         }
         
         .items-table th {
-          background-color: #6FA8DC !important;
-          color: #000 !important;
-          padding: 8px;
-          text-align: center;
+          background-color: #1e40af;
+          color: white;
+          padding: 10px 8px;
+          text-align: left;
           font-weight: bold;
-          border: 1px solid #000;
-          font-size: 12px;
-          -webkit-print-color-adjust: exact !important;
-          print-color-adjust: exact !important;
+          font-size: 9px;
+          border-right: 1px solid #3b82f6;
+        }
+        
+        .items-table th:last-child {
+          border-right: none;
         }
         
         .items-table td {
           padding: 8px;
-          text-align: center;
-          border: 1px solid #000;
-          font-size: 12px;
+          border-bottom: 1px solid #e5e7eb;
+          border-right: 1px solid #e5e7eb;
+          font-size: 9px;
         }
         
-        .total-row {
+        .items-table td:last-child {
+          border-right: none;
+        }
+        
+        .items-table tr:nth-child(even) {
+          background-color: #f9fafb;
+        }
+        
+        .price-column {
           text-align: right;
-          font-size: 14px;
+        }
+        
+        .price-per-pack {
+          color: #16a34a;
           font-weight: bold;
-          margin: 20px 0;
         }
         
-        .confirm-order {
+        .min-qty-display {
+          text-align: center;
+        }
+        
+        .totals-section {
+          float: right;
+          width: 300px;
           margin-top: 30px;
+          padding: 15px;
+          background-color: #f8fafc;
+          border: 1px solid #e2e8f0;
+          border-radius: 5px;
         }
         
-        .confirm-order h3 {
-          font-size: 14px;
+        .totals-row {
+          display: flex;
+          justify-content: space-between;
+          margin-bottom: 8px;
+          font-size: 11px;
+        }
+        
+        .totals-row.total {
           font-weight: bold;
-          margin-bottom: 10px;
+          font-size: 14px;
+          color: #1e40af;
+          border-top: 2px solid #1e40af;
+          padding-top: 8px;
+          margin-top: 8px;
         }
         
-        .confirm-order p {
-          font-size: 12px;
-          margin-bottom: 5px;
+        .footer {
+          clear: both;
+          text-align: center;
+          margin-top: 50px;
+          padding-top: 20px;
+          border-top: 1px solid #e5e7eb;
+          font-size: 9px;
+          color: #666;
         }
         
-        .confirm-order ol {
-          font-size: 12px;
-          margin-left: 20px;
-        }
-        
-        .footer-info {
-          margin-top: 30px;
-          font-size: 12px;
+        .footer p {
+          margin: 5px 0;
         }
         
         .page-number {
-          text-align: center;
-          font-size: 12px;
-          margin-top: 40px;
+          position: fixed;
+          bottom: 0.3in;
+          right: 0.5in;
+          font-size: 9px;
+          color: #666;
+        }
+        
+        @media print {
+          body { margin: 0; }
+          .page-number { position: fixed; bottom: 0.3in; right: 0.5in; }
+          .totals-section { float: right; }
         }
       </style>
     </head>
     <body>
-      <div class="header-container">
-        <div class="company-info">
-          ${logoHtml}
-          <div class="company-details">
-            <div class="company-name">${companyDetails.name}</div>
-            <div class="company-address">${companyDetails.address}</div>
-            <div class="company-address">${companyDetails.city}</div>
-            <div class="company-address">Phone: ${companyDetails.phone} | Website: https://${companyDetails.website}/</div>
-          </div>
-        </div>
+      <div class="header">
+        <div class="company-name">4S Graphics, Inc.</div>
+        <div class="company-tagline">Synthetic & Specialty Substrates Supplier</div>
+        <div class="company-address">Fort Lauderdale, FL 33309</div>
+        <div class="company-address">Phone: (954) 493-6484</div>
+        <div class="company-address">Email: ${salesRep}</div>
+        <div class="company-address">Web: www.4sgraphics.com</div>
       </div>
       
       <div class="quote-info">
-        <div>Quote Prepared for: ${customerName}</div>
-        <div>Quote Number: ${quoteNumber}</div>
-        <div>Quote Date: ${currentDate}</div>
+        <div><strong>Quote Prepared for:</strong> ${customerName}</div>
+        <div><strong>Quote Number:</strong> ${quoteNumber}</div>
+        <div><strong>Quote Date:</strong> ${currentDate}</div>
       </div>
       
       <div class="price-quote-title">PRICE QUOTE</div>
       
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Product Type</th>
-            <th>Size</th>
-            <th>Qty</th>
-            ${hasMinOrderQtyDisplay ? '<th>Min Order Qty</th>' : ''}
-            <th>Price/Sheet</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRows}
-        </tbody>
-      </table>
+      ${categorySections}
       
-      <div class="total-row">
-        Quote Total: $${totalAmount.toFixed(2)}
+      <div class="totals-section">
+        <div class="totals-row">
+          <span>Subtotal:</span>
+          <span>$${subtotal.toFixed(2)}</span>
+        </div>
+        <div class="totals-row">
+          <span>Shipping:</span>
+          <span>Extra At Actuals</span>
+        </div>
+        <div class="totals-row total">
+          <span>Total:</span>
+          <span>$${totalAmount.toFixed(2)}</span>
+        </div>
       </div>
       
-      <div class="confirm-order">
-        <h3>Confirm Your Order</h3>
-        <p>To proceed with this order, please choose one of the following options:</p>
-        <ol>
-          <li>Forward this PDF to: sales@4sgraphics.com</li>
-        </ol>
-      </div>
-      
-      <div class="footer-info">
-        <p>Quote Prepared by: ${salesRep}</p>
+      <div class="footer">
+        <p>This quote is valid for 30 days from the date above.</p>
+        <p>Your business keeps us rolling (literally). Thank you!</p>
+        <p>Visit www.4sgraphics.com</p>
       </div>
       
       <div class="page-number">Page 1 of 1</div>

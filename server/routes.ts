@@ -1697,10 +1697,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'sent'
       });
       
-      // Generate filename with QuoteNumber-ClientName-Date format
-      const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD
-      const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20); // Remove special chars and limit length
-      const filename = `${finalQuoteNumber}-${sanitizedCustomerName}-${currentDate}.pdf`;
+      // Generate filename following the requested format: QuickQuotes_4SGraphics_Date_for_CustomerName.pdf
+      const currentDate = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }).replace(/\//g, '-');
+      const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
+      const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.pdf`;
       
       // Return HTML with proper print styles for browser-based PDF generation
       // This approach works better in constrained environments
