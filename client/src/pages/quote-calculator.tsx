@@ -185,6 +185,15 @@ export default function QuoteCalculator() {
   });
 
   const handleEmailQuote = () => {
+    if (quoteItems.length === 0) {
+      toast({
+        title: "No Items in Quote",
+        description: "Please add items to your quote before sending email",
+        variant: "destructive",
+      });
+      return;
+    }
+
     if (!customerEmail || !customerName) {
       toast({
         title: "Missing Information",
@@ -197,30 +206,63 @@ export default function QuoteCalculator() {
     // Generate email content
     const quoteNumber = `4SG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
     const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
+    const currentDate = new Date().toLocaleDateString('en-US', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
     
     const emailSubject = `Quote ${quoteNumber} from 4S Graphics`;
     const emailBody = `Dear ${customerName},
 
-Please find your quote details below:
+Thank you for your interest in 4S Graphics products. Please find your detailed quote below:
+
+═══════════════════════════════════════════════════
+QUOTATION DETAILS
+═══════════════════════════════════════════════════
 
 Quote Number: ${quoteNumber}
-Date: ${new Date().toLocaleDateString()}
+Date: ${currentDate}
+Customer: ${customerName}
+Email: ${customerEmail}
 
-QUOTE ITEMS:
+═══════════════════════════════════════════════════
+QUOTE ITEMS
+═══════════════════════════════════════════════════
+
 ${quoteItems.map((item, index) => 
-  `${index + 1}. ${item.productType}
-   Size: ${item.size}
-   Quantity: ${item.quantity}
-   Price per Sheet: $${item.pricePerSheet.toFixed(2)}
-   Total: $${item.total.toFixed(2)}`
+  `${index + 1}. ${item.productName} - ${item.productType}
+   • Item Code: ${item.itemCode}
+   • Size: ${item.size} (${item.squareMeters.toFixed(2)} sq.m)
+   • Quantity: ${item.quantity} sheets
+   • Tier: ${item.tier}
+   • Price per Sq.M: $${item.pricePerSqM.toFixed(2)}
+   • Price per Sheet: $${item.pricePerSheet.toFixed(2)}
+   • Min Order Qty: ${item.minOrderQty} sheets
+   • Line Total: $${item.total.toFixed(2)}`
 ).join('\n\n')}
 
+═══════════════════════════════════════════════════
+QUOTE SUMMARY
+═══════════════════════════════════════════════════
+
+Total Items: ${quoteItems.length}
+Total Quantity: ${quoteItems.reduce((sum, item) => sum + item.quantity, 0)} sheets
 TOTAL AMOUNT: $${totalAmount.toFixed(2)}
 
-Thank you for choosing 4S Graphics. Please contact us if you have any questions.
+═══════════════════════════════════════════════════
+
+This quote is valid for 30 days from the date above. All prices are in USD and exclude shipping costs.
+
+For questions about this quote or to place an order, please contact us:
+• Email: sales@4sgraphics.com
+• Phone: [Your Phone Number]
+
+Thank you for choosing 4S Graphics for your printing needs. We look forward to working with you!
 
 Best regards,
-4S Graphics Team`;
+4S Graphics Team
+Professional Printing Solutions`;
 
     // Create mailto link
     const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
@@ -230,8 +272,8 @@ Best regards,
     
     // Show success message
     toast({
-      title: "Email Opened",
-      description: `Email composed for ${customerName} (${customerEmail})`,
+      title: "Email Client Opened",
+      description: `Comprehensive quote email composed for ${customerName}`,
     });
     
     setIsEmailDialogOpen(false);
