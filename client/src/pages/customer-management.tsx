@@ -1,804 +1,374 @@
-import { useState, useMemo } from "react";
-import { useQuery, useMutation } from "@tanstack/react-query";
-import { Link } from "wouter";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { useState, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
-import { 
-  ArrowLeft, 
-  Users, 
-  Search, 
-  Plus, 
-  Upload, 
-  Download, 
-  Edit2, 
-  Trash2, 
-  Mail, 
-  Phone, 
-  MapPin,
-  Building,
-  DollarSign,
-  Package,
-  Sheet
-} from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Users, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, Building } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
-import { apiRequest, queryClient } from "@/lib/queryClient";
-import { useDebounce } from "@/hooks/useDebounce";
 
-interface Customer {
-  id: string;
-  firstName: string;
-  lastName: string;
-  email: string;
-  acceptsEmailMarketing: boolean;
-  company: string;
-  address1: string;
-  address2: string;
-  city: string;
-  province: string;
-  country: string;
-  zip: string;
-  phone: string;
-  totalSpent: number;
-  totalOrders: number;
-  note: string;
-  tags: string;
+interface CustomerData {
+  "Customer ID": string;
+  "First Name": string;
+  "Last Name": string;
+  "Email": string;
+  "Accepts Email Marketing": string;
+  "Default Address Company": string;
+  "Default Address Address1": string;
+  "Default Address Address2": string;
+  "Default Address City": string;
+  "Default Address Province Code": string;
+  "Default Address Country Code": string;
+  "Default Address Zip": string;
+  "Default Address Phone": string;
+  "Phone": string;
+  "Accepts SMS Marketing": string;
+  "Total Spent": string;
+  "Total Orders": string;
+  "Note": string;
+  "Tax Exempt": string;
+  "Tags": string;
 }
 
 export default function CustomerManagement() {
-  const [searchTerm, setSearchTerm] = useState("");
-  const debouncedSearchTerm = useDebounce(searchTerm, 300);
-  const [filters, setFilters] = useState({
-    city: '',
-    province: '',
-    emailMarketing: ''
-  });
-  const [showAddDialog, setShowAddDialog] = useState(false);
-  const [editingCustomer, setEditingCustomer] = useState<Customer | null>(null);
-  const [newCustomer, setNewCustomer] = useState({
-    firstName: "",
-    lastName: "",
-    email: "",
-    acceptsEmailMarketing: false,
-    company: "",
-    address1: "",
-    address2: "",
-    city: "",
-    province: "",
-    country: "Canada",
-    zip: "",
-    phone: "",
-    note: "",
-    tags: ""
-  });
-
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
+  const queryClient = useQueryClient();
 
-  // Fetch customers
-  const { data: customers = [], isLoading: customersLoading, error: customersError } = useQuery<Customer[]>({
-    queryKey: ["/api/customers"],
-    staleTime: 2 * 60 * 1000,
+  // Fetch current customer data stats  
+  const { data: customerData = [], isLoading } = useQuery<CustomerData[]>({
+    queryKey: ['/api/customers'],
   });
 
-  // CSV Upload mutation
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/admin/upload-customer-data', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errorText = await response.text();
-        throw new Error(errorText || 'Upload failed');
-      }
-      
-      return response.json();
-    },
-    onSuccess: (data) => {
-      // Enhanced feedback with detailed statistics
-      const details = [];
-      if (data.stats?.newCustomers) details.push(`${data.stats.newCustomers} new customers added`);
-      if (data.stats?.updatedCustomers) details.push(`${data.stats.updatedCustomers} customers updated`);
-      if (data.stats?.errors) details.push(`${data.stats.errors} errors encountered`);
-      
-      toast({
-        title: "Upload Completed",
-        description: data.message || `Successfully processed customer data: ${details.join(', ')}`,
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Upload Failed",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Add customer mutation
-  const addMutation = useMutation({
-    mutationFn: async (customerData: any) => {
-      return apiRequest("/api/customers", {
-        method: "POST",
-        body: JSON.stringify({
-          ...customerData,
-          id: `cust_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
-          totalSpent: 0,
-          totalOrders: 0
-        }),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Customer Added",
-        description: "New customer has been added successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      setShowAddDialog(false);
-      resetNewCustomerForm();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Update customer mutation
-  const updateMutation = useMutation({
-    mutationFn: async ({ id, customerData }: { id: string; customerData: any }) => {
-      return apiRequest(`/api/customers/${id}`, {
-        method: "PUT",
-        body: JSON.stringify(customerData),
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Customer Updated",
-        description: "Customer information has been updated successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      setEditingCustomer(null);
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  // Delete customer mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: string) => {
-      return apiRequest(`/api/customers/${id}`, {
-        method: "DELETE",
-      });
-    },
-    onSuccess: () => {
-      toast({
-        title: "Customer Deleted",
-        description: "Customer has been deleted successfully",
-      });
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message,
-        variant: "destructive",
-      });
-    },
-  });
-
-  const handleCsvUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
-    const file = event.target.files?.[0];
-    if (file) {
-      if (!file.name.toLowerCase().endsWith('.csv')) {
-        toast({
-          title: "Invalid File Type",
-          description: "Please select a CSV file",
-          variant: "destructive",
-        });
-        return;
-      }
-      uploadMutation.mutate(file);
-    }
-    event.target.value = '';
+  const stats = {
+    totalCustomers: customerData.length,
+    companies: Array.from(new Set(customerData.map(item => item["Default Address Company"]).filter(Boolean))).length,
+    lastUpdated: new Date().toLocaleDateString()
   };
 
-  const resetNewCustomerForm = () => {
-    setNewCustomer({
-      firstName: "",
-      lastName: "",
-      email: "",
-      acceptsEmailMarketing: false,
-      company: "",
-      address1: "",
-      address2: "",
-      city: "",
-      province: "",
-      country: "Canada",
-      zip: "",
-      phone: "",
-      note: "",
-      tags: ""
-    });
-  };
-
-  const handleAddCustomer = () => {
-    if (!newCustomer.firstName || !newCustomer.lastName || !newCustomer.email) {
+  const handleFileUpload = async (file: File) => {
+    if (!file.name.endsWith('.csv')) {
       toast({
-        title: "Required Fields Missing",
-        description: "Please fill in first name, last name, and email",
+        title: "Invalid File Type",
+        description: "Please upload a CSV file (.csv)",
         variant: "destructive",
       });
       return;
     }
-    addMutation.mutate(newCustomer);
-  };
 
-  const handleUpdateCustomer = () => {
-    if (!editingCustomer) return;
-    updateMutation.mutate({ 
-      id: editingCustomer.id, 
-      customerData: editingCustomer 
-    });
-  };
+    setIsUploading(true);
+    setUploadProgress(10);
+    setUploadResult(null);
 
-  const handleDeleteCustomer = (id: string, customerName: string) => {
-    if (confirm(`Are you sure you want to delete ${customerName}?`)) {
-      deleteMutation.mutate(id);
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploadProgress(30);
+      
+      const response = await fetch('/api/admin/upload-customer-data', {
+        method: 'POST',
+        body: formData
+      });
+
+      setUploadProgress(70);
+
+      if (!response.ok) {
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}`, details: errorText };
+        }
+        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+      }
+
+      const result = await response.json();
+      setUploadProgress(100);
+      
+      setUploadResult({
+        success: true,
+        message: `Successfully uploaded ${result.recordsProcessed || 0} customers`,
+        count: result.recordsProcessed
+      });
+
+      // Refresh the data
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+
+      toast({
+        title: "Upload Successful",
+        description: `Processed ${result.recordsProcessed || 0} customers from ${file.name}`,
+      });
+
+    } catch (error) {
+      console.error("Upload error:", error);
+      
+      let errorMessage = "Unknown error occurred";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      setUploadResult({
+        success: false,
+        message: errorMessage
+      });
+
+      toast({
+        title: "Upload Failed",
+        description: errorMessage,
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+      setTimeout(() => {
+        setUploadProgress(0);
+        setUploadResult(null);
+      }, 5000);
     }
   };
 
-  // Get unique values for filters
-  const uniqueCities = useMemo(() => 
-    Array.from(new Set(customers.map(c => c.city).filter(Boolean))).sort(), 
-    [customers]
-  );
-  
-  const uniqueProvinces = useMemo(() => 
-    Array.from(new Set(customers.map(c => c.province).filter(Boolean))).sort(), 
-    [customers]
-  );
+  const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
 
-  // Filter and search customers
-  const filteredCustomers = useMemo(() => {
-    return customers.filter(customer => {
-      const searchLower = debouncedSearchTerm.toLowerCase();
-      const matchesSearch = !debouncedSearchTerm || 
-        customer.firstName.toLowerCase().includes(searchLower) ||
-        customer.lastName.toLowerCase().includes(searchLower) ||
-        customer.email.toLowerCase().includes(searchLower) ||
-        customer.company.toLowerCase().includes(searchLower) ||
-        customer.phone.includes(searchLower);
-      
-      const matchesCity = !filters.city || customer.city === filters.city;
-      const matchesProvince = !filters.province || customer.province === filters.province;
-      const matchesEmailMarketing = !filters.emailMarketing || 
-        (filters.emailMarketing === 'yes' && customer.acceptsEmailMarketing) ||
-        (filters.emailMarketing === 'no' && !customer.acceptsEmailMarketing);
-      
-      return matchesSearch && matchesCity && matchesProvince && matchesEmailMarketing;
-    });
-  }, [customers, debouncedSearchTerm, filters]);
-
-  // Export to CSV
-  const handleExportCSV = () => {
-    const csvHeaders = [
-      'First Name', 'Last Name', 'Email', 'Company', 'Phone', 'Address', 'City', 
-      'Province', 'Postal Code', 'Total Spent', 'Total Orders', 'Email Marketing', 'Notes', 'Tags'
+  const handleDownloadTemplate = () => {
+    // Create a sample CSV template based on the CustomerData interface
+    const headers = [
+      "Customer ID", "First Name", "Last Name", "Email", "Accepts Email Marketing",
+      "Default Address Company", "Default Address Address1", "Default Address Address2",
+      "Default Address City", "Default Address Province Code", "Default Address Country Code",
+      "Default Address Zip", "Default Address Phone", "Phone", "Accepts SMS Marketing",
+      "Total Spent", "Total Orders", "Note", "Tax Exempt", "Tags"
     ];
     
-    const csvData = filteredCustomers.map(customer => [
-      customer.firstName,
-      customer.lastName,
-      customer.email,
-      customer.company,
-      customer.phone,
-      `${customer.address1} ${customer.address2}`.trim(),
-      customer.city,
-      customer.province,
-      customer.zip,
-      customer.totalSpent,
-      customer.totalOrders,
-      customer.acceptsEmailMarketing ? 'Yes' : 'No',
-      customer.note,
-      customer.tags
-    ]);
-    
-    const csvContent = [csvHeaders, ...csvData]
-      .map(row => row.map(cell => `"${cell}"`).join(','))
-      .join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
+    const sampleData = [
+      "'595909214328", "Paul", "Hendrickson", "paul@printbasics.com", "yes",
+      "Print Basics", "1061 SW 30th Ave", "", "Deerfield Beach", "FL", "US",
+      "33442", "'(954) 354-0700", "'+19543540700", "no",
+      "18005.88", "26", "Sample customer note", "yes", "#stage3-Printer"
+    ];
+
+    const csvContent = [
+      headers.join(","),
+      sampleData.join(",")
+    ].join("\n");
+
+    const blob = new Blob([csvContent], { type: "text/csv" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
     a.href = url;
-    a.download = `customers_export_${new Date().toISOString().split('T')[0]}.csv`;
+    a.download = "customer-template.csv";
     a.click();
-    window.URL.revokeObjectURL(url);
-    
+    URL.revokeObjectURL(url);
+
     toast({
-      title: "Export Completed",
-      description: `Exported ${filteredCustomers.length} customers to CSV`,
+      title: "Template Downloaded",
+      description: "Customer CSV template has been downloaded",
     });
   };
 
-  if (customersError) {
-    return (
-      <div className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-        <div className="max-w-7xl mx-auto">
-          <Card className="p-6">
-            <div className="text-center text-red-600">
-              <h2 className="text-lg font-semibold">Error Loading Customers</h2>
-              <p className="mt-2">{customersError.message}</p>
-            </div>
-          </Card>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="py-8 px-4 sm:px-6 lg:px-8 bg-gray-50 min-h-screen">
-      <div className="max-w-7xl mx-auto space-y-6">
+    <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+      <div className="max-w-4xl mx-auto space-y-6">
         
         {/* Header */}
-        <div className="flex items-center justify-between">
-          <Link href="/">
-            <Button variant="outline" className="flex items-center gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back to Dashboard
-            </Button>
-          </Link>
-          <div className="text-center">
-            <h1 className="text-3xl font-bold text-gray-900 flex items-center justify-center gap-2">
-              <Users className="h-8 w-8" />
-              Customer Management
-            </h1>
-            <p className="text-gray-600">Manage customer data and upload CSV files to add new customers or update existing ones</p>
-          </div>
-          <div className="flex items-center gap-2">
-            <label htmlFor="csv-upload-customers">
-              <Button 
-                variant="outline" 
-                className="flex items-center gap-2 cursor-pointer"
-                disabled={uploadMutation.isPending}
-              >
-                <Upload className="h-4 w-4" />
-                {uploadMutation.isPending ? "Uploading..." : "Upload CSV"}
-              </Button>
-            </label>
-            <input
-              id="csv-upload-customers"
-              type="file"
-              accept=".csv"
-              className="hidden"
-              onChange={handleCsvUpload}
-            />
-            <Button
-              onClick={handleExportCSV}
-              className="flex items-center gap-2 btn-csv"
-            >
-              <Sheet className="h-4 w-4" />
-              Export CSV
-            </Button>
-          </div>
+        <div className="text-center">
+          <h1 className="text-4xl font-bold text-blue-900 mb-2 flex items-center justify-center gap-3">
+            <Users className="h-10 w-10 text-blue-600" />
+            Customer Management
+          </h1>
+          <p className="text-blue-700 text-lg">
+            Upload and manage customer data for all applications
+          </p>
         </div>
 
-        {/* CSV Upload Information */}
-        <Card className="shadow-sm border-blue-200 bg-blue-50">
-          <CardContent className="pt-6">
-            <div className="flex items-start gap-3">
-              <Upload className="h-5 w-5 text-blue-600 mt-0.5" />
-              <div>
-                <h3 className="font-medium text-blue-900 mb-1">CSV Upload Instructions</h3>
-                <p className="text-sm text-blue-700 mb-2">
-                  Upload CSV files to efficiently manage customer data. The system will:
-                </p>
-                <ul className="text-sm text-blue-700 space-y-1 list-disc list-inside">
-                  <li><strong>Add new customers</strong> found in the CSV file</li>
-                  <li><strong>Update existing customers</strong> with any new information provided</li>
-                  <li><strong>Skip unchanged data</strong> to avoid unnecessary database operations</li>
-                  <li><strong>Provide detailed feedback</strong> showing what was added, updated, or skipped</li>
-                </ul>
-                <p className="text-xs text-blue-600 mt-2">
-                  Customers are matched by email address. Existing data is only updated when new information is provided.
-                </p>
+        {/* Stats Overview */}
+        <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Total Customers
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">
+                {isLoading ? "..." : stats.totalCustomers.toLocaleString()}
               </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
 
-        {/* Search and Filters */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Search className="h-5 w-5" />
-                Search & Filter Customers
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
+                <Building className="h-5 w-5" />
+                Companies
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-3xl font-bold text-blue-600">
+                {isLoading ? "..." : stats.companies.toLocaleString()}
               </div>
-              <Dialog open={showAddDialog} onOpenChange={setShowAddDialog}>
-                <DialogTrigger asChild>
-                  <Button className="flex items-center gap-2">
-                    <Plus className="h-4 w-4" />
-                    Add Customer
-                  </Button>
-                </DialogTrigger>
-                <DialogContent className="sm:max-w-[500px]">
-                  <DialogHeader>
-                    <DialogTitle>Add New Customer</DialogTitle>
-                  </DialogHeader>
-                  <div className="grid gap-4 py-4">
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="firstName">First Name *</Label>
-                        <Input
-                          id="firstName"
-                          value={newCustomer.firstName}
-                          onChange={(e) => setNewCustomer({...newCustomer, firstName: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="lastName">Last Name *</Label>
-                        <Input
-                          id="lastName"
-                          value={newCustomer.lastName}
-                          onChange={(e) => setNewCustomer({...newCustomer, lastName: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="email">Email *</Label>
-                      <Input
-                        id="email"
-                        type="email"
-                        value={newCustomer.email}
-                        onChange={(e) => setNewCustomer({...newCustomer, email: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="company">Company</Label>
-                      <Input
-                        id="company"
-                        value={newCustomer.company}
-                        onChange={(e) => setNewCustomer({...newCustomer, company: e.target.value})}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label htmlFor="phone">Phone</Label>
-                      <Input
-                        id="phone"
-                        value={newCustomer.phone}
-                        onChange={(e) => setNewCustomer({...newCustomer, phone: e.target.value})}
-                      />
-                    </div>
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label htmlFor="city">City</Label>
-                        <Input
-                          id="city"
-                          value={newCustomer.city}
-                          onChange={(e) => setNewCustomer({...newCustomer, city: e.target.value})}
-                        />
-                      </div>
-                      <div className="space-y-2">
-                        <Label htmlFor="province">Province</Label>
-                        <Input
-                          id="province"
-                          value={newCustomer.province}
-                          onChange={(e) => setNewCustomer({...newCustomer, province: e.target.value})}
-                        />
-                      </div>
-                    </div>
-                  </div>
-                  <div className="flex justify-end gap-2">
-                    <Button variant="outline" onClick={() => setShowAddDialog(false)}>
-                      Cancel
-                    </Button>
-                    <Button 
-                      onClick={handleAddCustomer}
-                      disabled={addMutation.isPending}
-                    >
-                      {addMutation.isPending ? "Adding..." : "Add Customer"}
-                    </Button>
-                  </div>
-                </DialogContent>
-              </Dialog>
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader className="pb-3">
+              <CardTitle className="text-lg text-blue-900 flex items-center gap-2">
+                <RefreshCw className="h-5 w-5" />
+                Last Updated
+              </CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="text-lg font-semibold text-blue-600">
+                {stats.lastUpdated}
+              </div>
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* Upload Section */}
+        <Card className="bg-white shadow-xl border-0">
+          <CardHeader className="bg-gradient-to-r from-blue-600 to-indigo-600 text-white rounded-t-lg">
+            <CardTitle className="text-2xl flex items-center gap-3">
+              <Upload className="h-6 w-6" />
+              Upload Customer Data
             </CardTitle>
+            <CardDescription className="text-blue-100 text-base">
+              Upload your customer CSV file to update the database
+            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Search Bar */}
-            <div className="relative">
-              <Search className="absolute left-3 top-3 h-4 w-4 text-gray-400" />
-              <Input
-                type="text"
-                placeholder="Search by name, email, company, or phone..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-              />
-            </div>
-
-            {/* Filters */}
-            <div className="flex flex-wrap gap-3 items-center">
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">City:</span>
-                <Select 
-                  value={filters.city || "all-cities"} 
-                  onValueChange={(value) => setFilters({...filters, city: value === "all-cities" ? "" : value})}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all-cities">All Cities</SelectItem>
-                    {uniqueCities.map(city => (
-                      <SelectItem key={city} value={city}>{city}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Province:</span>
-                <Select 
-                  value={filters.province || "all-provinces"} 
-                  onValueChange={(value) => setFilters({...filters, province: value === "all-provinces" ? "" : value})}
-                >
-                  <SelectTrigger className="w-40">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all-provinces">All Provinces</SelectItem>
-                    {uniqueProvinces.map(province => (
-                      <SelectItem key={province} value={province}>{province}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-
-              <div className="flex items-center gap-2">
-                <span className="text-sm font-medium text-gray-700">Email Marketing:</span>
-                <Select 
-                  value={filters.emailMarketing || "all-emails"} 
-                  onValueChange={(value) => setFilters({...filters, emailMarketing: value === "all-emails" ? "" : value})}
-                >
-                  <SelectTrigger className="w-32">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="all-emails">All</SelectItem>
-                    <SelectItem value="yes">Yes</SelectItem>
-                    <SelectItem value="no">No</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-
-              {/* Results Count */}
-              <div className="text-sm text-gray-600 ml-auto">
-                Showing {filteredCustomers.length} of {customers.length} customers
-              </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        {/* Customers Table */}
-        <Card className="shadow-sm">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              Customer Database
-              <Badge variant="secondary" className="ml-2">
-                {filteredCustomers.length} customers
-              </Badge>
-            </CardTitle>
-          </CardHeader>
-          <CardContent>
-            {customersLoading ? (
-              <div className="text-center py-8">
-                <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto"></div>
-                <p className="mt-2 text-gray-600">Loading customers...</p>
-              </div> 
-            ) : filteredCustomers.length === 0 ? (
-              <div className="text-center py-8 text-gray-500">
-                {customers.length === 0 ? 
-                  "No customers found. Upload a CSV file or add customers manually." :
-                  "No customers match your search criteria."
-                }
-              </div>
-            ) : (
-              <div className="overflow-x-auto">
-                <table className="min-w-full divide-y divide-gray-200">
-                  <thead className="bg-gray-50">
-                    <tr>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Customer
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Company
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Contact Info
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Location
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Orders & Spend
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Marketing
-                      </th>
-                      <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                        Actions
-                      </th>
-                    </tr>
-                  </thead>
-                  <tbody className="bg-white divide-y divide-gray-200">
-                    {filteredCustomers.map((customer) => (
-                      <tr key={customer.id} className="hover:bg-gray-50">
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm font-medium text-gray-900">
-                            {customer.firstName} {customer.lastName}
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center gap-1">
-                            <Mail className="h-3 w-3" />
-                            {customer.email}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 flex items-center gap-1">
-                            <Building className="h-3 w-3" />
-                            {customer.company || "N/A"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 flex items-center gap-1">
-                            <Phone className="h-3 w-3" />
-                            {customer.phone || "N/A"}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 flex items-center gap-1">
-                            <MapPin className="h-3 w-3" />
-                            {customer.city}, {customer.province}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <div className="text-sm text-gray-900 flex items-center gap-1">
-                            <Package className="h-3 w-3" />
-                            {customer.totalOrders} orders
-                          </div>
-                          <div className="text-sm text-gray-500 flex items-center gap-1">
-                            <DollarSign className="h-3 w-3" />
-                            ${customer.totalSpent.toFixed(2)}
-                          </div>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                          <Badge variant={customer.acceptsEmailMarketing ? "default" : "secondary"}>
-                            {customer.acceptsEmailMarketing ? "Yes" : "No"}
-                          </Badge>
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium">
-                          <div className="flex items-center gap-2">
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => setEditingCustomer(customer)}
-                            >
-                              <Edit2 className="h-3 w-3" />
-                            </Button>
-                            <Button
-                              variant="outline"
-                              size="sm"
-                              onClick={() => handleDeleteCustomer(customer.id, `${customer.firstName} ${customer.lastName}`)}
-                              className="text-red-600 hover:text-red-700"
-                            >
-                              <Trash2 className="h-3 w-3" />
-                            </Button>
-                          </div>
-                        </td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
+          <CardContent className="p-6 space-y-6">
+            
+            {/* Upload Progress */}
+            {isUploading && (
+              <div className="space-y-3">
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-blue-600 font-medium">Uploading...</span>
+                  <span className="text-blue-500">{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="h-2" />
               </div>
             )}
+
+            {/* Upload Result */}
+            {uploadResult && (
+              <Alert className={uploadResult.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+                {uploadResult.success ? (
+                  <CheckCircle className="h-4 w-4 text-green-600" />
+                ) : (
+                  <AlertCircle className="h-4 w-4 text-red-600" />
+                )}
+                <AlertDescription className={uploadResult.success ? "text-green-800" : "text-red-800"}>
+                  {uploadResult.message}
+                  {uploadResult.count && (
+                    <span className="block mt-1 font-semibold">
+                      {uploadResult.count} records processed
+                    </span>
+                  )}
+                </AlertDescription>
+              </Alert>
+            )}
+
+            {/* Upload Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="space-y-3">
+                <h3 className="font-semibold text-blue-900 flex items-center gap-2">
+                  <FileSpreadsheet className="h-4 w-4" />
+                  Upload CSV File
+                </h3>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept=".csv"
+                  onChange={handleFileChange}
+                  disabled={isUploading}
+                  className="block w-full text-sm text-blue-600
+                           file:mr-4 file:py-2 file:px-4
+                           file:rounded-lg file:border-0
+                           file:text-sm file:font-semibold
+                           file:bg-blue-600 file:text-white
+                           hover:file:bg-blue-700
+                           file:disabled:opacity-50"
+                />
+                <p className="text-xs text-blue-600">
+                  Supports CSV files with customer data
+                </p>
+              </div>
+
+              <div className="space-y-3">
+                <h3 className="font-semibold text-blue-900">Download Template</h3>
+                <Button
+                  onClick={handleDownloadTemplate}
+                  variant="outline"
+                  className="w-full border-blue-300 text-blue-700 hover:bg-blue-50"
+                >
+                  <Download className="h-4 w-4 mr-2" />
+                  Download CSV Template
+                </Button>
+                <p className="text-xs text-blue-600">
+                  Get a sample CSV format to follow
+                </p>
+              </div>
+            </div>
+
+            {/* Current Data Info */}
+            <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
+              <h3 className="font-semibold text-blue-900 mb-2">Current Data</h3>
+              <div className="grid grid-cols-2 gap-4 text-sm">
+                <div>
+                  <span className="text-blue-600">Total Records:</span>
+                  <span className="ml-2 font-semibold text-blue-800">
+                    {stats.totalCustomers.toLocaleString()}
+                  </span>
+                </div>
+                <div>
+                  <span className="text-blue-600">Companies:</span>
+                  <span className="ml-2 font-semibold text-blue-800">
+                    {stats.companies.toLocaleString()}
+                  </span>
+                </div>
+              </div>
+            </div>
+
+            {/* Instructions */}
+            <div className="bg-yellow-50 rounded-lg p-4 border border-yellow-200">
+              <h3 className="font-semibold text-yellow-900 mb-2 flex items-center gap-2">
+                <AlertCircle className="h-4 w-4" />
+                Upload Instructions
+              </h3>
+              <ul className="text-sm text-yellow-800 space-y-1">
+                <li>• CSV files should include Customer ID, Name, Email, Company, and Address fields</li>
+                <li>• New customers will be added, existing customers will be updated</li>
+                <li>• Matching is done by Customer ID or Email address</li>
+                <li>• All uploaded data will be available across QuickQuotes and Price List apps</li>
+              </ul>
+            </div>
           </CardContent>
         </Card>
 
-        {/* Edit Customer Dialog */}
-        {editingCustomer && (
-          <Dialog open={true} onOpenChange={() => setEditingCustomer(null)}>
-            <DialogContent className="sm:max-w-[600px]">
-              <DialogHeader>
-                <DialogTitle>Edit Customer</DialogTitle>
-              </DialogHeader>
-              <div className="grid gap-4 py-4 max-h-96 overflow-y-auto">
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>First Name</Label>
-                    <Input
-                      value={editingCustomer.firstName}
-                      onChange={(e) => setEditingCustomer({...editingCustomer, firstName: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Last Name</Label>
-                    <Input
-                      value={editingCustomer.lastName}
-                      onChange={(e) => setEditingCustomer({...editingCustomer, lastName: e.target.value})}
-                    />
-                  </div>
-                </div>
-                <div className="space-y-2">
-                  <Label>Email</Label>
-                  <Input
-                    type="email"
-                    value={editingCustomer.email}
-                    onChange={(e) => setEditingCustomer({...editingCustomer, email: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Company</Label>
-                  <Input
-                    value={editingCustomer.company}
-                    onChange={(e) => setEditingCustomer({...editingCustomer, company: e.target.value})}
-                  />
-                </div>
-                <div className="space-y-2">
-                  <Label>Phone</Label>
-                  <Input
-                    value={editingCustomer.phone}
-                    onChange={(e) => setEditingCustomer({...editingCustomer, phone: e.target.value})}
-                  />
-                </div>
-                <div className="grid grid-cols-2 gap-4">
-                  <div className="space-y-2">
-                    <Label>City</Label>
-                    <Input
-                      value={editingCustomer.city}
-                      onChange={(e) => setEditingCustomer({...editingCustomer, city: e.target.value})}
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <Label>Province</Label>
-                    <Input
-                      value={editingCustomer.province}
-                      onChange={(e) => setEditingCustomer({...editingCustomer, province: e.target.value})}
-                    />
-                  </div>
-                </div>
-              </div>
-              <div className="flex justify-end gap-2">
-                <Button variant="outline" onClick={() => setEditingCustomer(null)}>
-                  Cancel
-                </Button>
-                <Button 
-                  onClick={handleUpdateCustomer}
-                  disabled={updateMutation.isPending}
-                >
-                  {updateMutation.isPending ? "Updating..." : "Update Customer"}
-                </Button>
-              </div>
-            </DialogContent>
-          </Dialog>
-        )}
+        {/* Back to Dashboard */}
+        <div className="text-center">
+          <Button 
+            onClick={() => window.history.back()}
+            variant="outline" 
+            className="bg-white border-blue-300 text-blue-700 hover:bg-blue-50"
+          >
+            ← Back to Dashboard
+          </Button>
+        </div>
       </div>
     </div>
   );
