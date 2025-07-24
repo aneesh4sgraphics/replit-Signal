@@ -167,19 +167,7 @@ export default function Dashboard() {
               </Card>
             </Link>
 
-            {/* ProductPricing Management - Admin Only */}
-            {(user as any)?.role === 'admin' && (
-              <Link href="/product-pricing-management">
-                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-purple-50 to-pink-100 border-0 shadow-md h-full">
-                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
-                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
-                      <Database className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
-                    </div>
-                    <CardTitle className="text-xs sm:text-sm font-semibold text-purple-800">ProductPricing Mgmt</CardTitle>
-                  </CardHeader>
-                </Card>
-              </Link>
-            )}
+
 
             {/* SqM Calculator */}
             <Link href="/area-pricer">
