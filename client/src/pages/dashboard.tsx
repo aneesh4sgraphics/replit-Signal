@@ -3,26 +3,12 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Calculator, FileText, TrendingUp, Users, Database, LogOut, Download, Settings, Shield, Package, Truck, Zap, BarChart3, Target, PieChart, Sparkles, Layers, DollarSign } from "lucide-react";
 import { Link } from "wouter";
-import { useState, useEffect } from "react";
-import WelcomeAnimation from "@/components/WelcomeAnimation";
+import { useEffect } from "react";
+
 
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
-  const [showWelcome, setShowWelcome] = useState(false);
-  const [hasShownWelcome, setHasShownWelcome] = useState(false);
 
-
-  useEffect(() => {
-    // Check if user just logged in (from login flow, not dashboard navigation)
-    const justLoggedIn = sessionStorage.getItem('justLoggedIn') === 'true';
-    
-    if (user && !hasShownWelcome && justLoggedIn) {
-      setShowWelcome(true);
-      setHasShownWelcome(true);
-      // Clear the flag after showing animation
-      sessionStorage.removeItem('justLoggedIn');
-    }
-  }, [user, hasShownWelcome]);
 
   // Automatic logout at midnight
   useEffect(() => {
@@ -141,15 +127,6 @@ export default function Dashboard() {
   };
 
   return (
-    <>
-      {showWelcome && (
-        <WelcomeAnimation
-          userName={firstName}
-          user={user as any}
-          onComplete={() => setShowWelcome(false)}
-        />
-      )}
-      
       <div className="px-3 sm:px-6 lg:px-8 py-4 sm:py-8">
         <div className="max-w-7xl mx-auto">
         {/* Welcome Section */}
@@ -320,6 +297,5 @@ export default function Dashboard() {
         )}
         </div>
       </div>
-    </>
   );
 }
