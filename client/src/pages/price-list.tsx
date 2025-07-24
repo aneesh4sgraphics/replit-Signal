@@ -66,7 +66,7 @@ export default function PriceList() {
   });
 
   // Get unique categories
-  const categories = [...new Set(productData.map(item => item.product_name))].sort();
+  const categories = Array.from(new Set(productData.map(item => item.product_name))).sort();
 
   // Generate price list when category or tier changes
   useEffect(() => {
@@ -100,6 +100,13 @@ export default function PriceList() {
 
   const generatePDFMutation = useMutation({
     mutationFn: async () => {
+      console.log('Sending to PDF generation:', {
+        categoryName: selectedCategory,
+        tierName: selectedTier,
+        items: priceListItems.slice(0, 3), // Log first 3 items for debugging
+        itemCount: priceListItems.length
+      });
+      
       const response = await fetch('/api/generate-price-list-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },

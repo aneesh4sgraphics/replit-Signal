@@ -2616,6 +2616,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { categoryName, tierName, items, customerName } = req.body;
       
+      console.log('PDF Generation Request:', {
+        categoryName,
+        tierName,
+        itemCount: items?.length,
+        firstItem: items?.[0],
+        customerName
+      });
+      
       if (!categoryName || !tierName || !items || !Array.isArray(items)) {
         return res.status(400).json({ error: "Category name, tier name, and items are required" });
       }
