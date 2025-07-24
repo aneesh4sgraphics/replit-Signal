@@ -22,13 +22,13 @@ export function generateQuoteHTMLForDownload(data: any): string {
   });
 
   const itemsHTML = quoteItems.map((item: any, index: number) => `
-    <tr style="border-bottom: 1px solid #ddd;">
-      <td style="padding: 12px; border-right: 1px solid #ddd;">${index + 1}</td>
-      <td style="padding: 12px; border-right: 1px solid #ddd; font-weight: 500;">${item.productType}</td>
-      <td style="padding: 12px; border-right: 1px solid #ddd;">${item.size}</td>
-      <td style="padding: 12px; border-right: 1px solid #ddd; text-align: center;">${item.quantity}</td>
-      <td style="padding: 12px; border-right: 1px solid #ddd; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
-      <td style="padding: 12px; text-align: right; font-weight: 500;">$${item.total.toFixed(2)}</td>
+    <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}; border-bottom: 1px solid #e5e7eb;">
+      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px; text-align: center;">${index + 1}</td>
+      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px; font-weight: 500;">${item.productType}</td>
+      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px;">${item.size}</td>
+      <td style="padding: 6px; border-right: 1px solid #e5e7eb; text-align: center; font-size: 10px;">${item.quantity}</td>
+      <td style="padding: 6px; border-right: 1px solid #e5e7eb; text-align: right; font-size: 10px;">$${item.pricePerSheet.toFixed(2)}</td>
+      <td style="padding: 6px; text-align: right; font-weight: 500; font-size: 10px;">$${item.total.toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -44,37 +44,49 @@ export function generateQuoteHTMLForDownload(data: any): string {
           .no-print { display: none; }
         }
         body {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: Arial, sans-serif;
           margin: 0;
-          padding: 40px;
+          padding: 30px;
           color: #333;
-          line-height: 1.4;
+          line-height: 1.3;
+          font-size: 10px;
         }
         .header {
           text-align: center;
-          margin-bottom: 40px;
-          border-bottom: 3px solid #2563eb;
-          padding-bottom: 20px;
+          margin-bottom: 25px;
+          border-bottom: 2px solid #2563eb;
+          padding-bottom: 15px;
+        }
+        .company-info {
+          margin-bottom: 15px;
+          font-size: 11px;
+          line-height: 1.4;
         }
         .company-name {
-          font-size: 32px;
+          font-size: 20px;
           font-weight: bold;
           color: #2563eb;
-          margin-bottom: 5px;
+          margin-bottom: 8px;
+        }
+        .company-details {
+          font-size: 9px;
+          color: #666;
+          margin-bottom: 15px;
         }
         .quote-title {
-          font-size: 24px;
+          font-size: 16px;
           font-weight: 600;
-          margin: 20px 0 10px 0;
+          margin: 10px 0;
           color: #1f2937;
         }
         .quote-info {
           display: flex;
           justify-content: space-between;
-          margin: 30px 0;
-          padding: 20px;
-          background-color: #f8fafc;
-          border-radius: 8px;
+          margin: 20px 0;
+          padding: 12px;
+          background-color: #f8f9fa;
+          border: 1px solid #e5e7eb;
+          font-size: 10px;
         }
         .quote-info div {
           text-align: left;
@@ -82,58 +94,63 @@ export function generateQuoteHTMLForDownload(data: any): string {
         .quote-info strong {
           color: #374151;
           display: block;
-          margin-bottom: 5px;
+          margin-bottom: 3px;
+          font-size: 9px;
+          text-transform: uppercase;
         }
         table {
           width: 100%;
           border-collapse: collapse;
-          margin: 30px 0;
-          background: white;
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: 0 1px 3px rgba(0,0,0,0.1);
+          margin: 15px 0;
+          border: 1px solid #e5e7eb;
         }
         th {
-          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
-          color: white;
-          padding: 15px 12px;
+          background-color: #f1f5f9;
+          color: #374151;
+          padding: 6px;
           text-align: left;
           font-weight: 600;
-          font-size: 14px;
+          font-size: 9px;
+          border: 1px solid #e5e7eb;
+          text-transform: uppercase;
         }
-        th:last-child, td:last-child {
+        th:nth-child(1), th:nth-child(4) {
+          text-align: center;
+        }
+        th:nth-child(5), th:nth-child(6) {
           text-align: right;
         }
         td {
-          padding: 12px;
-          border-bottom: 1px solid #e5e7eb;
-        }
-        tr:hover {
-          background-color: #f9fafb;
+          border: 1px solid #e5e7eb;
         }
         .total-row {
-          background: linear-gradient(135deg, #059669 0%, #047857 100%);
-          color: white;
+          background-color: #f1f5f9 !important;
           font-weight: bold;
-          font-size: 18px;
+          font-size: 11px;
         }
         .total-row td {
-          padding: 20px 12px;
-          border: none;
+          padding: 8px 6px;
         }
         .footer {
-          margin-top: 50px;
+          margin-top: 25px;
           text-align: center;
           color: #6b7280;
-          font-size: 14px;
+          font-size: 8px;
           border-top: 1px solid #e5e7eb;
-          padding-top: 20px;
+          padding-top: 12px;
         }
       </style>
     </head>
     <body>
       <div class="header">
-        <div class="company-name">4S Graphics</div>
+        <div class="company-info">
+          <div class="company-name">4S Graphics, Inc.</div>
+          <div class="company-details">
+            764 NW 57th Court<br>
+            Fort Lauderdale, FL 33309<br>
+            Phone: (954) 493.6484 | Website: https://www.4sgraphics.com/
+          </div>
+        </div>
         <div class="quote-title">QUOTATION</div>
       </div>
 
@@ -166,8 +183,8 @@ export function generateQuoteHTMLForDownload(data: any): string {
         <tbody>
           ${itemsHTML}
           <tr class="total-row">
-            <td colspan="5" style="text-align: right; padding-right: 20px;">TOTAL AMOUNT:</td>
-            <td style="font-size: 20px;">$${totalAmount.toFixed(2)}</td>
+            <td colspan="5" style="text-align: right; color: #6b7280;">TOTAL AMOUNT:</td>
+            <td style="text-align: right; color: #059669; font-size: 12px;">$${totalAmount.toFixed(2)}</td>
           </tr>
         </tbody>
       </table>
