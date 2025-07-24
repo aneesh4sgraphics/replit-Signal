@@ -74,7 +74,14 @@ export default function ProductPricingManagement() {
       setUploadProgress(70);
 
       if (!response.ok) {
-        throw new Error('Upload failed');
+        const errorText = await response.text();
+        let errorData;
+        try {
+          errorData = JSON.parse(errorText);
+        } catch {
+          errorData = { error: `HTTP ${response.status}: ${response.statusText}`, details: errorText };
+        }
+        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
       }
 
       const result = await response.json();
@@ -95,14 +102,39 @@ export default function ProductPricingManagement() {
       });
 
     } catch (error) {
+      console.error("Upload error:", error);
+      
+      let errorMessage = "Unknown error occurred";
+      let errorDetails = "Please check the format and try again.";
+      
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
+      // Try to get more details from response if it's a fetch error
+      if (error && typeof error === 'object' && 'response' in error) {
+        try {
+          const responseText = await (error as any).response.text();
+          const responseData = JSON.parse(responseText);
+          if (responseData.error) {
+            errorMessage = responseData.error;
+          }
+          if (responseData.details) {
+            errorDetails = responseData.details;
+          }
+        } catch (parseError) {
+          console.error("Error parsing error response:", parseError);
+        }
+      }
+
       setUploadResult({
         success: false,
-        message: `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+        message: `Upload failed: ${errorMessage}`
       });
 
       toast({
         title: "Upload Failed",
-        description: "Failed to process the CSV file. Please check the format and try again.",
+        description: errorDetails,
         variant: "destructive",
       });
     } finally {
