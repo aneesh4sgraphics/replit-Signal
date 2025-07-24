@@ -2616,54 +2616,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { categoryName, tierName, items } = req.body;
       
-      const html = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .header { text-align: center; margin-bottom: 30px; }
-            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
-            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
-            th { background-color: #f2f2f2; }
-          </style>
-        </head>
-        <body>
-          <div class="header">
-            <h1>4S Graphics</h1>
-            <h2>PRICE LIST - ${categoryName}</h2>
-            <p>Pricing Tier: ${tierName}</p>
-            <p>Date: ${new Date().toLocaleDateString()}</p>
-          </div>
-          <table>
-            <thead>
-              <tr>
-                <th>Item Code</th>
-                <th>Product Type</th>
-                <th>Size</th>
-                <th>Min Qty</th>
-                <th>Price/Sq.M</th>
-                <th>Price/Sheet</th>
-                <th>Price Per Pack</th>
-              </tr>
-            </thead>
-            <tbody>
-              ${items.map((item: any) => `
-                <tr>
-                  <td>${item.itemCode}</td>
-                  <td>${item.productType}</td>
-                  <td>${item.size}</td>
-                  <td>${item.minQty}</td>
-                  <td>$${item.pricePerSqM.toFixed(2)}</td>
-                  <td>$${item.pricePerSheet.toFixed(2)}</td>
-                  <td>$${item.pricePerPack.toFixed(2)}</td>
-                </tr>
-              `).join('')}
-            </tbody>
-          </table>
-        </body>
-        </html>
-      `;
+      if (!categoryName || !tierName || !items || !Array.isArray(items)) {
+        return res.status(400).json({ error: "Category name, tier name, and items are required" });
+      }
+
+      // Import the function from stub-functions
+      const { generatePriceListHTML } = await import('./stub-functions.js');
+      
+      const html = generatePriceListHTML({
+        categoryName,
+        tierName,
+        items
+      });
       
       res.json({ html });
     } catch (error) {
