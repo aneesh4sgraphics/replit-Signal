@@ -23,12 +23,12 @@ export function generateQuoteHTMLForDownload(data: any): string {
 
   const itemsHTML = quoteItems.map((item: any, index: number) => `
     <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'}; border-bottom: 1px solid #e5e7eb;">
-      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px; text-align: center;">${index + 1}</td>
-      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px; font-weight: 500;">${item.productType}</td>
-      <td style="padding: 6px; border-right: 1px solid #e5e7eb; font-size: 10px;">${item.size}</td>
-      <td style="padding: 6px; border-right: 1px solid #e5e7eb; text-align: center; font-size: 10px;">${item.quantity}</td>
-      <td style="padding: 6px; border-right: 1px solid #e5e7eb; text-align: right; font-size: 10px;">$${item.pricePerSheet.toFixed(2)}</td>
-      <td style="padding: 6px; text-align: right; font-weight: 500; font-size: 10px;">$${item.total.toFixed(2)}</td>
+      <td style="padding: 8px; border-right: 1px solid #e5e7eb; font-size: 11px; text-align: center; font-weight: 500;">${index + 1}</td>
+      <td style="padding: 8px; border-right: 1px solid #e5e7eb; font-size: 11px; font-weight: 600; color: #1f2937;">${item.productType}</td>
+      <td style="padding: 8px; border-right: 1px solid #e5e7eb; font-size: 11px; color: #374151;">${item.size}</td>
+      <td style="padding: 8px; border-right: 1px solid #e5e7eb; text-align: center; font-size: 11px; font-weight: 500;">${item.quantity}</td>
+      <td style="padding: 8px; border-right: 1px solid #e5e7eb; text-align: right; font-size: 11px; font-weight: 500;">$${item.pricePerSheet.toFixed(2)}</td>
+      <td style="padding: 8px; text-align: right; font-weight: 600; font-size: 11px; color: #059669;">$${item.total.toFixed(2)}</td>
     </tr>
   `).join('');
 
@@ -38,160 +38,229 @@ export function generateQuoteHTMLForDownload(data: any): string {
     <head>
       <meta charset="utf-8">
       <title>Quote ${quoteNumber}</title>
+      <link rel="preconnect" href="https://fonts.googleapis.com">
+      <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+      <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Roboto:wght@400;500;700&display=swap" rel="stylesheet">
       <style>
         @media print {
           body { margin: 0; }
           .no-print { display: none; }
         }
         body {
-          font-family: Arial, sans-serif;
+          font-family: 'Inter', 'Roboto', Arial, sans-serif;
           margin: 0;
-          padding: 30px;
-          color: #333;
-          line-height: 1.3;
-          font-size: 10px;
-        }
-        .header {
-          text-align: center;
-          margin-bottom: 25px;
-          border-bottom: 2px solid #2563eb;
-          padding-bottom: 15px;
-        }
-        .company-info {
-          margin-bottom: 15px;
-          font-size: 11px;
+          padding: 40px;
+          color: #1f2937;
           line-height: 1.4;
+          font-size: 12px;
+          background-color: #ffffff;
+        }
+        .letterhead {
+          background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+          color: white;
+          padding: 30px;
+          text-align: center;
+          margin: -40px -40px 40px -40px;
+          border-radius: 0 0 8px 8px;
         }
         .company-name {
-          font-size: 20px;
-          font-weight: bold;
-          color: #2563eb;
+          font-size: 32px;
+          font-weight: 700;
           margin-bottom: 8px;
+          letter-spacing: -0.5px;
+          font-family: 'Inter', sans-serif;
+        }
+        .company-tagline {
+          font-size: 14px;
+          font-weight: 400;
+          margin-bottom: 15px;
+          opacity: 0.9;
         }
         .company-details {
-          font-size: 9px;
-          color: #666;
-          margin-bottom: 15px;
+          font-size: 12px;
+          line-height: 1.6;
+          opacity: 0.95;
         }
-        .quote-title {
-          font-size: 16px;
+        .document-title {
+          text-align: center;
+          font-size: 28px;
           font-weight: 600;
-          margin: 10px 0;
           color: #1f2937;
-        }
-        .quote-info {
-          display: flex;
-          justify-content: space-between;
-          margin: 20px 0;
-          padding: 12px;
-          background-color: #f8f9fa;
-          border: 1px solid #e5e7eb;
-          font-size: 10px;
-        }
-        .quote-info div {
-          text-align: left;
-        }
-        .quote-info strong {
-          color: #374151;
-          display: block;
-          margin-bottom: 3px;
-          font-size: 9px;
+          margin: 30px 0;
           text-transform: uppercase;
+          letter-spacing: 1px;
+        }
+        .quote-header {
+          display: grid;
+          grid-template-columns: 1fr 1fr 1fr;
+          gap: 30px;
+          margin: 30px 0;
+          padding: 20px;
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+          border-radius: 8px;
+          border-left: 4px solid #2563eb;
+        }
+        .quote-field {
+          text-align: center;
+        }
+        .quote-field-label {
+          font-weight: 600;
+          color: #6b7280;
+          font-size: 11px;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+          margin-bottom: 5px;
+        }
+        .quote-field-value {
+          font-weight: 700;
+          color: #1f2937;
+          font-size: 14px;
+        }
+        .products-section {
+          margin: 30px 0;
+        }
+        .section-title {
+          font-size: 18px;
+          font-weight: 600;
+          color: #1f2937;
+          margin-bottom: 15px;
+          padding-bottom: 8px;
+          border-bottom: 2px solid #e5e7eb;
         }
         table {
           width: 100%;
           border-collapse: collapse;
           margin: 15px 0;
-          border: 1px solid #e5e7eb;
+          border-radius: 8px;
+          overflow: hidden;
+          box-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.1);
         }
         th {
-          background-color: #f1f5f9;
-          color: #374151;
-          padding: 6px;
+          background: linear-gradient(135deg, #1e40af 0%, #1d4ed8 100%);
+          color: white;
+          padding: 12px 10px;
           text-align: left;
           font-weight: 600;
-          font-size: 9px;
-          border: 1px solid #e5e7eb;
+          font-size: 11px;
           text-transform: uppercase;
+          letter-spacing: 0.5px;
         }
-        th:nth-child(1), th:nth-child(4) {
+        th:first-child {
+          text-align: center;
+        }
+        th:nth-child(4) {
           text-align: center;
         }
         th:nth-child(5), th:nth-child(6) {
           text-align: right;
         }
         td {
-          border: 1px solid #e5e7eb;
+          border-bottom: 1px solid #e5e7eb;
+        }
+        .total-section {
+          margin-top: 20px;
+          padding: 20px;
+          background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+          border-radius: 8px;
+          border-left: 4px solid #059669;
         }
         .total-row {
-          background-color: #f1f5f9 !important;
-          font-weight: bold;
-          font-size: 11px;
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
         }
-        .total-row td {
-          padding: 8px 6px;
+        .total-label {
+          font-size: 16px;
+          font-weight: 600;
+          color: #374151;
+          text-transform: uppercase;
+          letter-spacing: 0.5px;
+        }
+        .total-amount {
+          font-size: 20px;
+          font-weight: 700;
+          color: #059669;
         }
         .footer {
-          margin-top: 25px;
+          margin-top: 40px;
+          padding: 20px;
+          background: linear-gradient(135deg, #1f2937 0%, #111827 100%);
+          color: white;
           text-align: center;
-          color: #6b7280;
-          font-size: 8px;
-          border-top: 1px solid #e5e7eb;
-          padding-top: 12px;
+          border-radius: 8px;
+          margin-left: -40px;
+          margin-right: -40px;
+        }
+        .footer-title {
+          font-size: 14px;
+          font-weight: 600;
+          margin-bottom: 8px;
+        }
+        .footer-text {
+          font-size: 11px;
+          line-height: 1.5;
+          opacity: 0.9;
         }
       </style>
     </head>
     <body>
-      <div class="header">
-        <div class="company-info">
-          <div class="company-name">4S Graphics, Inc.</div>
-          <div class="company-details">
-            764 NW 57th Court<br>
-            Fort Lauderdale, FL 33309<br>
-            Phone: (954) 493.6484 | Website: https://www.4sgraphics.com/
+      <div class="letterhead">
+        <div class="company-name">4S Graphics, Inc.</div>
+        <div class="company-tagline">Professional Printing Solutions</div>
+        <div class="company-details">
+          764 NW 57th Court • Fort Lauderdale, FL 33309<br>
+          Phone: (954) 493.6484 • Website: https://www.4sgraphics.com/
+        </div>
+      </div>
+
+      <div class="document-title">QUOTATION</div>
+
+      <div class="quote-header">
+        <div class="quote-field">
+          <div class="quote-field-label">Quote Number</div>
+          <div class="quote-field-value">${quoteNumber}</div>
+        </div>
+        <div class="quote-field">
+          <div class="quote-field-label">Date</div>
+          <div class="quote-field-value">${currentDate}</div>
+        </div>
+        <div class="quote-field">
+          <div class="quote-field-label">Prepared For</div>
+          <div class="quote-field-value">${customerName}</div>
+        </div>
+      </div>
+
+      <div class="products-section">
+        <div class="section-title">Products & Services</div>
+        <table>
+          <thead>
+            <tr>
+              <th style="width: 8%">#</th>
+              <th style="width: 35%">Product</th>
+              <th style="width: 20%">Size</th>
+              <th style="width: 12%">Qty</th>
+              <th style="width: 15%">Unit Price</th>
+              <th style="width: 15%">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${itemsHTML}
+          </tbody>
+        </table>
+
+        <div class="total-section">
+          <div class="total-row">
+            <div class="total-label">Total Amount</div>
+            <div class="total-amount">$${totalAmount.toFixed(2)}</div>
           </div>
         </div>
-        <div class="quote-title">QUOTATION</div>
       </div>
-
-      <div class="quote-info">
-        <div>
-          <strong>Quote Number:</strong>
-          ${quoteNumber}
-        </div>
-        <div>
-          <strong>Date:</strong>
-          ${currentDate}
-        </div>
-        <div>
-          <strong>Prepared For:</strong>
-          ${customerName}
-        </div>
-      </div>
-
-      <table>
-        <thead>
-          <tr>
-            <th style="width: 8%">#</th>
-            <th style="width: 35%">Product</th>
-            <th style="width: 20%">Size</th>
-            <th style="width: 12%">Qty</th>
-            <th style="width: 15%">Unit Price</th>
-            <th style="width: 15%">Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHTML}
-          <tr class="total-row">
-            <td colspan="5" style="text-align: right; color: #6b7280;">TOTAL AMOUNT:</td>
-            <td style="text-align: right; color: #059669; font-size: 12px;">$${totalAmount.toFixed(2)}</td>
-          </tr>
-        </tbody>
-      </table>
 
       <div class="footer">
-        <p><strong>4S Graphics</strong> | Professional Printing Solutions</p>
-        <p>Thank you for choosing 4S Graphics. Please contact us if you have any questions about this quote.</p>
+        <div class="footer-title">4S Graphics | Professional Printing Solutions</div>
+        <div class="footer-text">
+          Thank you for choosing 4S Graphics. Please contact us if you have any questions about this quote.
+        </div>
       </div>
     </body>
     </html>
