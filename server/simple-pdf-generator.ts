@@ -338,7 +338,7 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         <div><strong>Quote Date:</strong> ${currentDate}</div>
       </div>
       
-      <div class="price-quote-title">PRICE QUOTE</div>
+      <div class="price-quote-title">QUOTATION</div>
       
       ${categorySections}
       
@@ -649,7 +649,7 @@ export function generatePriceListHTML(request: PriceListRequest): string {
         <div>Date: ${currentDate}</div>
       </div>
       
-      <div class="price-list-title">PRICE LIST - ${categoryName.toUpperCase()}</div>
+      <div class="price-list-title">PRICE LIST</div>
       
       ${typeSections}
       
