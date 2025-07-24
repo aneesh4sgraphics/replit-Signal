@@ -250,18 +250,18 @@ export default function PriceManagement() {
       }
     });
 
-  // Price tiers for display
+  // Price tiers for display - prioritized view
   const priceTiers = [
-    { key: 'exportPrice', label: 'Export' },
-    { key: 'masterDistributorPrice', label: 'Master Dist.' },
-    { key: 'dealerPrice', label: 'Dealer' },
-    { key: 'dealer2Price', label: 'Dealer 2' },
-    { key: 'approvalRetailPrice', label: 'Approval' },
-    { key: 'stage25Price', label: 'Stage 25' },
-    { key: 'stage2Price', label: 'Stage 2' },
-    { key: 'stage15Price', label: 'Stage 15' },
-    { key: 'stage1Price', label: 'Stage 1' },
-    { key: 'retailPrice', label: 'Retail' },
+    { key: 'exportPrice', label: 'Export Price', priority: 'high' },
+    { key: 'dealerPrice', label: 'Dealer Price', priority: 'high' },
+    { key: 'approvalRetailPrice', label: 'Approval Price', priority: 'high' },
+    { key: 'retailPrice', label: 'Retail Price', priority: 'high' },
+    { key: 'masterDistributorPrice', label: 'Master Distributor', priority: 'medium' },
+    { key: 'dealer2Price', label: 'Dealer 2', priority: 'medium' },
+    { key: 'stage25Price', label: 'Stage 2.5', priority: 'low' },
+    { key: 'stage2Price', label: 'Stage 2', priority: 'low' },
+    { key: 'stage15Price', label: 'Stage 1.5', priority: 'low' },
+    { key: 'stage1Price', label: 'Stage 1', priority: 'low' },
   ];
 
   // Format price for display
@@ -270,6 +270,9 @@ export default function PriceManagement() {
     const numPrice = parseFloat(price);
     return numPrice > 0 ? `$${numPrice.toFixed(2)}` : '-';
   };
+
+  // Add view toggle state
+  const [viewMode, setViewMode] = useState<'compact' | 'full'>('compact');
 
   // Download CSV export
   const handleExportCSV = () => {
@@ -444,6 +447,23 @@ export default function PriceManagement() {
           </CardContent>
         </Card>
 
+        {/* Pricing Tier Explanation */}
+        <Card className="shadow-lg mb-6 bg-blue-50 border-blue-200">
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <DollarSign className="h-5 w-5 text-blue-600 mt-0.5" />
+              <div>
+                <h3 className="font-medium text-blue-900 mb-2">Pricing Tier Guide</h3>
+                <div className="text-sm text-blue-800 space-y-1">
+                  <p><strong>Essential View:</strong> Shows the 4 most important pricing tiers (Export, Dealer, Approval, Retail)</p>
+                  <p><strong>All Tiers View:</strong> Shows all 10 pricing levels including specialized stage pricing</p>
+                  <p>Click any price to edit. Empty prices show as "-" and can be set to any value.</p>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Search and Filters */}
         <Card className="shadow-lg mb-8">
           <CardHeader className="border-b">
@@ -495,9 +515,23 @@ export default function PriceManagement() {
                 <DollarSign className="h-5 w-5 text-primary" />
                 Pricing Data
               </div>
-              <Badge variant="secondary">
-                {filteredAndSortedData.length} items
-              </Badge>
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2">
+                  <Label htmlFor="view-mode" className="text-sm">View:</Label>
+                  <Select value={viewMode} onValueChange={(value: 'compact' | 'full') => setViewMode(value)}>
+                    <SelectTrigger className="w-32">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="compact">Essential</SelectItem>
+                      <SelectItem value="full">All Tiers</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+                <Badge variant="secondary">
+                  {filteredAndSortedData.length} items
+                </Badge>
+              </div>
             </CardTitle>
           </CardHeader>
           <CardContent className="p-0">
@@ -547,9 +581,16 @@ export default function PriceManagement() {
                           )}
                         </Button>
                       </TableHead>
-                      {priceTiers.map(tier => (
+                      {priceTiers
+                        .filter(tier => viewMode === 'full' || tier.priority === 'high')
+                        .map(tier => (
                         <TableHead key={tier.key} className="text-center min-w-24">
-                          {tier.label}
+                          <div className="flex flex-col items-center">
+                            <span className="font-medium">{tier.label}</span>
+                            {tier.priority === 'high' && viewMode === 'full' && (
+                              <Badge variant="outline" className="text-xs mt-1">Key</Badge>
+                            )}
+                          </div>
                         </TableHead>
                       ))}
                     </TableRow>
@@ -563,7 +604,9 @@ export default function PriceManagement() {
                         <TableCell className="sticky left-32 bg-background z-10 border-r">
                           {item.productType}
                         </TableCell>
-                        {priceTiers.map(tier => {
+                        {priceTiers
+                          .filter(tier => viewMode === 'full' || tier.priority === 'high')
+                          .map(tier => {
                           const value = item[tier.key as keyof PricingDataEntry] as string | null;
                           const isEditing = editingId === item.id && editField === tier.key;
                           
@@ -596,12 +639,20 @@ export default function PriceManagement() {
                                   </Button>
                                 </div>
                               ) : (
-                                <div 
-                                  className="cursor-pointer hover:bg-muted p-1 rounded flex items-center justify-center gap-1"
-                                  onClick={() => startEdit(item.id, tier.key, value)}
-                                >
-                                  {formatPrice(value)}
-                                  <Edit className="h-3 w-3 opacity-0 group-hover:opacity-100 transition-opacity" />
+                                <div className="group flex items-center justify-center gap-1 py-1">
+                                  <span className={`text-sm font-medium ${
+                                    tier.priority === 'high' ? 'text-blue-700' : 'text-gray-700'
+                                  } ${value && value !== '0' && value !== '0.00' ? '' : 'text-gray-400'}`}>
+                                    {formatPrice(value)}
+                                  </span>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => startEdit(item.id, tier.key, value || '')}
+                                    className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                  >
+                                    <Edit className="h-3 w-3" />
+                                  </Button>
                                 </div>
                               )}
                             </TableCell>
