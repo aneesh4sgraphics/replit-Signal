@@ -204,13 +204,17 @@ export default function PriceList() {
   const selectedTierData = getFilteredPricingTiers().find(t => t.id === parseInt(selectedTier));
   const selectedCustomerData = selectedCustomer;
 
-  // Create price list items for selected category with proper filtering
+  // Create price list items according to the specifications:
+  // 1. Load all products for the selected category
+  // 2. Convert sizes to square meters
+  // 3. Fetch pricing based on selected tier
+  // 4. Calculate Price/Sheet and Price/Pack
   const priceListItems: PriceListItem[] = selectedCategory && selectedTier ? 
     categoryTypes
-      .filter((type: ProductType) => type.categoryId === parseInt(selectedCategory)) // Ensure type matches category
+      .filter((type: ProductType) => type.categoryId === parseInt(selectedCategory))
       .flatMap((type: ProductType) => {
         const typeSizes = allSizes.filter((size: ProductSize) => size.typeId === type.id);
-        const typePricing = allPricing.filter((p: ProductPricing) => p.productTypeId === type.id);
+        const typePricing = allPricing.filter((p: ProductPricing) => p.productTypeId === type.id && p.tierId === parseInt(selectedTier));
         
         return typeSizes.map((size: ProductSize) => ({
           size,
@@ -219,34 +223,38 @@ export default function PriceList() {
         }));
       }) : [];
 
-  // Get price per square meter from CSV (original pricing data)
-  const getPricePerSqm = (item: PriceListItem, tierId: number) => {
-    const tierPricing = item.pricing.find((p: ProductPricing) => p.tierId === tierId);
-    if (tierPricing) {
-      return parseFloat(tierPricing.pricePerSquareMeter);
+  // Get price per square meter from Pricing Management based on selected tier
+  const getPricePerSqm = (item: PriceListItem) => {
+    const tierPricing = item.pricing.find((p: ProductPricing) => p.tierId === parseInt(selectedTier));
+    if (tierPricing && tierPricing.pricePerSquareMeter) {
+      const price = parseFloat(tierPricing.pricePerSquareMeter);
+      return isNaN(price) ? 0 : price;
     }
     return 0;
   };
 
-  // Get actual price per sheet (sq.m price × square meters per sheet) with NaN protection
-  const getPricePerSheet = (item: PriceListItem, tierId: number) => {
-    const pricePerSqm = getPricePerSqm(item, tierId);
+  // Calculate Price/Sheet = sizeSqM × pricePerSqM
+  const getPricePerSheet = (item: PriceListItem) => {
+    const pricePerSqm = getPricePerSqm(item);
     const squareMeters = parseFloat(item.size.squareMeters);
     
-    // Protect against NaN values
-    if (isNaN(pricePerSqm) || isNaN(squareMeters)) {
+    if (isNaN(pricePerSqm) || isNaN(squareMeters) || pricePerSqm === 0) {
       return 0;
     }
     
     return pricePerSqm * squareMeters;
   };
 
-  // Get price per pack (price per sheet × min order quantity) with rounding for retail
-  const getPricePerPack = (item: PriceListItem, tierId: number) => {
-    const pricePerSheet = getPricePerSheet(item, tierId);
+  // Calculate Price/Pack = pricePerSheet × minQty
+  const getPricePerPack = (item: PriceListItem) => {
+    const pricePerSheet = getPricePerSheet(item);
     
-    // Parse minOrderQty properly - extract numeric value from strings like "1 Roll", "50 Sheets", etc.
-    let minOrderQty = 1; // Default to 1
+    if (pricePerSheet === 0) {
+      return 0;
+    }
+    
+    // Extract numeric value from minOrderQty (handles "50 Sheets", "1 Roll", etc.)
+    let minOrderQty = 1;
     const minQtyStr = item.size.minOrderQty?.toString() || "1";
     const numericMatch = minQtyStr.match(/\d+/);
     if (numericMatch) {
@@ -255,7 +263,7 @@ export default function PriceList() {
     
     const basePackPrice = pricePerSheet * minOrderQty;
     
-    // Apply 99-cent rounding only to pack price for retail pricing tier
+    // Apply 99-cent rounding for retail tiers
     const adjustedPackPrice = selectedTierData?.name?.toLowerCase().includes('retail') 
       ? roundToNinetyNine(basePackPrice) 
       : basePackPrice;
@@ -860,9 +868,9 @@ export default function PriceList() {
                             </thead>
                             <tbody>
                               {typeItems.map((item, index) => {
-                                const pricePerSqm = getPricePerSqm(item, parseInt(selectedTier));
-                                const pricePerSheet = getPricePerSheet(item, parseInt(selectedTier));
-                                const pricePerPack = getPricePerPack(item, parseInt(selectedTier));
+                                const pricePerSqm = getPricePerSqm(item);
+                                const pricePerSheet = getPricePerSheet(item);
+                                const pricePerPack = getPricePerPack(item);
                                 
                                 const rowId = `${item.size.id}-${item.type.id}`;
                                 
