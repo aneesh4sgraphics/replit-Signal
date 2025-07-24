@@ -103,6 +103,7 @@ export interface IStorage {
   // Pricing Data
   getAllPricingData(): Promise<PricingData[]>;
   getPricingDataByProductId(productId: string): Promise<PricingData | undefined>;
+  getPricingDataByCompositeKey(productId: string, productType: string): Promise<PricingData | undefined>;
   createPricingData(pricingData: InsertPricingData): Promise<PricingData>;
   updatePricingData(id: number, updates: Partial<InsertPricingData>): Promise<PricingData | undefined>;
   updatePricingDataByProductId(productId: string, updates: Partial<InsertPricingData>): Promise<PricingData | undefined>;
@@ -597,6 +598,10 @@ export class MemStorage implements IStorage {
     return undefined;
   }
 
+  async getPricingDataByCompositeKey(productId: string, productType: string): Promise<PricingData | undefined> {
+    return undefined;
+  }
+
   async createPricingData(data: InsertPricingData): Promise<PricingData> {
     return {
       id: 1,
@@ -1055,6 +1060,16 @@ export class DatabaseStorage implements IStorage {
 
   async getPricingDataByProductId(productId: string): Promise<PricingData | undefined> {
     const [data] = await db.select().from(pricingData).where(eq(pricingData.productId, productId));
+    return data;
+  }
+
+  async getPricingDataByCompositeKey(productId: string, productType: string): Promise<PricingData | undefined> {
+    const [data] = await db.select().from(pricingData).where(
+      and(
+        eq(pricingData.productId, productId),
+        eq(pricingData.productType, productType)
+      )
+    );
     return data;
   }
 

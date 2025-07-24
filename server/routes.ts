@@ -22,6 +22,8 @@ import {
   logUpload, 
   logDownload 
 } from "./fileLogger";
+import { db } from "./db";
+import { pricingData } from "@shared/schema";
 
 // Simple in-memory cache for frequently accessed data
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -1316,8 +1318,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload pricing CSV for Price Management
-  app.post("/api/upload-pricing-csv", upload.single('file'), async (req, res) => {
+  // Upload pricing CSV for Price Management (REPLACED - See line 2296 for active endpoint)
+  app.post("/api/upload-pricing-csv-OLD", upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2297,7 +2299,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "No file uploaded" });
       }
 
-      const fileContent = req.file.buffer.toString();
+      const fileContent = fs.readFileSync(req.file.path, 'utf-8');
       const lines = fileContent.split('\n').filter(line => line.trim());
       
       if (lines.length < 2) {
@@ -2338,9 +2340,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return result;
       };
 
-      // Parse CSV data
+      // Clear existing pricing data first
+      console.log("Clearing existing pricing data...");
+      await db.delete(pricingData);
+      
+      // Parse CSV data - batch insert approach
       let newRecords = 0;
-      let updatedRecords = 0;
+      const recordsToInsert = [];
 
       console.log(`Processing ${lines.length - 1} data rows from CSV`);
 
@@ -2368,34 +2374,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
           stage15Price: values[9] ? parseFloat(values[9]) || null : null,
           stage1Price: values[10] ? parseFloat(values[10]) || null : null,
           retailPrice: values[11] ? parseFloat(values[11]) || null : null,
+          createdAt: new Date(),
+          updatedAt: new Date(),
         };
 
-        console.log(`Row ${i}: Processing ${record.productId} - ${record.productType}`);
-
         if (record.productId && record.productType) {
-          try {
-            // Check if record exists
-            const existing = await storage.getPricingDataByProductId(record.productId);
-            if (existing) {
-              await storage.updatePricingDataByProductId(record.productId, record);
-              updatedRecords++;
-              console.log(`  Updated existing record: ${record.productId}`);
-            } else {
-              await storage.createPricingData(record);
-              newRecords++;
-              console.log(`  Created new record: ${record.productId}`);
-            }
-          } catch (error) {
-            console.error(`  Error processing ${record.productId}:`, error);
-          }
-        } else {
-          console.log(`  Skipping - missing productId or productType`);
+          recordsToInsert.push(record);
         }
       }
+
+      // Batch insert all records at once
+      console.log(`Batch inserting ${recordsToInsert.length} records...`);
+      if (recordsToInsert.length > 0) {
+        const insertResult = await db.insert(pricingData).values(recordsToInsert).returning();
+        console.log(`Successfully inserted ${insertResult.length} pricing records (IDs: ${insertResult.map(r => r.id).join(', ')})`);
+        newRecords = insertResult.length;
+      }
+
+      const updatedRecords = 0; // Since we're doing fresh insert
 
       // After uploading to pricingData table, also sync to productPricing table
       console.log(`\nSyncing pricing data to productPricing system...`);
       await syncPricingDataToProductPricing();
+      
+      // Clean up the uploaded file
+      fs.unlinkSync(req.file.path);
       
       res.json({
         success: true,
