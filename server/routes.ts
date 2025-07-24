@@ -334,7 +334,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get all product pricing
+  // Get all product pricing - maps from pricing_data table to expected format
   app.get("/api/product-pricing", async (req, res) => {
     try {
       const cacheKey = "product-pricing";
@@ -344,10 +344,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(cachedData);
       }
       
-      const pricing = await storage.getProductPricing();
-      setCachedData(cacheKey, pricing);
-      res.json(pricing);
+      // Fetch pricing data and convert to expected format
+      const pricingData = await storage.getAllPricingData();
+      const productTypes = await storage.getProductTypes();
+      const tiers = await storage.getPricingTiers();
+      
+      const productPricing = [];
+      
+      // Map pricing data to ProductPricing format
+      for (const data of pricingData) {
+        // Find matching product type by name/pattern
+        const matchingType = productTypes.find(type => 
+          type.name.toLowerCase().includes(data.productType.toLowerCase()) ||
+          data.productType.toLowerCase().includes(type.name.toLowerCase())
+        );
+        
+        if (matchingType) {
+          // Create pricing entries for each tier with non-zero prices
+          const tierColumns = {
+            'Export': data.exportPrice,
+            'Master Distributor': data.masterDistributorPrice,
+            'Dealer': data.dealerPrice,
+            'Dealer2': data.dealer2Price,
+            'Approval (Retail)': data.approvalRetailPrice,
+            'Stage25': data.stage25Price,
+            'Stage2': data.stage2Price,
+            'Stage15': data.stage15Price,
+            'Stage1': data.stage1Price,
+            'Retail': data.retailPrice
+          };
+          
+          for (const [tierName, price] of Object.entries(tierColumns)) {
+            if (price && parseFloat(price.toString()) > 0) {
+              const tier = tiers.find(t => t.name === tierName);
+              if (tier) {
+                productPricing.push({
+                  id: productPricing.length + 1,
+                  productTypeId: matchingType.id,
+                  tierId: tier.id,
+                  pricePerSquareMeter: price.toString()
+                });
+              }
+            }
+          }
+        }
+      }
+      
+      setCachedData(cacheKey, productPricing);
+      res.json(productPricing);
     } catch (error) {
+      console.error("Error fetching product pricing:", error);
       res.status(500).json({ error: "Failed to fetch product pricing" });
     }
   });
@@ -2401,6 +2447,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error in syncPricingDataToProductPricing:", error);
     }
   }
+
+  // Sync product structure from pricing data
+  app.post("/api/sync-product-structure", isAuthenticated, async (req, res) => {
+    try {
+      console.log("Starting product structure sync from pricing data...");
+      
+      // Get all pricing data to understand what products exist
+      const pricingData = await storage.getAllPricingData();
+      console.log(`Found ${pricingData.length} pricing records`);
+      
+      // Create category mappings based on product_id
+      const categoryMap = new Map();
+      categoryMap.set('graffiti-polyester-paper', 'Graffiti Polyester Paper');
+      categoryMap.set('graffiti-blended-poly', 'Graffiti Blended Poly');
+      categoryMap.set('graffiti-stick', 'GraffitiStick');
+      categoryMap.set('solvit', 'Solvit');
+      categoryMap.set('cliq-aqueous-media', 'CLiQ Aqueous Media');
+      categoryMap.set('rang-print-canvas', 'Rang Print Canvas');
+      categoryMap.set('eie-media', 'EiE Media');
+      categoryMap.set('ele-laser-media', 'eLe Laser Media');
+      categoryMap.set('mxp-media', 'MXP Media');
+      categoryMap.set('dtf-films', 'DTF Films');
+      
+      // Create categories first
+      for (const [productId, categoryName] of categoryMap) {
+        const hasDataForCategory = pricingData.some(p => p.productId === productId);
+        if (hasDataForCategory) {
+          try {
+            await storage.createProductCategory({ name: categoryName, description: null });
+            console.log(`Created category: ${categoryName}`);
+          } catch (error) {
+            console.log(`Category ${categoryName} might already exist`);
+          }
+        }
+      }
+      
+      // Get created categories to map product types
+      const categories = await storage.getProductCategories();
+      const categoryNameToId = new Map();
+      categories.forEach(cat => categoryNameToId.set(cat.name, cat.id));
+      
+      // Create product types from pricing data
+      const processedTypes = new Set();
+      for (const data of pricingData) {
+        const categoryName = categoryMap.get(data.productId);
+        const categoryId = categoryNameToId.get(categoryName);
+        
+        if (categoryId && !processedTypes.has(data.productType)) {
+          try {
+            await storage.createProductType({ 
+              categoryId: categoryId, 
+              name: data.productType, 
+              description: null 
+            });
+            console.log(`Created product type: ${data.productType} in category ${categoryName}`);
+            processedTypes.add(data.productType);
+          } catch (error) {
+            console.log(`Product type ${data.productType} might already exist`);
+          }
+        }
+      }
+      
+      console.log("Product structure sync completed");
+      res.json({ success: true, message: "Product structure synced successfully" });
+    } catch (error) {
+      console.error("Error syncing product structure:", error);
+      res.status(500).json({ error: "Failed to sync product structure" });
+    }
+  });
 
   // Manual sync endpoint for testing
   app.post("/api/sync-pricing", isAuthenticated, async (req, res) => {
