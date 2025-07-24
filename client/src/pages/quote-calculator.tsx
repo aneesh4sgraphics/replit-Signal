@@ -1,0 +1,490 @@
+import { useState, useEffect } from "react";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { Badge } from "@/components/ui/badge";
+import { Trash2, Plus, Download, Mail, Calculator } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
+
+interface ProductData {
+  ItemCode: string;
+  product_name: string;
+  ProductType: string;
+  size: string;
+  total_sqm: number;
+  min_quantity: number;
+  Export: number;
+  "M.Distributor": number;
+  Dealer: number;
+  Dealer2: number;
+  ApprovalNeeded: number;
+  TierStage25: number;
+  TierStage2: number;
+  TierStage15: number;
+  TierStage1: number;
+  Retail: number;
+}
+
+interface QuoteItem {
+  id: string;
+  productName: string;
+  productType: string;
+  size: string;
+  itemCode: string;
+  quantity: number;
+  pricePerSqM: number;
+  pricePerSheet: number;
+  total: number;
+  tier: string;
+  squareMeters: number;
+  minOrderQty: number;
+}
+
+const pricingTiers = [
+  { key: 'Export', label: 'Export' },
+  { key: 'M.Distributor', label: 'Master Distributor' },
+  { key: 'Dealer', label: 'Dealer' },
+  { key: 'Dealer2', label: 'Dealer 2' },
+  { key: 'ApprovalNeeded', label: 'Approval Needed' },
+  { key: 'TierStage25', label: 'Stage 2.5' },
+  { key: 'TierStage2', label: 'Stage 2' },
+  { key: 'TierStage15', label: 'Stage 1.5' },
+  { key: 'TierStage1', label: 'Stage 1' },
+  { key: 'Retail', label: 'Retail' }
+];
+
+export default function QuoteCalculator() {
+  const [selectedCategory, setSelectedCategory] = useState<string>("");
+  const [selectedType, setSelectedType] = useState<string>("");
+  const [selectedSize, setSelectedSize] = useState<string>("");
+  const [quantity, setQuantity] = useState<number>(1);
+  const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
+  const [customerName, setCustomerName] = useState("");
+  const [customerEmail, setCustomerEmail] = useState("");
+  const [isEmailDialogOpen, setIsEmailDialogOpen] = useState(false);
+  
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch product pricing data
+  const { data: productData = [], isLoading } = useQuery<ProductData[]>({
+    queryKey: ['/api/product-pricing-data'],
+  });
+
+  // Get unique categories
+  const categories = Array.from(new Set(productData.map(item => item.product_name))).sort();
+  
+  // Get product types for selected category
+  const productTypes = selectedCategory
+    ? [...new Set(productData.filter(item => item.product_name === selectedCategory).map(item => item.ProductType))].sort()
+    : [];
+
+  // Get sizes for selected type
+  const availableSizes = selectedCategory && selectedType
+    ? productData.filter(item => 
+        item.product_name === selectedCategory && 
+        item.ProductType === selectedType
+      ).sort((a, b) => a.total_sqm - b.total_sqm)
+    : [];
+
+  // Get selected product details
+  const selectedProduct = productData.find(item =>
+    item.product_name === selectedCategory &&
+    item.ProductType === selectedType &&
+    item.size === selectedSize
+  );
+
+  const addToQuote = (tier: string) => {
+    if (!selectedProduct) return;
+
+    const tierPrice = selectedProduct[tier as keyof ProductData] as number;
+    const pricePerSheet = tierPrice * selectedProduct.total_sqm;
+    const useQuantity = Math.max(quantity, selectedProduct.min_quantity);
+    const total = pricePerSheet * useQuantity;
+
+    const quoteItem: QuoteItem = {
+      id: `${Date.now()}-${Math.random()}`,
+      productName: selectedProduct.product_name,
+      productType: selectedProduct.ProductType,
+      size: selectedProduct.size,
+      itemCode: selectedProduct.ItemCode,
+      quantity: useQuantity,
+      pricePerSqM: tierPrice,
+      pricePerSheet: pricePerSheet,
+      total: total,
+      tier: tier,
+      squareMeters: selectedProduct.total_sqm,
+      minOrderQty: selectedProduct.min_quantity
+    };
+
+    setQuoteItems(prev => [...prev, quoteItem]);
+    toast({
+      title: "Item Added",
+      description: `Added ${selectedProduct.ProductType} to quote`,
+    });
+  };
+
+  const removeFromQuote = (id: string) => {
+    setQuoteItems(prev => prev.filter(item => item.id !== id));
+  };
+
+  const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
+
+  const generatePDFMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/generate-pdf-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName: customerName || "Quote",
+          customerEmail: customerEmail,
+          quoteItems,
+          quoteNumber: `Q${Date.now()}`,
+          sentVia: 'pdf'
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to generate PDF');
+      return response.json();
+    },
+    onSuccess: (data) => {
+      // Create and download the PDF
+      const html = data.html;
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        printWindow.print();
+      }
+      toast({
+        title: "PDF Generated",
+        description: "Quote PDF has been generated successfully",
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate PDF",
+        variant: "destructive",
+      });
+    }
+  });
+
+  const sendEmailMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/send-email-quote', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          customerName,
+          customerEmail,
+          quoteItems
+        })
+      });
+      
+      if (!response.ok) throw new Error('Failed to send email');
+      return response.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Email Sent",
+        description: `Quote sent to ${customerEmail}`,
+      });
+      setIsEmailDialogOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/sent-quotes'] });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to send email",
+        variant: "destructive",
+      });
+    }
+  });
+
+  if (isLoading) {
+    return (
+      <div className="container mx-auto p-6">
+        <div className="text-center">Loading product data...</div>
+      </div>
+    );
+  }
+
+  return (
+    <div className="container mx-auto p-6 space-y-6">
+      {/* Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold">QuickQuotes</h1>
+          <p className="text-gray-600 mt-2">
+            Generate instant quotes for your products
+          </p>
+        </div>
+      </div>
+
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        {/* Left Panel - Configure Product */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5" />
+              Configure Product
+            </CardTitle>
+            <CardDescription>
+              Select product specifications for your quote
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {/* Product Category */}
+            <div className="space-y-2">
+              <Label htmlFor="category">Product Category</Label>
+              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select product category" />
+                </SelectTrigger>
+                <SelectContent>
+                  {categories.map(category => (
+                    <SelectItem key={category} value={category}>
+                      {category}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {/* Product Type */}
+            {selectedCategory && (
+              <div className="space-y-2">
+                <Label htmlFor="type">Product Type</Label>
+                <Select value={selectedType} onValueChange={setSelectedType}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select product type" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productTypes.map(type => (
+                      <SelectItem key={type} value={type}>
+                        {type}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Size */}
+            {selectedType && (
+              <div className="space-y-2">
+                <Label htmlFor="size">Size</Label>
+                <Select value={selectedSize} onValueChange={setSelectedSize}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSizes.map(product => (
+                      <SelectItem key={product.size} value={product.size}>
+                        {product.size} ({product.total_sqm.toFixed(4)} m²)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* Quantity */}
+            {selectedSize && (
+              <div className="space-y-2">
+                <Label htmlFor="quantity">Quantity</Label>
+                <Input
+                  type="number"
+                  value={quantity}
+                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                  min={selectedProduct?.min_quantity || 1}
+                />
+                {selectedProduct && quantity < selectedProduct.min_quantity && (
+                  <p className="text-sm text-amber-600">
+                    Minimum order quantity: {selectedProduct.min_quantity}
+                  </p>
+                )}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Right Panel - Quote Summary */}
+        <Card>
+          <CardHeader>
+            <CardTitle>Quote Summary</CardTitle>
+            <CardDescription>
+              Available pricing tiers and current selection
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            {selectedProduct ? (
+              <div className="space-y-4">
+                <div className="grid grid-cols-1 gap-3">
+                  {pricingTiers.map(tier => {
+                    const price = selectedProduct[tier.key as keyof ProductData] as number;
+                    const pricePerSheet = price * selectedProduct.total_sqm;
+                    const useQuantity = Math.max(quantity, selectedProduct.min_quantity);
+                    const total = pricePerSheet * useQuantity;
+
+                    return (
+                      <div key={tier.key} className="flex items-center justify-between p-3 border rounded-lg">
+                        <div>
+                          <div className="font-medium">{tier.label}</div>
+                          <div className="text-sm text-gray-600">
+                            ${price.toFixed(2)}/m² • ${pricePerSheet.toFixed(2)}/sheet
+                          </div>
+                          <div className="text-sm text-gray-500">
+                            {useQuantity} sheets = ${total.toFixed(2)}
+                          </div>
+                        </div>
+                        <Button
+                          size="sm"
+                          onClick={() => addToQuote(tier.key)}
+                          className="gap-1"
+                        >
+                          <Plus className="h-4 w-4" />
+                          Add
+                        </Button>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8 text-gray-500">
+                Select a product to see pricing options
+              </div>
+            )}
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Quote Items */}
+      {quoteItems.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Quote Items</CardTitle>
+            <CardDescription>
+              Items added to your current quote
+            </CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-4">
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Product</TableHead>
+                    <TableHead>Size</TableHead>
+                    <TableHead>Tier</TableHead>
+                    <TableHead>Qty</TableHead>
+                    <TableHead>Price/m²</TableHead>
+                    <TableHead>Price/Sheet</TableHead>
+                    <TableHead>Total</TableHead>
+                    <TableHead></TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {quoteItems.map(item => (
+                    <TableRow key={item.id}>
+                      <TableCell>
+                        <div>
+                          <div className="font-medium">{item.productName}</div>
+                          <div className="text-sm text-gray-600">{item.productType}</div>
+                          <div className="text-xs text-gray-500">{item.itemCode}</div>
+                        </div>
+                      </TableCell>
+                      <TableCell>{item.size}</TableCell>
+                      <TableCell>
+                        <Badge variant="outline">{item.tier}</Badge>
+                      </TableCell>
+                      <TableCell>{item.quantity}</TableCell>
+                      <TableCell>${item.pricePerSqM.toFixed(2)}</TableCell>
+                      <TableCell>${item.pricePerSheet.toFixed(2)}</TableCell>
+                      <TableCell className="font-medium">${item.total.toFixed(2)}</TableCell>
+                      <TableCell>
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          onClick={() => removeFromQuote(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      </TableCell>
+                    </TableRow>
+                  ))}
+                </TableBody>
+              </Table>
+
+              <div className="flex items-center justify-between pt-4 border-t">
+                <div className="text-lg font-semibold">
+                  Total: ${totalAmount.toFixed(2)}
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    variant="outline"
+                    onClick={() => generatePDFMutation.mutate()}
+                    disabled={generatePDFMutation.isPending}
+                    className="gap-2"
+                  >
+                    <Download className="h-4 w-4" />
+                    Download PDF
+                  </Button>
+                  <Dialog open={isEmailDialogOpen} onOpenChange={setIsEmailDialogOpen}>
+                    <DialogTrigger asChild>
+                      <Button className="gap-2">
+                        <Mail className="h-4 w-4" />
+                        Email Quote
+                      </Button>
+                    </DialogTrigger>
+                    <DialogContent>
+                      <DialogHeader>
+                        <DialogTitle>Email Quote</DialogTitle>
+                        <DialogDescription>
+                          Enter customer details to send the quote via email
+                        </DialogDescription>
+                      </DialogHeader>
+                      <div className="space-y-4">
+                        <div>
+                          <Label htmlFor="customerName">Customer Name</Label>
+                          <Input
+                            value={customerName}
+                            onChange={(e) => setCustomerName(e.target.value)}
+                            placeholder="Enter customer name"
+                          />
+                        </div>
+                        <div>
+                          <Label htmlFor="customerEmail">Customer Email</Label>
+                          <Input
+                            type="email"
+                            value={customerEmail}
+                            onChange={(e) => setCustomerEmail(e.target.value)}
+                            placeholder="Enter customer email"
+                          />
+                        </div>
+                      </div>
+                      <DialogFooter>
+                        <Button
+                          onClick={() => sendEmailMutation.mutate()}
+                          disabled={!customerName || !customerEmail || sendEmailMutation.isPending}
+                        >
+                          Send Email
+                        </Button>
+                      </DialogFooter>
+                    </DialogContent>
+                  </Dialog>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+    </div>
+  );
+}

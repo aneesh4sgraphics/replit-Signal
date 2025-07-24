@@ -1,13 +1,162 @@
-import { useState } from "react";
+import { useState, useRef } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
-import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Upload, Download, Search, Plus, Edit, Trash2 } from "lucide-react";
+import { Progress } from "@/components/ui/progress";
+import { Alert, AlertDescription } from "@/components/ui/alert";
+import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+
+interface ProductData {
+  ItemCode: string;
+  product_name: string;
+  ProductType: string;
+  size: string;
+  total_sqm: number;
+  min_quantity: number;
+  Export: number;
+  "M.Distributor": number;
+  Dealer: number;
+  Dealer2: number;
+  ApprovalNeeded: number;
+  TierStage25: number;
+  TierStage2: number;
+  TierStage15: number;
+  TierStage1: number;
+  Retail: number;
+}
 
 export default function ProductPricingManagement() {
-  const [searchTerm, setSearchTerm] = useState("");
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState(0);
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+
+  // Fetch current product data stats
+  const { data: productData = [], isLoading } = useQuery<ProductData[]>({
+    queryKey: ['/api/product-pricing-data'],
+  });
+
+  const stats = {
+    totalProducts: productData.length,
+    categories: Array.from(new Set(productData.map(item => item.product_name))).length,
+    lastUpdated: new Date().toLocaleDateString()
+  };
+
+  const handleFileUpload = async (file: File) => {
+    if (!file.name.endsWith('.xlsx') && !file.name.endsWith('.xls')) {
+      toast({
+        title: "Invalid File Type",
+        description: "Please upload an Excel file (.xlsx or .xls)",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress(10);
+    setUploadResult(null);
+
+    const formData = new FormData();
+    formData.append('file', file);
+
+    try {
+      setUploadProgress(30);
+      
+      const response = await fetch('/api/upload-pricing-excel', {
+        method: 'POST',
+        body: formData
+      });
+
+      setUploadProgress(70);
+
+      if (!response.ok) {
+        throw new Error('Upload failed');
+      }
+
+      const result = await response.json();
+      setUploadProgress(100);
+      
+      setUploadResult({
+        success: true,
+        message: `Successfully uploaded ${result.recordsProcessed || 0} products`,
+        count: result.recordsProcessed
+      });
+
+      // Refresh the data
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-data'] });
+
+      toast({
+        title: "Upload Successful",
+        description: `Processed ${result.recordsProcessed || 0} products from ${file.name}`,
+      });
+
+    } catch (error) {
+      setUploadResult({
+        success: false,
+        message: `Upload failed: ${error instanceof Error ? error.message : 'Unknown error'}`
+      });
+
+      toast({
+        title: "Upload Failed",
+        description: "Failed to process the Excel file. Please check the format and try again.",
+        variant: "destructive",
+      });
+    } finally {
+      setIsUploading(false);
+      setTimeout(() => setUploadProgress(0), 1000);
+    }
+  };
+
+  const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDrop = (event: React.DragEvent) => {
+    event.preventDefault();
+    const file = event.dataTransfer.files[0];
+    if (file) {
+      handleFileUpload(file);
+    }
+  };
+
+  const handleDragOver = (event: React.DragEvent) => {
+    event.preventDefault();
+  };
+
+  const downloadCurrentData = async () => {
+    try {
+      const response = await fetch('/api/download-pricing-data');
+      if (response.ok) {
+        const blob = await response.blob();
+        const url = window.URL.createObjectURL(blob);
+        const a = document.createElement('a');
+        a.href = url;
+        a.download = `pricing-data-${new Date().toISOString().split('T')[0]}.csv`;
+        document.body.appendChild(a);
+        a.click();
+        window.URL.revokeObjectURL(url);
+        document.body.removeChild(a);
+        
+        toast({
+          title: "Download Complete",
+          description: "Current pricing data has been downloaded",
+        });
+      }
+    } catch (error) {
+      toast({
+        title: "Download Failed",
+        description: "Failed to download current data",
+        variant: "destructive",
+      });
+    }
+  };
 
   return (
     <div className="container mx-auto p-6 space-y-6">
@@ -16,124 +165,180 @@ export default function ProductPricingManagement() {
         <div>
           <h1 className="text-3xl font-bold">ProductPricing Management</h1>
           <p className="text-gray-600 mt-2">
-            Manage product catalog and pricing data
+            Upload and manage pricing data spreadsheets for QuickQuotes and Price List apps
           </p>
         </div>
-        <div className="flex gap-2">
-          <Button variant="outline" className="gap-2">
-            <Upload className="h-4 w-4" />
-            Upload CSV
-          </Button>
-          <Button variant="outline" className="gap-2">
-            <Download className="h-4 w-4" />
-            Export CSV
-          </Button>
-          <Button className="gap-2">
-            <Plus className="h-4 w-4" />
-            Add Product
-          </Button>
-        </div>
+        <Badge variant="outline" className="px-3 py-1">
+          Admin Only
+        </Badge>
       </div>
 
-      {/* Search and Filters */}
+      {/* Upload Results */}
+      {uploadResult && (
+        <Alert className={uploadResult.success ? "border-green-200 bg-green-50" : "border-red-200 bg-red-50"}>
+          {uploadResult.success ? (
+            <CheckCircle className="h-4 w-4 text-green-600" />
+          ) : (
+            <AlertCircle className="h-4 w-4 text-red-600" />
+          )}
+          <AlertDescription className={uploadResult.success ? "text-green-700" : "text-red-700"}>
+            {uploadResult.message}
+          </AlertDescription>
+        </Alert>
+      )}
+
+      {/* Main Content */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        {/* Upload Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Upload className="h-5 w-5" />
+              Upload Pricing Data
+            </CardTitle>
+            <CardDescription>
+              Upload Excel spreadsheet to update product pricing
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div 
+              className="border-2 border-dashed border-gray-300 rounded-lg p-8 text-center hover:border-gray-400 transition-colors"
+              onDrop={handleDrop}
+              onDragOver={handleDragOver}
+            >
+              <FileSpreadsheet className="h-12 w-12 mx-auto text-gray-400 mb-4" />
+              <p className="text-gray-600 mb-4">
+                Drop your Excel file here or click to browse
+              </p>
+              <Button 
+                variant="outline" 
+                onClick={() => fileInputRef.current?.click()}
+                disabled={isUploading}
+              >
+                {isUploading ? "Uploading..." : "Browse Files"}
+              </Button>
+              <input
+                ref={fileInputRef}
+                type="file"
+                accept=".xlsx,.xls"
+                onChange={handleFileSelect}
+                className="hidden"
+              />
+            </div>
+            
+            {isUploading && (
+              <div className="space-y-2">
+                <div className="flex justify-between text-sm">
+                  <span>Uploading...</span>
+                  <span>{uploadProgress}%</span>
+                </div>
+                <Progress value={uploadProgress} className="w-full" />
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        {/* Status Section */}
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Database className="h-5 w-5" />
+              Current Data Status
+            </CardTitle>
+            <CardDescription>
+              Information about the active pricing data
+            </CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {isLoading ? (
+              <div className="space-y-2">
+                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+                <div className="h-4 bg-gray-200 rounded animate-pulse"></div>
+              </div>
+            ) : (
+              <div className="space-y-2">
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Data Source:</span>
+                  <span className="text-sm font-medium">converted_pricing_data.csv</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Total Products:</span>
+                  <span className="text-sm font-medium">{stats.totalProducts}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Categories:</span>
+                  <span className="text-sm font-medium">{stats.categories}</span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-sm text-gray-600">Last Updated:</span>
+                  <span className="text-sm font-medium">{stats.lastUpdated}</span>
+                </div>
+              </div>
+            )}
+            
+            <div className="space-y-2 pt-2">
+              <Button 
+                className="w-full" 
+                variant="secondary"
+                onClick={downloadCurrentData}
+              >
+                <Download className="h-4 w-4 mr-2" />
+                Download Current Data
+              </Button>
+              <Button 
+                className="w-full" 
+                variant="outline"
+                onClick={() => queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-data'] })}
+              >
+                <RefreshCw className="h-4 w-4 mr-2" />
+                Refresh Data
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {/* Instructions */}
       <Card>
         <CardHeader>
-          <CardTitle>Search & Filters</CardTitle>
+          <CardTitle>How to Update Pricing Data</CardTitle>
           <CardDescription>
-            Find and filter products in your catalog
+            Step-by-step instructions for uploading new pricing information
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="flex gap-4">
-            <div className="flex-1">
-              <div className="relative">
-                <Search className="absolute left-2 top-2.5 h-4 w-4 text-muted-foreground" />
-                <Input
-                  placeholder="Search products..."
-                  value={searchTerm}
-                  onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-8"
-                />
+          <div className="space-y-4 text-sm">
+            <div className="flex gap-3">
+              <Badge variant="outline" className="w-6 h-6 rounded-full flex items-center justify-center text-xs">1</Badge>
+              <div>
+                <h4 className="font-medium mb-1">Prepare Your Excel File</h4>
+                <p className="text-gray-600">
+                  Ensure your Excel file contains the required columns: ItemCode, product_name, ProductType, size, total_sqm, min_quantity, Export, M.Distributor, Dealer, Dealer2, ApprovalNeeded, TierStage25, TierStage2, TierStage15, TierStage1, Retail.
+                </p>
               </div>
             </div>
-            <Button variant="outline">Filter</Button>
-            <Button variant="outline">Clear</Button>
+            <div className="flex gap-3">
+              <Badge variant="outline" className="w-6 h-6 rounded-full flex items-center justify-center text-xs">2</Badge>
+              <div>
+                <h4 className="font-medium mb-1">Upload the File</h4>
+                <p className="text-gray-600">
+                  Drag and drop your Excel file into the upload area or click "Browse Files" to select it. The system will automatically process and convert the data.
+                </p>
+              </div>
+            </div>
+            <div className="flex gap-3">
+              <Badge variant="outline" className="w-6 h-6 rounded-full flex items-center justify-center text-xs">3</Badge>
+              <div>
+                <h4 className="font-medium mb-1">Verify Data</h4>
+                <p className="text-gray-600">
+                  After successful upload, visit the QuickQuotes and Price List apps to verify that the new pricing data is properly loaded and all products are accessible.
+                </p>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>
-
-      {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle>Product Catalog</CardTitle>
-          <CardDescription>
-            Complete product and pricing information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="rounded-md border">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Product Name</TableHead>
-                  <TableHead>Category</TableHead>
-                  <TableHead>Size</TableHead>
-                  <TableHead>Price</TableHead>
-                  <TableHead>Status</TableHead>
-                  <TableHead className="text-right">Actions</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                <TableRow>
-                  <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">
-                    No products found. Upload a CSV file or add products manually to get started.
-                  </TableCell>
-                </TableRow>
-              </TableBody>
-            </Table>
-          </div>
-        </CardContent>
-      </Card>
-
-      {/* Statistics */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Total Products</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">No products loaded</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Categories</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">No categories</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Pricing Tiers</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">0</div>
-            <p className="text-xs text-muted-foreground">No tiers defined</p>
-          </CardContent>
-        </Card>
-        <Card>
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium">Last Updated</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="text-2xl font-bold">-</div>
-            <p className="text-xs text-muted-foreground">Never</p>
-          </CardContent>
-        </Card>
-      </div>
     </div>
   );
 }

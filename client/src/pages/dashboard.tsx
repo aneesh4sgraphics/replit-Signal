@@ -143,18 +143,43 @@ export default function Dashboard() {
           <h3 className="text-base sm:text-lg font-semibold text-gray-900 mb-3 sm:mb-4">Applications</h3>
           <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-2 sm:gap-4">
 
-
-            {/* ProductPricing Management */}
-            <Link href="/product-pricing-management">
+            {/* QuickQuotes */}
+            <Link href="/quote-calculator">
               <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-blue-50 to-indigo-100 border-0 shadow-md h-full">
                 <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
                   <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-blue-500 to-indigo-600 rounded-xl flex items-center justify-center shadow-lg">
-                    <Database className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
+                    <Zap className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
                   </div>
-                  <CardTitle className="text-xs sm:text-sm font-semibold text-blue-800">ProductPricing Mgmt</CardTitle>
+                  <CardTitle className="text-xs sm:text-sm font-semibold text-blue-800">QuickQuotes</CardTitle>
                 </CardHeader>
               </Card>
             </Link>
+
+            {/* Price List */}
+            <Link href="/price-list">
+              <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-green-50 to-emerald-100 border-0 shadow-md h-full">
+                <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                  <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-green-500 to-emerald-600 rounded-xl flex items-center justify-center shadow-lg">
+                    <Layers className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
+                  </div>
+                  <CardTitle className="text-xs sm:text-sm font-semibold text-green-800">Price List</CardTitle>
+                </CardHeader>
+              </Card>
+            </Link>
+
+            {/* ProductPricing Management - Admin Only */}
+            {(user as any)?.role === 'admin' && (
+              <Link href="/product-pricing-management">
+                <Card className="cursor-pointer hover:shadow-xl transition-all duration-300 hover:scale-105 bg-gradient-to-br from-purple-50 to-pink-100 border-0 shadow-md h-full">
+                  <CardHeader className="text-center pb-2 sm:pb-3 pt-4 sm:pt-4">
+                    <div className="w-12 h-12 sm:w-12 sm:h-12 mx-auto mb-2 bg-gradient-to-br from-purple-500 to-pink-600 rounded-xl flex items-center justify-center shadow-lg">
+                      <Database className="w-6 h-6 sm:w-6 sm:h-6 text-white" />
+                    </div>
+                    <CardTitle className="text-xs sm:text-sm font-semibold text-purple-800">ProductPricing Mgmt</CardTitle>
+                  </CardHeader>
+                </Card>
+              </Link>
+            )}
 
             {/* SqM Calculator */}
             <Link href="/area-pricer">

@@ -25,6 +25,7 @@ import {
 } from "./fileLogger";
 import { db } from "./db";
 import { pricingData } from "@shared/schema";
+import { addPricingRoutes } from "./routes-pricing";
 
 // Simple in-memory cache for frequently accessed data
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -2536,6 +2537,196 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching product types:", error);
       res.status(500).json({ error: "Failed to fetch product types" });
+    }
+  });
+
+  // API endpoint to serve the converted pricing data
+  app.get("/api/product-pricing-data", isAuthenticated, async (req, res) => {
+    try {
+      const fs = await import('fs');
+      const path = await import('path');
+      
+      const filePath = path.join(process.cwd(), 'attached_assets', 'converted_pricing_data.csv');
+      
+      if (!fs.existsSync(filePath)) {
+        return res.status(404).json({ error: "Pricing data file not found" });
+      }
+      
+      const csvContent = fs.readFileSync(filePath, 'utf-8');
+      const lines = csvContent.trim().split('\n');
+      const headers = lines[0].split(',');
+      
+      const data = lines.slice(1).map(line => {
+        const values = line.split(',');
+        const row: any = {};
+        
+        headers.forEach((header, index) => {
+          const value = values[index];
+          
+          // Convert numeric fields
+          if (['total_sqm', 'min_quantity', 'Export', 'M.Distributor', 'Dealer', 'Dealer2', 
+               'ApprovalNeeded', 'TierStage25', 'TierStage2', 'TierStage15', 'TierStage1', 'Retail'].includes(header)) {
+            row[header] = parseFloat(value) || 0;
+          } else {
+            // Clean up quoted values
+            row[header] = value.replace(/^"|"$/g, '');
+          }
+        });
+        
+        return row;
+      });
+      
+      res.json(data);
+    } catch (error) {
+      console.error("Error fetching product pricing data:", error);
+      res.status(500).json({ error: "Failed to fetch product pricing data" });
+    }
+  });
+
+  // Add pricing management routes
+  addPricingRoutes(app, isAuthenticated, requireAdmin);
+
+  // API endpoints for PDF and CSV generation
+  app.post("/api/generate-pdf-quote", isAuthenticated, async (req, res) => {
+    try {
+      const { customerName, quoteItems, quoteNumber } = req.body;
+      
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            .quote-info { margin-bottom: 20px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+            .total { font-weight: bold; font-size: 1.2em; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>4S Graphics</h1>
+            <h2>QUOTATION</h2>
+          </div>
+          <div class="quote-info">
+            <p><strong>Quote #:</strong> ${quoteNumber}</p>
+            <p><strong>Customer:</strong> ${customerName}</p>
+            <p><strong>Date:</strong> ${new Date().toLocaleDateString()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Product</th>
+                <th>Size</th>
+                <th>Quantity</th>
+                <th>Price/Sheet</th>
+                <th>Total</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${quoteItems.map((item: any) => `
+                <tr>
+                  <td>${item.productType}</td>
+                  <td>${item.size}</td>
+                  <td>${item.quantity}</td>
+                  <td>$${item.pricePerSheet.toFixed(2)}</td>
+                  <td>$${item.total.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+          <div class="total">
+            Total: $${quoteItems.reduce((sum: number, item: any) => sum + item.total, 0).toFixed(2)}
+          </div>
+        </body>
+        </html>
+      `;
+      
+      res.json({ html });
+    } catch (error) {
+      console.error("Error generating PDF:", error);
+      res.status(500).json({ error: "Failed to generate PDF" });
+    }
+  });
+
+  app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
+    try {
+      const { categoryName, tierName, items } = req.body;
+      
+      const html = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <style>
+            body { font-family: Arial, sans-serif; margin: 40px; }
+            .header { text-align: center; margin-bottom: 30px; }
+            table { width: 100%; border-collapse: collapse; margin-bottom: 20px; }
+            th, td { border: 1px solid #ddd; padding: 8px; text-align: left; }
+            th { background-color: #f2f2f2; }
+          </style>
+        </head>
+        <body>
+          <div class="header">
+            <h1>4S Graphics</h1>
+            <h2>PRICE LIST - ${categoryName}</h2>
+            <p>Pricing Tier: ${tierName}</p>
+            <p>Date: ${new Date().toLocaleDateString()}</p>
+          </div>
+          <table>
+            <thead>
+              <tr>
+                <th>Item Code</th>
+                <th>Product Type</th>
+                <th>Size</th>
+                <th>Min Qty</th>
+                <th>Price/Sq.M</th>
+                <th>Price/Sheet</th>
+                <th>Price Per Pack</th>
+              </tr>
+            </thead>
+            <tbody>
+              ${items.map((item: any) => `
+                <tr>
+                  <td>${item.itemCode}</td>
+                  <td>${item.productType}</td>
+                  <td>${item.size}</td>
+                  <td>${item.minQty}</td>
+                  <td>$${item.pricePerSqM.toFixed(2)}</td>
+                  <td>$${item.pricePerSheet.toFixed(2)}</td>
+                  <td>$${item.pricePerPack.toFixed(2)}</td>
+                </tr>
+              `).join('')}
+            </tbody>
+          </table>
+        </body>
+        </html>
+      `;
+      
+      res.json({ html });
+    } catch (error) {
+      console.error("Error generating price list PDF:", error);
+      res.status(500).json({ error: "Failed to generate price list PDF" });
+    }
+  });
+
+  app.post("/api/generate-price-list-csv", isAuthenticated, async (req, res) => {
+    try {
+      const { categoryName, tierName, items } = req.body;
+      
+      const csvHeader = "Item Code,Product Type,Size,Min Qty,Price/Sq.M,Price/Sheet,Price Per Pack\n";
+      const csvRows = items.map((item: any) => 
+        `${item.itemCode},${item.productType},"${item.size}",${item.minQty},${item.pricePerSqM.toFixed(2)},${item.pricePerSheet.toFixed(2)},${item.pricePerPack.toFixed(2)}`
+      ).join('\n');
+      
+      const csv = csvHeader + csvRows;
+      const filename = `price-list-${categoryName.replace(/\s+/g, '-')}-${tierName}-${new Date().toISOString().split('T')[0]}.csv`;
+      
+      res.json({ csv, filename });
+    } catch (error) {
+      console.error("Error generating price list CSV:", error);
+      res.status(500).json({ error: "Failed to generate price list CSV" });
     }
   });
 
