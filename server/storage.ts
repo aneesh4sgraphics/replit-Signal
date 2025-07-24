@@ -28,7 +28,7 @@ import {
   pricingData
 } from "@shared/schema";
 import { parseProductData } from "./csv-parser";
-import { parseCustomerData } from "./customer-parser";
+import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
 import { eq, desc, and } from "drizzle-orm";
 
@@ -204,15 +204,7 @@ export class MemStorage implements IStorage {
         this.currentPricingId = Math.max(this.currentPricingId, pricing.id + 1);
       });
 
-      // Initialize customers from CSV
-      const customerData = parseCustomerData();
-      customerData.forEach(customer => {
-        this.customers.set(customer.id, {
-          ...customer,
-          createdAt: new Date(),
-          updatedAt: new Date()
-        });
-      });
+      // Initialize customers (now handled via database, skip CSV initialization)
       
       console.log(`Loaded ${this.productSizes.size} product sizes from CSV`);
       

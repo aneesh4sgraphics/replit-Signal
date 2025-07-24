@@ -105,12 +105,12 @@ export const fileUploads = pgTable("file_uploads", {
 });
 
 export const customers = pgTable("customers", {
-  id: varchar("id").primaryKey().notNull(),
-  firstName: varchar("first_name", { length: 255 }).notNull(),
-  lastName: varchar("last_name", { length: 255 }).notNull(),
+  id: varchar("id").primaryKey().notNull(), // Customer ID from CSV
+  firstName: varchar("first_name", { length: 255 }),
+  lastName: varchar("last_name", { length: 255 }),
   email: varchar("email", { length: 255 }),
   acceptsEmailMarketing: boolean("accepts_email_marketing").default(false),
-  company: varchar("company", { length: 255 }).notNull(),
+  company: varchar("company", { length: 255 }),
   address1: varchar("address1", { length: 255 }),
   address2: varchar("address2", { length: 255 }),
   city: varchar("city", { length: 255 }),
@@ -118,13 +118,20 @@ export const customers = pgTable("customers", {
   country: varchar("country", { length: 255 }),
   zip: varchar("zip", { length: 20 }),
   phone: varchar("phone", { length: 50 }),
+  defaultAddressPhone: varchar("default_address_phone", { length: 50 }),
+  acceptsSmsMarketing: boolean("accepts_sms_marketing").default(false),
   totalSpent: decimal("total_spent", { precision: 10, scale: 2 }).default("0"),
   totalOrders: integer("total_orders").default(0),
   note: text("note"),
+  taxExempt: boolean("tax_exempt").default(false),
   tags: varchar("tags", { length: 500 }),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Customer schema types
+export type Customer = typeof customers.$inferSelect;
+export type InsertCustomer = typeof customers.$inferInsert;
 
 export const sentQuotes = pgTable("sent_quotes", {
   id: serial("id").primaryKey(),

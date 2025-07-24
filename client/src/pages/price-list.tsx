@@ -129,7 +129,7 @@ export default function PriceList() {
   const [selectedTier, setSelectedTier] = useState<string>("");
   const [showPriceList, setShowPriceList] = useState<boolean>(false);
   const [selectedRows, setSelectedRows] = useState<Set<string>>(new Set());
-  const [selectedCustomer, setSelectedCustomer] = useState<string>("");
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [showDownloadDialog, setShowDownloadDialog] = useState<boolean>(false);
   const [showNewCustomerDialog, setShowNewCustomerDialog] = useState<boolean>(false);
   const [downloadType, setDownloadType] = useState<"pdf" | "csv">("pdf");
@@ -202,7 +202,7 @@ export default function PriceList() {
   // Get selected category data
   const selectedCategoryData = categories.find((c: ProductCategory) => c.id === parseInt(selectedCategory));
   const selectedTierData = getFilteredPricingTiers().find(t => t.id === parseInt(selectedTier));
-  const selectedCustomerData = customers.find((c: Customer) => c.id === selectedCustomer);
+  const selectedCustomerData = selectedCustomer;
 
   // Create price list items for selected category with proper filtering
   const priceListItems: PriceListItem[] = selectedCategory && selectedTier ? 

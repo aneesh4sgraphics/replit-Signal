@@ -9,7 +9,7 @@ import puppeteer from 'puppeteer';
 import { storage } from "./storage";
 import { z } from "zod";
 import { parseProductData } from "./csv-parser";
-import { parseCustomerData } from "./customer-parser";
+import { parseCustomerCSV } from "./customer-parser";
 
 import { generateQuoteHTMLForDownload, generateQuoteNumber, generatePriceListHTML, generatePriceListCSV } from "./simple-pdf-generator";
 import { generateUniqueQuoteNumber, validateQuoteNumber } from "./quote-number-generator";
@@ -1179,136 +1179,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Read the uploaded CSV file
-      const newCsvContent = fs.readFileSync(req.file.path, 'utf-8');
-      const targetPath = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
+      const csvContent = fs.readFileSync(req.file.path, 'utf-8');
       
-      let mergedContent = newCsvContent;
-      let newCount = 0;
-      let updatedCount = 0;
-      let duplicateCount = 0;
-      let totalCount = 0;
+      // Use the customer parser to process the CSV
+      const { parseCustomerCSV } = await import("./customer-parser");
+      const { newCustomers, updatedCustomers, errors } = await parseCustomerCSV(csvContent);
       
-      // Check if existing customer file exists
-      if (fs.existsSync(targetPath)) {
-        const existingContent = fs.readFileSync(targetPath, 'utf-8');
-        
-        // Parse both files
-        const parseCustomerCSV = (content: string) => {
-          const lines = content.split('\n').filter(line => line.trim());
-          const rows = [];
-          for (const line of lines) {
-            // Simple parsing - can be enhanced if needed
-            const cells = line.split(',').map(cell => cell.trim().replace(/^'|'$/g, ''));
-            rows.push(cells);
-          }
-          return rows;
-        };
-        
-        const existingRows = parseCustomerCSV(existingContent);
-        const newRows = parseCustomerCSV(newCsvContent);
-        
-        if (existingRows.length > 0 && newRows.length > 0) {
-          // Use the header from existing file
-          const header = existingRows[0];
-          const existingData = existingRows.slice(1);
-          const newData = newRows.slice(1);
-          
-          // Create a map of existing customer data for duplicate detection and updates
-          const existingDataMap = new Map(existingData.map(row => [row[0], row]));
-          
-          let updatedCount = 0;
-          const finalData = [...existingData];
-          
-          // Process new data to add new records or update existing ones
-          for (const newRow of newData) {
-            const customerId = newRow[0];
-            
-            if (existingDataMap.has(customerId)) {
-              // Check if any field has new/different data
-              const existingRow = existingDataMap.get(customerId);
-              let hasUpdates = false;
-              const updatedRow = [...existingRow];
-              
-              // Compare each field and update if new data is not empty and different
-              for (let i = 0; i < newRow.length && i < existingRow.length; i++) {
-                const newValue = newRow[i]?.trim() || '';
-                const existingValue = existingRow[i]?.trim() || '';
-                
-                // Update if new value is not empty and different from existing
-                if (newValue && newValue !== existingValue) {
-                  updatedRow[i] = newValue;
-                  hasUpdates = true;
-                }
-              }
-              
-              if (hasUpdates) {
-                // Find and update the record in finalData
-                const index = finalData.findIndex(row => row[0] === customerId);
-                if (index !== -1) {
-                  finalData[index] = updatedRow;
-                  updatedCount++;
-                }
-              } else {
-                duplicateCount++;
-              }
-            } else {
-              // New customer
-              finalData.push(newRow);
-              newCount++;
-            }
-          }
-          
-          totalCount = finalData.length;
-          
-          // Reconstruct CSV
-          const mergedRows = [header, ...finalData];
-          mergedContent = mergedRows.map(row => row.join(',')).join('\n');
-        }
+      // Save the uploaded file for records
+      const targetPath = path.join(process.cwd(), 'attached_assets', 'customer-data_' + Date.now() + '.csv');
+      fs.writeFileSync(targetPath, csvContent);
+      
+      // Clean up uploaded file
+      fs.unlinkSync(req.file.path);
+
+      // Clear cache to ensure fresh customer data
+      setCachedData("customers", null);
+
+      let message: string;
+      if (errors.length > 0) {
+        message = `Customer data uploaded with ${errors.length} errors: ${newCustomers} new customers added, ${updatedCustomers} customers updated. Check logs for error details.`;
+      } else if (newCustomers > 0 && updatedCustomers > 0) {
+        message = `Customer data uploaded successfully: ${newCustomers} new customers added, ${updatedCustomers} customers updated`;
+      } else if (newCustomers > 0) {
+        message = `Customer data uploaded successfully: ${newCustomers} new customers added`;
+      } else if (updatedCustomers > 0) {
+        message = `Customer data uploaded successfully: ${updatedCustomers} customers updated`;
       } else {
-        // No existing file, count new records
-        const lines = newCsvContent.split('\n').filter(line => line.trim());
-        newCount = lines.length - 1; // Subtract header
-        totalCount = newCount;
+        message = "No customers were processed. Please check the file format.";
       }
-      
-      // Save the merged file
-      if (!safeWriteFile(targetPath, mergedContent)) {
-        return res.status(500).json({ error: "Failed to save customer data file" });
-      }
-      
-      // Clean up the temporary file
-      safeDeleteFile(req.file.path);
-      
-      // Clear customer cache to ensure fresh data is loaded
-      cache.delete('customers');
-      
-      console.log(`Customer data upload completed: ${newCount} new, ${updatedCount} updated, ${duplicateCount} duplicates skipped, ${totalCount} total`);
-      
-      // Create appropriate message based on results
-      let message = "Customer data uploaded successfully";
-      if (newCount > 0 && updatedCount > 0 && duplicateCount > 0) {
-        message = `Customer data uploaded: ${newCount} new customers added, ${updatedCount} customers updated, ${duplicateCount} duplicates not imported`;
-      } else if (newCount > 0 && updatedCount > 0) {
-        message = `Customer data uploaded: ${newCount} new customers added, ${updatedCount} customers updated`;
-      } else if (newCount > 0 && duplicateCount > 0) {
-        message = `Customer data uploaded: ${newCount} new customers added, ${duplicateCount} duplicates not imported`;
-      } else if (updatedCount > 0 && duplicateCount > 0) {
-        message = `Customer data uploaded: ${updatedCount} customers updated, ${duplicateCount} duplicates not imported`;
-      } else if (newCount > 0) {
-        message = `Customer data uploaded: ${newCount} new customers added successfully`;
-      } else if (updatedCount > 0) {
-        message = `Customer data uploaded: ${updatedCount} customers updated successfully`;
-      } else if (duplicateCount > 0) {
-        message = `Upload completed: ${duplicateCount} duplicate customers found and not imported. No changes made.`;
-      }
-      
+
       res.json({ 
         message,
         stats: {
-          newCustomers: newCount,
-          updatedCustomers: updatedCount || 0,
-          duplicatesSkipped: duplicateCount,
-          totalCustomers: totalCount
+          newCustomers,
+          updatedCustomers,
+          errors: errors.length,
+          totalCustomers: newCustomers + updatedCustomers
         }
       });
     } catch (error) {
