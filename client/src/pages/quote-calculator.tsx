@@ -77,7 +77,7 @@ export default function QuoteCalculator() {
   });
 
   // Get unique categories
-  const categories = Array.from(new Set(productData.map(item => item.product_name))).sort();
+  const categories = [...new Set(productData.map(item => item.product_name))].sort();
   
   // Get product types for selected category
   const productTypes = selectedCategory
@@ -175,37 +175,58 @@ export default function QuoteCalculator() {
     }
   });
 
-  const sendEmailMutation = useMutation({
-    mutationFn: async () => {
-      const response = await fetch('/api/send-email-quote', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          customerName,
-          customerEmail,
-          quoteItems
-        })
-      });
-      
-      if (!response.ok) throw new Error('Failed to send email');
-      return response.json();
-    },
-    onSuccess: () => {
+  const handleEmailQuote = () => {
+    if (!customerEmail || !customerName) {
       toast({
-        title: "Email Sent",
-        description: `Quote sent to ${customerEmail}`,
-      });
-      setIsEmailDialogOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/sent-quotes'] });
-    },
-    onError: () => {
-      toast({
-        title: "Error",
-        description: "Failed to send email",
+        title: "Missing Information",
+        description: "Please enter customer name and email",
         variant: "destructive",
       });
+      return;
     }
-  });
+
+    // Generate email content
+    const quoteNumber = `4SG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
+    const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
+    
+    const emailSubject = `Quote ${quoteNumber} from 4S Graphics`;
+    const emailBody = `Dear ${customerName},
+
+Please find your quote details below:
+
+Quote Number: ${quoteNumber}
+Date: ${new Date().toLocaleDateString()}
+
+QUOTE ITEMS:
+${quoteItems.map((item, index) => 
+  `${index + 1}. ${item.productType}
+   Size: ${item.size}
+   Quantity: ${item.quantity}
+   Price per Sheet: $${item.pricePerSheet.toFixed(2)}
+   Total: $${item.total.toFixed(2)}`
+).join('\n\n')}
+
+TOTAL AMOUNT: $${totalAmount.toFixed(2)}
+
+Thank you for choosing 4S Graphics. Please contact us if you have any questions.
+
+Best regards,
+4S Graphics Team`;
+
+    // Create mailto link
+    const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    
+    // Open default email client
+    window.location.href = mailtoLink;
+    
+    // Show success message
+    toast({
+      title: "Email Opened",
+      description: `Email composed for ${customerName} (${customerEmail})`,
+    });
+    
+    setIsEmailDialogOpen(false);
+  };
 
   if (isLoading) {
     return (
@@ -471,10 +492,10 @@ export default function QuoteCalculator() {
                       </div>
                       <DialogFooter>
                         <Button
-                          onClick={() => sendEmailMutation.mutate()}
-                          disabled={!customerName || !customerEmail || sendEmailMutation.isPending}
+                          onClick={handleEmailQuote}
+                          disabled={!customerName || !customerEmail}
                         >
-                          Send Email
+                          Compose Email
                         </Button>
                       </DialogFooter>
                     </DialogContent>

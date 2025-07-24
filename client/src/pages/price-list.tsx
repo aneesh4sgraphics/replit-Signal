@@ -66,7 +66,7 @@ export default function PriceList() {
   });
 
   // Get unique categories
-  const categories = Array.from(new Set(productData.map(item => item.product_name))).sort();
+  const categories = [...new Set(productData.map(item => item.product_name))].sort();
 
   // Generate price list when category or tier changes
   useEffect(() => {
