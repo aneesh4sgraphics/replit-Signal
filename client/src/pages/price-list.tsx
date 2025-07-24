@@ -107,7 +107,8 @@ export default function PriceList() {
           categoryName: selectedCategory,
           tierName: selectedTier,
           quoteNumber: `PL${Date.now()}`,
-          items: priceListItems
+          items: priceListItems,
+          customerName: "Alpha One USA" // Default customer name as shown in example
         })
       });
       

@@ -2614,7 +2614,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
     try {
-      const { categoryName, tierName, items } = req.body;
+      const { categoryName, tierName, items, customerName } = req.body;
       
       if (!categoryName || !tierName || !items || !Array.isArray(items)) {
         return res.status(400).json({ error: "Category name, tier name, and items are required" });
@@ -2626,7 +2626,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const html = generatePriceListHTML({
         categoryName,
         tierName,
-        items
+        items,
+        customerName
       });
       
       res.json({ html });
