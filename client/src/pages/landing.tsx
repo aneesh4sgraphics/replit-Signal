@@ -1,5 +1,5 @@
 import { Button } from "@/components/ui/button";
-import logo from "@assets/4s logo Clean High res_1752588087394.jpg";
+const logo = "/company-logo.jpg";
 
 export default function Landing() {
   return (

@@ -75,13 +75,6 @@ export default function PriceManagement() {
   // Fetch pricing data
   const { data: pricingData, isLoading, error } = useQuery<PricingDataEntry[]>({
     queryKey: ["/api/pricing-data"],
-    queryFn: async () => {
-      const response = await fetch('/api/pricing-data');
-      if (!response.ok) {
-        throw new Error('Failed to fetch pricing data');
-      }
-      return response.json();
-    },
     staleTime: 2 * 60 * 1000, // 2 minutes
     gcTime: 5 * 60 * 1000, // 5 minutes
   });

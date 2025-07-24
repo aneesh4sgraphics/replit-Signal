@@ -4,7 +4,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { ChevronDown, LogOut, Settings, User } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
-import logoImage from "@assets/4s logo Clean High res_1752588087394.jpg";
+const logoImage = "/company-logo.jpg";
 
 export default function AppHeader() {
   const { user } = useAuth();
