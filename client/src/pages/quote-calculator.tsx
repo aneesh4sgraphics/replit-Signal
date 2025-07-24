@@ -213,56 +213,25 @@ export default function QuoteCalculator() {
     });
     
     const emailSubject = `Quote ${quoteNumber} from 4S Graphics`;
-    const emailBody = `Dear ${customerName},
+    const emailBody = `Dear Mr. ${customerName}
 
-Thank you for your interest in 4S Graphics products. Please find your detailed quote below:
+Thank you for interest in our products, here is the quote you requested:
 
-═══════════════════════════════════════════════════
-QUOTATION DETAILS
-═══════════════════════════════════════════════════
+${quoteItems.map((item) => 
+  `Product Name: ${item.productName}
+Product Type: ${item.productType}
+Size: ${item.size}
+Item Code: ${item.itemCode}
+Price/Sheet: $${item.pricePerSheet.toFixed(2)}
+Minimum Order Quantity: ${item.minOrderQty}
 
-Quote Number: ${quoteNumber}
-Date: ${currentDate}
-Customer: ${customerName}
-Email: ${customerEmail}
-
-═══════════════════════════════════════════════════
-QUOTE ITEMS
-═══════════════════════════════════════════════════
-
-${quoteItems.map((item, index) => 
-  `${index + 1}. ${item.productName} - ${item.productType}
-   • Item Code: ${item.itemCode}
-   • Size: ${item.size} (${item.squareMeters.toFixed(2)} sq.m)
-   • Quantity: ${item.quantity} sheets
-   • Tier: ${item.tier}
-   • Price per Sq.M: $${item.pricePerSqM.toFixed(2)}
-   • Price per Sheet: $${item.pricePerSheet.toFixed(2)}
-   • Min Order Qty: ${item.minOrderQty} sheets
-   • Line Total: $${item.total.toFixed(2)}`
+—————————————`
 ).join('\n\n')}
 
-═══════════════════════════════════════════════════
-QUOTE SUMMARY
-═══════════════════════════════════════════════════
+We eagerly look forward for your business.
 
-Total Items: ${quoteItems.length}
-Total Quantity: ${quoteItems.reduce((sum, item) => sum + item.quantity, 0)} sheets
-TOTAL AMOUNT: $${totalAmount.toFixed(2)}
-
-═══════════════════════════════════════════════════
-
-This quote is valid for 30 days from the date above. All prices are in USD and exclude shipping costs.
-
-For questions about this quote or to place an order, please contact us:
-• Email: sales@4sgraphics.com
-• Phone: [Your Phone Number]
-
-Thank you for choosing 4S Graphics for your printing needs. We look forward to working with you!
-
-Best regards,
-4S Graphics Team
-Professional Printing Solutions`;
+Yours truly
+4S Graphics Team`;
 
     // Create mailto link
     const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
