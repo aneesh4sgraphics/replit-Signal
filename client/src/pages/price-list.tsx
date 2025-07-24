@@ -244,7 +244,15 @@ export default function PriceList() {
   // Get price per pack (price per sheet × min order quantity) with rounding for retail
   const getPricePerPack = (item: PriceListItem, tierId: number) => {
     const pricePerSheet = getPricePerSheet(item, tierId);
-    const minOrderQty = Number(item.size.minOrderQty) || 50;
+    
+    // Parse minOrderQty properly - extract numeric value from strings like "1 Roll", "50 Sheets", etc.
+    let minOrderQty = 1; // Default to 1
+    const minQtyStr = item.size.minOrderQty?.toString() || "1";
+    const numericMatch = minQtyStr.match(/\d+/);
+    if (numericMatch) {
+      minOrderQty = parseInt(numericMatch[0]) || 1;
+    }
+    
     const basePackPrice = pricePerSheet * minOrderQty;
     
     // Apply 99-cent rounding only to pack price for retail pricing tier

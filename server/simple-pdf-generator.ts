@@ -469,7 +469,15 @@ export function generatePriceListHTML(request: PriceListRequest): string {
         : basePricePerSqm;
       
       const pricePerSheet = adjustedPricePerSqm * squareMeters;
-      const minOrderQty = parseInt(item.size.minOrderQty) || 1;
+      
+      // Parse minOrderQty properly - extract numeric value from strings like "1 Roll", "50 Sheets", etc.
+      let minOrderQty = 1; // Default to 1
+      const minQtyStr = item.size.minOrderQty?.toString() || "1";
+      const numericMatch = minQtyStr.match(/\d+/);
+      if (numericMatch) {
+        minOrderQty = parseInt(numericMatch[0]) || 1;
+      }
+      
       const minQtyPrice = pricePerSheet * minOrderQty;
       
       return `
@@ -739,7 +747,15 @@ export function generatePriceListCSV(request: PriceListRequest): string {
         : basePricePerSqm;
       
       const pricePerSheet = adjustedPricePerSqm * squareMeters;
-      const minOrderQty = parseInt(item.size.minOrderQty) || 1;
+      
+      // Parse minOrderQty properly - extract numeric value from strings like "1 Roll", "50 Sheets", etc.
+      let minOrderQty = 1; // Default to 1
+      const minQtyStr = item.size.minOrderQty?.toString() || "1";
+      const numericMatch = minQtyStr.match(/\d+/);
+      if (numericMatch) {
+        minOrderQty = parseInt(numericMatch[0]) || 1;
+      }
+      
       const minQtyPrice = pricePerSheet * minOrderQty;
       
       csvContent += `"${item.size.name}","${item.size.itemCode}","${item.size.minOrderQty}","$${pricePerSheet.toFixed(2)}","$${minQtyPrice.toFixed(2)}"\n`;
