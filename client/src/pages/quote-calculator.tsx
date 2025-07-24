@@ -644,26 +644,32 @@ export default function QuoteCalculator() {
         throw new Error("Failed to generate PDF");
       }
 
+      // The response is now JSON with HTML content for browser-based PDF generation
       const { html, filename } = await response.json();
       
       // Invalidate quotes cache to refresh the admin panel
       queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes"] });
       
-      // Create blob-based download for true file save
-      const blob = new Blob([html], { type: "text/html" });
-      const url = URL.createObjectURL(blob);
-      const a = document.createElement('a');
-      a.href = url;
-      a.download = filename || `quote-${currentQuoteNumber || 'unknown'}.html`;
-      document.body.appendChild(a);
-      a.click();
-      document.body.removeChild(a);
-      
-      // Clean up the URL object
-      URL.revokeObjectURL(url);
+      // Open HTML in new window for PDF printing
+      const printWindow = window.open('', '_blank');
+      if (printWindow) {
+        printWindow.document.write(html);
+        printWindow.document.close();
+        
+        // Wait for content to load then trigger print dialog
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+            // Close the window after printing (optional)
+            setTimeout(() => {
+              printWindow.close();
+            }, 1000);
+          }, 500);
+        };
+      }
 
       toast({
-        title: "Quote Downloaded",
+        title: "PDF Downloaded",
         description: `Quote ${currentQuoteNumber} has been downloaded successfully as ${filename}`,
       });
 

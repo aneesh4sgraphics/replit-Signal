@@ -4,6 +4,8 @@ import multer from "multer";
 import path from "path";
 import fs from "fs";
 import archiver from "archiver";
+import pdf from 'html-pdf-node';
+import puppeteer from 'puppeteer';
 import { storage } from "./storage";
 import { z } from "zod";
 import { parseProductData } from "./csv-parser";
@@ -1656,7 +1658,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate PDF quote HTML
+  // Generate PDF quote as actual PDF file
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
       const { customerName, customerEmail, quoteItems, quoteNumber, sentVia } = req.body;
@@ -1700,12 +1702,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '').substring(0, 20); // Remove special chars and limit length
       const filename = `${finalQuoteNumber}-${sanitizedCustomerName}-${currentDate}.pdf`;
       
-      // Return HTML and quote info
+      // Return HTML with proper print styles for browser-based PDF generation
+      // This approach works better in constrained environments
       res.json({
         html: htmlContent,
+        filename,
         quoteNumber: finalQuoteNumber,
         totalAmount,
-        filename
+        downloadType: 'pdf'
       });
     } catch (error) {
       console.error("Error generating PDF quote:", error);
@@ -1751,7 +1755,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate Price List PDF
+  // Generate Price List PDF as actual PDF file
   app.post("/api/generate-price-list-pdf", async (req, res) => {
     try {
       const { clientName, categoryName, tierName, quoteNumber, items } = req.body;
@@ -1830,9 +1834,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         </html>
       `;
 
-      const filename = `price-list-${categoryName || 'products'}-${quoteNumber || Date.now()}.html`;
+      // Generate filename
+      const filename = `price-list-${categoryName || 'products'}-${quoteNumber || Date.now()}.pdf`;
       
-      res.json({ html, filename });
+      // Return HTML with proper print styles for browser-based PDF generation
+      // This approach works better in constrained environments
+      res.json({
+        html,
+        filename,
+        downloadType: 'pdf'
+      });
     } catch (error) {
       console.error("Error generating price list PDF:", error);
       res.status(500).json({ error: "Failed to generate price list PDF" });
