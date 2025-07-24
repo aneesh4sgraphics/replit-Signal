@@ -2393,6 +2393,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // After uploading to pricingData table, also sync to productPricing table
+      console.log(`\nSyncing pricing data to productPricing system...`);
+      await syncPricingDataToProductPricing();
+      
       res.json({
         success: true,
         message: "Pricing data uploaded successfully",
@@ -2404,6 +2408,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error uploading pricing CSV:", error);
       res.status(500).json({ error: "Failed to upload pricing CSV" });
+    }
+  });
+
+  // Sync function to bridge pricingData to productPricing
+  async function syncPricingDataToProductPricing() {
+    try {
+      console.log("Starting sync from pricingData to productPricing...");
+      
+      // Get all pricing data entries
+      const pricingDataEntries = await storage.getAllPricingData();
+      console.log(`Found ${pricingDataEntries.length} pricing data entries to sync`);
+      
+      // Get all product types for mapping
+      const productTypes = await storage.getProductTypesWithCategories();
+      
+      let syncedCount = 0;
+      let errorCount = 0;
+      
+      for (const pricingEntry of pricingDataEntries) {
+        try {
+          // Find matching product type
+          const matchingType = productTypes.find(pt => 
+            pt.name.toLowerCase() === pricingEntry.productType.toLowerCase()
+          );
+          
+          if (matchingType) {
+            // Create pricing entries for each tier with pricing data
+            const tierMappings = [
+              { tierName: 'EXPORT', tierId: 1, price: pricingEntry.exportPrice },
+              { tierName: 'MASTER_DISTRIBUTOR', tierId: 2, price: pricingEntry.masterDistributorPrice },
+              { tierName: 'DEALER', tierId: 3, price: pricingEntry.dealerPrice },
+              { tierName: 'DEALER_2', tierId: 4, price: pricingEntry.dealer2Price },
+              { tierName: 'Approval_Retail', tierId: 5, price: pricingEntry.approvalRetailPrice },
+              { tierName: 'Stage25', tierId: 6, price: pricingEntry.stage25Price },
+              { tierName: 'Stage2', tierId: 7, price: pricingEntry.stage2Price },
+              { tierName: 'Stage15', tierId: 8, price: pricingEntry.stage15Price },
+              { tierName: 'Stage1', tierId: 9, price: pricingEntry.stage1Price },
+              { tierName: 'Retail', tierId: 10, price: pricingEntry.retailPrice }
+            ];
+            
+            for (const tier of tierMappings) {
+              if (tier.price && parseFloat(tier.price) > 0) {
+                try {
+                  await storage.upsertProductPricing({
+                    productTypeId: matchingType.id,
+                    tierId: tier.tierId,
+                    pricePerSquareMeter: parseFloat(tier.price),
+                    sizeId: null // General pricing, not size-specific
+                  });
+                  syncedCount++;
+                } catch (error) {
+                  console.error(`Error upserting pricing for type ${matchingType.id}, tier ${tier.tierId}:`, error);
+                  errorCount++;
+                }
+              }
+            }
+            
+            console.log(`Synced pricing for: ${pricingEntry.productType} → ${matchingType.name}`);
+          } else {
+            console.log(`No matching product type found for: "${pricingEntry.productType}"`);
+            errorCount++;
+          }
+        } catch (error) {
+          console.error(`Error processing pricing entry ${pricingEntry.id}:`, error);
+          errorCount++;
+        }
+      }
+      
+      console.log(`Sync completed: ${syncedCount} prices synced, ${errorCount} errors`);
+    } catch (error) {
+      console.error("Error in syncPricingDataToProductPricing:", error);
+    }
+  }
+
+  // Manual sync endpoint for testing
+  app.post("/api/sync-pricing", isAuthenticated, async (req, res) => {
+    try {
+      await syncPricingDataToProductPricing();
+      res.json({ success: true, message: "Pricing data synced successfully" });
+    } catch (error) {
+      console.error("Error syncing pricing data:", error);
+      res.status(500).json({ error: "Failed to sync pricing data" });
     }
   });
 

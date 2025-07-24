@@ -72,6 +72,7 @@ export interface IStorage {
   getPricingDataWithDetails(): Promise<any[]>;
   getProductTypesWithCategories(): Promise<any[]>;
   updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean>;
+  upsertProductPricing(pricing: { productTypeId: number; tierId: number; pricePerSquareMeter: number; sizeId?: number | null }): Promise<ProductPricing>;
   
   // Customers
   getCustomers(): Promise<Customer[]>;
@@ -681,6 +682,36 @@ export class MemStorage implements IStorage {
     return true;
   }
 
+  async upsertProductPricing(pricing: { productTypeId: number; tierId: number; pricePerSquareMeter: number; sizeId?: number | null }): Promise<ProductPricing> {
+    // Find existing pricing entry
+    const existingEntry = Array.from(this.productPricing.values()).find(p => 
+      p.productTypeId === pricing.productTypeId && 
+      p.tierId === pricing.tierId &&
+      p.sizeId === (pricing.sizeId || null)
+    );
+    
+    if (existingEntry) {
+      // Update existing
+      const updated = {
+        ...existingEntry,
+        pricePerSquareMeter: pricing.pricePerSquareMeter.toString()
+      };
+      this.productPricing.set(existingEntry.id, updated);
+      return updated;
+    } else {
+      // Create new
+      const newPricing = {
+        id: this.currentPricingId++,
+        productTypeId: pricing.productTypeId,
+        tierId: pricing.tierId,
+        pricePerSquareMeter: pricing.pricePerSquareMeter.toString(),
+        sizeId: pricing.sizeId || null
+      };
+      this.productPricing.set(newPricing.id, newPricing);
+      return newPricing;
+    }
+  }
+
 
 }
 
@@ -1011,6 +1042,10 @@ export class DatabaseStorage implements IStorage {
 
   async updateProductPricing(id: number, pricePerSquareMeter: number): Promise<boolean> {
     return this.memStorage.updateProductPricing(id, pricePerSquareMeter);
+  }
+
+  async upsertProductPricing(pricing: { productTypeId: number; tierId: number; pricePerSquareMeter: number; sizeId?: number | null }): Promise<ProductPricing> {
+    return this.memStorage.upsertProductPricing(pricing);
   }
 
   // Pricing Data operations
