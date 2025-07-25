@@ -204,6 +204,7 @@ export default function QuoteCalculator() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           customerName: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : "Customer",
+          customerEmail: selectedCustomer?.email || null,
           quoteNumber,
           quoteItems,
           totalAmount
@@ -249,15 +250,6 @@ export default function QuoteCalculator() {
       return;
     }
 
-    if (!selectedCustomer) {
-      toast({
-        title: "No Customer Selected",
-        description: "Please select a customer before sending email",
-        variant: "destructive",
-      });
-      return;
-    }
-
     // Generate email content
     const quoteNumber = `4SG-${new Date().toISOString().slice(0, 10).replace(/-/g, '')}-${Math.random().toString(36).substr(2, 4).toUpperCase()}`;
     const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
@@ -267,8 +259,13 @@ export default function QuoteCalculator() {
       day: 'numeric'
     });
     
+    const customerName = selectedCustomer ? 
+      `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : 
+      'Customer';
+    const customerEmail = selectedCustomer?.email || '';
+
     const emailSubject = `Quote ${quoteNumber} from 4S Graphics`;
-    const emailBody = `Dear Mr. ${selectedCustomer.firstName} ${selectedCustomer.lastName}
+    const emailBody = `Dear ${customerName},
 
 Thank you for interest in our products, here is the quote you requested:
 
@@ -289,7 +286,7 @@ Yours truly
 4S Graphics Team`;
 
     // Create mailto link
-    const mailtoLink = `mailto:${selectedCustomer.email}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
+    const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
     
     // Open default email client
     window.location.href = mailtoLink;
@@ -297,7 +294,9 @@ Yours truly
     // Show success message
     toast({
       title: "Email Client Opened",
-      description: `Comprehensive quote email composed for ${selectedCustomer.firstName} ${selectedCustomer.lastName}`,
+      description: selectedCustomer ? 
+        `Comprehensive quote email composed for ${customerName}` :
+        "Quote email composed - please add recipient email address",
     });
   };
 
@@ -732,7 +731,7 @@ Yours truly
                   <Button
                     variant="outline"
                     onClick={() => generatePDFMutation.mutate()}
-                    disabled={generatePDFMutation.isPending || !selectedCustomer}
+                    disabled={generatePDFMutation.isPending}
                     className="gap-2"
                   >
                     <Download className="h-4 w-4" />
@@ -741,7 +740,7 @@ Yours truly
                   <Button
                     variant="outline"
                     onClick={handleEmailQuote}
-                    disabled={!selectedCustomer}
+                    disabled={false}
                     className="gap-2"
                   >
                     <Mail className="h-4 w-4" />
