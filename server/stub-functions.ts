@@ -13,7 +13,7 @@ export function validateQuoteNumber(quoteNumber: string): boolean {
 }
 
 export function generateQuoteHTMLForDownload(data: any): string {
-  const { customerName, quoteNumber, quoteItems, totalAmount, title = "Quote" } = data;
+  const { customerName, quoteNumber, quoteItems, totalAmount, title = "QUICK QUOTE" } = data;
 
   const currentDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
@@ -21,16 +21,47 @@ export function generateQuoteHTMLForDownload(data: any): string {
     day: 'numeric'
   });
 
-  const itemsHTML = quoteItems.map((item: any, index: number) => `
-    <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-      <td style="padding: 8px; text-align: center;">${index + 1}</td>
-      <td style="padding: 8px; font-weight: 600;">${item.productType}</td>
-      <td style="padding: 8px;">${item.size}</td>
-      <td style="padding: 8px; text-align: center;">${item.quantity}</td>
-      <td style="padding: 8px; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
-      <td style="padding: 8px; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
-    </tr>
-  `).join('');
+  // Group items by product type
+  const itemsByType: { [key: string]: any[] } = {};
+  quoteItems.forEach((item: any) => {
+    if (!itemsByType[item.productType]) {
+      itemsByType[item.productType] = [];
+    }
+    itemsByType[item.productType].push(item);
+  });
+
+  // Generate separate tables for each product type
+  const productTables = Object.entries(itemsByType).map(([productType, items]) => {
+    const productRows = items.map((item: any, index: number) => `
+      <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.size}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tier}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="margin-bottom: 25px;">
+        <h3 style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 10px; padding: 8px 0; border-bottom: 2px solid #4CAF50;">${productType}</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white; border: 1px solid #ddd;">
+          <thead>
+            <tr style="background-color: #4CAF50;">
+              <th style="padding: 10px 12px; color: white; text-align: left; font-weight: bold; font-size: 11px;">Size</th>
+              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Tier</th>
+              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Qty</th>
+              <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Price/Sheet</th>
+              <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
 
   return `
     <!DOCTYPE html>
@@ -111,7 +142,6 @@ export function generateQuoteHTMLForDownload(data: any): string {
     </head>
     <body>
       <div class="header">
-        <img src="https://cdn.shopify.com/s/files/1/3039/2358/files/4s_logo_square_75x75_71812ee1-54b3-46ab-b989-46554c7fd1e0.jpg?v=1688121438" alt="4S Graphics Logo" />
         <div class="company-name">4S Graphics, Inc.</div>
         <div class="company-details">
           764 NW 57th Court, Fort Lauderdale, FL 33309<br>
@@ -124,31 +154,23 @@ export function generateQuoteHTMLForDownload(data: any): string {
       <div class="quote-info">
         <div><strong>Quote #:</strong> ${quoteNumber}</div>
         <div><strong>Date:</strong> ${currentDate}</div>
-        <div><strong>Customer:</strong> ${customerName}</div>
       </div>
 
-      <table>
-        <thead>
-          <tr>
-            <th>#</th>
-            <th>Product</th>
-            <th>Size</th>
-            <th>Qty</th>
-            <th>Unit Price</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemsHTML}
-        </tbody>
-      </table>
+      <div style="margin-bottom: 20px; padding: 10px; background-color: #f5f5f5;">
+        <div style="font-weight: bold;">Prepared for: ${customerName}</div>
+      </div>
 
-      <div class="total">
-        Total: $${totalAmount.toFixed(2)}
+      <div class="items-section">
+        ${productTables}
+      </div>
+
+      <div class="total" style="margin-top: 25px; text-align: right; padding: 15px; background-color: #f9f9f9;">
+        <strong style="font-size: 16px;">Total Amount: $${totalAmount.toFixed(2)}</strong>
       </div>
 
       <div class="footer">
-        Thank you for choosing 4S Graphics. Please contact us if you have questions about this quote.
+        <p>Thank you for your business!</p>
+        <p>For questions about this quote, please contact us at (954) 493.6484</p>
       </div>
     </body>
     </html>

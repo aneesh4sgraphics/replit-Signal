@@ -42,109 +42,128 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
     day: 'numeric'
   });
 
-  // Generate table rows for quote items
-  const itemRows = quoteItems.map(item => `
-    <tr>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5;">${item.productType}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.productSize}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tierName}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.quantity}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">$${item.pricePerSheet.toFixed(2)}</td>
-      <td style="padding: 12px; border-bottom: 1px solid #e5e5e5; text-align: center; font-weight: bold;">$${item.total.toFixed(2)}</td>
-    </tr>
-  `).join('');
+  // Group items by product type
+  const itemsByType: { [key: string]: QuoteItem[] } = {};
+  quoteItems.forEach(item => {
+    if (!itemsByType[item.productType]) {
+      itemsByType[item.productType] = [];
+    }
+    itemsByType[item.productType].push(item);
+  });
+
+  // Generate separate tables for each product type
+  const productTables = Object.entries(itemsByType).map(([productType, items]) => {
+    const productRows = items.map((item, index) => `
+      <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.productSize}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tierName}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.quantity}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
+      </tr>
+    `).join('');
+
+    return `
+      <div style="margin-bottom: 25px;">
+        <h3 style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 10px; padding: 8px 0; border-bottom: 2px solid #4CAF50;">${productType}</h3>
+        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white; border: 1px solid #ddd;">
+          <thead>
+            <tr style="background-color: #4CAF50;">
+              <th style="padding: 10px 12px; color: white; text-align: left; font-weight: bold; font-size: 11px;">Size</th>
+              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Tier</th>
+              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Qty</th>
+              <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Price/Sheet</th>
+              <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Total</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${productRows}
+          </tbody>
+        </table>
+      </div>
+    `;
+  }).join('');
 
   return `
     <!DOCTYPE html>
     <html>
     <head>
       <meta charset="UTF-8">
-      <title>Quote ${quoteNumber}</title>
+      <title>Quick Quote ${quoteNumber}</title>
       <style>
+        @media print {
+          @page { margin: 0.5in; }
+          body { print-color-adjust: exact; }
+        }
         body {
           font-family: Arial, sans-serif;
           margin: 0;
-          padding: 40px;
+          padding: 20px;
           color: #333;
-          line-height: 1.6;
+          line-height: 1.4;
+          font-size: 11px;
         }
         .header {
           text-align: center;
-          margin-bottom: 40px;
-          padding-bottom: 20px;
-          border-bottom: 2px solid #4CAF50;
+          margin-bottom: 30px;
+          padding-bottom: 15px;
         }
-        .logo {
-          max-width: 200px;
-          height: auto;
-          margin-bottom: 20px;
-        }
-        .company-info {
-          margin-bottom: 20px;
+        .logo-section {
+          margin-bottom: 15px;
         }
         .company-name {
           font-size: 24px;
           font-weight: bold;
-          color: #4CAF50;
-          margin-bottom: 10px;
+          color: #333;
+          margin-bottom: 8px;
         }
         .company-details {
-          font-size: 14px;
+          font-size: 12px;
           color: #666;
-          line-height: 1.4;
+          line-height: 1.3;
+          margin-bottom: 15px;
         }
-        .quote-info {
-          display: flex;
-          justify-content: space-between;
-          margin-bottom: 30px;
-          padding: 20px;
-          background-color: #f9f9f9;
-          border-radius: 8px;
-        }
-        .quote-details {
-          flex: 1;
-        }
-        .quote-number {
+        .document-title {
           font-size: 20px;
           font-weight: bold;
+          color: #333;
+          margin-top: 15px;
+          padding-top: 15px;
+          border-top: 1px solid #ccc;
+        }
+        .quote-info {
+          margin-bottom: 25px;
+          padding: 15px;
+          background-color: #f9f9f9;
+        }
+        .quote-details {
+          display: flex;
+          justify-content: space-between;
+          align-items: center;
+        }
+        .quote-number {
+          font-size: 16px;
+          font-weight: bold;
           color: #4CAF50;
-          margin-bottom: 10px;
+        }
+        .quote-date {
+          font-size: 12px;
+          color: #666;
         }
         .customer-info {
-          margin-bottom: 30px;
+          margin-bottom: 25px;
+          padding: 10px;
+          background-color: #f5f5f5;
         }
         .customer-name {
-          font-size: 18px;
+          font-size: 14px;
           font-weight: bold;
-          margin-bottom: 10px;
-        }
-        .items-table {
-          width: 100%;
-          border-collapse: collapse;
-          margin-bottom: 30px;
-          background-color: white;
-          border-radius: 8px;
-          overflow: hidden;
-          box-shadow: 0 2px 4px rgba(0,0,0,0.1);
-        }
-        .items-table th {
-          background-color: #4CAF50;
-          color: white;
-          padding: 15px 12px;
-          text-align: left;
-          font-weight: bold;
-        }
-        .items-table th:nth-child(2),
-        .items-table th:nth-child(3),
-        .items-table th:nth-child(4),
-        .items-table th:nth-child(5),
-        .items-table th:nth-child(6) {
-          text-align: center;
+          margin-bottom: 5px;
         }
         .total-section {
           text-align: right;
-          margin-top: 30px;
-          padding: 20px;
+          margin-top: 25px;
+          padding: 15px;
           background-color: #f9f9f9;
           border-radius: 8px;
         }
@@ -173,57 +192,41 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
     </head>
     <body>
       <div class="header">
-        <img src="data:image/jpeg;base64,${getLogoBase64()}" alt="4S Graphics Logo" class="logo">
-        <div class="company-info">
+        <div class="logo-section">
           <div class="company-name">${companyDetails.name}</div>
           <div class="company-details">
-            ${companyDetails.address}<br>
-            ${companyDetails.city}<br>
-            Phone: ${companyDetails.phone}<br>
-            Website: ${companyDetails.website}
+            ${companyDetails.address}, ${companyDetails.city}<br>
+            Phone: ${companyDetails.phone} | Website: https://${companyDetails.website}
           </div>
+          <div class="document-title">QUICK QUOTE</div>
         </div>
       </div>
 
       <div class="quote-info">
         <div class="quote-details">
           <div class="quote-number">Quote #${quoteNumber}</div>
-          <div>Date: ${currentDate}</div>
+          <div class="quote-date">${currentDate}</div>
         </div>
       </div>
 
       <div class="customer-info">
-        <div class="customer-name">Dear ${customerName},</div>
-        <p>Here below is the quote you requested:</p>
+        <div class="customer-name">Prepared for: ${customerName}</div>
       </div>
 
-      <table class="items-table">
-        <thead>
-          <tr>
-            <th>Product</th>
-            <th>Size</th>
-            <th>Pricing Tier</th>
-            <th>Quantity</th>
-            <th>Price per Sheet</th>
-            <th>Total</th>
-          </tr>
-        </thead>
-        <tbody>
-          ${itemRows}
-        </tbody>
-      </table>
+      <div class="items-section">
+        ${productTables}
+      </div>
 
       <div class="total-section">
-        <div style="font-size: 16px; margin-bottom: 10px;">Quote Total:</div>
-        <div class="total-amount">$${totalAmount.toFixed(2)}</div>
+        <div class="total-amount">
+          <strong style="font-size: 14px;">Total Amount: $${totalAmount.toFixed(2)}</strong>
+        </div>
       </div>
 
-      <div class="footer">
+      <div style="margin-top: 30px; text-align: center; font-size: 10px; color: #666; border-top: 1px solid #ccc; padding-top: 15px;">
         <p>Thank you for your business!</p>
-        <p>This quote is valid for 30 days from the date issued.</p>
+        <p>For questions about this quote, please contact us at ${companyDetails.phone}</p>
       </div>
-
-      <div class="page-number">Page 1</div>
     </body>
     </html>
   `;
