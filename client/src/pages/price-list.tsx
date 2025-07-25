@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-// Removed Download icon as PDF/CSV export functionality has been removed
+import { FileText } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
 
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
 
