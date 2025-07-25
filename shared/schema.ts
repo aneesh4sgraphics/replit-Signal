@@ -10,14 +10,14 @@ export const productCategories = pgTable("product_categories", {
 
 export const productTypes = pgTable("product_types", {
   id: serial("id").primaryKey(),
-  categoryId: integer("category_id").notNull(),
+  categoryId: integer("category_id").notNull().references(() => productCategories.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   description: text("description"),
 });
 
 export const productSizes = pgTable("product_sizes", {
   id: serial("id").primaryKey(),
-  typeId: integer("type_id").notNull(),
+  typeId: integer("type_id").notNull().references(() => productTypes.id, { onDelete: "cascade" }),
   name: varchar("name", { length: 255 }).notNull(),
   width: decimal("width", { precision: 10, scale: 2 }).notNull(),
   height: decimal("height", { precision: 10, scale: 2 }).notNull(),
