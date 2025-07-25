@@ -11,7 +11,7 @@ import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
-import { HeaderDivider, SimpleCardFrame, FloatingElements, IconBadge } from "@/components/NotionLineArt";
+import { HeaderDivider, SimpleCardFrame, FloatingElements, IconBadge, SectionDivider } from "@/components/NotionLineArt";
 import { getUserRoleFromEmail, canAccessTier } from "@/utils/roleBasedTiers";
 import { useAuth } from "@/hooks/useAuth";
 
