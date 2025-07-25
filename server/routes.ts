@@ -2547,13 +2547,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const path = await import('path');
       
       const filePath = path.join(process.cwd(), 'attached_assets', 'converted_pricing_data.csv');
+      console.log("Reading pricing data from:", filePath);
       
       if (!fs.existsSync(filePath)) {
+        console.log("Pricing data file not found");
         return res.status(404).json({ error: "Pricing data file not found" });
       }
       
       const csvContent = fs.readFileSync(filePath, 'utf-8');
       const lines = csvContent.trim().split('\n');
+      console.log(`Pricing data loaded: ${lines.length} total lines, ${lines.length - 1} data records`);
+      
       const headers = lines[0].split(',');
       
       const data = lines.slice(1).map(line => {
@@ -2576,6 +2580,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return row;
       });
       
+      console.log(`Returning ${data.length} product records to frontend`);
       res.json(data);
     } catch (error) {
       console.error("Error fetching product pricing data:", error);

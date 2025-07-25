@@ -112,11 +112,20 @@ export default function ProductPricingManagement() {
         } : null
       });
 
-      // Refresh the data - this should remove deleted products
+      // Force clear all cached data and refetch fresh data
+      console.log("Upload successful, clearing cache and refetching data...");
+      queryClient.removeQueries({ queryKey: ['/api/product-pricing-data'] });
       await queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-data'] });
       
-      // Also refetch immediately to ensure fresh data
-      await queryClient.refetchQueries({ queryKey: ['/api/product-pricing-data'] });
+      // Small delay to ensure file is fully written
+      await new Promise(resolve => setTimeout(resolve, 100));
+      
+      // Force immediate refetch to ensure UI updates with new data
+      const refetchResult = await queryClient.refetchQueries({ 
+        queryKey: ['/api/product-pricing-data'],
+        type: 'active'
+      });
+      console.log("Refetch completed:", refetchResult);
 
       toast({
         title: "Complete Data Replacement",

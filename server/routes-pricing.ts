@@ -165,6 +165,7 @@ export function addPricingRoutes(app: any, isAuthenticated: any, requireAdmin: a
       console.log("✓ Step 3: Updated modified rows and added new entries");
       console.log("✓ Step 4: Schema alignment preserved");
       console.log(`Changes: ${addedRecordsCount} added, ${updatedRecordsCount} updated, ${removedRecordsCount} removed`);
+      console.log(`File successfully written to: ${outputPath}`);
       
       // Clean up uploaded file
       fs.unlinkSync(filePath);
