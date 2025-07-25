@@ -5,7 +5,8 @@ import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
-import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle } from "lucide-react";
+import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle } from "lucide-react";
+import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 
 interface ProductData {
@@ -30,7 +31,9 @@ interface ProductData {
 export default function ProductPricingManagement() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
-  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number; details?: any } | null>(null);
+  const [showConfirmDialog, setShowConfirmDialog] = useState(false);
+  const [pendingFile, setPendingFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -43,10 +46,12 @@ export default function ProductPricingManagement() {
   const stats = {
     totalProducts: productData.length,
     categories: Array.from(new Set(productData.map(item => item.product_name))).length,
-    lastUpdated: new Date().toLocaleDateString()
+    lastUpdated: uploadResult?.details?.timestamp 
+      ? new Date(uploadResult.details.timestamp).toLocaleString()
+      : 'Not available'
   };
 
-  const handleFileUpload = async (file: File) => {
+  const handleFileSelection = (file: File) => {
     if (!file.name.endsWith('.csv')) {
       toast({
         title: "Invalid File Type",
@@ -56,9 +61,15 @@ export default function ProductPricingManagement() {
       return;
     }
 
+    setPendingFile(file);
+    setShowConfirmDialog(true);
+  };
+
+  const handleFileUpload = async (file: File) => {
     setIsUploading(true);
     setUploadProgress(10);
     setUploadResult(null);
+    setShowConfirmDialog(false);
 
     const formData = new FormData();
     formData.append('file', file);
@@ -93,9 +104,11 @@ export default function ProductPricingManagement() {
         count: result.recordsProcessed,
         details: result.replacementComplete ? {
           total: result.newRecordsCount,
+          added: result.addedRecordsCount,
           updated: result.updatedRecordsCount,
           removed: result.removedRecordsCount,
-          previous: result.oldRecordsCount
+          previous: result.oldRecordsCount,
+          timestamp: result.timestamp
         } : null
       });
 
@@ -108,7 +121,7 @@ export default function ProductPricingManagement() {
       toast({
         title: "Complete Data Replacement",
         description: result.replacementComplete 
-          ? `${result.newRecordsCount} products now active. ${result.removedRecordsCount} removed, ${result.updatedRecordsCount} updated.`
+          ? `${result.newRecordsCount} total products. ${result.addedRecordsCount} added, ${result.updatedRecordsCount} updated, ${result.removedRecordsCount} removed.`
           : `Processed ${result.recordsProcessed || 0} products from ${file.name}.`,
       });
 
@@ -157,7 +170,7 @@ export default function ProductPricingManagement() {
   const handleFileSelect = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
-      handleFileUpload(file);
+      handleFileSelection(file);
     }
   };
 
@@ -165,8 +178,20 @@ export default function ProductPricingManagement() {
     event.preventDefault();
     const file = event.dataTransfer.files[0];
     if (file) {
-      handleFileUpload(file);
+      handleFileSelection(file);
     }
+  };
+
+  const confirmUpload = () => {
+    if (pendingFile) {
+      handleFileUpload(pendingFile);
+      setPendingFile(null);
+    }
+  };
+
+  const cancelUpload = () => {
+    setPendingFile(null);
+    setShowConfirmDialog(false);
   };
 
   const handleDragOver = (event: React.DragEvent) => {
@@ -231,9 +256,15 @@ export default function ProductPricingManagement() {
                 <div className="text-sm space-y-1 mt-2 p-2 bg-white/50 rounded">
                   <div className="font-medium">Data Replacement Summary:</div>
                   <div>• Total Products: {uploadResult.details.total}</div>
-                  <div>• Updated/Preserved: {uploadResult.details.updated}</div>
+                  <div>• Added: {uploadResult.details.added}</div>
+                  <div>• Updated: {uploadResult.details.updated}</div>
                   <div>• Removed: {uploadResult.details.removed}</div>
                   <div>• Previous Total: {uploadResult.details.previous}</div>
+                  {uploadResult.details.timestamp && (
+                    <div className="text-xs text-gray-500 mt-1">
+                      Last updated: {new Date(uploadResult.details.timestamp).toLocaleString()}
+                    </div>
+                  )}
                 </div>
               )}
             </div>
@@ -325,7 +356,7 @@ export default function ProductPricingManagement() {
                   <span className="text-sm font-medium">{stats.categories}</span>
                 </div>
                 <div className="flex justify-between">
-                  <span className="text-sm text-gray-600">Last Updated:</span>
+                  <span className="text-sm text-gray-600">Last Updated from CSV:</span>
                   <span className="text-sm font-medium">{stats.lastUpdated}</span>
                 </div>
               </div>
@@ -393,6 +424,39 @@ export default function ProductPricingManagement() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Confirmation Dialog */}
+      <Dialog open={showConfirmDialog} onOpenChange={setShowConfirmDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Confirm Data Replacement
+            </DialogTitle>
+            <DialogDescription className="space-y-2">
+              <p>This will completely overwrite existing product and pricing data with the contents of <strong>{pendingFile?.name}</strong>.</p>
+              <div className="text-sm text-amber-600 bg-amber-50 p-3 rounded border">
+                <strong>Changes that will occur:</strong>
+                <ul className="mt-1 space-y-1 text-xs">
+                  <li>• Products not in the new file will be deleted</li>
+                  <li>• Existing products will be updated with new pricing</li>
+                  <li>• New products in the file will be added</li>
+                  <li>• All apps will immediately reflect these changes</li>
+                </ul>
+              </div>
+              <p className="text-sm">Are you sure you want to continue?</p>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" onClick={cancelUpload}>
+              Cancel
+            </Button>
+            <Button onClick={confirmUpload} className="bg-blue-600 hover:bg-blue-700">
+              Yes, Replace Data
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

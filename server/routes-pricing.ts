@@ -65,44 +65,102 @@ export function addPricingRoutes(app: any, isAuthenticated: any, requireAdmin: a
         });
       }
       
-      // Complete replacement logic as requested
+      // Complete data replacement logic with precise matching as requested
       const outputPath = path.join(process.cwd(), 'attached_assets', 'converted_pricing_data.csv');
-      console.log("Implementing complete data replacement at:", outputPath);
+      console.log("Implementing complete data replacement with exact matching at:", outputPath);
       
+      let oldData: any[] = [];
       let oldRecordsCount = 0;
       let newRecordsCount = 0;
+      let addedRecordsCount = 0;
       let updatedRecordsCount = 0;
       let removedRecordsCount = 0;
       
-      // Check if old file exists to count previous records
+      // Parse old data for comparison (step 3 - track changes)
       if (fs.existsSync(outputPath)) {
         const oldContent = fs.readFileSync(outputPath, 'utf-8');
         const oldLines = oldContent.split('\n').filter(line => line.trim().length > 0);
         oldRecordsCount = Math.max(0, oldLines.length - 1); // Subtract header
         console.log(`Previous file had ${oldRecordsCount} records`);
-      }
-      
-      // Completely replace the file (steps 1, 2, 4)
-      fs.writeFileSync(outputPath, csvContent);
-      console.log("✓ Step 1: Old data completely replaced");
-      console.log("✓ Step 2: Removed entries no longer in new CSV");
-      console.log("✓ Step 4: Schema alignment preserved");
-      
-      // Count new records (step 3 analysis)
-      newRecordsCount = Math.max(0, lines.length - 1); // Subtract header
-      
-      // Calculate changes
-      if (oldRecordsCount > 0) {
-        if (newRecordsCount > oldRecordsCount) {
-          updatedRecordsCount = Math.min(oldRecordsCount, newRecordsCount);
-          removedRecordsCount = 0;
-        } else {
-          updatedRecordsCount = newRecordsCount;
-          removedRecordsCount = oldRecordsCount - newRecordsCount;
+        
+        if (oldLines.length > 1) {
+          const oldHeaders = oldLines[0].split(',').map(h => h.trim().replace(/"/g, ''));
+          for (let i = 1; i < oldLines.length; i++) {
+            const values = oldLines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+            const record: any = {};
+            oldHeaders.forEach((header, index) => {
+              record[header] = values[index] || '';
+            });
+            oldData.push(record);
+          }
         }
       }
       
-      console.log(`Records processed: ${newRecordsCount} total, ${updatedRecordsCount} updated/preserved, ${removedRecordsCount} removed`);
+      // Parse new data for matching
+      const newData: any[] = [];
+      const newHeaders = headers;
+      for (let i = 1; i < lines.length; i++) {
+        const values = lines[i].split(',').map(v => v.trim().replace(/"/g, ''));
+        const record: any = {};
+        newHeaders.forEach((header, index) => {
+          record[header] = values[index] || '';
+        });
+        newData.push(record);
+      }
+      
+      // Analyze changes using ItemCode as primary key, product_name+size as fallback
+      const getRecordKey = (record: any) => {
+        if (record.ItemCode && record.ItemCode.trim() !== '') {
+          return `item:${record.ItemCode}`;
+        }
+        return `name-size:${record.product_name || ''}:${record.size || ''}`;
+      };
+      
+      const oldMap = new Map();
+      oldData.forEach(record => {
+        const key = getRecordKey(record);
+        oldMap.set(key, record);
+      });
+      
+      const newMap = new Map();
+      newData.forEach(record => {
+        const key = getRecordKey(record);
+        newMap.set(key, record);
+      });
+      
+      // Count changes
+      newRecordsCount = newData.length;
+      addedRecordsCount = 0;
+      updatedRecordsCount = 0;
+      
+      newMap.forEach((newRecord, key) => {
+        if (oldMap.has(key)) {
+          // Check if values changed
+          const oldRecord = oldMap.get(key);
+          let hasChanges = false;
+          for (const field in newRecord) {
+            if (newRecord[field] !== oldRecord[field]) {
+              hasChanges = true;
+              break;
+            }
+          }
+          if (hasChanges) {
+            updatedRecordsCount++;
+          }
+        } else {
+          addedRecordsCount++;
+        }
+      });
+      
+      removedRecordsCount = oldRecordsCount - (newRecordsCount - addedRecordsCount);
+      
+      // Step 1 & 2 & 4: Completely replace the file 
+      fs.writeFileSync(outputPath, csvContent);
+      console.log("✓ Step 1: Old data completely replaced");
+      console.log("✓ Step 2: Removed entries no longer in new CSV");
+      console.log("✓ Step 3: Updated modified rows and added new entries");
+      console.log("✓ Step 4: Schema alignment preserved");
+      console.log(`Changes: ${addedRecordsCount} added, ${updatedRecordsCount} updated, ${removedRecordsCount} removed`);
       
       // Clean up uploaded file
       fs.unlinkSync(filePath);
@@ -110,14 +168,16 @@ export function addPricingRoutes(app: any, isAuthenticated: any, requireAdmin: a
       
       res.json({
         success: true,
-        message: `Complete data replacement successful. ${newRecordsCount} products now available. ${removedRecordsCount} old entries removed, ${updatedRecordsCount} entries updated/preserved.`,
+        message: `Complete data replacement successful. ${newRecordsCount} products now available. ${addedRecordsCount} new, ${updatedRecordsCount} updated, ${removedRecordsCount} removed.`,
         recordsProcessed: newRecordsCount,
         oldRecordsCount,
         newRecordsCount,
+        addedRecordsCount,
         updatedRecordsCount,
         removedRecordsCount,
         filename: 'converted_pricing_data.csv',
-        replacementComplete: true
+        replacementComplete: true,
+        timestamp: new Date().toISOString()
       });
       
     } catch (error) {
