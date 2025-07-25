@@ -10,6 +10,7 @@ import { Download, FileText, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
 interface ProductData {
+  [key: string]: string | number;
   ItemCode: string;
   product_name: string;
   ProductType: string;
