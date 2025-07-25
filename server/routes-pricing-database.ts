@@ -525,7 +525,24 @@ router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
     console.log("Fetching product pricing from database...");
     const pricingData = await storage.getAllProductPricingMaster();
     console.log(`Retrieved ${pricingData.length} pricing records from database`);
-    res.json(pricingData);
+    
+    // Transform decimal strings to numbers for frontend compatibility
+    const transformedData = pricingData.map(item => ({
+      ...item,
+      totalSqm: parseFloat(String(item.totalSqm || 0)),
+      exportPrice: parseFloat(String(item.exportPrice || 0)),
+      masterDistributorPrice: parseFloat(String(item.masterDistributorPrice || 0)),
+      dealerPrice: parseFloat(String(item.dealerPrice || 0)),
+      dealer2Price: parseFloat(String(item.dealer2Price || 0)),
+      approvalNeededPrice: parseFloat(String(item.approvalNeededPrice || 0)),
+      tierStage25Price: parseFloat(String(item.tierStage25Price || 0)),
+      tierStage2Price: parseFloat(String(item.tierStage2Price || 0)),
+      tierStage15Price: parseFloat(String(item.tierStage15Price || 0)),
+      tierStage1Price: parseFloat(String(item.tierStage1Price || 0)),
+      retailPrice: parseFloat(String(item.retailPrice || 0))
+    }));
+    
+    res.json({ data: transformedData });
   } catch (error) {
     console.error("Error fetching product pricing from database:", error);
     res.status(500).json({ error: "Failed to fetch product pricing from database" });

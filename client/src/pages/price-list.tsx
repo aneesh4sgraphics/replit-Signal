@@ -83,51 +83,56 @@ export default function PriceList() {
   
   const { toast } = useToast();
 
-  // Fetch product pricing data
+  // Fetch product pricing data from new database
   const { data: productData = [], isLoading } = useQuery<ProductData[]>({
-    queryKey: ['/api/product-pricing-data'],
+    queryKey: ['/api/product-pricing-database'],
+    queryFn: async () => {
+      const response = await fetch('/api/product-pricing-database');
+      if (!response.ok) {
+        throw new Error('Failed to fetch pricing data');
+      }
+      const result = await response.json();
+      return result.data || []; // Extract data from response wrapper
+    },
   });
 
   // Get unique categories
-  const categories = Array.from(new Set(productData.map(item => item.product_name))).sort();
+  const categories = Array.from(new Set(productData.map(item => item.productName))).sort();
 
   // Generate price list when category or tier changes
   useEffect(() => {
     if (selectedCategory && selectedTier) {
       const filteredProducts = productData.filter(
-        (item) => item.product_name === selectedCategory
+        (item) => item.productName === selectedCategory
       );
 
-      console.log('Filtered products for category:', selectedCategory, filteredProducts.length);
-      console.log('Selected tier:', selectedTier);
-      console.log('Sample product data:', filteredProducts[0]);
-      console.log('Available fields in product data:', filteredProducts[0] ? Object.keys(filteredProducts[0]) : 'No products found');
-
       const calculatedItems = filteredProducts.map((product) => {
-        const pricePerSqM = Number(product[selectedTier]) || 0;
-        const sqm = Number(product.total_sqm) || 0;
+        // Map tier names to new database field names
+        const tierMapping: Record<string, keyof ProductData> = {
+          'Export': 'exportPrice',
+          'M.Distributor': 'masterDistributorPrice', 
+          'Dealer': 'dealerPrice',
+          'Dealer2': 'dealer2Price',
+          'ApprovalNeeded': 'approvalNeededPrice',
+          'TierStage25': 'tierStage25Price',
+          'TierStage2': 'tierStage2Price',
+          'TierStage15': 'tierStage15Price',
+          'TierStage1': 'tierStage1Price',
+          'Retail': 'retailPrice'
+        };
+        
+        const tierField = tierMapping[selectedTier];
+        const pricePerSqM = Number(product[tierField]) || 0;
+        const sqm = parseFloat(String(product.totalSqm || 0));
         const pricePerSheet = +(pricePerSqM * sqm).toFixed(2);
-        const minQty = Number(product.min_quantity) || 1;
+        const minQty = Number(product.minQuantity) || 1;
         const pricePerPack = +(pricePerSheet * minQty).toFixed(2);
 
-        console.log('Processing product:', {
-          rawProduct: product,
-          productType: product.ProductType,
-          size: product.size,
-          itemCode: product.ItemCode,
-          selectedTierValue: product[selectedTier],
-          pricePerSqM,
-          sqm,
-          pricePerSheet,
-          minQty,
-          pricePerPack
-        });
-
         return {
-          productType: product.ProductType || 'Unknown',
-          productName: product.product_name || selectedCategory,
+          productType: product.productType || 'Unknown',
+          productName: product.productName || selectedCategory,
           size: product.size || 'N/A',
-          itemCode: product.ItemCode || '-',
+          itemCode: product.itemCode || '-',
           minQty,
           pricePerSqM,
           pricePerSheet,

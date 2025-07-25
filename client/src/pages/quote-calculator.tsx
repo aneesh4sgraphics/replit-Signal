@@ -96,7 +96,8 @@ export default function QuoteCalculator() {
       if (!response.ok) {
         throw new Error('Failed to fetch pricing data');
       }
-      return response.json();
+      const result = await response.json();
+      return result.data || []; // Extract data from response wrapper
     },
   });
 
@@ -113,7 +114,7 @@ export default function QuoteCalculator() {
     ? productData.filter(item => 
         item.productName === selectedCategory && 
         item.productType === selectedType
-      ).sort((a, b) => a.totalSqm - b.totalSqm)
+      ).sort((a, b) => parseFloat(String(a.totalSqm || 0)) - parseFloat(String(b.totalSqm || 0)))
     : [];
 
   // Get selected product details
@@ -127,7 +128,7 @@ export default function QuoteCalculator() {
     if (!selectedProduct) return;
 
     const tierPrice = selectedProduct[tier as keyof ProductData] as number;
-    const pricePerSheet = tierPrice * selectedProduct.totalSqm;
+    const pricePerSheet = tierPrice * parseFloat(String(selectedProduct.totalSqm || 0));
     const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
     const total = pricePerSheet * useQuantity;
 
@@ -142,7 +143,7 @@ export default function QuoteCalculator() {
       pricePerSheet: pricePerSheet,
       total: total,
       tier: tier,
-      squareMeters: selectedProduct.totalSqm,
+      squareMeters: parseFloat(String(selectedProduct.totalSqm || 0)),
       minOrderQty: selectedProduct.minQuantity
     };
 
@@ -427,7 +428,7 @@ Yours truly
                   <SelectContent>
                     {availableSizes.map(product => (
                       <SelectItem key={product.size} value={product.size}>
-                        {product.size} ({product.totalSqm.toFixed(4)} m²)
+                        {product.size} ({parseFloat(String(product.totalSqm || 0)).toFixed(4)} m²)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -469,7 +470,7 @@ Yours truly
                 <div className="grid grid-cols-1 gap-3">
                   {pricingTiers.map(tier => {
                     const price = selectedProduct[tier.key as keyof ProductData] as number;
-                    const pricePerSheet = price * selectedProduct.totalSqm;
+                    const pricePerSheet = price * parseFloat(String(selectedProduct.totalSqm || 0));
                     const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
                     const total = pricePerSheet * useQuantity;
 

@@ -93,7 +93,8 @@ export default function ProductPricingManagementNew() {
       if (!response.ok) {
         throw new Error('Failed to fetch pricing data');
       }
-      return response.json();
+      const result = await response.json();
+      return result.data || []; // Extract data from response wrapper
     },
   });
 
