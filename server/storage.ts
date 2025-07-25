@@ -24,6 +24,8 @@ import {
   fileUploads,
   productPricingMaster,
   uploadBatches,
+  productCategories,
+  productTypes,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
   type UploadBatch,
@@ -761,34 +763,54 @@ export class DatabaseStorage implements IStorage {
   // For now, other methods will delegate to MemStorage
   private memStorage = new MemStorage();
 
-  // Product Categories
+  // Product Categories - Database implementation
   async getProductCategories(): Promise<ProductCategory[]> {
-    return this.memStorage.getProductCategories();
+    return await db.select().from(productCategories).orderBy(productCategories.id);
   }
 
   async getProductCategory(id: number): Promise<ProductCategory | undefined> {
-    return this.memStorage.getProductCategory(id);
+    const [result] = await db
+      .select()
+      .from(productCategories)
+      .where(eq(productCategories.id, id));
+    return result || undefined;
   }
 
   async createProductCategory(category: InsertProductCategory): Promise<ProductCategory> {
-    return this.memStorage.createProductCategory(category);
+    const [result] = await db
+      .insert(productCategories)
+      .values(category)
+      .returning();
+    return result;
   }
 
-  // Product Types
+  // Product Types - Database implementation
   async getProductTypes(): Promise<ProductType[]> {
-    return this.memStorage.getProductTypes();
+    return await db.select().from(productTypes).orderBy(productTypes.id);
   }
 
   async getProductTypesByCategory(categoryId: number): Promise<ProductType[]> {
-    return this.memStorage.getProductTypesByCategory(categoryId);
+    return await db
+      .select()
+      .from(productTypes)
+      .where(eq(productTypes.categoryId, categoryId))
+      .orderBy(productTypes.id);
   }
 
   async getProductType(id: number): Promise<ProductType | undefined> {
-    return this.memStorage.getProductType(id);
+    const [result] = await db
+      .select()
+      .from(productTypes)
+      .where(eq(productTypes.id, id));
+    return result || undefined;
   }
 
   async createProductType(type: InsertProductType): Promise<ProductType> {
-    return this.memStorage.createProductType(type);
+    const [result] = await db
+      .insert(productTypes)
+      .values(type)
+      .returning();
+    return result;
   }
 
   // Product Sizes
@@ -984,12 +1006,16 @@ export class DatabaseStorage implements IStorage {
   async bulkCreateProductPricingMaster(data: InsertProductPricingMaster[]): Promise<ProductPricingMaster[]> {
     if (data.length === 0) return [];
     
+    // Get all valid productType IDs from database for validation
+    const validProductTypes = await this.getProductTypes();
+    const validTypeIds = new Set(validProductTypes.map(t => t.id));
+    
     // Validate and sanitize productTypeId values before insertion
     const sanitizedData = data.map(item => {
-      // If productTypeId is greater than maximum valid ID or negative, set to null
-      const sanitizedProductTypeId = item.productTypeId && (item.productTypeId > 78 || item.productTypeId < 1) 
-        ? null 
-        : item.productTypeId;
+      // If productTypeId is not in valid IDs set, set to null
+      const sanitizedProductTypeId = item.productTypeId && validTypeIds.has(item.productTypeId)
+        ? item.productTypeId 
+        : null;
       
       return {
         ...item,

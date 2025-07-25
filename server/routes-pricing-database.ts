@@ -99,8 +99,47 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
     console.log(`CSV headers: ${headers.join(', ')}`);
 
     // Preload product types for faster lookups
-    const productTypes = await storage.getProductTypes();
+    let productTypes = await storage.getProductTypes();
     console.log(`Loaded ${productTypes.length} product types for matching`);
+    
+    // Create missing product types found in CSV but not in database
+    const csvProductTypes = new Set<string>();
+    for (let i = 1; i < lines.length; i++) {
+      const values = parseCSVLine(lines[i]);
+      if (values.length >= 3 && values[2]) {
+        csvProductTypes.add(values[2].trim());
+      }
+    }
+    
+    // Find and create missing product types
+    const existingTypeNames = new Set(productTypes.map(t => t.name));
+    const missingTypes = Array.from(csvProductTypes).filter(typeName => !existingTypeNames.has(typeName));
+    
+    if (missingTypes.length > 0) {
+      console.log(`Creating ${missingTypes.length} missing product types:`, missingTypes);
+      
+      // Get the default category (Graffiti Polyester Paper) or fallback to first category
+      const allCategories = await storage.getProductCategories();
+      const defaultCategory = allCategories.find(c => c.name === 'Graffiti Polyester Paper') || allCategories[0];
+      const categoryId = defaultCategory?.id || 1;
+      
+      for (const typeName of missingTypes) {
+        try {
+          const newType = await storage.createProductType({
+            name: typeName,
+            categoryId: categoryId
+          });
+          productTypes.push(newType);
+          console.log(`✓ Created product type: ${typeName} (ID: ${newType.id})`);
+        } catch (error) {
+          console.error(`Failed to create product type "${typeName}":`, error);
+        }
+      }
+      
+      // Refresh product types from database to ensure we have the latest data
+      productTypes = await storage.getProductTypes();
+      console.log(`Refreshed product types, now have ${productTypes.length} types in total`);
+    }
 
     // Parse new data from CSV
     const newData: InsertProductPricingMaster[] = [];
@@ -144,7 +183,7 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
         totalSqm: cleanNumeric(rowData.total_sqm).toString(),
         minQuantity: parseInt(rowData.min_quantity) || 50,
         exportPrice: cleanPrice(rowData.Export).toString(),
-        masterDistributorPrice: cleanPrice(rowData['M.Distributor']).toString(),
+        masterDistributorPrice: cleanPrice(rowData['M.Distributor'] || rowData['M_Distributor']).toString(),
         dealerPrice: cleanPrice(rowData.Dealer).toString(),
         dealer2Price: cleanPrice(rowData.Dealer2).toString(),
         approvalNeededPrice: cleanPrice(rowData.ApprovalNeeded).toString(),
