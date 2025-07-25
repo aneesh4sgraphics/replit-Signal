@@ -5,17 +5,17 @@ import path from 'path';
 
 interface QuoteItem {
   id: string;
-  productBrand: string;
+  productName: string;
   productType: string;
-  productSize: string;
-  squareMeters: number;
-  pricePerSheet: number;
-  quantity: number;
-  total: number;
-  tierId: number;
-  tierName: string;
-  minOrderQty: string;
+  size: string;
   itemCode: string;
+  quantity: number;
+  pricePerSqM: number;
+  pricePerSheet: number;
+  total: number;
+  tier: string;
+  squareMeters: number;
+  minOrderQty: number;
 }
 
 interface PDFGenerationRequest {
@@ -55,8 +55,8 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
   const productTables = Object.entries(itemsByType).map(([productType, items]) => {
     const productRows = items.map((item, index) => `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.productSize}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tierName}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.size}</td>
+        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tier}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.quantity}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
         <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
