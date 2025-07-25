@@ -155,6 +155,59 @@ export function generateQuoteHTMLForDownload(data: any): string {
   `;
 }
 
+// Category mapping function to get proper category display names
+function getCategoryDisplayName(productName: string, productType: string): string {
+  // Category mappings based on product types
+  const categoryMappings: { [key: string]: string } = {
+    // Graffiti Polyester Paper products
+    'Graffiti Polyester Paper': 'Graffiti Polyester Paper',
+    // Solvit products
+    'Solvit Poster Paper 175gsm': 'Solvit Sign & Display Media',
+    'Solvit Backlit Film 8mil': 'Solvit Sign & Display Media',
+    'Solvit Self Adhesive Vinyl - 4mil (Greyback)': 'Solvit Sign & Display Media',
+    'Solvit Self Adhesive Vinyl - 6mil (white Back)': 'Solvit Sign & Display Media',
+    'Solvit PolySign 11mil': 'Solvit Sign & Display Media',
+    'Solvit PolySign 17mil': 'Solvit Sign & Display Media',
+    'Solvit SlickStick 5mil Polyester': 'Solvit Sign & Display Media',
+    // CLiQ products
+    'CliQ Cold Press Paper 300gsm': 'CLiQ Aqueous Media',
+    'CliQ Hot Press Paper 270gsm': 'CLiQ Aqueous Media',
+    'CliQ Cotton Rag Paper 300gsm': 'CLiQ Aqueous Media',
+    'CliQ Inkjet Matte Paper 230gsm': 'CLiQ Aqueous Media',
+    'CliQ PETBull 7mil': 'CLiQ Aqueous Media',
+    'CliQ Photo Paper 10.4mil': 'CLiQ Aqueous Media',
+    'CliQ Photo Paper 11.2 mil': 'CLiQ Aqueous Media',
+    'CliQ Banner Media - 15mil': 'CLiQ Aqueous Media',
+    'CliQ Inkjet Matte Paper 170gsm': 'CLiQ Aqueous Media',
+    'CliQ Photo Paper 8.4mil': 'CLiQ Aqueous Media',
+    'CliQ Self Adhesive Vinyl - 5mil (PVC)': 'CLiQ Aqueous Media',
+    'CliQ SlickStick 10.4mil': 'CLiQ Aqueous Media',
+    // Rang products
+    'Rang DL Polyester Canvas 280gsm': 'Rang Print Canvas',
+    'Rang Duo PolyCotton Canvas 400gsm': 'Rang Print Canvas',
+    'Rang Duo PolyCotton Canvas 420gsm': 'Rang Print Canvas',
+    'Rang Lux PolyCotton Canvas 345gsm': 'Rang Print Canvas',
+    'Rang Lux PolyCotton Canvas 380gsm': 'Rang Print Canvas',
+    'Rang Lux PolyCotton Canvas 390gsm': 'Rang Print Canvas',
+    // EiE/eLe products
+    'EiE Inkjet Waterproof Film': 'EiE Media',
+    'eLe Frosted Laser Film': 'eLe Laser Media',
+    'eLe Clear Laser Film': 'eLe Laser Media',
+    'eLe Polyester Laser Plate MXP': 'MXP Media',
+    // CoHo products
+    'CoHo DTF Films for Fabrics': 'DTF Films',
+    'CoHo Films for Fabrics': 'DTF Films'
+  };
+
+  // First try direct mapping by product type
+  if (categoryMappings[productType]) {
+    return categoryMappings[productType];
+  }
+
+  // Fall back to product name (category name)
+  return productName;
+}
+
 export function generatePriceListHTML(data: any): string {
   const { categoryName, tierName, items, customerName, title = "PRICE LIST", quoteNumber } = data;
 
@@ -184,9 +237,19 @@ export function generatePriceListHTML(data: any): string {
       </tr>
     `).join('');
 
+    // Extract category from the first row to display category + product type
+    const firstRow = (rows as any[])[0];
+    const productCategory = getCategoryDisplayName(
+      firstRow?.productCategory || firstRow?.productName || categoryName,
+      type
+    );
+    
     return `
       <div style="page-break-inside: avoid; margin-bottom: 25px;">
-        <h3 style="margin: 20px 0 12px 0; font-size: 16px; font-weight: bold; color: #1f2937; border-bottom: 2px solid #3b82f6; padding-bottom: 5px;">${type}</h3>
+        <div style="margin: 20px 0 12px 0; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">
+          <div style="font-size: 14px; font-weight: 600; color: #3b82f6; margin-bottom: 2px;">${productCategory}</div>
+          <div style="font-size: 16px; font-weight: bold; color: #1f2937;">${type}</div>
+        </div>
         <table style="width: 100%; border-collapse: collapse; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <thead>
             <tr style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
