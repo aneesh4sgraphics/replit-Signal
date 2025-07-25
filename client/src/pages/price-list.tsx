@@ -129,10 +129,10 @@ export default function PriceList() {
         const pricePerPack = +(pricePerSheet * minQty).toFixed(2);
 
         return {
-          productType: product.productType || 'Unknown',
-          productName: product.productName || selectedCategory,
-          size: product.size || 'N/A',
-          itemCode: product.itemCode || '-',
+          productType: String(product.productType || 'Unknown'),
+          productName: String(product.productName || selectedCategory),
+          size: String(product.size || 'N/A'),
+          itemCode: String(product.itemCode || '-'),
           minQty,
           pricePerSqM,
           pricePerSheet,
@@ -142,7 +142,7 @@ export default function PriceList() {
       });
 
       setPriceListItems(
-        calculatedItems.sort((a, b) => a.productType.localeCompare(b.productType))
+        calculatedItems.sort((a, b) => String(a.productType).localeCompare(String(b.productType)))
       );
     } else {
       setPriceListItems([]);
