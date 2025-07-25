@@ -275,7 +275,7 @@ export default function PriceList() {
               </div>
             </div>
           </div>
-        </div>
+        </SimpleCardFrame>
       ) : (
         <div className="border border-gray-200 rounded-lg p-6 bg-white text-center">
           <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />

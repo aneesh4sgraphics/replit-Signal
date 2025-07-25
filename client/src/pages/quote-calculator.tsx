@@ -413,7 +413,7 @@ Yours truly
             </div>
           </div>
         </div>
-      </div>
+      </SimpleCardFrame>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Panel - Configure Product */}
@@ -541,7 +541,7 @@ Yours truly
                 )}
               </div>
             </div>
-          </div>
+          </SimpleCardFrame>
         </div>
 
         {/* Right Panel - Quote Summary */}
