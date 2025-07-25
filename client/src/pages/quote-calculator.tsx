@@ -388,14 +388,15 @@ Yours truly
                       <div className="flex items-center gap-2">
                         <FileText className="h-5 w-5 text-gray-600" />
                         <span className="font-medium">
-                          {selectedCategory.includes('Graffiti') && (
+                          {selectedCategory.includes('Graffiti') ? (
                             <>
                               <span className="font-graffiti">Graffiti</span>
                               <sup className="text-xs">™</sup>
+                              <span>{selectedCategory.replace('Graffiti', '').trim()}</span>
                             </>
+                          ) : (
+                            selectedCategory
                           )}
-                          {!selectedCategory.includes('Graffiti') && selectedCategory}
-                          {selectedCategory === 'Graffiti Polyester Paper' && ' Polyester Paper'}
                         </span>
                       </div>
                     )}
@@ -411,7 +412,7 @@ Yours truly
                             <>
                               <span className="font-graffiti">Graffiti</span>
                               <sup className="text-xs">™</sup>
-                              {category.replace('Graffiti', '')}
+                              <span>{category.replace('Graffiti', '').trim()}</span>
                             </>
                           ) : (
                             category
@@ -509,7 +510,7 @@ Yours truly
                           <>
                             <span className="font-graffiti">Graffiti</span>
                             <sup className="text-xs">™</sup>
-                            <span>{selectedCategory.replace('Graffiti', '')}</span>
+                            <span>{selectedCategory.replace('Graffiti', '').trim()}</span>
                           </>
                         ) : (
                           selectedCategory || 'Not Selected'
