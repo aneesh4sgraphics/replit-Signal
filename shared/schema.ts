@@ -48,6 +48,7 @@ export const productPricingMaster = pgTable("product_pricing_master", {
   itemCode: varchar("item_code", { length: 100 }).notNull().unique(),
   productName: varchar("product_name", { length: 255 }).notNull(),
   productType: varchar("product_type", { length: 255 }).notNull(),
+  productTypeId: integer("product_type_id").references(() => productTypes.id, { onDelete: "cascade" }),
   size: varchar("size", { length: 100 }).notNull(),
   totalSqm: decimal("total_sqm", { precision: 10, scale: 6 }).notNull(),
   minQuantity: integer("min_quantity").notNull().default(50),

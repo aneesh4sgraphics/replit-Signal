@@ -72,6 +72,10 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
     const headers = parseCSVLine(lines[0]);
     console.log(`CSV headers: ${headers.join(', ')}`);
 
+    // Preload product types for faster lookups
+    const productTypes = await storage.getProductTypes();
+    console.log(`Loaded ${productTypes.length} product types for matching`);
+
     // Parse new data from CSV
     const newData: InsertProductPricingMaster[] = [];
     
@@ -90,11 +94,25 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
         rowData[header] = value;
       });
 
+      // Try to find matching product type ID
+      let productTypeId: number | undefined;
+      if (rowData.ProductType) {
+        const matchingType = productTypes.find(type => 
+          type.name.toLowerCase() === rowData.ProductType.toLowerCase()
+        );
+        productTypeId = matchingType?.id;
+        
+        if (!productTypeId) {
+          console.warn(`No matching product type found for: "${rowData.ProductType}"`);
+        }
+      }
+
       // Create the pricing master record
       const pricingRecord: InsertProductPricingMaster = {
         itemCode: rowData.ItemCode || '',
         productName: rowData.product_name || '',
         productType: rowData.ProductType || '',
+        productTypeId: productTypeId || null,
         size: rowData.size || '',
         totalSqm: cleanNumeric(rowData.total_sqm),
         minQuantity: parseInt(rowData.min_quantity) || 50,
