@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
@@ -372,26 +372,52 @@ Yours truly
         {/* Left Panel - Configure Product */}
         <Card>
           <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calculator className="h-5 w-5" />
+            <CardTitle className="flex items-center gap-2 text-2xl">
+              <Calculator className="h-6 w-6 text-purple-600" />
               Configure Product
             </CardTitle>
-            <CardDescription>
-              Select product specifications for your quote
-            </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="space-y-6">
             {/* Product Category */}
-            <div className="space-y-2">
-              <Label htmlFor="category">Product Category</Label>
+            <div className="space-y-3">
+              <Label className="text-lg font-medium text-gray-900">Product</Label>
               <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select product category" />
+                <SelectTrigger className="h-12 text-base border-2 border-purple-200 rounded-lg">
+                  <SelectValue placeholder="Select product category">
+                    {selectedCategory && (
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-5 w-5 text-gray-600" />
+                        <span className="font-medium">
+                          {selectedCategory.includes('Graffiti') && (
+                            <>
+                              <span className="font-graffiti">Graffiti</span>
+                              <sup className="text-xs">™</sup>
+                            </>
+                          )}
+                          {!selectedCategory.includes('Graffiti') && selectedCategory}
+                          {selectedCategory === 'Graffiti Polyester Paper' && ' Polyester Paper'}
+                        </span>
+                      </div>
+                    )}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   {categories.map(category => (
                     <SelectItem key={category} value={category}>
-                      {category}
+                      <div className="flex items-center gap-2">
+                        <FileText className="h-4 w-4 text-gray-600" />
+                        <span>
+                          {category.includes('Graffiti') ? (
+                            <>
+                              <span className="font-graffiti">Graffiti</span>
+                              <sup className="text-xs">™</sup>
+                              {category.replace('Graffiti', '')}
+                            </>
+                          ) : (
+                            category
+                          )}
+                        </span>
+                      </div>
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -399,75 +425,113 @@ Yours truly
             </div>
 
             {/* Product Type */}
-            {selectedCategory && (
-              <div className="space-y-2">
-                <Label htmlFor="type">Product Type</Label>
-                <Select value={selectedType} onValueChange={setSelectedType}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select product type" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypes.map(type => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
-
-            {/* Size */}
-            {selectedType && (
-              <div className="space-y-2">
-                <Label htmlFor="size">Size</Label>
-                <Select value={selectedSize} onValueChange={setSelectedSize}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Select size" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availableSizes.map(product => (
-                      <SelectItem key={product.size} value={product.size}>
-                        {product.size} ({parseFloat(String(product.totalSqm || 0)).toFixed(4)} m²)
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            )}
+            <div className="space-y-3">
+              <Label className="text-lg font-medium text-red-600">Product Type</Label>
+              <Select 
+                value={selectedType} 
+                onValueChange={setSelectedType}
+                disabled={!selectedCategory}
+              >
+                <SelectTrigger className="h-12 text-base border-2 border-gray-200 rounded-lg bg-gray-50">
+                  <SelectValue placeholder="Select a type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {productTypes.map(type => (
+                    <SelectItem key={type} value={type}>
+                      {type}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              {selectedCategory && !selectedType && (
+                <p className="text-sm text-red-600 font-medium">Product type is required</p>
+              )}
+            </div>
 
             {/* Quantity */}
-            {selectedSize && (
-              <div className="space-y-2">
-                <Label htmlFor="quantity">Quantity</Label>
-                <Input
-                  type="number"
-                  value={quantity}
-                  onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  min={selectedProduct?.minQuantity || 1}
-                />
-                {selectedProduct && quantity < selectedProduct.minQuantity && (
-                  <p className="text-sm text-amber-600">
-                    Minimum order quantity: {selectedProduct.minQuantity}
-                  </p>
-                )}
-              </div>
-            )}
+            <div className="space-y-3">
+              <Label className="text-lg font-medium text-gray-900">Quantity</Label>
+              <Input
+                type="number"
+                value={quantity}
+                onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
+                min={selectedProduct?.minQuantity || 1}
+                className="h-12 text-base border-2 border-gray-200 rounded-lg bg-gray-50"
+                disabled={!selectedType}
+              />
+              {selectedProduct && quantity < selectedProduct.minQuantity && (
+                <p className="text-sm text-red-600 font-medium">
+                  Minimum order quantity: {selectedProduct.minQuantity}
+                </p>
+              )}
+            </div>
           </CardContent>
         </Card>
 
         {/* Right Panel - Quote Summary */}
         <Card>
           <CardHeader>
-            <CardTitle>Quote Summary</CardTitle>
-            <CardDescription>
-              Available pricing tiers and current selection
+            <CardTitle className="text-2xl font-bold text-gray-900">QUOTE SUMMARY</CardTitle>
+            <CardDescription className="text-gray-600">
+              Using default pricing.
             </CardDescription>
           </CardHeader>
           <CardContent>
             {selectedProduct ? (
-              <div className="space-y-4">
-                <div className="grid grid-cols-1 gap-3">
+              <div className="space-y-6">
+                {/* Product Details Summary */}
+                <div className="space-y-3 pb-4 border-b border-gray-200">
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Product Brand:</span>
+                    <span className="flex items-center gap-1">
+                      <FileText className="h-4 w-4 text-gray-600" />
+                      <span className="font-graffiti">Graffiti</span>
+                      <sup className="text-xs">™</sup>
+                      <span>Polyester Paper</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Product Type:</span>
+                    <span>
+                      <span className="font-graffiti">Graffiti</span>
+                      <sup className="text-xs">™</sup>
+                      <span> {selectedProduct.productType}</span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Product Size:</span>
+                    <span>{selectedProduct.size}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Total Sqm:</span>
+                    <span>{parseFloat(String(selectedProduct.totalSqm || 0)).toFixed(3)} sqm</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Total Quantity:</span>
+                    <span className="flex items-center gap-2">
+                      <span className="inline-flex items-center justify-center w-6 h-6 text-sm font-bold text-red-600 border border-red-600 rounded">
+                        {Math.max(quantity, selectedProduct.minQuantity)}
+                      </span>
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span className="font-medium text-gray-900">Min. Order Qty:</span>
+                    <span>{selectedProduct.minQuantity} Sheets</span>
+                  </div>
+                </div>
+
+                {/* Pricing Table */}
+                <div className="space-y-3">
+                  {/* Table Header */}
+                  <div className="grid grid-cols-4 gap-4 text-sm font-medium text-gray-600 pb-2 border-b border-gray-200">
+                    <div>Pricing Tier</div>
+                    <div className="text-center">$/m²</div>
+                    <div className="text-center">Price/Sheet</div>
+                    <div className="text-center">Min. Order Qty Price</div>
+                    <div className="text-center">Add</div>
+                  </div>
+
+                  {/* Pricing Rows */}
                   {pricingTiers.map(tier => {
                     const price = selectedProduct[tier.key as keyof ProductData] as number;
                     const pricePerSheet = price * parseFloat(String(selectedProduct.totalSqm || 0));
@@ -475,32 +539,38 @@ Yours truly
                     const total = pricePerSheet * useQuantity;
 
                     return (
-                      <div key={tier.key} className="flex items-center justify-between p-3 border rounded-lg">
-                        <div>
-                          <div className="font-medium">{tier.label}</div>
-                          <div className="text-sm text-gray-600">
-                            ${price.toFixed(2)}/m² • ${pricePerSheet.toFixed(2)}/sheet
-                          </div>
-                          <div className="text-sm text-gray-500">
-                            {useQuantity} sheets = ${total.toFixed(2)}
-                          </div>
+                      <div key={tier.key} className="grid grid-cols-5 gap-4 items-center py-3 border-b border-gray-100">
+                        <div className="font-medium text-gray-900 uppercase text-sm">
+                          {tier.label.replace('Approval Needed', 'Approval (Retail)')}
                         </div>
-                        <Button
-                          size="sm"
-                          onClick={() => addToQuote(tier.key)}
-                          className="gap-1"
-                        >
-                          <Plus className="h-4 w-4" />
-                          Add
-                        </Button>
+                        <div className="text-center font-medium">
+                          ${price.toFixed(2)}
+                        </div>
+                        <div className="text-center font-medium">
+                          ${pricePerSheet.toFixed(2)}
+                        </div>
+                        <div className="text-center font-bold text-lg">
+                          ${total.toFixed(2)}
+                        </div>
+                        <div className="text-center">
+                          <Button
+                            size="sm"
+                            onClick={() => addToQuote(tier.key)}
+                            className="h-8 w-8 rounded-full p-0 bg-gray-100 hover:bg-gray-200 border border-gray-300"
+                            variant="outline"
+                          >
+                            <Plus className="h-4 w-4 text-gray-600" />
+                          </Button>
+                        </div>
                       </div>
                     );
                   })}
                 </div>
               </div>
             ) : (
-              <div className="text-center py-8 text-gray-500">
-                Select a product to see pricing options
+              <div className="text-center py-12 text-gray-500">
+                <Calculator className="h-16 w-16 mx-auto mb-4 text-gray-300" />
+                <p className="text-lg">Select a product to see pricing options</p>
               </div>
             )}
           </CardContent>
