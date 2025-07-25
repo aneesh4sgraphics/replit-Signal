@@ -448,6 +448,25 @@ Yours truly
               )}
             </div>
 
+            {/* Size Selection */}
+            {selectedType && (
+              <div className="space-y-3">
+                <Label className="text-lg font-medium text-gray-900">Size</Label>
+                <Select value={selectedSize} onValueChange={setSelectedSize}>
+                  <SelectTrigger className="h-12 text-base border-2 border-gray-200 rounded-lg bg-gray-50">
+                    <SelectValue placeholder="Select size" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {availableSizes.map(product => (
+                      <SelectItem key={product.size} value={product.size}>
+                        {product.size} ({parseFloat(String(product.totalSqm || 0)).toFixed(4)} m²)
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Quantity */}
             <div className="space-y-3">
               <Label className="text-lg font-medium text-gray-900">Quantity</Label>
@@ -457,7 +476,7 @@ Yours truly
                 onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                 min={selectedProduct?.minQuantity || 1}
                 className="h-12 text-base border-2 border-gray-200 rounded-lg bg-gray-50"
-                disabled={!selectedType}
+                disabled={!selectedSize}
               />
               {selectedProduct && quantity < selectedProduct.minQuantity && (
                 <p className="text-sm text-red-600 font-medium">
