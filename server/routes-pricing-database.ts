@@ -2,6 +2,7 @@ import express from "express";
 import multer from "multer";
 import fs from "fs";
 import path from "path";
+import crypto from "crypto";
 import { storage } from "./storage";
 import { isAuthenticated, requireAdmin } from "./replitAuth";
 import type { InsertProductPricingMaster } from "@shared/schema";
@@ -46,6 +47,31 @@ function cleanNumeric(value: string | undefined): number {
   const cleaned = value.toString().replace(/[^0-9.-]/g, '');
   const parsed = parseFloat(cleaned);
   return isNaN(parsed) ? 0 : parsed;
+}
+
+// Helper function to generate row hash for change detection
+function generateRowHash(record: Omit<InsertProductPricingMaster, 'uploadBatch' | 'rowHash'>): string {
+  // Create a stable string representation of the row data (excluding metadata)
+  const hashData = [
+    record.itemCode,
+    record.productName,
+    record.productType,
+    record.size,
+    record.totalSqm,
+    record.minQuantity,
+    record.exportPrice,
+    record.masterDistributorPrice,
+    record.dealerPrice,
+    record.dealer2Price,
+    record.approvalNeededPrice,
+    record.tierStage25Price,
+    record.tierStage2Price,
+    record.tierStage15Price,
+    record.tierStage1Price,
+    record.retailPrice
+  ].join('|');
+  
+  return crypto.createHash('sha256').update(hashData).digest('hex');
 }
 
 // Upload pricing CSV with database synchronization
@@ -107,8 +133,8 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
         }
       }
 
-      // Create the pricing master record
-      const pricingRecord: InsertProductPricingMaster = {
+      // Create the pricing master record (without hash first)
+      const recordData = {
         itemCode: rowData.ItemCode || '',
         productName: rowData.product_name || '',
         productType: rowData.ProductType || '',
@@ -125,7 +151,13 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
         tierStage2Price: cleanPrice(rowData.TierStage2),
         tierStage15Price: cleanPrice(rowData.TierStage15),
         tierStage1Price: cleanPrice(rowData.TierStage1),
-        retailPrice: cleanPrice(rowData.Retail),
+        retailPrice: cleanPrice(rowData.Retail)
+      };
+
+      // Generate hash and create final record
+      const pricingRecord: InsertProductPricingMaster = {
+        ...recordData,
+        rowHash: generateRowHash(recordData),
         uploadBatch: uploadBatch
       };
 
@@ -159,35 +191,56 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
       const existingMap = new Map(existingData.map(item => [item.itemCode, item]));
       const newMap = new Map(newData.map(item => [item.itemCode, item]));
       
-      // Step 1: Remove records that don't exist in new data
+      // Step 1: Delete records that exist in DB but not in CSV
+      const toDelete: string[] = [];
       for (const existing of existingData) {
         if (!newMap.has(existing.itemCode)) {
-          await storage.clearAllProductPricingMaster(); // This could be optimized to delete specific records
+          toDelete.push(existing.itemCode);
+        }
+      }
+      
+      if (toDelete.length > 0) {
+        console.log(`Removing ${toDelete.length} records no longer in CSV...`);
+        for (const itemCode of toDelete) {
+          await storage.deleteProductPricingMasterByItemCode(itemCode);
           removedCount++;
         }
       }
       
-      // Step 2: Add new records and update existing ones
+      // Step 2: Process CSV records with hash-based change detection
+      const toAdd: InsertProductPricingMaster[] = [];
+      const toUpdate: InsertProductPricingMaster[] = [];
+      
       for (const newRecord of newData) {
         const existing = existingMap.get(newRecord.itemCode);
         
         if (existing) {
-          // Check if any values changed
-          let hasChanges = false;
-          for (const key in newRecord) {
-            if (newRecord[key as keyof InsertProductPricingMaster] !== existing[key as keyof typeof existing]) {
-              hasChanges = true;
-              break;
-            }
-          }
-          
-          if (hasChanges) {
-            await storage.upsertProductPricingMaster(newRecord);
-            updatedCount++;
+          // ItemCode exists - check if rowHash changed
+          if (existing.rowHash && existing.rowHash === newRecord.rowHash) {
+            // Hash is same → skip (no changes)
+            console.log(`Skipping ${newRecord.itemCode}: no changes detected`);
+          } else {
+            // Hash changed → update
+            toUpdate.push(newRecord);
           }
         } else {
-          await storage.createProductPricingMaster(newRecord);
-          addedCount++;
+          // ItemCode not found → insert
+          toAdd.push(newRecord);
+        }
+      }
+      
+      // Batch operations for efficiency
+      if (toAdd.length > 0) {
+        console.log(`Adding ${toAdd.length} new records...`);
+        await storage.bulkCreateProductPricingMaster(toAdd);
+        addedCount = toAdd.length;
+      }
+      
+      if (toUpdate.length > 0) {
+        console.log(`Updating ${toUpdate.length} changed records...`);
+        for (const record of toUpdate) {
+          await storage.updateProductPricingMasterByItemCode(record.itemCode, record);
+          updatedCount++;
         }
       }
     }

@@ -59,6 +59,7 @@ export const productPricingMaster = pgTable("product_pricing_master", {
   retailPrice: decimal("retail_price", { precision: 10, scale: 2 }),
   // Metadata
   uploadBatch: varchar("upload_batch", { length: 100 }), // Track which upload this came from
+  rowHash: varchar("row_hash", { length: 64 }), // Hash of row data for change detection
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

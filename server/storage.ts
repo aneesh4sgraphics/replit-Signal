@@ -991,6 +991,31 @@ export class DatabaseStorage implements IStorage {
       .returning();
     return results;
   }
+
+  async deleteProductPricingMasterByItemCode(itemCode: string): Promise<void> {
+    try {
+      await db.delete(productPricingMaster).where(eq(productPricingMaster.itemCode, itemCode));
+      console.log(`✓ Deleted pricing record for item code: ${itemCode}`);
+    } catch (error) {
+      console.error('Error deleting pricing record:', error);
+      throw error;
+    }
+  }
+
+  async updateProductPricingMasterByItemCode(itemCode: string, record: InsertProductPricingMaster): Promise<void> {
+    try {
+      await db.update(productPricingMaster)
+        .set({
+          ...record,
+          updatedAt: new Date()
+        })
+        .where(eq(productPricingMaster.itemCode, itemCode));
+      console.log(`✓ Updated pricing record for item code: ${itemCode}`);
+    } catch (error) {
+      console.error('Error updating pricing record:', error);
+      throw error;
+    }
+  }
 }
 
 export const storage = new DatabaseStorage();
