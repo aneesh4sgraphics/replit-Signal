@@ -44,7 +44,10 @@ export function addPricingRoutes(app: any, isAuthenticated: any, requireAdmin: a
       console.log("CSV content length:", csvContent.length);
       
       // Basic validation - check if it looks like CSV
+      const allLines = csvContent.split('\n');
       const lines = csvContent.split('\n').filter(line => line.trim().length > 0);
+      console.log(`File analysis: ${allLines.length} total lines, ${lines.length} non-empty lines, ${lines.length - 1} data records`);
+      
       if (lines.length < 2) {
         console.log("CSV appears to be empty or invalid");
         fs.unlinkSync(filePath);
@@ -128,8 +131,9 @@ export function addPricingRoutes(app: any, isAuthenticated: any, requireAdmin: a
         newMap.set(key, record);
       });
       
-      // Count changes
+      // Count changes with proper validation
       newRecordsCount = newData.length;
+      console.log(`Parsed ${newData.length} data records from CSV (excluding header)`);
       addedRecordsCount = 0;
       updatedRecordsCount = 0;
       
