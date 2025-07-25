@@ -13,22 +13,23 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
 
 interface ProductData {
-  ItemCode: string;
-  product_name: string;
-  ProductType: string;
+  id: number;
+  itemCode: string;
+  productName: string;
+  productType: string;
   size: string;
-  total_sqm: number;
-  min_quantity: number;
-  Export: number;
-  "M.Distributor": number;
-  Dealer: number;
-  Dealer2: number;
-  ApprovalNeeded: number;
-  TierStage25: number;
-  TierStage2: number;
-  TierStage15: number;
-  TierStage1: number;
-  Retail: number;
+  totalSqm: number;
+  minQuantity: number;
+  exportPrice: number;
+  masterDistributorPrice: number;
+  dealerPrice: number;
+  dealer2Price: number;
+  approvalNeededPrice: number;
+  tierStage25Price: number;
+  tierStage2Price: number;
+  tierStage15Price: number;
+  tierStage1Price: number;
+  retailPrice: number;
 }
 
 interface Customer {
@@ -64,16 +65,16 @@ interface QuoteItem {
 }
 
 const pricingTiers = [
-  { key: 'Export', label: 'Export' },
-  { key: 'M.Distributor', label: 'Master Distributor' },
-  { key: 'Dealer', label: 'Dealer' },
-  { key: 'Dealer2', label: 'Dealer 2' },
-  { key: 'ApprovalNeeded', label: 'Approval Needed' },
-  { key: 'TierStage25', label: 'Stage 2.5' },
-  { key: 'TierStage2', label: 'Stage 2' },
-  { key: 'TierStage15', label: 'Stage 1.5' },
-  { key: 'TierStage1', label: 'Stage 1' },
-  { key: 'Retail', label: 'Retail' }
+  { key: 'exportPrice', label: 'Export' },
+  { key: 'masterDistributorPrice', label: 'Master Distributor' },
+  { key: 'dealerPrice', label: 'Dealer' },
+  { key: 'dealer2Price', label: 'Dealer 2' },
+  { key: 'approvalNeededPrice', label: 'Approval Needed' },
+  { key: 'tierStage25Price', label: 'Stage 2.5' },
+  { key: 'tierStage2Price', label: 'Stage 2' },
+  { key: 'tierStage15Price', label: 'Stage 1.5' },
+  { key: 'tierStage1Price', label: 'Stage 1' },
+  { key: 'retailPrice', label: 'Retail' }
 ];
 
 export default function QuoteCalculator() {
@@ -87,31 +88,38 @@ export default function QuoteCalculator() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
-  // Fetch product pricing data
+  // Fetch product pricing data from new database
   const { data: productData = [], isLoading } = useQuery<ProductData[]>({
-    queryKey: ['/api/product-pricing-data'],
+    queryKey: ['/api/product-pricing-database'],
+    queryFn: async () => {
+      const response = await fetch('/api/product-pricing-database');
+      if (!response.ok) {
+        throw new Error('Failed to fetch pricing data');
+      }
+      return response.json();
+    },
   });
 
   // Get unique categories
-  const categories = [...new Set(productData.map(item => item.product_name))].sort();
+  const categories = [...new Set(productData.map(item => item.productName))].sort();
   
   // Get product types for selected category
   const productTypes = selectedCategory
-    ? [...new Set(productData.filter(item => item.product_name === selectedCategory).map(item => item.ProductType))].sort()
+    ? [...new Set(productData.filter(item => item.productName === selectedCategory).map(item => item.productType))].sort()
     : [];
 
   // Get sizes for selected type
   const availableSizes = selectedCategory && selectedType
     ? productData.filter(item => 
-        item.product_name === selectedCategory && 
-        item.ProductType === selectedType
-      ).sort((a, b) => a.total_sqm - b.total_sqm)
+        item.productName === selectedCategory && 
+        item.productType === selectedType
+      ).sort((a, b) => a.totalSqm - b.totalSqm)
     : [];
 
   // Get selected product details
   const selectedProduct = productData.find(item =>
-    item.product_name === selectedCategory &&
-    item.ProductType === selectedType &&
+    item.productName === selectedCategory &&
+    item.productType === selectedType &&
     item.size === selectedSize
   );
 
@@ -119,29 +127,29 @@ export default function QuoteCalculator() {
     if (!selectedProduct) return;
 
     const tierPrice = selectedProduct[tier as keyof ProductData] as number;
-    const pricePerSheet = tierPrice * selectedProduct.total_sqm;
-    const useQuantity = Math.max(quantity, selectedProduct.min_quantity);
+    const pricePerSheet = tierPrice * selectedProduct.totalSqm;
+    const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
     const total = pricePerSheet * useQuantity;
 
     const quoteItem: QuoteItem = {
       id: `${Date.now()}-${Math.random()}`,
-      productName: selectedProduct.product_name,
-      productType: selectedProduct.ProductType,
+      productName: selectedProduct.productName,
+      productType: selectedProduct.productType,
       size: selectedProduct.size,
-      itemCode: selectedProduct.ItemCode,
+      itemCode: selectedProduct.itemCode,
       quantity: useQuantity,
       pricePerSqM: tierPrice,
       pricePerSheet: pricePerSheet,
       total: total,
       tier: tier,
-      squareMeters: selectedProduct.total_sqm,
-      minOrderQty: selectedProduct.min_quantity
+      squareMeters: selectedProduct.totalSqm,
+      minOrderQty: selectedProduct.minQuantity
     };
 
     setQuoteItems(prev => [...prev, quoteItem]);
     toast({
       title: "Item Added",
-      description: `Added ${selectedProduct.ProductType} to quote`,
+      description: `Added ${selectedProduct.productType} to quote`,
     });
   };
 
