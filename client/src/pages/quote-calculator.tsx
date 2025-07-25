@@ -101,11 +101,11 @@ export default function QuoteCalculator() {
   });
 
   // Get unique categories
-  const categories = [...new Set(productData.map(item => item.productName))].sort();
+  const categories = Array.from(new Set(productData.map(item => item.productName))).sort();
   
   // Get product types for selected category
   const productTypes = selectedCategory
-    ? [...new Set(productData.filter(item => item.productName === selectedCategory).map(item => item.productType))].sort()
+    ? Array.from(new Set(productData.filter(item => item.productName === selectedCategory).map(item => item.productType))).sort()
     : [];
 
   // Get sizes for selected type
@@ -268,8 +268,6 @@ Yours truly
       title: "Email Client Opened",
       description: `Comprehensive quote email composed for ${selectedCustomer.firstName} ${selectedCustomer.lastName}`,
     });
-    
-    setIsEmailDialogOpen(false);
   };
 
   if (isLoading) {
@@ -429,7 +427,7 @@ Yours truly
                   <SelectContent>
                     {availableSizes.map(product => (
                       <SelectItem key={product.size} value={product.size}>
-                        {product.size} ({product.total_sqm.toFixed(4)} m²)
+                        {product.size} ({product.totalSqm.toFixed(4)} m²)
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -445,11 +443,11 @@ Yours truly
                   type="number"
                   value={quantity}
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
-                  min={selectedProduct?.min_quantity || 1}
+                  min={selectedProduct?.minQuantity || 1}
                 />
-                {selectedProduct && quantity < selectedProduct.min_quantity && (
+                {selectedProduct && quantity < selectedProduct.minQuantity && (
                   <p className="text-sm text-amber-600">
-                    Minimum order quantity: {selectedProduct.min_quantity}
+                    Minimum order quantity: {selectedProduct.minQuantity}
                   </p>
                 )}
               </div>
@@ -471,8 +469,8 @@ Yours truly
                 <div className="grid grid-cols-1 gap-3">
                   {pricingTiers.map(tier => {
                     const price = selectedProduct[tier.key as keyof ProductData] as number;
-                    const pricePerSheet = price * selectedProduct.total_sqm;
-                    const useQuantity = Math.max(quantity, selectedProduct.min_quantity);
+                    const pricePerSheet = price * selectedProduct.totalSqm;
+                    const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
                     const total = pricePerSheet * useQuantity;
 
                     return (
