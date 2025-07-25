@@ -173,8 +173,8 @@ export function generatePriceListHTML(data: any): string {
     return acc;
   }, {});
 
-  const sections = Object.entries(grouped).map(([type, rows]: [string, any[]]) => {
-    const rowHtml = rows.map((row, index) => `
+  const sections = Object.entries(grouped).map(([type, rows]) => {
+    const rowHtml = (rows as any[]).map((row: any, index: number) => `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
         <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: 500;">${row.size}</td>
         <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-family: monospace;">${row.itemCode}</td>

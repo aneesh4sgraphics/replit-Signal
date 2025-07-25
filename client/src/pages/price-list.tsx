@@ -8,6 +8,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { Badge } from "@/components/ui/badge";
 import { Download, FileText, FileSpreadsheet } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
 
 interface ProductData {
   [key: string]: string | number;
@@ -41,6 +42,25 @@ interface PriceListItem {
   squareMeters: number;
 }
 
+interface Customer {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  company: string;
+  companyName?: string;
+  contactName?: string;
+  address1: string;
+  address2: string;
+  city: string;
+  province: string;
+  country: string;
+  zip: string;
+  phone: string;
+  note: string;
+  tags: string;
+}
+
 const pricingTiers = [
   { key: 'Export', label: 'Export' },
   { key: 'M.Distributor', label: 'Master Distributor' },
@@ -58,6 +78,7 @@ export default function PriceList() {
   const [selectedCategory, setSelectedCategory] = useState<string>("");
   const [selectedTier, setSelectedTier] = useState<string>("Export");
   const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   
   const { toast } = useToast();
 
@@ -112,11 +133,12 @@ export default function PriceList() {
 
   const generatePDFMutation = useMutation({
     mutationFn: async () => {
-      console.log('Sending to PDF generation:', {
+      console.log('Enhanced PDF Generation Request:', {
         categoryName: selectedCategory,
         tierName: selectedTier,
         items: priceListItems.slice(0, 3), // Log first 3 items for debugging
-        itemCount: priceListItems.length
+        itemCount: priceListItems.length,
+        customerName: selectedCustomer?.company || `${selectedCustomer?.firstName} ${selectedCustomer?.lastName}`
       });
       
       const response = await fetch('/api/generate-price-list-pdf', {
@@ -125,9 +147,9 @@ export default function PriceList() {
         body: JSON.stringify({
           categoryName: selectedCategory,
           tierName: selectedTier,
-          quoteNumber: `PL${Date.now()}`,
+          quoteNumber: `PL-${Date.now().toString().slice(-6)}`,
           items: priceListItems,
-          customerName: "Alpha One USA" // Default customer name as shown in example
+          customerName: selectedCustomer?.company || `${selectedCustomer?.firstName} ${selectedCustomer?.lastName}` || null
         })
       });
       
@@ -135,24 +157,37 @@ export default function PriceList() {
       return response.json();
     },
     onSuccess: (data) => {
-      // Create and download the PDF
+      // Enhanced PDF generation with proper styling and download
       const html = data.html;
+      const filename = data.filename || `PriceList-${selectedCategory}-${Date.now()}.pdf`;
+      
+      // Create blob for proper PDF download
       const printWindow = window.open('', '_blank');
       if (printWindow) {
         printWindow.document.write(html);
         printWindow.document.close();
-        printWindow.print();
+        
+        // Add print event listener for better UX
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 250);
+        };
       }
+      
       toast({
-        title: "PDF Generated",
-        description: "Price list PDF has been generated successfully",
+        title: "Professional PDF Generated",
+        description: `Price list PDF created with enhanced 4S Graphics branding (${filename})`,
+        duration: 4000,
       });
     },
-    onError: () => {
+    onError: (error) => {
+      console.error('PDF Generation Error:', error);
       toast({
-        title: "Error",
-        description: "Failed to generate PDF",
+        title: "PDF Generation Failed",
+        description: "Unable to generate price list PDF. Please try again.",
         variant: "destructive",
+        duration: 4000,
       });
     }
   });
@@ -228,7 +263,7 @@ export default function PriceList() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             {/* Product Category */}
             <div className="space-y-2">
               <Label htmlFor="category">Product Category</Label>
@@ -261,6 +296,16 @@ export default function PriceList() {
                   ))}
                 </SelectContent>
               </Select>
+            </div>
+
+            {/* Customer Selection */}
+            <div className="space-y-2">
+              <Label htmlFor="customer">Customer (Optional)</Label>
+              <SearchableCustomerSelect
+                selectedCustomer={selectedCustomer}
+                onCustomerSelect={setSelectedCustomer}
+                placeholder="Search customers..."
+              />
             </div>
           </div>
 

@@ -2614,31 +2614,45 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
     try {
-      const { categoryName, tierName, items, customerName } = req.body;
+      const { categoryName, tierName, items, customerName, quoteNumber } = req.body;
       
-      console.log('PDF Generation Request:', {
+      console.log('Enhanced PDF Generation Request:', {
         categoryName,
         tierName,
         itemCount: items?.length,
         firstItem: items?.[0],
-        customerName
+        customerName,
+        quoteNumber
       });
       
       if (!categoryName || !tierName || !items || !Array.isArray(items)) {
         return res.status(400).json({ error: "Category name, tier name, and items are required" });
       }
 
-      // Import the function from stub-functions
+      // Import the enhanced function from stub-functions
       const { generatePriceListHTML } = await import('./stub-functions.js');
+      
+      // Generate unique quote number if not provided
+      const listNumber = quoteNumber || `PL-${Date.now().toString().slice(-6)}`;
       
       const html = generatePriceListHTML({
         categoryName,
         tierName,
         items,
-        customerName
+        customerName,
+        quoteNumber: listNumber,
+        title: "PRICE LIST"
       });
       
-      res.json({ html });
+      // Generate filename with proper format
+      const filename = `PriceList-${categoryName.replace(/\s+/g, '')}-${listNumber}.pdf`;
+      
+      res.json({ 
+        html, 
+        filename,
+        listNumber,
+        downloadType: 'pdf'
+      });
     } catch (error) {
       console.error("Error generating price list PDF:", error);
       res.status(500).json({ error: "Failed to generate price list PDF" });
