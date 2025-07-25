@@ -1219,8 +1219,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload customer data file
-  app.post("/api/admin/upload-customer-data", upload.single('file'), async (req, res) => {
+  // Upload customer data file (Admin only)
+  app.post("/api/admin/upload-customer-data", isAuthenticated, requireAdmin, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
