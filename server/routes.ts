@@ -11,7 +11,7 @@ import { z } from "zod";
 import { parseProductData } from "./csv-parser";
 import { parseCustomerCSV } from "./customer-parser";
 
-import { generateQuoteHTMLForDownload, generateQuoteNumber, generatePriceListHTML, generatePriceListCSV, generateUniqueQuoteNumber, validateQuoteNumber } from "./stub-functions";
+import { generateQuoteHTMLForDownload, generateQuoteNumber, generatePriceListHTML, generateUniqueQuoteNumber, validateQuoteNumber } from "./stub-functions";
 import { insertSentQuoteSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
@@ -345,8 +345,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json(cachedData);
       }
       
-      // Fetch pricing data and convert to expected format
-      const pricingData = await storage.getAllPricingData();
+      // Fetch pricing data from productPricingMaster table
+      const pricingData = await storage.getProductPricingMaster();
       const productTypes = await storage.getProductTypes();
       const tiers = await storage.getPricingTiers();
       
@@ -632,7 +632,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json([]); // Return empty array if no customer file exists
       }
       
-      const customers = parseCustomerCSV();
+      const customers = await parseCustomerCSV();
       res.json(customers);
     } catch (error) {
       console.error("Error fetching customers:", error);
@@ -650,7 +650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get customer by ID
   app.get("/api/customers/:id", async (req, res) => {
     try {
-      const customers = parseCustomerCSV();
+      const customers = await parseCustomerCSV();
       const customer = customers.find((c: any) => c.id === req.params.id);
       
       if (!customer) {
@@ -1350,18 +1350,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
         
         try {
-          // Check if record exists
-          const existing = await storage.getPricingDataByProductId(pricingEntry.productId);
-          
-          if (existing) {
-            // Update existing record
-            await storage.updatePricingDataByProductId(pricingEntry.productId, pricingEntry);
-            updatedRecords++;
-          } else {
-            // Create new record
-            await storage.createPricingData(pricingEntry);
-            newRecords++;
-          }
+          // Use productPricingMaster table instead
+          await storage.createProductPricingMaster({
+            itemCode: pricingEntry.productId,
+            productName: pricingEntry.productType,
+            productType: pricingEntry.productType,
+            size: '',
+            totalSqm: 0,
+            minQuantity: 1,
+            exportPrice: parseFloat(pricingEntry.exportPrice || '0'),
+            masterDistributorPrice: parseFloat(pricingEntry.masterDistributorPrice || '0'),
+            dealerPrice: parseFloat(pricingEntry.dealerPrice || '0'),
+            dealer2Price: parseFloat(pricingEntry.dealer2Price || '0'),
+            approvalNeededPrice: parseFloat(pricingEntry.approvalRetailPrice || '0'),
+            tierStage25Price: parseFloat(pricingEntry.stage25Price || '0'),
+            tierStage2Price: parseFloat(pricingEntry.stage2Price || '0'),
+            tierStage15Price: parseFloat(pricingEntry.stage15Price || '0'),
+            tierStage1Price: parseFloat(pricingEntry.stage1Price || '0'),
+            retailPrice: parseFloat(pricingEntry.retailPrice || '0'),
+            uploadBatch: `batch-${Date.now()}`
+          });
+          newRecords++;
         } catch (error) {
           console.error(`Error processing pricing data for ${pricingEntry.productId}:`, error);
         }
@@ -1391,7 +1400,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get pricing data for Price Management
   app.get("/api/pricing-data", async (req, res) => {
     try {
-      const pricingData = await storage.getAllPricingData();
+      const pricingData = await storage.getProductPricingMaster();
       res.json(pricingData);
     } catch (error) {
       console.error("Error fetching pricing data:", error);
@@ -1405,7 +1414,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { id } = req.params;
       const updates = req.body;
       
-      const updatedEntry = await storage.updatePricingData(parseInt(id), updates);
+      const updatedEntry = await storage.upsertProductPricingMaster({ id: parseInt(id), ...updates });
       
       if (!updatedEntry) {
         return res.status(404).json({ error: "Pricing entry not found" });
@@ -1421,7 +1430,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Export pricing data as CSV
   app.get("/api/pricing-data/export", isAuthenticated, async (req, res) => {
     try {
-      const pricingData = await storage.getAllPricingData();
+      const pricingData = await storage.getProductPricingMaster();
       
       // Create CSV headers matching original format
       const headers = [
@@ -2111,7 +2120,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all pricing data
   app.get("/api/pricing-data", isAuthenticated, async (req, res) => {
     try {
-      const pricingData = await storage.getAllPricingData();
+      const pricingData = await storage.getProductPricingMaster();
       res.json(pricingData);
     } catch (error) {
       console.error("Error fetching pricing data:", error);
@@ -2129,7 +2138,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid pricing data ID" });
       }
 
-      await storage.updatePricingData(id, updates);
+      await storage.upsertProductPricingMaster({ id, ...updates });
       res.json({ success: true });
     } catch (error) {
       console.error("Error updating pricing data:", error);
@@ -2265,11 +2274,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Starting sync from pricingData to productPricing...");
       
       // Get all pricing data entries
-      const pricingDataEntries = await storage.getAllPricingData();
+      const pricingDataEntries = await storage.getProductPricingMaster();
       console.log(`Found ${pricingDataEntries.length} pricing data entries to sync`);
       
       // Get all product types for mapping
-      const productTypes = await storage.getProductTypesWithCategories();
+      const productTypes = await storage.getProductTypes();
       
       let syncedCount = 0;
       let errorCount = 0;
@@ -2336,7 +2345,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.log("Starting product structure sync from pricing data...");
       
       // Get all pricing data to understand what products exist
-      const pricingData = await storage.getAllPricingData();
+      const pricingData = await storage.getProductPricingMaster();
       console.log(`Found ${pricingData.length} pricing records`);
       
       // Create category mappings based on product_id
@@ -2530,7 +2539,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Valid price per square meter is required" });
       }
 
-      const result = await storage.updateProductPricing(parseInt(id), parseFloat(pricePerSquareMeter));
+      const result = await storage.upsertProductPricingMaster({ id: parseInt(id), retailPrice: parseFloat(pricePerSquareMeter) });
       
       if (!result) {
         return res.status(404).json({ error: "Pricing entry not found" });

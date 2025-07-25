@@ -101,7 +101,8 @@ export interface IStorage {
 
   // Product Pricing Master operations (database-backed)
   getAllProductPricingMaster(): Promise<ProductPricingMaster[]>;
-  getProductPricingMaster(id: number): Promise<ProductPricingMaster | undefined>;
+  getProductPricingMaster(): Promise<ProductPricingMaster[]>;
+  getProductPricingMasterById(id: number): Promise<ProductPricingMaster | undefined>;
   createProductPricingMaster(data: InsertProductPricingMaster): Promise<ProductPricingMaster>;
   upsertProductPricingMaster(data: InsertProductPricingMaster): Promise<ProductPricingMaster>;
   clearAllProductPricingMaster(): Promise<number>; // Returns count of deleted records
@@ -967,7 +968,11 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(productPricingMaster);
   }
 
-  async getProductPricingMaster(id: number): Promise<ProductPricingMaster | undefined> {
+  async getProductPricingMaster(): Promise<ProductPricingMaster[]> {
+    return await db.select().from(productPricingMaster);
+  }
+
+  async getProductPricingMasterById(id: number): Promise<ProductPricingMaster | undefined> {
     const [result] = await db.select().from(productPricingMaster).where(eq(productPricingMaster.id, id));
     return result;
   }
