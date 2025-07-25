@@ -53,22 +53,22 @@ function cleanNumeric(value: string | undefined): number {
 function generateRowHash(record: Omit<InsertProductPricingMaster, 'uploadBatch' | 'rowHash'>): string {
   // Create a stable string representation of the row data (excluding metadata)
   const hashData = [
-    record.itemCode,
-    record.productName,
-    record.productType,
-    record.size,
-    record.totalSqm,
-    record.minQuantity,
-    record.exportPrice,
-    record.masterDistributorPrice,
-    record.dealerPrice,
-    record.dealer2Price,
-    record.approvalNeededPrice,
-    record.tierStage25Price,
-    record.tierStage2Price,
-    record.tierStage15Price,
-    record.tierStage1Price,
-    record.retailPrice
+    record.itemCode || '',
+    record.productName || '',
+    record.productType || '',
+    record.size || '',
+    record.totalSqm || '0',
+    record.minQuantity || 50,
+    record.exportPrice || '0',
+    record.masterDistributorPrice || '0',
+    record.dealerPrice || '0',
+    record.dealer2Price || '0',
+    record.approvalNeededPrice || '0',
+    record.tierStage25Price || '0',
+    record.tierStage2Price || '0',
+    record.tierStage15Price || '0',
+    record.tierStage1Price || '0',
+    record.retailPrice || '0'
   ].join('|');
   
   return crypto.createHash('sha256').update(hashData).digest('hex');
@@ -140,24 +140,26 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
         productType: rowData.ProductType || '',
         productTypeId: productTypeId || null,
         size: rowData.size || '',
-        totalSqm: cleanNumeric(rowData.total_sqm),
+        totalSqm: cleanNumeric(rowData.total_sqm).toString(),
         minQuantity: parseInt(rowData.min_quantity) || 50,
-        exportPrice: cleanPrice(rowData.Export),
-        masterDistributorPrice: cleanPrice(rowData['M.Distributor']),
-        dealerPrice: cleanPrice(rowData.Dealer),
-        dealer2Price: cleanPrice(rowData.Dealer2),
-        approvalNeededPrice: cleanPrice(rowData.ApprovalNeeded),
-        tierStage25Price: cleanPrice(rowData.TierStage25),
-        tierStage2Price: cleanPrice(rowData.TierStage2),
-        tierStage15Price: cleanPrice(rowData.TierStage15),
-        tierStage1Price: cleanPrice(rowData.TierStage1),
-        retailPrice: cleanPrice(rowData.Retail)
+        exportPrice: cleanPrice(rowData.Export).toString(),
+        masterDistributorPrice: cleanPrice(rowData['M.Distributor']).toString(),
+        dealerPrice: cleanPrice(rowData.Dealer).toString(),
+        dealer2Price: cleanPrice(rowData.Dealer2).toString(),
+        approvalNeededPrice: cleanPrice(rowData.ApprovalNeeded).toString(),
+        tierStage25Price: cleanPrice(rowData.TierStage25).toString(),
+        tierStage2Price: cleanPrice(rowData.TierStage2).toString(),
+        tierStage15Price: cleanPrice(rowData.TierStage15).toString(),
+        tierStage1Price: cleanPrice(rowData.TierStage1).toString(),
+        retailPrice: cleanPrice(rowData.Retail).toString()
       };
 
       // Generate hash and create final record
+      // Use existing hash from CSV if available, otherwise generate new one
+      const existingHash = rowData.row_hash || rowData.rowHash;
       const pricingRecord: InsertProductPricingMaster = {
         ...recordData,
-        rowHash: generateRowHash(recordData),
+        rowHash: existingHash || generateRowHash(recordData),
         uploadBatch: uploadBatch
       };
 
@@ -310,7 +312,8 @@ router.get("/download-pricing-database", isAuthenticated, requireAdmin, async (r
     const headers = [
       'ItemCode', 'product_name', 'ProductType', 'size', 'total_sqm', 'min_quantity',
       'Export', 'M.Distributor', 'Dealer', 'Dealer2', 'ApprovalNeeded',
-      'TierStage25', 'TierStage2', 'TierStage15', 'TierStage1', 'Retail'
+      'TierStage25', 'TierStage2', 'TierStage15', 'TierStage1', 'Retail',
+      'row_hash'
     ];
 
     const csvLines = [headers.join(',')];
@@ -332,7 +335,8 @@ router.get("/download-pricing-database", isAuthenticated, requireAdmin, async (r
         item.tierStage2Price || 0,
         item.tierStage15Price || 0,
         item.tierStage1Price || 0,
-        item.retailPrice || 0
+        item.retailPrice || 0,
+        item.rowHash || ''
       ];
       csvLines.push(row.join(','));
     });
