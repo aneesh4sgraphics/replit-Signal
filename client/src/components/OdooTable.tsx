@@ -104,9 +104,11 @@ export function AdaptiveTable({
     <div 
       ref={tableRef}
       className="rounded-md border border-gray-200 overflow-hidden"
-      style={{ maxHeight }}
     >
-      <div className="overflow-auto">
+      <div 
+        className="overflow-auto"
+        style={{ maxHeight }}
+      >
         <Table className={`bg-white ${className}`}>
           <TableHeader className="bg-gray-50 sticky top-0 z-10">
             <TableRow>
