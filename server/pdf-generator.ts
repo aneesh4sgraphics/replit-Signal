@@ -111,10 +111,11 @@ function generateQuoteHTML(data: PDFGenerationRequest): string {
         .map(
           (item, idx) => `
       <tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f2f2f2"};">
-        <td>${item.size}</td>
-        <td style="text-align:center;">${item.minOrderQty}</td>
-        <td style="text-align:right;">$${item.pricePerSheet.toFixed(2)}</td>
-        <td style="text-align:right;font-weight:bold;">$${(item.minOrderQty * item.pricePerSheet).toFixed(2)}</td>
+        <td style="padding:8px;text-align:center;font-family:monospace;">${item.itemCode || '-'}</td>
+        <td style="padding:8px;">${item.size}</td>
+        <td style="padding:8px;text-align:center;">${item.minOrderQty}</td>
+        <td style="padding:8px;text-align:right;">$${item.pricePerSheet.toFixed(2)}</td>
+        <td style="padding:8px;text-align:right;font-weight:bold;">$${(item.minOrderQty * item.pricePerSheet).toFixed(2)}</td>
       </tr>
     `,
         )
@@ -131,11 +132,12 @@ function generateQuoteHTML(data: PDFGenerationRequest): string {
         </div>
         <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">
           <thead>
-            <tr style="background:#374151;color:white;">
-              <th style="padding:8px;text-align:left;">Size</th>
-              <th style="padding:8px;text-align:center;">Min Order Qty</th>
-              <th style="padding:8px;text-align:right;">Price/Sheet</th>
-              <th style="padding:8px;text-align:right;">Total</th>
+            <tr style="background:#bfdbfe;color:#000000;">
+              <th style="padding:8px;text-align:center;font-weight:bold;">Item Code</th>
+              <th style="padding:8px;text-align:left;font-weight:bold;">Size</th>
+              <th style="padding:8px;text-align:center;font-weight:bold;">Min Order Qty</th>
+              <th style="padding:8px;text-align:right;font-weight:bold;">Price/Unit</th>
+              <th style="padding:8px;text-align:right;font-weight:bold;">Total</th>
             </tr>
           </thead>
           <tbody>
