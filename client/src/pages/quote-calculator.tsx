@@ -361,15 +361,19 @@ Yours truly
           <FloatingElements />
         </div>
 
+        {/* Configure Product Section - Outside main layout */}
+        <div className="mb-8">
+          <div className="flex items-center gap-3 mb-4">
+            <Calculator className="h-6 w-6 text-[#7E57C2]" />
+            <h1 className="text-3xl font-semibold text-gray-800">Configure Product</h1>
+          </div>
+          <p className="text-lg text-gray-600 mb-6">Select your product specifications</p>
+        </div>
+
       <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
-        {/* Left Panel - Configure Product */}
+        {/* Left Panel - Product Selection */}
         <div className="xl:col-span-1 lg:col-span-1">
           <SimpleCardFrame className="p-6 mb-6">
-            <h2 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
-              <IconBadge icon={Calculator} label="Configure Product" className="px-0 py-0 bg-transparent border-none text-lg font-medium text-gray-800" />
-            </h2>
-            <p className="text-sm text-gray-500 mb-6">Select your product specifications</p>
-            <SectionDivider />
             <div className="space-y-6">
               {/* Product Category */}
               <div className="space-y-2">
