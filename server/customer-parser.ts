@@ -85,6 +85,16 @@ function parseBoolean(value: string | undefined): boolean {
   return ['yes', 'true', '1'].includes(value?.trim().toLowerCase() || '');
 }
 
+function safeParseFloat(value: string | undefined, defaultValue: number = 0): number {
+  const parsed = parseFloat(value || '');
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
+function safeParseInt(value: string | undefined, defaultValue: number = 0): number {
+  const parsed = parseInt(value || '', 10);
+  return isNaN(parsed) ? defaultValue : parsed;
+}
+
 function parseCustomerRow(row: string[]): ParsedCustomerRow | null {
   if (row.length < 20) {
     console.log(`Skipping row with insufficient columns: ${row.length}`);
@@ -113,8 +123,8 @@ function parseCustomerRow(row: string[]): ParsedCustomerRow | null {
   const defaultAddressPhone = row[12]?.replace(/^'/, '').trim() || '';
   const phone = row[13]?.replace(/^'/, '').trim() || '';
   const acceptsSmsMarketing = parseBoolean(row[14]);
-  const totalSpent = parseFloat(row[15]) || 0;
-  const totalOrders = parseInt(row[16]) || 0;
+  const totalSpent = safeParseFloat(row[15]);
+  const totalOrders = safeParseInt(row[16]);
   const note = row[17]?.trim() || '';
   const taxExempt = parseBoolean(row[18]);
   const tags = row[19]?.trim() || '';
