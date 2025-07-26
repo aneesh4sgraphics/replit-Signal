@@ -197,7 +197,6 @@ export default function PriceList() {
 
         {/* Configuration */}
         <SimpleCardFrame className="p-6 mb-6 bg-white border border-gray-100">
-          <SectionDivider />
           <div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Product Category */}
