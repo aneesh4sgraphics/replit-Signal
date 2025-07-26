@@ -50,15 +50,19 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
       <aside className={`${sidebarOpen ? 'w-60' : 'w-16'} bg-white h-screen border-r border-gray-200 transition-all duration-300 flex flex-col`}>
         {/* Header */}
         <div className="p-4 border-b border-gray-200 flex items-center justify-between">
-          {sidebarOpen && (
-            <div className="flex items-center space-x-3">
-              <Building2 className="h-8 w-8 text-purple-600" />
+          <div className="flex items-center space-x-3">
+            <img 
+              src="/company-logo.jpg" 
+              alt="4S Graphics Logo" 
+              className="h-8 w-8 object-contain flex-shrink-0"
+            />
+            {sidebarOpen && (
               <div>
                 <h1 className="text-lg font-semibold text-gray-900">4S Graphics</h1>
                 <p className="text-xs text-gray-500">Employee Portal</p>
               </div>
-            </div>
-          )}
+            )}
+          </div>
           <Button
             variant="ghost"
             size="sm"
