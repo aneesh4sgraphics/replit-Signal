@@ -323,14 +323,6 @@ Total: $${itemTotal.toFixed(2)}
 
 Total Amount: $${calculatedTotalAmount.toFixed(2)}
 
-Payment Instructions:
-All payments should be made to 4S GRAPHICS, INC. only.
-ACH Payments: Account# 0126734133 | Routing# 063104668 | SWIFT Code: UPNBUS44 / ABA: 062005690
-Credit Cards: Visa, MasterCard, and American Express (4.5% processing fee applies)
-Zelle Payments: Linked Phone Number for Payment: 260-580-0526
-PayPal Payments: info@4sgraphics.com (4.5% PayPal fee applies)
-Shipping Costs: At Actuals - Discuss with your Sales Rep to get accurate Shipping costs
-
 We eagerly look forward for your business.
 
 Yours truly
