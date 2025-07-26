@@ -49,6 +49,8 @@ export function generateQuoteHTMLForDownload(data: any): string {
       'CliQ SlickStick 10.4mil': 'CLiQ Aqueous Media',
       // Graffiti products
       'Graffiti Polyester Paper': 'Graffiti Polyester Paper',
+      'AuraBoard - Holographics': 'Graffiti Polyester Paper',
+      'AuraBoard - Silver': 'Graffiti Polyester Paper',
       'thickness: 5mil': 'Graffiti Polyester Paper',
       'thickness: 8mil': 'Graffiti Polyester Paper',
       'thickness: 10mil': 'Graffiti Polyester Paper',
