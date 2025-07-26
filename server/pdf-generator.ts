@@ -353,15 +353,15 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
         </div>
       </div>
 
-      <div style="margin-top: 30px; padding: 20px; background-color: #f9f9f9; border: 1px solid #ddd; border-radius: 8px;">
+      <div style="margin-top: 30px; padding: 20px; background-color: #f8f8f8; border: 1px solid #ddd; border-radius: 8px;">
         <h4 style="font-size: 14px; font-weight: bold; color: #333; margin-bottom: 10px;">Payment Instructions</h4>
-        <div style="font-size: 10px; color: #666; line-height: 1.4;">
-          <p style="margin: 5px 0;"><strong>All payments should be made to 4S GRAPHICS, INC. only.</strong></p>
-          <p style="margin: 5px 0;"><strong>ACH Payments:</strong> Account# 0126734133 | Routing# 063104668 | SWIFT Code: UPNBUS44 / ABA: 062005690</p>
-          <p style="margin: 5px 0;"><strong>Credit Cards:</strong> Visa, MasterCard, and American Express (4.5% processing fee applies)</p>
-          <p style="margin: 5px 0;"><strong>Zelle Payments:</strong> Linked Phone Number for Payment: 260-580-0526</p>
-          <p style="margin: 5px 0;"><strong>PayPal Payments:</strong> info@4sgraphics.com (4.5% PayPal fee applies)</p>
-          <p style="margin: 5px 0;"><strong>Shipping Costs:</strong> At Actuals - Discuss with your Sales Rep to get accurate Shipping costs</p>
+        <div style="font-size: 11px; color: #444; line-height: 1.6;">
+          <p><strong>All payments should be made to 4S GRAPHICS, INC. only.</strong></p>
+          <p><strong>ACH Payments:</strong> Account# 0126734133 | Routing# 063104668 | SWIFT Code: UPNBUS44 / ABA: 062005690</p>
+          <p><strong>Credit Cards:</strong> Visa, MasterCard, and American Express (4.5% processing fee applies)</p>
+          <p><strong>Zelle Payments:</strong> Linked Phone Number for Payment: 260-580-0526</p>
+          <p><strong>PayPal Payments:</strong> info@4sgraphics.com (4.5% PayPal fee applies)</p>
+          <p><strong>Shipping Costs:</strong> At Actuals - Discuss with your Sales Rep to get accurate Shipping costs</p>
         </div>
       </div>
 
