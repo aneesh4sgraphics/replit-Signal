@@ -42,7 +42,7 @@ export default function Admin() {
 
   const approveUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/approve`, "POST");
+      return await apiRequest("POST", `/api/admin/users/${encodeURIComponent(userId)}/approve`);
     },
     onSuccess: (_, userId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -64,7 +64,7 @@ export default function Admin() {
 
   const rejectUserMutation = useMutation({
     mutationFn: async (userId: string) => {
-      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/reject`, "POST");
+      return await apiRequest("POST", `/api/admin/users/${encodeURIComponent(userId)}/reject`);
     },
     onSuccess: (_, userId) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
@@ -86,7 +86,7 @@ export default function Admin() {
 
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
-      return await apiRequest(`/api/admin/users/${encodeURIComponent(userId)}/role`, "PATCH", { role: newRole });
+      return await apiRequest("PATCH", `/api/admin/users/${encodeURIComponent(userId)}/role`, { role: newRole });
     },
     onSuccess: (_, { userId, newRole }) => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
