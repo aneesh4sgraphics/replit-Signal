@@ -556,9 +556,27 @@ Yours truly
                   <div className="flex justify-between">
                     <span className="font-normal text-gray-600">Total Quantity:</span>
                     <span className="flex items-center gap-2">
-                      <span className="inline-flex items-center justify-center w-6 h-6 text-sm font-normal text-red-500 border border-red-300 rounded-lg">
-                        {selectedProduct ? Math.max(quantity, selectedProduct.minQuantity) : quantity}
-                      </span>
+                      {(() => {
+                        const currentQty = quantity;
+                        const minOrderQty = selectedProduct?.minQuantity || 1;
+                        
+                        // Determine color and styling based on logic:
+                        // 1. If quantity < min order qty -> RED and BOLD
+                        // 2. If quantity >= min order qty AND divisible by min order qty -> BLACK and BOLD
+                        // 3. If quantity >= min order qty BUT NOT divisible by min order qty -> RED and BOLD
+                        
+                        const isAboveMinimum = currentQty >= minOrderQty;
+                        const isDivisibleByMin = currentQty % minOrderQty === 0;
+                        
+                        const shouldShowRed = !isAboveMinimum || (isAboveMinimum && !isDivisibleByMin);
+                        const shouldShowBlack = isAboveMinimum && isDivisibleByMin;
+                        
+                        return (
+                          <span className={`text-sm font-bold ${shouldShowRed ? 'text-red-600' : 'text-black'}`}>
+                            {currentQty}
+                          </span>
+                        );
+                      })()}
                     </span>
                   </div>
                   <div className="flex justify-between">
