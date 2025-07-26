@@ -317,6 +317,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = decodeURIComponent(req.params.userId);
       const { role } = req.body;
       
+      if (!role || !['user', 'manager', 'admin'].includes(role)) {
+        return res.status(400).json({ message: "Invalid role. Must be 'user', 'manager', or 'admin'" });
+      }
+      
+      const user = await storage.changeUserRole(userId, role);
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error("Error updating user role:", error);
+      res.status(500).json({ message: "Failed to update user role" });
+    }
+  });
+
+  app.patch('/api/admin/users/:userId/role', requireAdmin, async (req: any, res) => {
+    try {
+      const userId = decodeURIComponent(req.params.userId);
+      const { role } = req.body;
+      
       if (!['user', 'manager', 'admin'].includes(role)) {
         return res.status(400).json({ message: "Invalid role" });
       }
@@ -2732,10 +2753,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const ipAddress = req.ip || req.connection.remoteAddress || null;
       const userAgent = req.get('User-Agent') || null;
 
+      // Extract user information from user object
+      const userEmail = (req.user as any)?.claims?.email || req.user?.email || 'development@4sgraphics.com';
+      const userName = `${(req.user as any)?.claims?.first_name || 'Dev'} ${(req.user as any)?.claims?.last_name || 'User'}`;
+      const userRole = (req.user as any)?.role || 'admin';
+      
+      // Determine action type based on action
+      const actionType = action.toLowerCase().includes('page') ? 'navigation' : 
+                        action.toLowerCase().includes('user') ? 'admin' :
+                        action.toLowerCase().includes('quote') ? 'quote' :
+                        action.toLowerCase().includes('price') ? 'pricing' :
+                        action.toLowerCase().includes('customer') ? 'customer' :
+                        'system';
+
       const activity = await storage.logActivity({
-        action,
-        description,
         userId,
+        userEmail,
+        userName,
+        userRole,
+        action,
+        actionType,
+        description,
         ipAddress,
         userAgent
       });
