@@ -363,8 +363,19 @@ function generateQuoteHTML(request: PDFGenerationRequest): string {
 function getLogoBase64(): string {
   try {
     const logoPath = path.join(process.cwd(), 'client', 'public', 'company-logo.jpg');
+    console.log('Attempting to read logo from:', logoPath);
+    
+    // Check if file exists
+    if (!fs.existsSync(logoPath)) {
+      console.error('Logo file does not exist at path:', logoPath);
+      return '';
+    }
+    
     const logoBuffer = fs.readFileSync(logoPath);
-    return logoBuffer.toString('base64');
+    console.log('Logo file read successfully, size:', logoBuffer.length, 'bytes');
+    const base64 = logoBuffer.toString('base64');
+    console.log('Base64 conversion successful, length:', base64.length);
+    return base64;
   } catch (error) {
     console.error('Error reading logo file:', error);
     return '';
