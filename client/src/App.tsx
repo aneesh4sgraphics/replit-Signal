@@ -1,4 +1,4 @@
-import { Switch, Route } from "wouter";
+import { Switch, Route, Redirect } from "wouter";
 import { queryClient } from "./lib/queryClient";
 import { QueryClientProvider } from "@tanstack/react-query";
 import { Toaster } from "@/components/ui/toaster";
@@ -23,6 +23,7 @@ import ActivityLogsPage from "@/pages/activity-logs";
 import Dashboard from "@/pages/dashboard-odoo";
 
 import NotFound from "@/pages/not-found";
+import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
 
 // Extracted component to avoid JSX duplication
 const PendingPage = () => (
@@ -54,9 +55,18 @@ function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
   // Removed: firecracker animation state and logic per user request
 
-  if (import.meta.env.DEV) {
-    console.log("Router render - isAuthenticated:", isAuthenticated, "isLoading:", isLoading, "user:", user);
-  }
+  // All useEffect hooks must be called at the top level consistently
+  useEffect(() => {
+    if (import.meta.env.DEV) {
+      console.log("Router render - isAuthenticated:", isAuthenticated, "isLoading:", isLoading, "user:", user);
+      
+      if (!isAuthenticated || !user) {
+        console.log("Showing login redirect - isAuthenticated:", isAuthenticated, "user:", user);
+      } else if (isAuthenticated && user) {
+        console.log("Showing dashboard - isAuthenticated:", isAuthenticated, "user:", user);
+      }
+    }
+  }, [isAuthenticated, isLoading, user]);
 
   // Show loading state while checking authentication
   if (isLoading) {
@@ -70,16 +80,13 @@ function Router() {
 
   // Handle unauthenticated users
   if (!isAuthenticated || !user) {
-    if (import.meta.env.DEV) {
-      console.log("Showing login redirect - isAuthenticated:", isAuthenticated, "user:", user);
-    }
     return (
       <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-50 to-gray-100">
         <div className="text-center max-w-md mx-auto p-8">
           {/* 4S Graphics Logo */}
           <div className="mb-8">
             <img 
-              src="/company-logo.jpg" 
+              src={logoPath} 
               alt="4S Graphics Logo" 
               className="w-40 h-40 mx-auto object-contain"
             />
@@ -105,10 +112,6 @@ function Router() {
         </div>
       </div>
     );
-  }
-
-  if (import.meta.env.DEV) {
-    console.log("Showing dashboard - isAuthenticated:", isAuthenticated, "user:", user);
   }
 
   // Handle pending users
@@ -139,7 +142,7 @@ function Router() {
         <Route path="/activity-logs" component={ActivityLogsPage} />
         <Route path="/shipping-calculator" component={ShippingCalculator} />
         <Route path="/admin" component={Admin} />
-        <Route component={NotFound} />
+        <Route><Redirect to="/" /></Route>
       </Switch>
     </OdooLayout>
   );

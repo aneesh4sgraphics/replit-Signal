@@ -95,37 +95,6 @@ export default function CustomerTable() {
     staleTime: 1 * 60 * 1000, // 1 minute
   });
 
-  // Early return for loading state
-  if (isLoading) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
-          <p className="text-lg">Loading customer data...</p>
-        </div>
-      </div>
-    );
-  }
-
-  // Early return for error state
-  if (error) {
-    return (
-      <div className="min-h-screen flex items-center justify-center">
-        <div className="text-center">
-          <div className="text-red-600 mb-4">
-            <X className="h-8 w-8 mx-auto mb-2" />
-            <p className="text-lg font-semibold">Error loading customers</p>
-            <p className="text-sm">{error instanceof Error ? error.message : 'Unknown error occurred'}</p>
-          </div>
-          <Button onClick={() => refetch()} className="gap-2">
-            <RefreshCw className="h-4 w-4" />
-            Try Again
-          </Button>
-        </div>
-      </div>
-    );
-  }
-
   // Filter and search customers
   const filteredCustomers = customers.filter((customer) => {
     const matchesSearch = !searchTerm || 
@@ -286,6 +255,7 @@ export default function CustomerTable() {
     setSearchTerm("");
   };
 
+  // Handle loading and error states after all hooks are declared
   if (isLoading) {
     return (
       <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
@@ -293,6 +263,26 @@ export default function CustomerTable() {
           <div className="text-center py-12">
             <RefreshCw className="h-8 w-8 animate-spin mx-auto mb-4 text-blue-600" />
             <p className="text-blue-700">Loading customers...</p>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-blue-50 to-indigo-100 p-4">
+        <div className="max-w-7xl mx-auto">
+          <div className="text-center py-12">
+            <div className="text-red-600 mb-4">
+              <X className="h-8 w-8 mx-auto mb-2" />
+              <p className="text-lg font-semibold">Error loading customers</p>
+              <p className="text-sm">{error instanceof Error ? error.message : 'Unknown error occurred'}</p>
+            </div>
+            <Button onClick={() => refetch()} className="gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Try Again
+            </Button>
           </div>
         </div>
       </div>
@@ -459,7 +449,7 @@ export default function CustomerTable() {
                         </div>
                       </TableCell>
                       <TableCell className="text-center">{customer.totalOrders}</TableCell>
-                      <TableCell>${customer.totalSpent.toFixed(2)}</TableCell>
+                      <TableCell>${(parseFloat(customer.totalSpent) || 0).toFixed(2)}</TableCell>
                       <TableCell>
                         <div className="flex gap-1">
                           {customer.taxExempt && (
