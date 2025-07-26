@@ -24,38 +24,61 @@ interface ParsedCustomerRow {
   tags: string;
 }
 
-function parseCSVLine(line: string): string[] {
-  const result: string[] = [];
-  let current = '';
+function parseCSVWithQuotes(csvContent: string): string[][] {
+  const rows: string[][] = [];
+  const lines = csvContent.split('\n');
+  let currentRow: string[] = [];
+  let currentField = '';
   let inQuotes = false;
   let i = 0;
 
-  while (i < line.length) {
-    const char = line[i];
-    
-    if (char === '"' && !inQuotes) {
-      inQuotes = true;
-    } else if (char === '"' && inQuotes) {
-      // Check for escaped quotes
-      if (i + 1 < line.length && line[i + 1] === '"') {
-        current += '"';
-        i++; // Skip the next quote
+  for (const line of lines) {
+    let j = 0;
+    while (j < line.length) {
+      const char = line[j];
+      
+      if (char === '"') {
+        if (inQuotes && j + 1 < line.length && line[j + 1] === '"') {
+          // Escaped quote
+          currentField += '"';
+          j += 2;
+        } else {
+          // Toggle quote state
+          inQuotes = !inQuotes;
+          j++;
+        }
+      } else if (char === ',' && !inQuotes) {
+        // End of field
+        currentRow.push(currentField.trim());
+        currentField = '';
+        j++;
       } else {
-        inQuotes = false;
+        currentField += char;
+        j++;
       }
-    } else if (char === ',' && !inQuotes) {
-      result.push(current.trim());
-      current = '';
-    } else {
-      current += char;
     }
-    i++;
+    
+    if (!inQuotes) {
+      // End of row
+      currentRow.push(currentField.trim());
+      if (currentRow.length > 0 && currentRow.some(field => field.trim() !== '')) {
+        rows.push(currentRow);
+      }
+      currentRow = [];
+      currentField = '';
+    } else {
+      // Continue on next line (quoted field with newline)
+      currentField += '\n';
+    }
   }
   
-  // Add the last field
-  result.push(current.trim());
+  // Add final row if exists
+  if (currentRow.length > 0) {
+    currentRow.push(currentField.trim());
+    rows.push(currentRow);
+  }
   
-  return result;
+  return rows;
 }
 
 function parseCustomerRow(row: string[]): ParsedCustomerRow | null {
@@ -121,20 +144,23 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
   updatedCustomers: number;
   errors: string[];
 }> {
-  const lines = csvContent.split('\n').filter(line => line.trim());
   const errors: string[] = [];
   let newCustomers = 0;
   let updatedCustomers = 0;
 
-  console.log(`Processing ${lines.length} lines from customer CSV`);
+  // Handle CSV with embedded newlines by parsing the entire content as one block
+  const csvRows = parseCSVWithQuotes(csvContent);
+  console.log(`Processing ${csvRows.length} rows from customer CSV (including header)`);
 
   // Parse all customers first
   const parsedCustomers: Array<{ customerData: InsertCustomer; lineNumber: number }> = [];
   
   // Skip the header row and parse all data
-  for (let i = 1; i < lines.length; i++) {
+  for (let i = 1; i < csvRows.length; i++) {
     try {
-      const row = parseCSVLine(lines[i]);
+      const row = csvRows[i];
+      if (!row || row.length === 0) continue;
+      
       const parsedCustomer = parseCustomerRow(row);
 
       if (!parsedCustomer) {
