@@ -9,7 +9,7 @@ interface LogActivityData {
 export function useActivityLogger() {
   const logActivityMutation = useMutation({
     mutationFn: async (data: LogActivityData) => {
-      return await apiRequest("/api/log-activity", "POST", data);
+      return await apiRequest("POST", "/api/log-activity", data);
     },
     // Don't show error notifications for activity logging to avoid spam
     onError: (error) => {

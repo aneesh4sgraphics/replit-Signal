@@ -2671,9 +2671,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/log-activity", isAuthenticated, async (req, res) => {
     try {
       const { action, description } = req.body;
-      const userId = req.user?.id;
+      // Handle both production (req.user.id) and development (req.user.claims.sub) authentication
+      const userId = req.user?.id || (req.user as any)?.claims?.sub;
+      
+      console.log("=== ACTIVITY LOGGING DEBUG ===");
+      console.log("Request body:", req.body);
+      console.log("User object:", req.user);
+      console.log("Extracted userId:", userId);
+      console.log("Action:", action);
+      console.log("Description:", description);
       
       if (!action || !description || !userId) {
+        console.log("Missing required fields - userId:", userId, "action:", action, "description:", description);
         return res.status(400).json({ error: "Action, description, and user ID are required" });
       }
 
@@ -2697,7 +2706,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.get("/api/activity-logs", isAuthenticated, async (req, res) => {
     try {
-      const userId = req.user?.id;
+      // Handle both production (req.user.id) and development (req.user.claims.sub) authentication
+      const userId = req.user?.id || (req.user as any)?.claims?.sub;
       const isAdmin = req.user?.role === 'admin';
       const limit = parseInt(req.query.limit as string) || 50;
 

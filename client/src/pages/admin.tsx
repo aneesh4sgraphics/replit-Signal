@@ -1,3 +1,4 @@
+import React from "react";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -33,6 +34,11 @@ export default function Admin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const { logUserAction, logPageView, logDataExport } = useActivityLogger();
+
+  // Log page view when component mounts
+  React.useEffect(() => {
+    logPageView("Admin Panel");
+  }, [logPageView]);
 
   const { data: users, isLoading: usersLoading } = useQuery<User[]>({
     queryKey: ["/api/admin/users"],

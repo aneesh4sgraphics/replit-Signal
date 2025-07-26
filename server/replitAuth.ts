@@ -278,10 +278,12 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
   if (isTrueLocalDev || isReplitDev) {
     // Create a mock user for development
     req.user = {
+      id: 'dev-user-123',
+      role: 'admin',
       claims: {
         sub: 'dev-user-123',
-        email: 'aneesh@4sgraphics.com',
-        first_name: 'Aneesh',
+        email: 'test@4sgraphics.com',
+        first_name: 'Admin',
         last_name: 'Dev',
         profile_image_url: 'https://via.placeholder.com/150'
       }
