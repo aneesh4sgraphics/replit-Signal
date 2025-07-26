@@ -738,29 +738,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get all customers
   app.get("/api/customers", async (req, res) => {
     try {
-      const filePath = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
-      
-      if (!safeFileExists(filePath)) {
-        logFileOperation({
-          type: 'READ',
-          file: filePath,
-          success: false,
-          error: 'Customer file not found'
-        });
-        return res.json([]); // Return empty array if no customer file exists
-      }
-      
-      const customers = await parseCustomerCSV();
+      // Use database storage instead of CSV parsing
+      const customers = await storage.getCustomers();
       res.json(customers);
     } catch (error) {
       console.error("Error fetching customers:", error);
-      const filePathLocal = path.join(process.cwd(), 'attached_assets', 'customers_export.csv');
-      logFileOperation({
-        type: 'READ',
-        file: filePathLocal,
-        success: false,
-        error: error instanceof Error ? error.message : String(error)
-      });
       res.status(500).json({ error: "Failed to fetch customers" });
     }
   });
@@ -768,8 +750,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get customer by ID
   app.get("/api/customers/:id", async (req, res) => {
     try {
-      const customers = await parseCustomerCSV();
-      const customer = customers.find((c: any) => c.id === req.params.id);
+      const customer = await storage.getCustomer(req.params.id);
       
       if (!customer) {
         return res.status(404).json({ error: "Customer not found" });
