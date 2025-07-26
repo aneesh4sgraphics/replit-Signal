@@ -105,6 +105,9 @@ export default function Admin() {
     },
     onSuccess: (data, { userId, newRole }) => {
       console.log('SUCCESS - Role change successful:', data);
+      console.log('SUCCESS - Response type:', typeof data);
+      console.log('SUCCESS - Response keys:', Object.keys(data || {}));
+      
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       const user = users?.find(u => u.id === userId);
       logUserAction("CHANGED USER ROLE", `${user?.email || userId} to ${newRole}`);
@@ -115,6 +118,9 @@ export default function Admin() {
     },
     onError: (error) => {
       console.error('ERROR - Role change failed:', error);
+      console.error('ERROR - Error type:', typeof error);
+      console.error('ERROR - Error constructor:', error?.constructor?.name);
+      console.error('ERROR - Error stack:', (error as any)?.stack);
       
       // Extract error message more carefully
       let errorMessage = "Failed to update user role";
