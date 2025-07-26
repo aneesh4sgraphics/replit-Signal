@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 
@@ -91,6 +91,18 @@ export default function PriceList() {
   // Get user role and filter pricing tiers accordingly
   const userRole = getUserRoleFromEmail((user as any)?.email || '');
   const pricingTiers = allPricingTiers.filter(tier => canAccessTier(tier.label, userRole));
+
+  // Memoize the Price/Unit column title based on priceListItems
+  const priceUnitColumnTitle = useMemo(() => {
+    if (priceListItems.length === 0) return 'Price/Unit';
+    
+    const allMinQtyOne = priceListItems.every(item => item.minQty === 1);
+    const allMinQtyGreaterThanOne = priceListItems.every(item => item.minQty > 1);
+    
+    if (allMinQtyOne) return 'Price/Roll';
+    if (allMinQtyGreaterThanOne) return 'Price/Sheet';
+    return 'Price/Unit';
+  }, [priceListItems]);
 
   // Fetch product pricing data from new database
   const { data: productData = [], isLoading } = useQuery<ProductData[]>({
@@ -298,7 +310,7 @@ export default function PriceList() {
               }] : []),
               { 
                 key: 'pricePerSheet', 
-                title: 'Price/Unit', 
+                title: priceUnitColumnTitle, 
                 weight: 1.2,
                 minWidth: 100,
                 align: 'right' 
@@ -325,7 +337,7 @@ export default function PriceList() {
                 case 'pricePerSqM':
                   return <span className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</span>;
                 case 'pricePerSheet':
-                  const unitLabel = getPriceColumnHeader(item.size).replace('Price/', '');
+                  const unitLabel = item.minQty === 1 ? 'Roll' : 'Sheet';
                   return (
                     <div className="text-right">
                       <span className="text-sm text-gray-600">${item.pricePerSheet.toFixed(2)}</span>
