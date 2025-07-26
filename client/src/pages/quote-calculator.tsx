@@ -372,7 +372,7 @@ Yours truly
 
       <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
         {/* Left Panel - Product Selection */}
-        <div className="xl:col-span-1 lg:col-span-1">
+        <div className="xl:col-span-2 lg:col-span-1">
           <SimpleCardFrame className="p-6 mb-6">
             <div className="space-y-6">
               {/* Product Category */}
@@ -497,7 +497,7 @@ Yours truly
         </div>
 
         {/* Right Panel - Quote Summary */}
-        <div className="xl:col-span-4 lg:col-span-3">
+        <div className="xl:col-span-3 lg:col-span-3">
           <div className="border border-gray-200 rounded-lg p-6 bg-white mb-6">
             <h2 className="text-lg font-medium text-gray-800 mb-2">Quote Summary</h2>
             <p className="text-sm text-gray-500 mb-6">Using default pricing</p>
