@@ -38,7 +38,10 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
   const { user } = useAuth();
   
   const logout = () => {
-    window.location.href = '/api/auth/logout';
+    // Clear any local storage first
+    localStorage.clear();
+    sessionStorage.clear();
+    window.location.href = '/api/logout';
   };
 
   const isAdmin = (user as any)?.role === 'admin';
