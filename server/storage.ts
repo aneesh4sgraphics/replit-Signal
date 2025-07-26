@@ -79,9 +79,12 @@ export interface IStorage {
   
   // Customers
   getCustomers(): Promise<Customer[]>;
+  getAllCustomers(): Promise<Customer[]>; // Alias for getCustomers for clarity
   getCustomer(id: string): Promise<Customer | undefined>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
+  createCustomersBatch(customers: InsertCustomer[]): Promise<Customer[]>;
   updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
+  updateCustomersBatch(customers: Array<{ id: string; data: InsertCustomer }>): Promise<void>;
   deleteCustomer(id: string): Promise<boolean>;
   
   // Sent Quotes
@@ -402,12 +405,12 @@ export class DatabaseStorage implements IStorage {
 
   // Product Pricing - Legacy methods replaced by productPricingMaster
   // These methods are deprecated and should use productPricingMaster instead
-  async getProductPricing(): Promise<ProductPricing[]> {
+  async getProductPricing(): Promise<any[]> {
     // Return empty array - legacy method, use getProductPricingMaster instead
     return [];
   }
 
-  async getProductPricingByType(typeId: number): Promise<ProductPricing[]> {
+  async getProductPricingByType(typeId: number): Promise<any[]> {
     // Return empty array - legacy method, use getProductPricingMaster instead
     return [];
   }
@@ -450,6 +453,42 @@ export class DatabaseStorage implements IStorage {
       .where(eq(customers.id, id))
       .returning();
     return updatedCustomer || undefined;
+  }
+
+  async getAllCustomers(): Promise<Customer[]> {
+    return this.getCustomers(); // Alias for clarity in batch operations
+  }
+
+  async createCustomersBatch(customersData: InsertCustomer[]): Promise<Customer[]> {
+    if (customersData.length === 0) return [];
+    
+    try {
+      const results = await db
+        .insert(customers)
+        .values(customersData)
+        .returning();
+      return results;
+    } catch (error) {
+      console.error('Error creating customer batch:', error);
+      throw error;
+    }
+  }
+
+  async updateCustomersBatch(customerUpdates: Array<{ id: string; data: InsertCustomer }>): Promise<void> {
+    if (customerUpdates.length === 0) return;
+    
+    try {
+      // Process updates one by one since PostgreSQL doesn't support batch updates with different values easily
+      for (const { id, data } of customerUpdates) {
+        await db
+          .update(customers)
+          .set(data)
+          .where(eq(customers.id, id));
+      }
+    } catch (error) {
+      console.error('Error updating customer batch:', error);
+      throw error;
+    }
   }
 
   async deleteCustomer(id: string): Promise<boolean> {

@@ -128,7 +128,10 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
 
   console.log(`Processing ${lines.length} lines from customer CSV`);
 
-  // Skip the header row
+  // Parse all customers first
+  const parsedCustomers: Array<{ customerData: InsertCustomer; lineNumber: number }> = [];
+  
+  // Skip the header row and parse all data
   for (let i = 1; i < lines.length; i++) {
     try {
       const row = parseCSVLine(lines[i]);
@@ -137,11 +140,6 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
       if (!parsedCustomer) {
         continue;
       }
-
-      console.log(`Processing customer: ${parsedCustomer.customerId} - ${parsedCustomer.firstName} ${parsedCustomer.lastName}`);
-
-      // Check if customer already exists
-      const existingCustomer = await storage.getCustomer(parsedCustomer.customerId);
 
       const customerData: InsertCustomer = {
         id: parsedCustomer.customerId,
@@ -166,22 +164,61 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
         tags: parsedCustomer.tags
       };
 
-      if (existingCustomer) {
-        // Update existing customer
-        await storage.updateCustomer(parsedCustomer.customerId, customerData);
-        updatedCustomers++;
-        console.log(`Updated customer: ${parsedCustomer.customerId}`);
-      } else {
-        // Create new customer
-        await storage.createCustomer(customerData);
-        newCustomers++;
-        console.log(`Created new customer: ${parsedCustomer.customerId}`);
-      }
+      parsedCustomers.push({ customerData, lineNumber: i + 1 });
 
     } catch (error) {
       const errorMsg = `Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`;
       console.error(errorMsg);
       errors.push(errorMsg);
+    }
+  }
+
+  console.log(`Parsed ${parsedCustomers.length} valid customers, now processing batch operations...`);
+
+  // Get all existing customers in one query for better performance
+  const allExistingCustomers = await storage.getAllCustomers();
+  const existingCustomerIds = new Set(allExistingCustomers.map(c => c.id));
+
+  // Separate into new vs existing customers
+  const customersToCreate: InsertCustomer[] = [];
+  const customersToUpdate: Array<{ id: string; data: InsertCustomer }> = [];
+
+  for (const { customerData } of parsedCustomers) {
+    if (existingCustomerIds.has(customerData.id)) {
+      customersToUpdate.push({ id: customerData.id, data: customerData });
+    } else {
+      customersToCreate.push(customerData);
+    }
+  }
+
+  console.log(`Batch processing: ${customersToCreate.length} to create, ${customersToUpdate.length} to update`);
+
+  // Process in batches for better performance
+  const BATCH_SIZE = 50;
+
+  // Create new customers in batches
+  for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
+    const batch = customersToCreate.slice(i, i + BATCH_SIZE);
+    try {
+      await storage.createCustomersBatch(batch);
+      newCustomers += batch.length;
+      console.log(`Created batch of ${batch.length} customers (${i + batch.length}/${customersToCreate.length})`);
+    } catch (error) {
+      console.error(`Error creating customer batch:`, error);
+      errors.push(`Batch create error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+    }
+  }
+
+  // Update existing customers in batches
+  for (let i = 0; i < customersToUpdate.length; i += BATCH_SIZE) {
+    const batch = customersToUpdate.slice(i, i + BATCH_SIZE);
+    try {
+      await storage.updateCustomersBatch(batch);
+      updatedCustomers += batch.length;
+      console.log(`Updated batch of ${batch.length} customers (${i + batch.length}/${customersToUpdate.length})`);
+    } catch (error) {
+      console.error(`Error updating customer batch:`, error);
+      errors.push(`Batch update error: ${error instanceof Error ? error.message : 'Unknown error'}`);
     }
   }
 
