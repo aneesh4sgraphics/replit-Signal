@@ -25,9 +25,10 @@ const sidebarItems = [
   { path: '/', icon: Home, label: 'Dashboard', adminOnly: false },
   { path: '/quick-quotes', icon: FileText, label: 'QuickQuotes', adminOnly: false },
   { path: '/price-list', icon: DollarSign, label: 'Price List', adminOnly: false },
+  { path: '/saved-quotes', icon: FileText, label: 'Saved Quotes', adminOnly: false },
+  // Admin-only items
   { path: '/customers', icon: Users, label: 'Customers', adminOnly: true },
   { path: '/product-pricing-management', icon: Database, label: 'Product Pricing', adminOnly: true },
-  { path: '/saved-quotes', icon: FileText, label: 'Saved Quotes', adminOnly: false },
   { path: '/admin', icon: Settings, label: 'Administration', adminOnly: true },
 ];
 
@@ -78,16 +79,28 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
           {filteredItems.map((item) => {
             const Icon = item.icon;
             const isActive = location === item.path;
+            const isAdminItem = item.adminOnly;
             
             return (
               <Link key={item.path} href={item.path}>
                 <div className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
                   isActive 
-                    ? 'bg-purple-100 text-purple-700 border border-purple-200' 
-                    : 'text-gray-700 hover:bg-gray-100'
+                    ? isAdminItem 
+                      ? 'bg-orange-100 text-orange-700 border border-orange-200' 
+                      : 'bg-purple-100 text-purple-700 border border-purple-200'
+                    : isAdminItem
+                      ? 'text-orange-700 hover:bg-orange-50'
+                      : 'text-gray-700 hover:bg-gray-100'
                 }`}>
                   <Icon className="h-5 w-5" />
-                  {sidebarOpen && <span>{item.label}</span>}
+                  {sidebarOpen && (
+                    <span className="flex items-center gap-2">
+                      {item.label}
+                      {isAdminItem && (
+                        <span className="text-xs bg-orange-200 text-orange-800 px-1.5 py-0.5 rounded-full">Admin</span>
+                      )}
+                    </span>
+                  )}
                 </div>
               </Link>
             );
