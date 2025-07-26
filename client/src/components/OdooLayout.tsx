@@ -95,12 +95,12 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
               
               return (
                 <Link key={item.path} href={item.path}>
-                  <div className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                  <div className={`flex items-center ${sidebarOpen ? 'space-x-3 px-3 py-2' : 'justify-center px-2 py-3'} rounded-md text-sm font-medium transition-colors cursor-pointer ${
                     isActive 
                       ? 'bg-purple-100 text-purple-700 border border-purple-200'
                       : 'text-gray-700 hover:bg-gray-100'
                   }`}>
-                    <Icon className="h-5 w-5" />
+                    <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-7 w-7'} transition-all duration-300`} />
                     {sidebarOpen && <span>{item.label}</span>}
                   </div>
                 </Link>
@@ -124,12 +124,12 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 
                 return (
                   <Link key={item.path} href={item.path}>
-                    <div className={`flex items-center space-x-3 px-3 py-2 rounded-md text-sm font-medium transition-colors cursor-pointer ${
+                    <div className={`flex items-center ${sidebarOpen ? 'space-x-3 px-3 py-2' : 'justify-center px-2 py-3'} rounded-md text-sm font-medium transition-colors cursor-pointer ${
                       isActive 
                         ? 'bg-orange-100 text-orange-700 border border-orange-200'
                         : 'text-orange-700 hover:bg-orange-50'
                     }`}>
-                      <Icon className="h-5 w-5" />
+                      <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-7 w-7'} transition-all duration-300`} />
                       {sidebarOpen && <span>{item.label}</span>}
                     </div>
                   </Link>
