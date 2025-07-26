@@ -8,6 +8,7 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import AppHeader from "@/components/AppHeader";
 import FirecrackerAnimation from "@/components/FirecrackerAnimation";
+import OdooLayout from "@/components/OdooLayout";
 import AreaPricer from "@/pages/area-pricer-fixed";
 import CompetitorPricing from "@/pages/competitor-pricing-fixed";
 import SavedQuotes from "@/pages/saved-quotes";
@@ -17,7 +18,7 @@ import QuoteCalculator from "@/pages/quote-calculator";
 import PriceList from "@/pages/price-list";
 import ShippingCalculator from "@/pages/shipping-calculator";
 import Admin from "@/pages/admin";
-import Dashboard from "@/pages/dashboard";
+import Dashboard from "@/pages/dashboard-odoo";
 
 import NotFound from "@/pages/not-found";
 
@@ -129,17 +130,17 @@ function Router() {
     );
   }
 
-  // Handle authenticated users
+  // Handle authenticated users with Odoo layout
   return (
-    <div className="min-h-screen bg-gray-50">
+    <OdooLayout>
       <FirecrackerAnimation isVisible={showFirecrackers} />
-      <AppHeader />
       <Switch>
         <Route path="/" component={Dashboard} />
         <Route path="/area-pricer" component={AreaPricer} />
         <Route path="/competitor-pricing" component={CompetitorPricing} />
         <Route path="/saved-quotes" component={SavedQuotes} />
         <Route path="/customer-management" component={CustomerManagement} />
+        <Route path="/customers" component={CustomerManagement} />
         <Route path="/product-pricing-management" component={ProductPricingManagement} />
         <Route path="/quote-calculator" component={QuoteCalculator} />
         <Route path="/price-list" component={PriceList} />
@@ -147,7 +148,7 @@ function Router() {
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
       </Switch>
-    </div>
+    </OdooLayout>
   );
 }
 

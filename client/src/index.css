@@ -8,17 +8,17 @@
 @tailwind utilities;
 
 :root {
-  --background: hsl(240, 8%, 97%); /* #f7f7f7 */
+  --background: hsl(0, 0%, 98%); /* #fafafa - Odoo clean white */
   --foreground: hsl(240, 10%, 3.9%);
-  --muted: hsl(210, 40%, 96%);
+  --muted: hsl(210, 17%, 94%); /* #f0f0f0 - light gray dividers */
   --muted-foreground: hsl(215, 16%, 47%);
-  --popover: hsl(240, 8%, 97%);
+  --popover: hsl(0, 0%, 100%);
   --popover-foreground: hsl(240, 10%, 3.9%);
-  --card: hsl(240, 8%, 97%);
+  --card: hsl(0, 0%, 100%);
   --card-foreground: hsl(240, 10%, 3.9%);
-  --border: hsl(214, 32%, 91%);
-  --input: hsl(214, 32%, 91%);
-  --primary: hsl(210, 100%, 50%);
+  --border: hsl(220, 13%, 91%); /* #e5e7eb */
+  --input: hsl(220, 13%, 91%);
+  --primary: hsl(260, 22%, 56%); /* #7E57C2 - Odoo purple */
   --primary-foreground: hsl(0, 0%, 98%);
   --secondary: hsl(210, 40%, 20%);
   --secondary-foreground: hsl(0, 0%, 98%);
