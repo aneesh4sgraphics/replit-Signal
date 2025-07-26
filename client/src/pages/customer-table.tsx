@@ -416,76 +416,78 @@ export default function CustomerTable() {
             <CardTitle className="text-xl text-blue-900">Customer Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="overflow-x-auto">
-              <Table>
+            <div>
+              <Table className="table-fixed w-full">
                 <TableHeader>
                   <TableRow>
-                    <TableHead>Customer ID</TableHead>
-                    <TableHead>Name</TableHead>
-                    <TableHead>Email</TableHead>
-                    <TableHead>Company</TableHead>
-                    <TableHead>Phone</TableHead>
-                    <TableHead>Location</TableHead>
-                    <TableHead>Orders</TableHead>
-                    <TableHead>Total Spent</TableHead>
-                    <TableHead>Status</TableHead>
-                    <TableHead className="text-right">Actions</TableHead>
+                    <TableHead className="w-36">Name</TableHead>
+                    <TableHead className="w-48">Email</TableHead>
+                    <TableHead className="w-40">Company</TableHead>
+                    <TableHead className="w-32">Phone</TableHead>
+                    <TableHead className="w-40">Location</TableHead>
+                    <TableHead className="w-20 text-center">Orders</TableHead>
+                    <TableHead className="w-28 text-right">Total Spent</TableHead>
+                    <TableHead className="w-24">Status</TableHead>
+                    <TableHead className="w-20 text-right">Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {filteredCustomers.map((customer) => (
                     <TableRow key={customer.id}>
-                      <TableCell className="font-mono text-sm">{customer.id}</TableCell>
-                      <TableCell>
-                        <div className="font-medium">
+                      <TableCell className="w-36">
+                        <div className="font-medium truncate">
                           {customer.firstName} {customer.lastName}
                         </div>
                       </TableCell>
-                      <TableCell>{customer.email || "-"}</TableCell>
-                      <TableCell>{customer.company || "-"}</TableCell>
-                      <TableCell>{customer.phone || "-"}</TableCell>
-                      <TableCell>
-                        <div className="text-sm">
+                      <TableCell className="w-48">
+                        <div className="truncate">{customer.email || "-"}</div>
+                      </TableCell>
+                      <TableCell className="w-40">
+                        <div className="truncate">{customer.company || "-"}</div>
+                      </TableCell>
+                      <TableCell className="w-32">
+                        <div className="truncate">{customer.phone || "-"}</div>
+                      </TableCell>
+                      <TableCell className="w-40">
+                        <div className="text-sm truncate">
                           {customer.city && customer.province ? 
                             `${customer.city}, ${customer.province}` : 
                             customer.city || customer.province || "-"
                           }
                         </div>
                       </TableCell>
-                      <TableCell className="text-center">{customer.totalOrders}</TableCell>
-                      <TableCell>${(parseFloat(customer.totalSpent) || 0).toFixed(2)}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
+                      <TableCell className="w-20 text-center">{customer.totalOrders}</TableCell>
+                      <TableCell className="w-28 text-right">${(parseFloat(customer.totalSpent) || 0).toFixed(2)}</TableCell>
+                      <TableCell className="w-24">
+                        <div className="flex flex-col gap-1">
                           {customer.taxExempt && (
-                            <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
+                            <Badge variant="secondary" className="text-xs w-fit">Tax Exempt</Badge>
                           )}
                           {customer.acceptsEmailMarketing && (
-                            <Badge variant="outline" className="text-xs">Email</Badge>
+                            <Badge variant="outline" className="text-xs w-fit">Email</Badge>
                           )}
                           {customer.acceptsSmsMarketing && (
-                            <Badge variant="outline" className="text-xs">SMS</Badge>
+                            <Badge variant="outline" className="text-xs w-fit">SMS</Badge>
                           )}
                         </div>
                       </TableCell>
-                      <TableCell className="text-right">
-                        <div className="flex gap-2 justify-end">
+                      <TableCell className="w-20 text-right">
+                        <div className="flex flex-col gap-1">
                           <Button
                             onClick={() => handleEditCustomer(customer)}
                             size="sm"
                             variant="outline"
-                            className="gap-1"
+                            className="w-fit px-2"
                           >
                             <Edit className="h-3 w-3" />
-                            Edit
                           </Button>
                           <Button
                             onClick={() => handleDeleteCustomer(customer.id)}
                             size="sm"
                             variant="destructive"
-                            className="gap-1"
+                            className="w-fit px-2"
                           >
                             <Trash2 className="h-3 w-3" />
-                            Delete
                           </Button>
                         </div>
                       </TableCell>
