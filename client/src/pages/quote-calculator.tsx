@@ -529,8 +529,8 @@ Yours truly
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-normal text-gray-600">Product Type:</span>
-                    <span>
+                    <span className="text-sm text-gray-600">Product Type:</span>
+                    <span className="text-sm text-gray-800">
                       {selectedType ? (
                         selectedType.includes('Graffiti') ? (
                           <>
@@ -547,12 +547,12 @@ Yours truly
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-normal text-gray-600">Product Size:</span>
-                    <span>{selectedSize || 'Not Selected'}</span>
+                    <span className="text-sm text-gray-600">Product Size:</span>
+                    <span className="text-sm text-gray-800">{selectedSize || 'Not Selected'}</span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-normal text-gray-600">Total Sqm:</span>
-                    <span className="font-light">
+                    <span className="text-sm text-gray-600">Total Sqm:</span>
+                    <span className="text-sm text-gray-800">
                       {selectedProduct ? 
                         `${parseFloat(String(selectedProduct.totalSqm || 0)).toFixed(4)} sqm` : 
                         'Not Calculated'
@@ -560,7 +560,7 @@ Yours truly
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-normal text-gray-600">Total Quantity:</span>
+                    <span className="text-sm text-gray-600">Total Quantity:</span>
                     <span className="flex items-center gap-2">
                       {(() => {
                         const currentQty = quantity;
@@ -586,8 +586,8 @@ Yours truly
                     </span>
                   </div>
                   <div className="flex justify-between">
-                    <span className="font-normal text-gray-600">Min. Order Qty:</span>
-                    <span className="font-light">
+                    <span className="text-sm text-gray-600">Min. Order Qty:</span>
+                    <span className="text-sm text-gray-800">
                       {selectedProduct ? 
                         `${selectedProduct.minQuantity} Sheets` : 
                         'Not Available'
