@@ -334,14 +334,9 @@ Yours truly
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
       <div className="max-w-screen-lg mx-auto px-6 py-6">
-        {/* Header */}
+        {/* Floating elements for visual enhancement */}
         <div className="mb-6 relative">
           <FloatingElements />
-          <h1 className="text-xl font-normal text-gray-800 mb-2">QuickQuotes</h1>
-          <p className="text-sm text-gray-500">
-            Generate instant quotes for your products
-          </p>
-          <HeaderDivider />
         </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
