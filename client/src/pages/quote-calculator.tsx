@@ -328,7 +328,7 @@ Total Amount: $${calculatedTotalAmount.toFixed(2)}
 We eagerly look forward for your business.
 
 Yours truly
-4S Graphics Team`;
+${user?.email || '4S Graphics Team'}`;
 
     // Create mailto link
     const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
