@@ -406,6 +406,9 @@ function getLogoBase64(): string {
 export async function generateQuotePDF(request: PDFGenerationRequest): Promise<Buffer> {
   const html = generateQuoteHTML(request);
   
+  // Set environment variable to use system Chromium
+  process.env.PUPPETEER_EXECUTABLE_PATH = '/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium';
+  
   const options = {
     format: 'A4',
     border: {
@@ -428,17 +431,28 @@ export async function generateQuotePDF(request: PDFGenerationRequest): Promise<B
         '--single-process',
         '--disable-gpu',
         '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
+        '--disable-features=VizDisplayCompositor',
+        '--headless=new',
+        '--disable-extensions',
+        '--disable-default-apps'
       ]
     }
   };
 
   try {
+    console.log('Starting PDF generation with Chromium path:', process.env.PUPPETEER_EXECUTABLE_PATH);
     const pdfBuffer = await pdf.generatePdf({ content: html }, options);
-    return pdfBuffer as any;
+    console.log('PDF generation successful, buffer size:', (pdfBuffer as Buffer).length);
+    return pdfBuffer as Buffer;
   } catch (error) {
     console.error('Error generating PDF:', error);
+    console.error('Error details:', {
+      message: (error as Error).message,
+      stack: (error as Error).stack,
+      chromiumPath: process.env.PUPPETEER_EXECUTABLE_PATH
+    });
     throw new Error('Failed to generate PDF');
+  } Error('Failed to generate PDF');
   }
 }
 
