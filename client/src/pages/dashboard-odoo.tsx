@@ -212,7 +212,7 @@ export default function Dashboard() {
         <OdooCard>
           <div className="flex items-center justify-between">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
+              <p className="text-sm font-medium text-gray-600">Quotes Worth</p>
               {statsLoading ? (
                 <div className="h-9 w-20 bg-gray-200 rounded animate-pulse"></div>
               ) : (
@@ -221,7 +221,7 @@ export default function Dashboard() {
                 </p>
               )}
               <p className="text-xs text-green-600">
-                {statsLoading ? "Loading..." : "This month's total"}
+                {statsLoading ? "Loading..." : "submitted this month"}
               </p>
             </div>
             <div className="p-3 bg-green-100 rounded-xl flex-shrink-0">
