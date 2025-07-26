@@ -30,27 +30,79 @@ export function generateQuoteHTMLForDownload(data: any): string {
     itemsByType[item.productType].push(item);
   });
 
+  // Get category display name function
+  function getCategoryDisplayName(productType: string): string {
+    const categoryMappings: { [key: string]: string } = {
+      // CLiQ products
+      'CliQ Cold Press Paper 300gsm': 'CLiQ Aqueous Media',
+      'CliQ Hot Press Paper 270gsm': 'CLiQ Aqueous Media',
+      'CliQ Cotton Rag Paper 300gsm': 'CLiQ Aqueous Media',
+      'CliQ Inkjet Matte Paper 230gsm': 'CLiQ Aqueous Media',
+      'CliQ PETBull 7mil': 'CLiQ Aqueous Media',
+      'CliQ Photo Paper 10.4mil': 'CLiQ Aqueous Media',
+      'CliQ Photo Paper 11.2 mil': 'CLiQ Aqueous Media',
+      'CliQ Banner Media - 15mil': 'CLiQ Aqueous Media',
+      'CliQ Inkjet Matte Paper 170gsm': 'CLiQ Aqueous Media',
+      'CliQ Photo Paper 8.4mil': 'CLiQ Aqueous Media',
+      'CliQ Self Adhesive Vinyl - 5mil (PVC)': 'CLiQ Aqueous Media',
+      'CliQ SlickStick 10.4mil': 'CLiQ Aqueous Media',
+      // Graffiti products
+      'Graffiti Polyester Paper': 'Graffiti Polyester Paper',
+      'thickness: 5mil': 'Graffiti Polyester Paper',
+      'thickness: 8mil': 'Graffiti Polyester Paper',
+      'thickness: 10mil': 'Graffiti Polyester Paper',
+      'thickness: 11mil': 'Graffiti Polyester Paper',
+      'thickness: 14mil': 'Graffiti Polyester Paper',
+      // Solvit products
+      'Solvit Poster Paper 175gsm': 'Solvit Sign & Display Media',
+      'Solvit Backlit Film 8mil': 'Solvit Sign & Display Media',
+      'Solvit Self Adhesive Vinyl - 4mil (Greyback)': 'Solvit Sign & Display Media',
+      'Solvit Self Adhesive Vinyl - 6mil (white Back)': 'Solvit Sign & Display Media',
+      // CoHo products
+      'CoHo Films for Fabrics': 'DTF Films',
+      // Rang products
+      'Rang DL Polyester Canvas 280gsm': 'Rang Print Canvas',
+      'Rang Duo PolyCotton Canvas 400gsm': 'Rang Print Canvas',
+      'Rang Duo PolyCotton Canvas 420gsm': 'Rang Print Canvas',
+      // EiE/eLe products
+      'EiE Inkjet Waterproof Film': 'EiE Media',
+      'eLe Frosted Laser Film': 'eLe Laser Media',
+      'eLe Clear Laser Film': 'eLe Laser Media',
+      'eLe Polyester Laser Plate MXP': 'MXP Media'
+    };
+
+    return categoryMappings[productType] || 'Product Media';
+  }
+
   // Generate separate tables for each product type
   const productTables = Object.entries(itemsByType).map(([productType, items]) => {
-    const productRows = items.map((item: any, index: number) => `
-      <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.size}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.tier}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.quantity}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
-        <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: bold;">$${item.total.toFixed(2)}</td>
-      </tr>
-    `).join('');
+    const categoryName = getCategoryDisplayName(productType);
+    
+    const productRows = items.map((item: any, index: number) => {
+      const orderQty = Math.max(item.minOrderQty || 0, item.quantity);
+      const itemTotal = orderQty * item.pricePerSheet;
+      
+      return `
+        <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5;">${item.size}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: center;">${item.minOrderQty || 0}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right;">$${item.pricePerSheet.toFixed(2)}</td>
+          <td style="padding: 8px 12px; border-bottom: 1px solid #e5e5e5; text-align: right; font-weight: bold;">$${itemTotal.toFixed(2)}</td>
+        </tr>
+      `;
+    }).join('');
 
     return `
       <div style="margin-bottom: 25px;">
-        <h3 style="font-size: 16px; font-weight: bold; color: #333; margin-bottom: 10px; padding: 8px 0; border-bottom: 2px solid #4CAF50;">${productType}</h3>
+        <div style="margin-bottom: 10px;">
+          <div style="font-size: 14px; font-weight: 600; color: #3b82f6; margin-bottom: 2px;">${categoryName}</div>
+          <div style="font-size: 16px; font-weight: bold; color: #1f2937;">${productType}</div>
+        </div>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white; border: 1px solid #ddd;">
           <thead>
-            <tr style="background-color: #4CAF50;">
+            <tr style="background-color: #374151;">
               <th style="padding: 10px 12px; color: white; text-align: left; font-weight: bold; font-size: 11px;">Size</th>
-              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Tier</th>
-              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Qty</th>
+              <th style="padding: 10px 12px; color: white; text-align: center; font-weight: bold; font-size: 11px;">Min Order Qty</th>
               <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Price/Sheet</th>
               <th style="padding: 10px 12px; color: white; text-align: right; font-weight: bold; font-size: 11px;">Total</th>
             </tr>

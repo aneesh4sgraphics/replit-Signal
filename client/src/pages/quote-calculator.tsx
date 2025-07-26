@@ -280,20 +280,41 @@ export default function QuoteCalculator() {
     const customerEmail = selectedCustomer?.email || '';
 
     const emailSubject = `Quote ${quoteNumber} from 4S Graphics`;
+    // Calculate total amount based on Min Order Qty × Price/Sheet
+    const calculatedTotalAmount = quoteItems.reduce((sum, item) => {
+      const orderQty = Math.max(item.minOrderQty || 0, item.quantity);
+      const itemTotal = orderQty * item.pricePerSheet;
+      return sum + itemTotal;
+    }, 0);
+
     const emailBody = `Dear ${customerName},
 
 Thank you for interest in our products, here is the quote you requested:
 
-${quoteItems.map((item) => 
-  `Product Name: ${item.productName}
+${quoteItems.map((item) => {
+  const orderQty = Math.max(item.minOrderQty || 0, item.quantity);
+  const itemTotal = orderQty * item.pricePerSheet;
+  
+  return `Product Name: ${item.productName}
 Product Type: ${item.productType}
 Size: ${item.size}
 Item Code: ${item.itemCode}
-Price/Sheet: $${item.pricePerSheet.toFixed(2)}
 Minimum Order Quantity: ${item.minOrderQty}
+Price/Sheet: $${item.pricePerSheet.toFixed(2)}
+Total: $${itemTotal.toFixed(2)}
 
-—————————————`
-).join('\n\n')}
+—————————————`;
+}).join('\n\n')}
+
+Total Amount: $${calculatedTotalAmount.toFixed(2)}
+
+Payment Instructions:
+All payments should be made to 4S GRAPHICS, INC. only.
+ACH Payments: Account# 0126734133 | Routing# 063104668 | SWIFT Code: UPNBUS44 / ABA: 062005690
+Credit Cards: Visa, MasterCard, and American Express (4.5% processing fee applies)
+Zelle Payments: Linked Phone Number for Payment: 260-580-0526
+PayPal Payments: info@4sgraphics.com (4.5% PayPal fee applies)
+Shipping Costs: At Actuals - Discuss with your Sales Rep to get accurate Shipping costs
 
 We eagerly look forward for your business.
 
