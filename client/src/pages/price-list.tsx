@@ -250,7 +250,7 @@ export default function PriceList() {
           <p className="text-sm text-gray-500 mb-6">{priceListItems.length} products found</p>
           <div>
             <div className="border border-gray-200 rounded-lg overflow-hidden">
-              <div className="bg-gray-50 border-b border-gray-200 grid grid-cols-7 gap-2 p-3">
+              <div className="bg-gray-50 border-b border-gray-200 p-3" style={{ display: 'grid', gridTemplateColumns: '140px 200px 100px 80px 100px 100px 120px', gap: '12px' }}>
                 <div className="text-sm font-medium text-gray-800">Item Code</div>
                 <div className="text-sm font-medium text-gray-800">Product Type</div>
                 <div className="text-sm font-medium text-gray-800">Size</div>
@@ -261,14 +261,16 @@ export default function PriceList() {
               </div>
               <div>
                 {priceListItems.map((item, index) => (
-                  <div key={index} className="grid grid-cols-7 gap-2 items-center p-3 border-b border-gray-100 hover:bg-gray-50">
-                    <div className="font-mono text-sm text-gray-600">{item.itemCode}</div>
-                    <div className="text-sm text-gray-800">{item.productType}</div>
-                    <div className="text-sm text-gray-600">{item.size}</div>
-                    <div className="text-sm text-gray-600">{item.minQty}</div>
-                    <div className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</div>
-                    <div className="text-sm text-gray-600">${item.pricePerSheet.toFixed(2)}</div>
-                    <div className="text-sm text-gray-800 font-medium text-green-600">
+                  <div key={index} className="p-3 border-b border-gray-100 hover:bg-gray-50" style={{ display: 'grid', gridTemplateColumns: '140px 200px 100px 80px 100px 100px 120px', gap: '12px', alignItems: 'center', minHeight: '50px' }}>
+                    <div className="font-mono text-sm text-gray-600 truncate" title={item.itemCode}>{item.itemCode}</div>
+                    <div className="text-sm text-gray-800 leading-tight" style={{ whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }} title={item.productType}>
+                      {item.productType}
+                    </div>
+                    <div className="text-sm text-gray-600 text-center">{item.size}</div>
+                    <div className="text-sm text-gray-600 text-center">{item.minQty}</div>
+                    <div className="text-sm text-gray-600 text-right">${item.pricePerSqM.toFixed(2)}</div>
+                    <div className="text-sm text-gray-600 text-right">${item.pricePerSheet.toFixed(2)}</div>
+                    <div className="text-sm text-gray-800 font-medium text-green-600 text-right">
                       ${item.pricePerPack.toFixed(2)}
                     </div>
                   </div>
