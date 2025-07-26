@@ -584,13 +584,14 @@ Yours truly
                         minWidth: 120,
                         align: 'left' 
                       },
-                      { 
+                      // Only show $/m² column for admin users
+                      ...(user?.role === 'admin' ? [{ 
                         key: 'pricePerSqM', 
                         title: '$/m²', 
                         weight: 1,
                         minWidth: 80,
-                        align: 'center' 
-                      },
+                        align: 'center' as const
+                      }] : []),
                       { 
                         key: 'pricePerSheet', 
                         title: 'Price/Sheet', 
@@ -638,6 +639,7 @@ Yours truly
                             </span>
                           );
                         case 'pricePerSqM':
+                          // Only show for admin users (column is conditionally included)
                           return (
                             <span className="text-sm text-gray-600">
                               ${item.price.toFixed(2)}
