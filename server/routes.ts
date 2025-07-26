@@ -2652,6 +2652,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Dashboard statistics endpoint
+  app.get("/api/dashboard/stats", requireApproval, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      
+      // Get total quotes count
+      const totalQuotes = await storage.getSentQuotesCount();
+      
+      // Get quotes this month
+      const thisMonth = new Date();
+      thisMonth.setDate(1);
+      thisMonth.setHours(0, 0, 0, 0);
+      
+      const quotesThisMonth = await storage.getSentQuotesCountSince(thisMonth);
+      
+      // Calculate total value this month
+      const monthlyQuotes = await storage.getSentQuotesSince(thisMonth);
+      const monthlyRevenue = monthlyQuotes.reduce((sum, quote) => {
+        const amount = parseFloat(quote.totalAmount?.toString() || '0');
+        return sum + (isNaN(amount) ? 0 : amount);
+      }, 0);
+      
+      // Get total customers count
+      const totalCustomers = await storage.getCustomersCount();
+      
+      // Get total products count  
+      const totalProducts = await storage.getProductsCount();
+      
+      // Get recent activity count (last 7 days)
+      const weekAgo = new Date();
+      weekAgo.setDate(weekAgo.getDate() - 7);
+      
+      const recentActivity = await storage.getActivityLogsSince(weekAgo);
+      const activityCount = recentActivity.length;
+      
+      res.json({
+        totalQuotes,
+        quotesThisMonth,
+        monthlyRevenue,
+        totalCustomers,
+        totalProducts,
+        activityCount
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard statistics" });
+    }
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

@@ -17,7 +17,17 @@ import {
   CheckCircle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
+import { useQuery } from "@tanstack/react-query";
 import OdooCard from "@/components/OdooCard";
+
+interface DashboardStats {
+  totalQuotes: number;
+  quotesThisMonth: number;
+  monthlyRevenue: number;
+  totalCustomers: number;
+  totalProducts: number;
+  activityCount: number;
+}
 
 interface AppItem {
   title: string;
@@ -110,6 +120,29 @@ export default function Dashboard() {
   
   const isAdmin = (user as any)?.role === 'admin';
 
+  // Fetch dashboard statistics
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats"],
+    staleTime: 2 * 60 * 1000, // 2 minutes
+    gcTime: 10 * 60 * 1000, // 10 minutes
+  });
+
+  // Calculate percentage changes (using simple month-over-month simulation for now)
+  const getPercentageChange = (current: number) => {
+    // Simple simulation - in a real app, you'd compare with previous period
+    const variation = Math.floor(Math.random() * 20) - 10; // -10% to +10%
+    return variation;
+  };
+
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat('en-US', {
+      style: 'currency',
+      currency: 'USD',
+      minimumFractionDigits: 0,
+      maximumFractionDigits: 0,
+    }).format(amount);
+  };
+
   return (
     <div className="space-y-8">
       {/* Welcome Section */}
@@ -160,9 +193,15 @@ export default function Dashboard() {
         <OdooCard>
           <div className="flex items-center justify-between">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium text-gray-600">Active Quotes</p>
-              <p className="text-3xl font-bold text-gray-900">12</p>
-              <p className="text-xs text-green-600">↑ 8% from last week</p>
+              <p className="text-sm font-medium text-gray-600">Total Quotes</p>
+              {statsLoading ? (
+                <div className="h-9 w-16 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className="text-3xl font-bold text-gray-900">{stats?.totalQuotes || 0}</p>
+              )}
+              <p className="text-xs text-blue-600">
+                {statsLoading ? "Loading..." : `${stats?.quotesThisMonth || 0} this month`}
+              </p>
             </div>
             <div className="p-3 bg-blue-100 rounded-xl flex-shrink-0">
               <FileText className="h-8 w-8 text-blue-600" />
@@ -173,9 +212,17 @@ export default function Dashboard() {
         <OdooCard>
           <div className="flex items-center justify-between">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium text-gray-600">This Month</p>
-              <p className="text-3xl font-bold text-gray-900">$45.2K</p>
-              <p className="text-xs text-green-600">↑ 12% from last month</p>
+              <p className="text-sm font-medium text-gray-600">Monthly Revenue</p>
+              {statsLoading ? (
+                <div className="h-9 w-20 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className="text-3xl font-bold text-gray-900">
+                  {formatCurrency(stats?.monthlyRevenue || 0)}
+                </p>
+              )}
+              <p className="text-xs text-green-600">
+                {statsLoading ? "Loading..." : "This month's total"}
+              </p>
             </div>
             <div className="p-3 bg-green-100 rounded-xl flex-shrink-0">
               <TrendingUp className="h-8 w-8 text-green-600" />
@@ -186,12 +233,18 @@ export default function Dashboard() {
         <OdooCard>
           <div className="flex items-center justify-between">
             <div className="flex flex-col space-y-1">
-              <p className="text-sm font-medium text-gray-600">Success Rate</p>
-              <p className="text-3xl font-bold text-gray-900">94%</p>
-              <p className="text-xs text-green-600">Excellent performance</p>
+              <p className="text-sm font-medium text-gray-600">Total Products</p>
+              {statsLoading ? (
+                <div className="h-9 w-16 bg-gray-200 rounded animate-pulse"></div>
+              ) : (
+                <p className="text-3xl font-bold text-gray-900">{stats?.totalProducts || 0}</p>
+              )}
+              <p className="text-xs text-purple-600">
+                {statsLoading ? "Loading..." : `${stats?.totalCustomers || 0} customers`}
+              </p>
             </div>
             <div className="p-3 bg-purple-100 rounded-xl flex-shrink-0">
-              <CheckCircle className="h-8 w-8 text-purple-600" />
+              <Package className="h-8 w-8 text-purple-600" />
             </div>
           </div>
         </OdooCard>

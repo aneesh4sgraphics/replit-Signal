@@ -37,7 +37,7 @@ import {
 import { parseProductData } from "./csv-parser";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
-import { eq, desc, and } from "drizzle-orm";
+import { eq, desc, and, sql } from "drizzle-orm";
 
 export interface IStorage {
   // User operations for Replit Auth
@@ -119,6 +119,14 @@ export interface IStorage {
   logActivity(activity: InsertActivityLog): Promise<ActivityLog>;
   getActivityLogs(userId?: string, limit?: number): Promise<ActivityLog[]>;
   getUserActivityLogs(userId: string, limit?: number): Promise<ActivityLog[]>;
+  getActivityLogsSince(date: Date): Promise<ActivityLog[]>;
+  
+  // Dashboard Statistics
+  getSentQuotesCount(): Promise<number>;
+  getSentQuotesCountSince(date: Date): Promise<number>;
+  getSentQuotesSince(date: Date): Promise<SentQuote[]>;
+  getCustomersCount(): Promise<number>;
+  getProductsCount(): Promise<number>;
 }
 
 
@@ -649,6 +657,38 @@ export class MemStorage implements IStorage {
   async getUserActivityLogs(userId: string, limit: number = 50): Promise<ActivityLog[]> {
     // For MemStorage, return empty array since we don't persist activity logs
     return [];
+  }
+
+  async getActivityLogsSince(date: Date): Promise<ActivityLog[]> {
+    // For MemStorage, return empty array since we don't persist activity logs
+    return [];
+  }
+
+  // Dashboard Statistics methods (using MemStorage data)
+  async getSentQuotesCount(): Promise<number> {
+    return this.sentQuotes.size;
+  }
+
+  async getSentQuotesCountSince(date: Date): Promise<number> {
+    const quotes = Array.from(this.sentQuotes.values());
+    return quotes.filter(quote => 
+      new Date(quote.createdAt || '').getTime() >= date.getTime()
+    ).length;
+  }
+
+  async getSentQuotesSince(date: Date): Promise<SentQuote[]> {
+    const quotes = Array.from(this.sentQuotes.values());
+    return quotes.filter(quote => 
+      new Date(quote.createdAt || '').getTime() >= date.getTime()
+    );
+  }
+
+  async getCustomersCount(): Promise<number> {
+    return this.customers.size;
+  }
+
+  async getProductsCount(): Promise<number> {
+    return this.productSizes.size;
   }
 
   // Product Pricing Master operations (delegate to database for testing)
@@ -1287,6 +1327,52 @@ export class DatabaseStorage implements IStorage {
       .where(eq(activityLogs.userId, userId))
       .orderBy(desc(activityLogs.createdAt))
       .limit(limit);
+  }
+
+  async getActivityLogsSince(date: Date): Promise<ActivityLog[]> {
+    return await db
+      .select()
+      .from(activityLogs)
+      .where(sql`created_at >= ${date}`)
+      .orderBy(desc(activityLogs.createdAt));
+  }
+
+  // Dashboard Statistics methods
+  async getSentQuotesCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(sentQuotes);
+    return result.count || 0;
+  }
+
+  async getSentQuotesCountSince(date: Date): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(sentQuotes)
+      .where(sql`created_at >= ${date}`);
+    return result.count || 0;
+  }
+
+  async getSentQuotesSince(date: Date): Promise<SentQuote[]> {
+    return await db
+      .select()
+      .from(sentQuotes)
+      .where(sql`created_at >= ${date}`)
+      .orderBy(desc(sentQuotes.createdAt));
+  }
+
+  async getCustomersCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(customers);
+    return result.count || 0;
+  }
+
+  async getProductsCount(): Promise<number> {
+    const [result] = await db
+      .select({ count: sql<number>`count(*)` })
+      .from(productPricingMaster);
+    return result.count || 0;
   }
 }
 
