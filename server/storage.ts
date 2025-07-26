@@ -489,13 +489,16 @@ export class DatabaseStorage implements IStorage {
     if (customerUpdates.length === 0) return;
     
     try {
-      // Process updates one by one since PostgreSQL doesn't support batch updates with different values easily
-      for (const { id, data } of customerUpdates) {
-        await db
+      // Use Promise.all for parallel processing instead of sequential updates
+      const updatePromises = customerUpdates.map(({ id, data }) =>
+        db
           .update(customers)
           .set(data)
-          .where(eq(customers.id, id));
-      }
+          .where(eq(customers.id, id))
+      );
+      
+      await Promise.all(updatePromises);
+      console.log(`Successfully updated ${customerUpdates.length} customers in parallel`);
     } catch (error) {
       console.error('Error updating customer batch:', error);
       throw error;

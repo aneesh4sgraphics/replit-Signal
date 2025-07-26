@@ -242,8 +242,11 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
   console.log(`Parsed ${parsedCustomers.length} valid customers, now processing batch operations...`);
 
   // Get all existing customers in one query for better performance
+  console.log('Fetching existing customers from database...');
+  const startTime = Date.now();
   const allExistingCustomers = await storage.getAllCustomers();
   const existingCustomerIds = new Set(allExistingCustomers.map(c => c.id));
+  console.log(`Fetched ${allExistingCustomers.length} existing customers in ${Date.now() - startTime}ms`);
 
   // Separate into new vs existing customers
   const customersToCreate: InsertCustomer[] = [];
@@ -260,7 +263,7 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
   console.log(`Batch processing: ${customersToCreate.length} to create, ${customersToUpdate.length} to update`);
 
   // Process in batches for better performance
-  const BATCH_SIZE = 50;
+  const BATCH_SIZE = 100; // Increased batch size for better performance
 
   // Create new customers in batches
   for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
