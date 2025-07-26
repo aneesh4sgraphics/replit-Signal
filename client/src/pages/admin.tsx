@@ -115,9 +115,18 @@ export default function Admin() {
     },
     onError: (error) => {
       console.error('ERROR - Role change failed:', error);
+      
+      // Extract error message more carefully
+      let errorMessage = "Failed to update user role";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+      } else if (typeof error === 'string') {
+        errorMessage = error;
+      }
+      
       toast({
         title: "Error updating role",
-        description: error.message,
+        description: errorMessage,
         variant: "destructive",
       });
     },
