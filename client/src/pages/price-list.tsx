@@ -141,13 +141,13 @@ export default function PriceList() {
         const tierField = tierMapping[selectedTier];
         const pricePerSqM = Number(product[tierField]) || 0;
         const sqm = parseFloat(String(product.totalSqm || 0));
-        let pricePerSheet = +(pricePerSqM * sqm).toFixed(2);
+        const pricePerSheet = +(pricePerSqM * sqm).toFixed(2);
         const minQty = Number(product.minQuantity) || 1;
         
-        // Apply retail rounding for RETAIL tier
+        // Apply retail rounding for RETAIL tier only to Price Per Pack
         const isRetailTier = selectedTier === 'Retail';
-        pricePerSheet = applyRetailRounding(pricePerSheet, isRetailTier);
-        const pricePerPack = +(pricePerSheet * minQty).toFixed(2);
+        const rawPricePerPack = pricePerSheet * minQty;
+        const pricePerPack = +applyRetailRounding(rawPricePerPack, isRetailTier).toFixed(2);
 
         return {
           productType: String(product.productType || 'Unknown'),

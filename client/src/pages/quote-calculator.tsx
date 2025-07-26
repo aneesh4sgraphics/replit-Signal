@@ -176,13 +176,13 @@ export default function QuoteCalculator() {
     if (!selectedProduct) return;
 
     const tierPrice = selectedProduct[tier as keyof ProductData] as number;
-    let pricePerSheet = tierPrice * parseFloat(String(selectedProduct.totalSqm || 0));
+    const pricePerSheet = tierPrice * parseFloat(String(selectedProduct.totalSqm || 0));
     const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
     
-    // Apply retail rounding for RETAIL tier
+    // Apply retail rounding for RETAIL tier only to total
     const isRetailTier = tier === 'retailPrice';
-    pricePerSheet = applyRetailRounding(pricePerSheet, isRetailTier);
-    const total = pricePerSheet * useQuantity;
+    const rawTotal = pricePerSheet * useQuantity;
+    const total = applyRetailRounding(rawTotal, isRetailTier);
 
     const quoteItem: QuoteItem = {
       id: `${Date.now()}-${Math.random()}`,
@@ -655,13 +655,13 @@ Yours truly
                     ]}
                     data={pricingTiers.map(tier => {
                       const price = selectedProduct[tier.key as keyof ProductData] as number;
-                      let pricePerSheet = price * parseFloat(String(selectedProduct.totalSqm || 0));
+                      const pricePerSheet = price * parseFloat(String(selectedProduct.totalSqm || 0));
                       const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
                       
-                      // Apply retail rounding for RETAIL tier
+                      // Apply retail rounding for RETAIL tier only to Min Order Qty Price (total)
                       const isRetailTier = tier.key === 'retailPrice';
-                      pricePerSheet = applyRetailRounding(pricePerSheet, isRetailTier);
-                      const total = pricePerSheet * useQuantity;
+                      const rawTotal = pricePerSheet * useQuantity;
+                      const total = applyRetailRounding(rawTotal, isRetailTier);
                       
                       return {
                         tier: tier,
