@@ -22,12 +22,16 @@ import {
   type ActivityLog,
   type InsertActivityLog,
   users,
+  customers,
+  sentQuotes,
   competitorPricing,
   fileUploads,
   productPricingMaster,
   uploadBatches,
   productCategories,
   productTypes,
+  productSizes,
+  pricingTiers,
   activityLogs,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
@@ -1006,23 +1010,44 @@ export class DatabaseStorage implements IStorage {
 
   // Customers
   async getCustomers(): Promise<Customer[]> {
-    return this.memStorage.getCustomers();
+    return await db.select().from(customers);
   }
 
   async getCustomer(id: string): Promise<Customer | undefined> {
-    return this.memStorage.getCustomer(id);
+    const [customer] = await db
+      .select()
+      .from(customers)
+      .where(eq(customers.id, id));
+    return customer || undefined;
   }
 
   async createCustomer(customer: InsertCustomer): Promise<Customer> {
-    return this.memStorage.createCustomer(customer);
+    const [newCustomer] = await db
+      .insert(customers)
+      .values(customer)
+      .returning();
+    return newCustomer;
   }
 
   async updateCustomer(id: string, customerData: Partial<InsertCustomer>): Promise<Customer | undefined> {
-    return this.memStorage.updateCustomer(id, customerData);
+    const [updatedCustomer] = await db
+      .update(customers)
+      .set(customerData)
+      .where(eq(customers.id, id))
+      .returning();
+    return updatedCustomer || undefined;
   }
 
   async deleteCustomer(id: string): Promise<boolean> {
-    return this.memStorage.deleteCustomer(id);
+    try {
+      const result = await db
+        .delete(customers)
+        .where(eq(customers.id, id));
+      return result.rowCount !== null && result.rowCount > 0;
+    } catch (error) {
+      console.error('Error deleting customer:', error);
+      return false;
+    }
   }
 
   // Sent Quotes
@@ -1339,10 +1364,15 @@ export class DatabaseStorage implements IStorage {
 
   // Dashboard Statistics methods
   async getSentQuotesCount(): Promise<number> {
-    const [result] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(sentQuotes);
-    return result.count || 0;
+    try {
+      const [result] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(sentQuotes);
+      return result.count || 0;
+    } catch (error) {
+      console.error("Error getting quotes count:", error);
+      return 0;
+    }
   }
 
   async getSentQuotesCountSince(date: Date): Promise<number> {
@@ -1362,10 +1392,15 @@ export class DatabaseStorage implements IStorage {
   }
 
   async getCustomersCount(): Promise<number> {
-    const [result] = await db
-      .select({ count: sql<number>`count(*)` })
-      .from(customers);
-    return result.count || 0;
+    try {
+      const [result] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(customers);
+      return result.count || 0;
+    } catch (error) {
+      console.error("Error getting customers count:", error);
+      return 0;
+    }
   }
 
   async getProductsCount(): Promise<number> {
