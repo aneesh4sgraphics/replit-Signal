@@ -92,9 +92,19 @@ export default function Admin() {
 
   const changeRoleMutation = useMutation({
     mutationFn: async ({ userId, newRole }: { userId: string; newRole: string }) => {
-      return await apiRequest("PATCH", `/api/admin/users/${encodeURIComponent(userId)}/role`, { role: newRole });
+      console.log('=== ROLE CHANGE DEBUG ===');
+      console.log('userId:', userId);
+      console.log('newRole:', newRole);
+      console.log('URL:', `/api/admin/users/${encodeURIComponent(userId)}/role`);
+      console.log('Body:', { role: newRole });
+      
+      const response = await apiRequest("PATCH", `/api/admin/users/${encodeURIComponent(userId)}/role`, { role: newRole });
+      const result = await response.json();
+      console.log('Response:', result);
+      return result;
     },
-    onSuccess: (_, { userId, newRole }) => {
+    onSuccess: (data, { userId, newRole }) => {
+      console.log('SUCCESS - Role change successful:', data);
       queryClient.invalidateQueries({ queryKey: ["/api/admin/users"] });
       const user = users?.find(u => u.id === userId);
       logUserAction("CHANGED USER ROLE", `${user?.email || userId} to ${newRole}`);
@@ -104,6 +114,7 @@ export default function Admin() {
       });
     },
     onError: (error) => {
+      console.error('ERROR - Role change failed:', error);
       toast({
         title: "Error updating role",
         description: error.message,
