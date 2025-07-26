@@ -79,8 +79,8 @@ const allPricingTiers = [
 ];
 
 export default function PriceList() {
-  const [selectedCategory, setSelectedCategory] = useState<string>("");
-  const [selectedTier, setSelectedTier] = useState<string>("Export");
+  const [selectedCategory, setSelectedCategory] = useState<string>("CLiQ Aqueous Medias");
+  const [selectedTier, setSelectedTier] = useState<string>("Retail");
   const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   
@@ -195,62 +195,7 @@ export default function PriceList() {
           <HeaderDivider />
         </div>
 
-        {/* Configuration */}
-        <SimpleCardFrame className="p-6 mb-6 bg-white border border-gray-100">
-          <h2 className="text-lg font-normal text-gray-800 mb-2 flex items-center gap-2">
-            <IconBadge icon={FileText} label="Configuration" className="px-0 py-0 bg-transparent border-none text-lg font-normal text-gray-800" />
-          </h2>
-          <p className="text-sm text-gray-500 mb-6">Select product category and pricing tier to generate your price list</p>
-        <SectionDivider />
-        <div>
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-            {/* Product Category */}
-            <div className="space-y-2">
-              <label className="block text-sm font-normal text-gray-800">Product Category</label>
-              <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-                <SelectTrigger className="w-full rounded-md px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 bg-white" style={{ border: '1px solid #f3f4f6' }}>
-                  <SelectValue placeholder="Select product category" />
-                </SelectTrigger>
-                <SelectContent>
-                  {categories.map(category => (
-                    <SelectItem key={String(category)} value={String(category)}>
-                      {String(category)}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
 
-            {/* Pricing Tier */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-800">Pricing Tier</label>
-              <Select value={selectedTier} onValueChange={setSelectedTier}>
-                <SelectTrigger className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
-                  <SelectValue placeholder="Select pricing tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {pricingTiers.map(tier => (
-                    <SelectItem key={tier.key} value={tier.key}>
-                      {tier.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-
-            {/* Customer Selection */}
-            <div className="space-y-2">
-              <label className="block text-sm font-medium text-gray-800">Customer (Optional)</label>
-              <SearchableCustomerSelect
-                selectedCustomer={selectedCustomer}
-                onCustomerSelect={setSelectedCustomer}
-                placeholder="Search customers..."
-                className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white"
-              />
-            </div>
-          </div>
-        </div>
-      </SimpleCardFrame>
 
       {/* Price List Table */}
       {priceListItems.length > 0 ? (
