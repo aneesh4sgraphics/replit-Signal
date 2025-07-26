@@ -11,7 +11,7 @@ import { z } from "zod";
 // Removed: parseProductData import - legacy CSV parser no longer used
 import { parseCustomerCSV } from "./customer-parser";
 
-import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber } from "./stub-functions";
+import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber, generateQuoteNumber } from "./stub-functions";
 import { insertSentQuoteSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
@@ -27,6 +27,7 @@ import { db } from "./db";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
 import pricingDatabaseRoutes from "./routes-pricing-database";
+import { APP_CONFIG, isAdminEmail, getUserRoleFromEmail, getAccessibleTiers, debugLog } from "./config";
 
 // Simple in-memory cache for frequently accessed data
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -232,25 +233,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auth routes
   app.get('/api/auth/user', async (req: any, res) => {
     try {
-      // Development bypass for testing
-      if (process.env.NODE_ENV === 'development') {
+      // Development bypass for testing using config
+      if (APP_CONFIG.DEV_MODE) {
         return res.json({
-          email: 'test@4sgraphics.com',
-          role: 'admin',
+          email: process.env.DEV_USER_EMAIL || "test@4sgraphics.com",
+          role: process.env.DEV_USER_ROLE || "admin",
           approved: true
         });
       }
       const userId = req.user.claims.sub;
       
       // Development bypass - return mock user data for development
-      if (process.env.NODE_ENV === 'development' && (req.hostname === 'localhost' || req.get('host')?.includes('localhost') || req.get('host')?.includes('replit.dev'))) {
+      if (APP_CONFIG.DEV_MODE && (req.hostname === 'localhost' || req.get('host')?.includes('localhost') || req.get('host')?.includes('replit.dev'))) {
         return res.json({
           id: 'dev-user-123',
-          email: 'aneesh@4sgraphics.com',
-          firstName: 'Aneesh',
-          lastName: 'Dev',
+          email: process.env.DEV_USER_EMAIL || APP_CONFIG.ADMIN_EMAILS[0],
+          firstName: 'Dev',
+          lastName: 'User',
           profileImageUrl: 'https://via.placeholder.com/150',
-          role: 'admin',
+          role: process.env.DEV_USER_ROLE || 'admin',
           status: 'approved',
           loginCount: 1,
           lastLoginDate: new Date().toISOString(),
@@ -260,11 +261,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       const user = await storage.getUser(userId);
-      console.log("User data from storage:", user); // Debug log
+      debugLog("User data from storage:", user);
       res.json(user);
     } catch (error) {
       console.error("Error fetching user:", error);
-      res.status(500).json({ message: "Failed to fetch user" });
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ message: "Failed to fetch user", details: errorMessage });
     }
   });
 
@@ -1924,7 +1926,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Customer name, email, and quote items are required" });
       }
 
-      // Generate quote number
+      // Generate quote number using the utility function
       const quoteNumber = generateQuoteNumber();
       
       // Calculate total
@@ -2367,8 +2369,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Upload pricing CSV
-  app.post("/api/upload-pricing-csv", isAuthenticated, upload.single('file'), async (req, res) => {
+  // DEPRECATED: Upload pricing CSV - Use routes-pricing-database.ts instead
+  app.post("/api/upload-pricing-csv-deprecated", isAuthenticated, upload.single('file'), async (req, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
@@ -2417,7 +2419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // Clear existing pricing data first
       console.log("Clearing existing pricing data...");
-      await db.delete(pricingData);
+      await storage.clearAllProductPricingMaster();
       
       // Parse CSV data - batch insert approach
       let newRecords = 0;
@@ -2458,19 +2460,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      // Batch insert all records at once
-      console.log(`Batch inserting ${recordsToInsert.length} records...`);
+      // DEPRECATED: Use productPricingMaster table instead
+      debugLog(`Would have inserted ${recordsToInsert.length} records into deprecated table`);
       if (recordsToInsert.length > 0) {
-        const insertResult = await db.insert(pricingData).values(recordsToInsert as any).returning();
-        console.log(`Successfully inserted ${insertResult.length} pricing records (IDs: ${insertResult.map(r => r.id).join(', ')})`);
-        newRecords = insertResult.length;
+        // Redirect to new productPricingMaster system
+        for (const record of recordsToInsert) {
+          await storage.createProductPricingMaster({
+            itemCode: record.productId,
+            productType: record.productType,
+            exportPrice: record.exportPrice || 0,
+            masterDistributorPrice: record.masterDistributorPrice || 0,
+            dealerPrice: record.dealerPrice || 0,
+            dealer2Price: record.dealer2Price || 0,
+            tierApprovalRetailPrice: record.approvalRetailPrice || 0,
+            tierStage25Price: record.stage25Price || 0,
+            tierStage2Price: record.stage2Price || 0,
+            tierStage15Price: record.stage15Price || 0,
+            tierStage1Price: record.stage1Price || 0,
+            tierRetailPrice: record.retailPrice || 0
+          });
+          newRecords++;
+        }
+        debugLog(`Successfully processed ${newRecords} pricing records`);
       }
 
       const updatedRecords = 0; // Since we're doing fresh insert
 
-      // After uploading to pricingData table, also sync to productPricing table
-      console.log(`\nSyncing pricing data to productPricing system...`);
-      await syncPricingDataToProductPricing();
+      // After uploading to productPricingMaster table, sync complete
+      debugLog(`\nPricing data sync to productPricingMaster complete`);
+      // Note: syncPricingDataToProductPricing() is deprecated
       
       // Clean up the uploaded file
       fs.unlinkSync(req.file.path);
@@ -2485,7 +2503,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     } catch (error) {
       console.error("Error uploading pricing CSV:", error);
-      res.status(500).json({ error: "Failed to upload pricing CSV" });
+      res.status(500).json({ error: "This endpoint is deprecated. Use /api/upload-pricing-database instead." });
     }
   });
 
@@ -2527,12 +2545,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             ];
             
             for (const tier of tierMappings) {
-              if (tier.price && parseFloat(tier.price) > 0) {
+              if (tier.price && parseFloat(String(tier.price)) > 0) {
                 try {
                   await storage.upsertProductPricing({
                     productTypeId: matchingType.id,
                     tierId: tier.tierId,
-                    pricePerSquareMeter: parseFloat(tier.price),
+                    pricePerSquareMeter: parseFloat(String(tier.price)),
                     sizeId: null // General pricing, not size-specific
                   });
                   syncedCount++;
@@ -2543,9 +2561,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
               }
             }
             
-            console.log(`Synced pricing for: ${pricingEntry.productType} → ${matchingType.name}`);
+            debugLog(`Synced pricing for: ${pricingEntry.productType} → ${matchingType.name}`);
           } else {
-            console.log(`No matching product type found for: "${pricingEntry.productType}"`);
+            debugLog(`No matching product type found for: "${pricingEntry.productType}"`);
             errorCount++;
           }
         } catch (error) {
@@ -2554,7 +2572,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`Sync completed: ${syncedCount} prices synced, ${errorCount} errors`);
+      debugLog(`Sync completed: ${syncedCount} prices synced, ${errorCount} errors`);
     } catch (error) {
       console.error("Error in syncPricingDataToProductPricing:", error);
     }
@@ -2563,11 +2581,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync product structure from pricing data
   app.post("/api/sync-product-structure", isAuthenticated, async (req, res) => {
     try {
-      console.log("Starting product structure sync from pricing data...");
+      debugLog("Starting product structure sync from pricing data...");
       
       // Get all pricing data to understand what products exist
       const pricingData = await storage.getProductPricingMaster();
-      console.log(`Found ${pricingData.length} pricing records`);
+      debugLog(`Found ${pricingData.length} pricing records`);
       
       // Create category mappings based on product_id
       const categoryMap = new Map();
@@ -2588,9 +2606,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (hasDataForCategory) {
           try {
             await storage.createProductCategory({ name: categoryName, description: null });
-            console.log(`Created category: ${categoryName}`);
+            debugLog(`Created category: ${categoryName}`);
           } catch (error) {
-            console.log(`Category ${categoryName} might already exist`);
+            debugLog(`Category ${categoryName} might already exist`);
           }
         }
       }
@@ -2780,27 +2798,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { action, description } = req.body;
       // Handle both production (req.user.id) and development (req.user.claims.sub) authentication
-      const userId = req.user?.id || (req.user as any)?.claims?.sub;
+      const userId = req.user?.id || (req.user as unknown as { claims?: { sub?: string } })?.claims?.sub;
       
-      console.log("=== ACTIVITY LOGGING DEBUG ===");
-      console.log("Request body:", req.body);
-      console.log("User object:", req.user);
-      console.log("Extracted userId:", userId);
-      console.log("Action:", action);
-      console.log("Description:", description);
+      debugLog("=== ACTIVITY LOGGING DEBUG ===");
+      debugLog("Request body:", req.body);
+      debugLog("User object:", req.user);
+      debugLog("Extracted userId:", userId);
+      debugLog("Action:", action);
+      debugLog("Description:", description);
       
       if (!action || !description || !userId) {
-        console.log("Missing required fields - userId:", userId, "action:", action, "description:", description);
+        debugLog("Missing required fields - userId:", userId, "action:", action, "description:", description);
         return res.status(400).json({ error: "Action, description, and user ID are required" });
       }
 
       const ipAddress = req.ip || req.connection.remoteAddress || null;
       const userAgent = req.get('User-Agent') || null;
 
-      // Extract user information from user object
-      const userEmail = (req.user as any)?.claims?.email || req.user?.email || 'development@4sgraphics.com';
-      const userName = `${(req.user as any)?.claims?.first_name || 'Dev'} ${(req.user as any)?.claims?.last_name || 'User'}`;
-      const userRole = (req.user as any)?.role || 'admin';
+      // Extract user information from user object with proper typing
+      const userClaims = req.user as unknown as { claims?: { email?: string; first_name?: string; last_name?: string } };
+      const userEmail = userClaims.claims?.email || req.user?.email || 'development@4sgraphics.com';
+      const userName = `${userClaims.claims?.first_name || 'Dev'} ${userClaims.claims?.last_name || 'User'}`;
+      const userRole = (req.user as unknown as { role?: string })?.role || 'admin';
       
       // Determine action type based on action
       const actionType = action.toLowerCase().includes('page') ? 'navigation' : 
@@ -2832,7 +2851,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/activity-logs", isAuthenticated, async (req, res) => {
     try {
       // Handle both production (req.user.id) and development (req.user.claims.sub) authentication
-      const userId = req.user?.id || (req.user as any)?.claims?.sub;
+      const userId = req.user?.id || (req.user as unknown as { claims?: { sub?: string } })?.claims?.sub;
       const isAdmin = req.user?.role === 'admin';
       const limit = parseInt(req.query.limit as string) || 50;
 
