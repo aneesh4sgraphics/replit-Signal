@@ -115,7 +115,7 @@ export function AdaptiveTable({
               {columns.map((column, index) => (
                 <TableHead 
                   key={column.key}
-                  className={`text-xs font-medium text-gray-700 bg-gray-50 whitespace-nowrap ${getAlignmentClass(column.align)}`}
+                  className={`text-xs font-medium text-gray-700 bg-gray-50 whitespace-nowrap py-2 px-3 ${getAlignmentClass(column.align)}`}
                   style={{ 
                     width: columnWidths[index] || 'auto',
                     minWidth: column.minWidth || 80,
@@ -137,7 +137,7 @@ export function AdaptiveTable({
                 {columns.map((column, colIndex) => (
                   <TableCell 
                     key={column.key}
-                    className={`text-sm text-gray-900 ${getAlignmentClass(column.align)}`}
+                    className={`text-sm text-gray-900 py-1 px-3 ${getAlignmentClass(column.align)}`}
                     style={{ 
                       width: columnWidths[colIndex] || 'auto',
                       minWidth: column.minWidth || 80,
