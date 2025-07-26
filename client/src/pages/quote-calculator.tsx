@@ -354,15 +354,15 @@ Yours truly
 
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
-      <div className="max-w-screen-lg mx-auto px-6 py-6">
+      <div className="max-w-full mx-auto px-4 py-4 xl:px-8 xl:py-6">
         {/* Floating elements for visual enhancement */}
         <div className="mb-6 relative">
           <FloatingElements />
         </div>
 
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+      <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
         {/* Left Panel - Configure Product */}
-        <div className="lg:col-span-1">
+        <div className="xl:col-span-1 lg:col-span-1">
           <SimpleCardFrame className="p-6 mb-6">
             <h2 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
               <IconBadge icon={Calculator} label="Configure Product" className="px-0 py-0 bg-transparent border-none text-lg font-medium text-gray-800" />
@@ -490,7 +490,7 @@ Yours truly
         </div>
 
         {/* Right Panel - Quote Summary */}
-        <div className="lg:col-span-2">
+        <div className="xl:col-span-4 lg:col-span-3">
           <div className="border border-gray-200 rounded-lg p-6 bg-white mb-6">
             <h2 className="text-lg font-medium text-gray-800 mb-2">Quote Summary</h2>
             <p className="text-sm text-gray-500 mb-6">Using default pricing</p>
@@ -637,9 +637,9 @@ Yours truly
         <p className="text-sm text-gray-500 mb-6">Select a customer to generate quotes for</p>
         <SectionDivider />
         
-        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+        <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {/* Customer Search */}
-          <div>
+          <div className="lg:col-span-1">
             <label className="block text-sm font-medium text-gray-800 mb-2">Select Customer</label>
             <SearchableCustomerSelect
               selectedCustomer={selectedCustomer}
@@ -650,7 +650,7 @@ Yours truly
           </div>
 
           {/* Customer Details */}
-          <div>
+          <div className="xl:col-span-2 lg:col-span-1">
             <label className="block text-sm font-normal text-gray-800 mb-2">Customer Details</label>
             {selectedCustomer ? (
               <div className="rounded-md p-4 space-y-3 border border-gray-100 bg-gray-50">
