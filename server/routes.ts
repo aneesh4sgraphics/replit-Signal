@@ -11,7 +11,7 @@ import { z } from "zod";
 // Removed: parseProductData import - legacy CSV parser no longer used
 import { parseCustomerCSV } from "./customer-parser";
 
-import { generateQuoteHTMLForDownload, generateQuoteNumber, generatePriceListHTML, generateUniqueQuoteNumber, validateQuoteNumber } from "./stub-functions";
+import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber } from "./stub-functions";
 import { insertSentQuoteSchema } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
@@ -1807,7 +1807,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Generate unique quote number
   app.post("/api/generate-quote-number", isAuthenticated, async (req: any, res) => {
     try {
-      const quoteNumber = generateUniqueQuoteNumber();
+      // Generate 6-digit alphanumeric quote number
+      const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const quoteNumber = Array.from(
+        { length: 6 },
+        () => chars[Math.floor(Math.random() * chars.length)]
+      ).join("");
       res.json({ quoteNumber });
     } catch (error) {
       console.error("Error generating quote number:", error);
@@ -1828,7 +1833,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentUserEmail = req.user?.claims?.email || "sales@4sgraphics.com";
 
       // Generate unique quote number
-      const finalQuoteNumber = generateUniqueQuoteNumber();
+      // Generate 6-digit alphanumeric quote number
+      const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+      const finalQuoteNumber = Array.from(
+        { length: 6 },
+        () => chars[Math.floor(Math.random() * chars.length)]
+      ).join("");
       
       // Calculate total
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
