@@ -232,11 +232,21 @@ export function generateQuoteHTMLForDownload(data: any): string {
 
 // Category mapping function to get proper category display names
 function getCategoryDisplayName(productName: string, productType: string): string {
-  // Category mappings based on product types
+  // Category mappings based on product types - comprehensive mapping for all products
   const categoryMappings: { [key: string]: string } = {
     // Graffiti Polyester Paper products
     'Graffiti Polyester Paper': 'Graffiti Polyester Paper',
     'AuraBoard - Holographics': 'Graffiti Polyester Paper',
+    
+    // Graffiti Blended Poly products
+    'Graffiti Blended Poly': 'Graffiti Blended Poly',
+    
+    // Graffiti SOFT Poly products  
+    'Graffiti SOFT Poly': 'Graffiti SOFT Poly',
+    
+    // Graffiti STICK products
+    'Graffiti STICK': 'Graffiti STICK',
+    
     // Solvit products
     'Solvit Poster Paper 175gsm': 'Solvit Sign & Display Media',
     'Solvit Backlit Film 8mil': 'Solvit Sign & Display Media',
@@ -245,6 +255,7 @@ function getCategoryDisplayName(productName: string, productType: string): strin
     'Solvit PolySign 11mil': 'Solvit Sign & Display Media',
     'Solvit PolySign 17mil': 'Solvit Sign & Display Media',
     'Solvit SlickStick 5mil Polyester': 'Solvit Sign & Display Media',
+    
     // CLiQ products
     'CliQ Cold Press Paper 300gsm': 'CLiQ Aqueous Media',
     'Cold Press Paper 300gsm': 'CLiQ Aqueous Media',
@@ -259,6 +270,7 @@ function getCategoryDisplayName(productName: string, productType: string): strin
     'CliQ Photo Paper 8.4mil': 'CLiQ Aqueous Media',
     'CliQ Self Adhesive Vinyl - 5mil (PVC)': 'CLiQ Aqueous Media',
     'CliQ SlickStick 10.4mil': 'CLiQ Aqueous Media',
+    
     // Rang products
     'Rang DL Polyester Canvas 280gsm': 'Rang Print Canvas',
     'Rang Duo PolyCotton Canvas 400gsm': 'Rang Print Canvas',
@@ -266,23 +278,64 @@ function getCategoryDisplayName(productName: string, productType: string): strin
     'Rang Lux PolyCotton Canvas 345gsm': 'Rang Print Canvas',
     'Rang Lux PolyCotton Canvas 380gsm': 'Rang Print Canvas',
     'Rang Lux PolyCotton Canvas 390gsm': 'Rang Print Canvas',
+    
     // EiE/eLe products
     'EiE Inkjet Waterproof Film': 'EiE Media',
     'eLe Frosted Laser Film': 'eLe Laser Media',
     'eLe Clear Laser Film': 'eLe Laser Media',
     'eLe Polyester Laser Plate MXP': 'MXP Media',
+    
     // CoHo products
     'CoHo DTF Films for Fabrics': 'DTF Films',
-    'CoHo Films for Fabrics': 'DTF Films'
+    'CoHo Films for Fabrics': 'DTF Films',
+    
+    // Screen Printing products
+    'Screen Printing': 'Screen Printing Media',
+    
+    // Offset Plates products
+    'Offset Plates': 'Offset Plates Media'
   };
 
-  // First try direct mapping by product type
+  // Check for direct mapping first
   if (categoryMappings[productType]) {
     return categoryMappings[productType];
   }
+  
+  // Pattern matching for common prefixes
+  if (productType.startsWith('Graffiti')) {
+    if (productType.includes('Polyester Paper')) return 'Graffiti Polyester Paper';
+    if (productType.includes('Blended Poly')) return 'Graffiti Blended Poly';
+    if (productType.includes('SOFT Poly')) return 'Graffiti SOFT Poly';
+    if (productType.includes('STICK')) return 'Graffiti STICK';
+    return 'Graffiti Media';
+  }
+  
+  if (productType.startsWith('Solvit')) {
+    return 'Solvit Sign & Display Media';
+  }
+  
+  if (productType.startsWith('CliQ') || productType.startsWith('Cold Press')) {
+    return 'CLiQ Aqueous Media';
+  }
+  
+  if (productType.startsWith('Rang')) {
+    return 'Rang Print Canvas';
+  }
+  
+  if (productType.startsWith('EiE')) {
+    return 'EiE Media';
+  }
+  
+  if (productType.startsWith('eLe')) {
+    return 'eLe Laser Media';
+  }
+  
+  if (productType.startsWith('CoHo')) {
+    return 'DTF Films';
+  }
 
-  // Fall back to product name (category name)
-  return productName;
+  // Fall back to product name (category name) or a generic fallback
+  return productName || 'Product Media';
 }
 
 export function generatePriceListHTML(data: any): string {
