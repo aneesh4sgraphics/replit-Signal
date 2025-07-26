@@ -136,14 +136,15 @@ function Router() {
       <FirecrackerAnimation isVisible={showFirecrackers} />
       <Switch>
         <Route path="/" component={Dashboard} />
+        <Route path="/quick-quotes" component={QuoteCalculator} />
+        <Route path="/quote-calculator" component={QuoteCalculator} />
+        <Route path="/price-list" component={PriceList} />
         <Route path="/area-pricer" component={AreaPricer} />
         <Route path="/competitor-pricing" component={CompetitorPricing} />
         <Route path="/saved-quotes" component={SavedQuotes} />
         <Route path="/customer-management" component={CustomerManagement} />
         <Route path="/customers" component={CustomerManagement} />
         <Route path="/product-pricing-management" component={ProductPricingManagement} />
-        <Route path="/quote-calculator" component={QuoteCalculator} />
-        <Route path="/price-list" component={PriceList} />
         <Route path="/shipping-calculator" component={ShippingCalculator} />
         <Route path="/admin" component={Admin} />
         <Route component={NotFound} />
