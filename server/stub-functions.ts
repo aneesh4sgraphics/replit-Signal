@@ -14,17 +14,17 @@ async function getLogoBase64FromURL(): Promise<string> {
     return logoCache;
   }
   
-  // Use the logo from attached assets
-  const logoPath = path.join(process.cwd(), "attached_assets", "4s logo Clean High res_1753549110142.png");
+  // Use the logo from public directory
+  const logoPath = path.join(process.cwd(), "client", "public", "4s-graphics-logo.png");
   
   if (fs.existsSync(logoPath)) {
     const buffer = fs.readFileSync(logoPath);
     logoCache = buffer.toString("base64");
-    console.log("✓ Using 4S Graphics logo from attached assets");
+    console.log("✓ Using 4S Graphics logo from public directory");
     return logoCache;
   }
   
-  console.error("❌ 4S Graphics logo not found in attached assets");
+  console.error("❌ 4S Graphics logo not found in public directory");
   logoCache = "";
   return logoCache;
 }
