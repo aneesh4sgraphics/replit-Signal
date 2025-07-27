@@ -197,11 +197,11 @@ async function generateQuoteHTML(data: PDFGenerationRequest): Promise<string> {
         .map(
           (item, idx) => `
       <tr style="background:${idx % 2 === 0 ? "#ffffff" : "#f2f2f2"};">
-        <td style="padding:8px;text-align:center;font-family:monospace;">${item.itemCode || '-'}</td>
-        <td style="padding:8px;">${item.size}</td>
-        <td style="padding:8px;text-align:center;">${item.minOrderQty}</td>
-        <td style="padding:8px;text-align:right;">$${item.pricePerSheet.toFixed(2)}</td>
-        <td style="padding:8px;text-align:right;font-weight:bold;">$${(item.minOrderQty * item.pricePerSheet).toFixed(2)}</td>
+        <td style="font-family: 'Roboto', monospace; padding:8px;text-align:center;">${item.itemCode || '-'}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding:8px;">${item.size}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:center;">${item.minOrderQty}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:right;">$${item.pricePerSheet.toFixed(2)}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:right;font-weight:500;">$${(item.minOrderQty * item.pricePerSheet).toFixed(2)}</td>
       </tr>
     `,
         )
@@ -213,16 +213,16 @@ async function generateQuoteHTML(data: PDFGenerationRequest): Promise<string> {
       return `
       <div style="margin-bottom: 25px;">
         <div style="margin-bottom: 10px;">
-          <div style="font-size: 16px; font-weight: bold; color: #1f2937;">${type}</div>
+          <div style="font-family: 'Roboto', Arial, sans-serif; font-size: 16px; font-weight: 700; color: #1f2937;">${type}</div>
         </div>
         <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">
           <thead>
             <tr style="background:#bfdbfe;color:#000000;">
-              <th style="padding:8px;text-align:center;font-weight:bold;">Item Code</th>
-              <th style="padding:8px;text-align:left;font-weight:bold;">Size</th>
-              <th style="padding:8px;text-align:center;font-weight:bold;">Min Order Qty</th>
-              <th style="padding:8px;text-align:right;font-weight:bold;">Price/Unit</th>
-              <th style="padding:8px;text-align:right;font-weight:bold;">Total</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Item Code</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:left;font-weight:700;">Size</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Min Order Qty</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Price/Unit</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -237,12 +237,13 @@ async function generateQuoteHTML(data: PDFGenerationRequest): Promise<string> {
   return `
     <html>
       <head>
+        <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
         <style>
-          body { font-family: Arial, sans-serif; font-size: 12px; padding: 24px; color: #333; }
-          .header { text-align: center; margin-bottom: 32px; }
+          body { font-family: 'Roboto', Arial, sans-serif; font-size: 12px; font-weight: 400; padding: 24px; color: #333; }
+          .header { text-align: center; margin-bottom: 32px; font-family: 'Roboto', Arial, sans-serif; }
           .header img { height: 60px; margin-bottom: 10px; }
-          .quote-number { font-weight: bold; color: #000; }
-          .total { text-align: right; font-size: 16px; font-weight: bold; margin-top: 24px; }
+          .quote-number { font-family: 'Roboto', Arial, sans-serif; font-weight: 700; color: #000; }
+          .total { font-family: 'Roboto', Arial, sans-serif; text-align: right; font-size: 16px; font-weight: 700; margin-top: 24px; }
           .footer { font-size: 11px; margin-top: 40px; line-height: 1.5; color: #555; }
         </style>
       </head>

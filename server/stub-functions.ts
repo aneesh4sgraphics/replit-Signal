@@ -162,12 +162,14 @@ export function generateQuoteHTMLForDownload(data: any): string {
     <head>
       <meta charset="utf-8" />
       <title>${title} - ${quoteNumber}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
       <style>
         body {
-          font-family: Arial, sans-serif;
+          font-family: 'Roboto', Arial, sans-serif;
           margin: 40px;
           font-size: 12px;
           color: #000;
+          font-weight: 400;
         }
         .header {
           text-align: center;
@@ -177,18 +179,22 @@ export function generateQuoteHTMLForDownload(data: any): string {
           height: 60px;
         }
         .company-name {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 22px;
           font-weight: 700;
           margin-top: 10px;
         }
         .company-details {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 13px;
+          font-weight: 300;
           margin-top: 4px;
           color: #374151;
         }
         .document-title {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 18px;
-          font-weight: bold;
+          font-weight: 700;
           margin: 30px 0 10px;
           text-transform: uppercase;
           color: #1f2937;
@@ -215,20 +221,24 @@ export function generateQuoteHTMLForDownload(data: any): string {
           padding: 8px;
         }
         th {
+          font-family: 'Roboto', Arial, sans-serif;
           background-color: #f0f4f8;
           text-align: left;
-          font-weight: 600;
+          font-weight: 700;
         }
         .total {
+          font-family: 'Roboto', Arial, sans-serif;
           margin-top: 20px;
           text-align: right;
           font-size: 14px;
-          font-weight: bold;
+          font-weight: 700;
         }
         .footer {
+          font-family: 'Roboto', Arial, sans-serif;
           margin-top: 40px;
           text-align: center;
           font-size: 11px;
+          font-weight: 300;
           color: #555;
         }
       </style>
@@ -430,11 +440,11 @@ export async function generatePriceListHTML(data: any): Promise<string> {
       
       return `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-        <td style="padding: 4px 6px; border: 1px solid #ccc; font-size: 10px;">${row.size || 'N/A'}</td>
-        <td style="padding: 4px 6px; border: 1px solid #ccc; text-align: center; font-size: 10px;">${row.itemCode || '-'}</td>
-        <td style="padding: 4px 6px; border: 1px solid #ccc; text-align: center; font-size: 10px;">${minQtyValue}</td>
-        <td style="padding: 4px 6px; border: 1px solid #ccc; text-align: right; font-size: 10px;">$${(row.pricePerSheet || 0).toFixed(2)}/${unitLabel}</td>
-        <td style="padding: 4px 6px; border: 1px solid #ccc; text-align: right; font-size: 10px; font-weight: bold;">$${(row.total || row.pricePerPack || 0).toFixed(2)}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding: 4px 6px; border: 1px solid #ccc; font-size: 10px;">${row.size || 'N/A'}</td>
+        <td style="font-family: 'Roboto', monospace; padding: 4px 6px; border: 1px solid #ccc; text-align: center; font-size: 10px;">${row.itemCode || '-'}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding: 4px 6px; border: 1px solid #ccc; text-align: center; font-size: 10px;">${minQtyValue}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding: 4px 6px; border: 1px solid #ccc; text-align: right; font-size: 10px;">$${(row.pricePerSheet || 0).toFixed(2)}/${unitLabel}</td>
+        <td style="font-family: 'Roboto', Arial, sans-serif; padding: 4px 6px; border: 1px solid #ccc; text-align: right; font-size: 10px; font-weight: 500;">$${(row.total || row.pricePerPack || 0).toFixed(2)}</td>
       </tr>
       `;
     }).join('');
@@ -449,17 +459,17 @@ export async function generatePriceListHTML(data: any): Promise<string> {
     return `
       <div style="page-break-inside: avoid; margin-bottom: 12px;">
         <div style="margin: 8px 0 6px 0; border-bottom: 1px solid #3b82f6; padding-bottom: 4px;">
-          <div style="font-size: 12px; font-weight: 600; color: #3b82f6; margin-bottom: 1px;">${productCategory}</div>
-          <div style="font-size: 13px; font-weight: bold; color: #1f2937;">${type}</div>
+          <div style="font-family: 'Roboto', Arial, sans-serif; font-size: 12px; font-weight: 500; color: #3b82f6; margin-bottom: 1px;">${productCategory}</div>
+          <div style="font-family: 'Roboto', Arial, sans-serif; font-size: 13px; font-weight: 700; color: #1f2937;">${type}</div>
         </div>
         <table width="100%" style="border-collapse:collapse;table-layout:fixed;">
           <thead>
             <tr style="background: #3b82f6;">
-              <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: left; font-size: 11px;">Size</th>
-              <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: center; font-size: 11px;">Item Code</th>
-              <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: center; font-size: 11px;">Min Qty</th>
-              <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: right; font-size: 11px;">Price/Unit</th>
-              <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: right; font-size: 11px;">Price/Pack</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: 700; text-align: left; font-size: 11px;">Size</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: 700; text-align: center; font-size: 11px;">Item Code</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: 700; text-align: center; font-size: 11px;">Min Qty</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: 700; text-align: right; font-size: 11px;">Price/Unit</th>
+              <th style="font-family: 'Roboto', Arial, sans-serif; padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: 700; text-align: right; font-size: 11px;">Price/Pack</th>
             </tr>
           </thead>
           <tbody>
@@ -476,14 +486,14 @@ export async function generatePriceListHTML(data: any): Promise<string> {
     <head>
       <meta charset="utf-8" />
       <title>${title} - ${categoryName}</title>
+      <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
       <style>
-        /* Removed Google Fonts import for faster PDF generation - using system fonts */
-        
         body {
-          font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Arial, sans-serif;
+          font-family: 'Roboto', Arial, sans-serif;
           margin: 0;
           padding: 15px;
           font-size: 10px;
+          font-weight: 400;
           color: #1f2937;
           background: #ffffff;
           max-width: 8.5in;
@@ -508,14 +518,16 @@ export async function generatePriceListHTML(data: any): Promise<string> {
         }
         
         .company-name {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 22px;
           font-weight: 700;
           margin: 8px 0 4px;
-          font-family: Arial, sans-serif;
         }
         
         .company-details {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 12px;
+          font-weight: 300;
           opacity: 0.95;
           line-height: 1.5;
         }
@@ -531,8 +543,9 @@ export async function generatePriceListHTML(data: any): Promise<string> {
         }
         
         .document-title {
+          font-family: 'Roboto', Arial, sans-serif;
           font-size: 20px;
-          font-weight: bold;
+          font-weight: 700;
           color: #1f2937;
           margin: 0;
           text-transform: uppercase;
