@@ -576,7 +576,7 @@ export function generatePriceListHTML(data: any): string {
         <div>
           <div class="document-title">${title}</div>
           <div style="margin-top: 8px; font-size: 12px; color: #6b7280;">
-            Category: <strong>${categoryName}</strong> | Tier: <strong>${tierName}</strong>
+            Category: <strong>${categoryName}</strong>
           </div>
         </div>
         <div class="document-meta">
