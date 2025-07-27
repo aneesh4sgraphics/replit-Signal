@@ -399,22 +399,29 @@ export function generatePriceListHTML(data: any): string {
 
   const sections = Object.entries(grouped).map(([type, rows]) => {
     const rowHtml = (rows as any[]).map((row: any, index: number) => {
-      // Debug logging for each row
+      // Debug logging for each row - check all possible min qty field names
       console.log('Processing PDF row:', {
         size: row.size,
         itemCode: row.itemCode,
         minQty: row.minQty,
+        minOrderQty: row.minOrderQty,
+        minQuantity: row.minQuantity,
+        min_quantity: row.min_quantity,
         pricePerSheet: row.pricePerSheet,
-        pricePerPack: row.pricePerPack
+        pricePerPack: row.pricePerPack,
+        total: row.total
       });
+      
+      // Try multiple field names for minimum quantity - minOrderQty is the correct field from frontend
+      const minQtyValue = row.minOrderQty || row.minQty || row.minQuantity || row.min_quantity || 1;
       
       return `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
         <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: 500;">${row.size || 'N/A'}</td>
         <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-family: monospace;">${row.itemCode || '-'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: 500;">${row.minQty || 0}</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: 500;">${minQtyValue}</td>
         <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 600;">$${(row.pricePerSheet || 0).toFixed(2)}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 700; color: #059669;">$${(row.pricePerPack || 0).toFixed(2)}</td>
+        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 700; color: #059669;">$${(row.total || row.pricePerPack || 0).toFixed(2)}</td>
       </tr>
       `;
     }).join('');
