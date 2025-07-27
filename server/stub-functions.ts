@@ -417,11 +417,11 @@ export function generatePriceListHTML(data: any): string {
       
       return `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-        <td style="padding: 10px; border: 1px solid #dee2e6; font-weight: 500;">${row.size || 'N/A'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-family: monospace;">${row.itemCode || '-'}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: center; font-weight: 500;">${minQtyValue}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 600;">$${(row.pricePerSheet || 0).toFixed(2)}</td>
-        <td style="padding: 10px; border: 1px solid #dee2e6; text-align: right; font-weight: 700; color: #059669;">$${(row.total || row.pricePerPack || 0).toFixed(2)}</td>
+        <td style="padding: 4px 6px; border: 1px solid #dee2e6; font-weight: 500; font-size: 10px;">${row.size || 'N/A'}</td>
+        <td style="padding: 4px 6px; border: 1px solid #dee2e6; text-align: center; font-family: monospace; font-size: 10px;">${row.itemCode || '-'}</td>
+        <td style="padding: 4px 6px; border: 1px solid #dee2e6; text-align: center; font-weight: 500; font-size: 10px;">${minQtyValue}</td>
+        <td style="padding: 4px 6px; border: 1px solid #dee2e6; text-align: right; font-weight: 600; font-size: 10px;">$${(row.pricePerSheet || 0).toFixed(2)}</td>
+        <td style="padding: 4px 6px; border: 1px solid #dee2e6; text-align: right; font-weight: 700; color: #059669; font-size: 10px;">$${(row.total || row.pricePerPack || 0).toFixed(2)}</td>
       </tr>
       `;
     }).join('');
@@ -434,19 +434,19 @@ export function generatePriceListHTML(data: any): string {
     );
     
     return `
-      <div style="page-break-inside: avoid; margin-bottom: 25px;">
-        <div style="margin: 20px 0 12px 0; border-bottom: 2px solid #3b82f6; padding-bottom: 8px;">
-          <div style="font-size: 14px; font-weight: 600; color: #3b82f6; margin-bottom: 2px;">${productCategory}</div>
-          <div style="font-size: 16px; font-weight: bold; color: #1f2937;">${type}</div>
+      <div style="page-break-inside: avoid; margin-bottom: 12px;">
+        <div style="margin: 8px 0 6px 0; border-bottom: 1px solid #3b82f6; padding-bottom: 4px;">
+          <div style="font-size: 12px; font-weight: 600; color: #3b82f6; margin-bottom: 1px;">${productCategory}</div>
+          <div style="font-size: 13px; font-weight: bold; color: #1f2937;">${type}</div>
         </div>
         <table style="width: 100%; border-collapse: collapse; box-shadow: 0 1px 3px rgba(0,0,0,0.1);">
           <thead>
             <tr style="background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);">
-              <th style="padding: 12px 10px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: left;">Size</th>
-              <th style="padding: 12px 10px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: center;">Item Code</th>
-              <th style="padding: 12px 10px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: center;">Min Qty</th>
-              <th style="padding: 12px 10px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: right;">Price/Sheet</th>
-              <th style="padding: 12px 10px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: right;">Price/Pack</th>
+              <th style="padding: 6px 8px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: left; font-size: 11px;">Size</th>
+              <th style="padding: 6px 8px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: center; font-size: 11px;">Item Code</th>
+              <th style="padding: 6px 8px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: center; font-size: 11px;">Min Qty</th>
+              <th style="padding: 6px 8px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: right; font-size: 11px;">Price/Sheet</th>
+              <th style="padding: 6px 8px; border: 1px solid #1d4ed8; color: white; font-weight: bold; text-align: right; font-size: 11px;">Price/Pack</th>
             </tr>
           </thead>
           <tbody>
@@ -469,27 +469,27 @@ export function generatePriceListHTML(data: any): string {
         body {
           font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
           margin: 0;
-          padding: 30px;
-          font-size: 11px;
+          padding: 15px;
+          font-size: 10px;
           color: #1f2937;
           background: #ffffff;
           max-width: 8.5in;
-          line-height: 1.4;
+          line-height: 1.2;
         }
         
         .header {
           text-align: center;
-          margin-bottom: 25px;
-          padding: 20px;
+          margin-bottom: 15px;
+          padding: 12px;
           background: white;
           border: 1px solid #e5e7eb;
-          border-radius: 12px;
+          border-radius: 8px;
           color: #1f2937;
         }
         
         .header img {
-          height: 60px;
-          margin-bottom: 15px;
+          height: 45px;
+          margin-bottom: 8px;
           display: block;
           margin-left: auto;
           margin-right: auto;
@@ -512,11 +512,11 @@ export function generatePriceListHTML(data: any): string {
           display: flex;
           justify-content: space-between;
           align-items: flex-start;
-          margin: 20px 0;
-          padding: 15px;
+          margin: 10px 0;
+          padding: 8px;
           background: #f8fafc;
-          border-radius: 8px;
-          border-left: 4px solid #3b82f6;
+          border-radius: 6px;
+          border-left: 3px solid #3b82f6;
         }
         
         .document-title {
@@ -535,11 +535,12 @@ export function generatePriceListHTML(data: any): string {
         }
         
         .customer-info {
-          margin: 15px 0;
-          padding: 12px;
+          margin: 8px 0;
+          padding: 6px;
           background: #ffffff;
           border: 1px solid #e5e7eb;
-          border-radius: 6px;
+          border-radius: 4px;
+          font-size: 9px;
         }
         
         .customer-info strong {
@@ -548,11 +549,11 @@ export function generatePriceListHTML(data: any): string {
         }
         
         .footer {
-          margin-top: 30px;
-          padding-top: 20px;
-          border-top: 2px solid #e5e7eb;
+          margin-top: 15px;
+          padding-top: 8px;
+          border-top: 1px solid #e5e7eb;
           text-align: center;
-          font-size: 10px;
+          font-size: 8px;
           color: #6b7280;
           font-style: italic;
         }
