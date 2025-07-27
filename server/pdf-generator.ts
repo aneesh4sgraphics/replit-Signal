@@ -3,6 +3,7 @@
 import pdf from "html-pdf-node";
 import fs from "fs";
 import path from "path";
+import { generatePaymentInstructionsHTML } from "./config/paymentInstructions";
 
 interface QuoteItem {
   id: string;
@@ -21,7 +22,6 @@ interface QuoteItem {
 
 interface PDFGenerationRequest {
   customerName: string;
-  customerEmail?: string;
   quoteItems: QuoteItem[];
   quoteNumber: string;
   totalAmount: number;
@@ -296,8 +296,8 @@ export async function generateQuotePDF(
   
   try {
     const pdfBuffer = await pdf.generatePdf(file, pdfOptions);
-    // html-pdf-node returns a Buffer directly
-    return pdfBuffer as unknown as Buffer;
+    // html-pdf-node returns a Buffer directly - no need for type casting
+    return pdfBuffer;
   } catch (error) {
     console.error('PDF generation error:', error);
     throw new Error('Failed to generate PDF');

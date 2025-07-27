@@ -2,6 +2,7 @@
 
 import fs from "fs";
 import path from "path";
+import { generatePaymentInstructionsHTML } from "./config/paymentInstructions";
 
 // Cache for logo to avoid repeated file system reads
 let logoCache: string | null = null;
@@ -284,6 +285,7 @@ export function generateQuoteHTMLForDownload(data: any): string {
 
 // Category mapping function to get proper category display names
 function getCategoryDisplayName(productName: string, productType: string): string {
+  
   // Category mappings based on product types - comprehensive mapping for all products
   const categoryMappings: { [key: string]: string } = {
     // Graffiti Polyester Paper products
@@ -348,46 +350,55 @@ function getCategoryDisplayName(productName: string, productType: string): strin
     'Offset Plates': 'Offset Plates Media'
   };
 
+  // Normalize input for fuzzy matching
+  const normalized = productType.trim().toLowerCase();
+  
   // Check for direct mapping first
   if (categoryMappings[productType]) {
     return categoryMappings[productType];
   }
   
-  // Pattern matching for common prefixes
-  if (productType.startsWith('Graffiti')) {
-    if (productType.includes('Polyester Paper')) return 'Graffiti Polyester Paper';
-    if (productType.includes('Blended Poly')) return 'Graffiti Blended Poly';
-    if (productType.includes('SOFT Poly')) return 'Graffiti SOFT Poly';
-    if (productType.includes('STICK')) return 'Graffiti STICK';
+  // Check for fuzzy matching (normalized)
+  const normalizedKey = Object.keys(categoryMappings).find(key => key.toLowerCase() === normalized);
+  if (normalizedKey) {
+    return categoryMappings[normalizedKey];
+  }
+  
+  // Pattern matching for common prefixes (normalized)
+  if (normalized.startsWith('graffiti')) {
+    if (normalized.includes('polyester paper')) return 'Graffiti Polyester Paper';
+    if (normalized.includes('blended poly')) return 'Graffiti Blended Poly';
+    if (normalized.includes('soft poly')) return 'Graffiti SOFT Poly';
+    if (normalized.includes('stick')) return 'Graffiti STICK';
     return 'Graffiti Media';
   }
   
-  if (productType.startsWith('Solvit')) {
+  if (normalized.startsWith('solvit')) {
     return 'Solvit Sign & Display Media';
   }
   
-  if (productType.startsWith('CliQ') || productType.startsWith('Cold Press')) {
+  if (normalized.startsWith('cliq') || normalized.startsWith('cold press')) {
     return 'CLiQ Aqueous Media';
   }
   
-  if (productType.startsWith('Rang')) {
+  if (normalized.startsWith('rang')) {
     return 'Rang Print Canvas';
   }
   
-  if (productType.startsWith('EiE')) {
+  if (normalized.startsWith('eie')) {
     return 'EiE Media';
   }
   
-  if (productType.startsWith('eLe')) {
+  if (normalized.startsWith('ele')) {
     return 'eLe Laser Media';
   }
   
-  if (productType.startsWith('CoHo')) {
+  if (normalized.startsWith('coho')) {
     return 'DTF Films';
   }
 
-  // Fall back to product name (category name) or a generic fallback
-  return productName || 'Product Media';
+  // Fall back to product name (category name) or original productType for display
+  return productName || productType || 'Product Media';
 }
 
 export function generatePriceListHTML(data: any): string {
@@ -451,7 +462,7 @@ export function generatePriceListHTML(data: any): string {
           <div style="font-size: 12px; font-weight: 600; color: #3b82f6; margin-bottom: 1px;">${productCategory}</div>
           <div style="font-size: 13px; font-weight: bold; color: #1f2937;">${type}</div>
         </div>
-        <table style="width: 100%; border-collapse: collapse;">
+        <table width="100%" style="border-collapse:collapse;table-layout:fixed;">
           <thead>
             <tr style="background: #3b82f6;">
               <th style="padding: 6px 8px; border: 1px solid #ccc; color: white; font-weight: bold; text-align: left; font-size: 11px;">Size</th>
