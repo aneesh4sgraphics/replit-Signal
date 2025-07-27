@@ -2821,6 +2821,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Generate Price List CSV (ODOO format - Item Code, Product Name, Price)
+  app.post("/api/generate-price-list-csv-odoo", isAuthenticated, async (req, res) => {
+    try {
+      const { selectedCategory, selectedTier, priceListItems } = req.body;
+
+      // Validate required data
+      if (!priceListItems || !Array.isArray(priceListItems) || priceListItems.length === 0) {
+        return res.status(400).json({ error: "Price list items are required" });
+      }
+
+      // Create CSV content with ODOO format (Item Code, Product Name, Price)
+      const headers = ['Item Code', 'Product Name', 'Price'];
+      const csvRows = [headers.join(',')];
+
+      priceListItems.forEach(item => {
+        const row = [
+          item.itemCode || '',
+          `"${item.productName || ''}"`, // Quote product name to handle commas
+          item.price || 0
+        ];
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+
+      // Set headers for CSV download
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="PriceList_ODOO_${selectedCategory}_${selectedTier}_${new Date().toISOString().split('T')[0]}.csv"`);
+
+      // Send the CSV
+      res.send(csvContent);
+
+      logDownload(`PriceList_ODOO_${selectedCategory}_${selectedTier}.csv`, 'CSV ODOO format generation');
+
+    } catch (error) {
+      console.error("Price List CSV ODOO generation error:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      res.status(500).json({ 
+        error: "Failed to generate Price List CSV", 
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
+  // Generate Price List Excel (All visible columns)
+  app.post("/api/generate-price-list-excel", isAuthenticated, async (req, res) => {
+    try {
+      const { selectedCategory, selectedTier, priceListItems, userRole } = req.body;
+
+      // Validate required data
+      if (!priceListItems || !Array.isArray(priceListItems) || priceListItems.length === 0) {
+        return res.status(400).json({ error: "Price list items are required" });
+      }
+
+      // Create Excel-compatible CSV content with all visible columns
+      const headers = ['Item Code', 'Product Type', 'Size', 'Min Qty'];
+      
+      // Only add Price/Sq.M column for admin users
+      if (userRole === 'admin') {
+        headers.push('Price/Sq.M');
+      }
+      
+      headers.push('Price/Unit', 'Price Per Pack');
+
+      const csvRows = [headers.join(',')];
+
+      priceListItems.forEach(item => {
+        const row = [
+          item.itemCode || '',
+          `"${item.productType || ''}"`, // Quote to handle commas
+          `"${item.size || ''}"`,
+          item.minQty || 0
+        ];
+
+        // Only add Price/Sq.M for admin users
+        if (userRole === 'admin') {
+          row.push(item.pricePerSqM || 0);
+        }
+
+        row.push(
+          item.pricePerSheet || 0,
+          item.pricePerPack || 0
+        );
+
+        csvRows.push(row.join(','));
+      });
+
+      const csvContent = csvRows.join('\n');
+
+      // Set headers for Excel download (use .xlsx extension but CSV content)
+      res.setHeader('Content-Type', 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet');
+      res.setHeader('Content-Disposition', `attachment; filename="PriceList_Full_${selectedCategory}_${selectedTier}_${new Date().toISOString().split('T')[0]}.xlsx"`);
+
+      // Send the CSV content (Excel will open it correctly)
+      res.send(csvContent);
+
+      logDownload(`PriceList_Full_${selectedCategory}_${selectedTier}.xlsx`, 'Excel format generation');
+
+    } catch (error) {
+      console.error("Price List Excel generation error:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      res.status(500).json({ 
+        error: "Failed to generate Price List Excel file", 
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
 
 
   app.post("/api/generate-price-list-csv", isAuthenticated, async (req, res) => {

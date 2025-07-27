@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download } from "lucide-react";
+import { FileText, Download, FileSpreadsheet } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getUserRoleFromEmail, canAccessTier } from "@/utils/roleBasedTiers";
@@ -169,6 +169,129 @@ export default function PriceList() {
       return;
     }
     downloadPDFMutation.mutate();
+  };
+
+  // CSV Download Mutation (ODOO format - Item Code, Product Name, Price)
+  const downloadCSVMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/generate-price-list-csv-odoo', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedCategory,
+          selectedTier,
+          priceListItems: priceListItems.map(item => ({
+            itemCode: item.itemCode,
+            productName: item.productName,
+            price: item.pricePerSheet
+          }))
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate CSV');
+      }
+
+      return response.blob();
+    },
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PriceList_ODOO_${selectedCategory}_${pricingTiers.find(t => t.key === selectedTier)?.label}_${new Date().toISOString().split('T')[0]}.csv`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "ODOO CSV downloaded successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate CSV",
+        variant: "destructive"
+      });
+    }
+  });
+
+  // Excel Download Mutation (All visible columns)
+  const downloadExcelMutation = useMutation({
+    mutationFn: async () => {
+      const response = await fetch('/api/generate-price-list-excel', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          selectedCategory,
+          selectedTier,
+          priceListItems: priceListItems.map(item => ({
+            itemCode: item.itemCode,
+            productType: item.productType,
+            size: item.size,
+            minQty: item.minQty,
+            pricePerSqM: item.pricePerSqM,
+            pricePerSheet: item.pricePerSheet,
+            pricePerPack: item.pricePerPack
+          })),
+          userRole: (user as any)?.role
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate Excel file');
+      }
+
+      return response.blob();
+    },
+    onSuccess: (blob) => {
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `PriceList_Full_${selectedCategory}_${pricingTiers.find(t => t.key === selectedTier)?.label}_${new Date().toISOString().split('T')[0]}.xlsx`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Success",
+        description: "Excel file downloaded successfully"
+      });
+    },
+    onError: () => {
+      toast({
+        title: "Error",
+        description: "Failed to generate Excel file",
+        variant: "destructive"
+      });
+    }
+  });
+
+  const handleDownloadCSV = () => {
+    if (priceListItems.length === 0) {
+      toast({
+        title: "No Data",
+        description: "Please select a category and tier to generate CSV",
+        variant: "destructive"
+      });
+      return;
+    }
+    downloadCSVMutation.mutate();
+  };
+
+  const handleDownloadExcel = () => {
+    if (priceListItems.length === 0) {
+      toast({
+        title: "No Data",
+        description: "Please select a category and tier to generate Excel file",
+        variant: "destructive"
+      });
+      return;
+    }
+    downloadExcelMutation.mutate();
   };
 
 
@@ -336,14 +459,32 @@ export default function PriceList() {
                 {pricingTiers.find(t => t.key === selectedTier)?.label}
               </span>
             </div>
-            <Button
-              onClick={handleDownloadPDF}
-              disabled={downloadPDFMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm"
-            >
-              <Download className="h-4 w-4" />
-              {downloadPDFMutation.isPending ? 'Generating...' : 'Download PDF'}
-            </Button>
+            <div className="flex gap-2">
+              <Button
+                onClick={handleDownloadCSV}
+                disabled={downloadCSVMutation.isPending}
+                className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {downloadCSVMutation.isPending ? 'Generating...' : 'CSV Download - ODOO'}
+              </Button>
+              <Button
+                onClick={handleDownloadExcel}
+                disabled={downloadExcelMutation.isPending}
+                className="bg-orange-600 hover:bg-orange-700 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm"
+              >
+                <FileSpreadsheet className="h-4 w-4" />
+                {downloadExcelMutation.isPending ? 'Generating...' : 'Excel Download'}
+              </Button>
+              <Button
+                onClick={handleDownloadPDF}
+                disabled={downloadPDFMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-md flex items-center gap-2 text-sm"
+              >
+                <Download className="h-4 w-4" />
+                {downloadPDFMutation.isPending ? 'Generating...' : 'Download PDF'}
+              </Button>
+            </div>
           </div>
           <p className="text-sm text-gray-500 mb-6">{priceListItems.length} products found</p>
           <AdaptiveTable
