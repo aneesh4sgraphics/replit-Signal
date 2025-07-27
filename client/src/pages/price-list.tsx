@@ -19,22 +19,26 @@ import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 
 interface ProductData {
   [key: string]: string | number;
-  ItemCode: string;
+  itemCode: string;
+  productName: string;
+  productType: string;
+  size: string;
+  totalSqm: number;
+  minQuantity: number;
+  exportPrice: number;
+  masterDistributorPrice: number;
+  dealerPrice: number;
+  dealer2Price: number;
+  approvalNeededPrice: number;
+  tierStage25Price: number;
+  tierStage2Price: number;
+  tierStage15Price: number;
+  tierStage1Price: number;
+  retailPrice: number;
+  // Legacy fields for backward compatibility
   product_name: string;
   ProductType: string;
-  size: string;
-  total_sqm: number;
-  min_quantity: number;
-  Export: number;
-  "M.Distributor": number;
-  Dealer: number;
-  Dealer2: number;
-  ApprovalNeeded: number;
-  TierStage25: number;
-  TierStage2: number;
-  TierStage15: number;
-  TierStage1: number;
-  Retail: number;
+  ItemCode: string;
 }
 
 interface PriceListItem {
@@ -314,8 +318,8 @@ export default function PriceList() {
   // Get unique categories - memoize to prevent re-renders and filter out empty values
   const categories = useMemo(() => {
     if (!productData || productData.length === 0) return [];
-    // Try both product_name and productName fields, filter out empty values
-    const categoryNames = productData.map(item => item.product_name || item.productName || '').filter(Boolean);
+    // Try both productName and product_name fields (API uses productName, legacy uses product_name), filter out empty values
+    const categoryNames = productData.map(item => item.productName || item.product_name || '').filter(Boolean);
     return Array.from(new Set(categoryNames)).sort();
   }, [productData]);
 
@@ -342,26 +346,26 @@ export default function PriceList() {
     }
 
     const filteredProducts = productData.filter(
-      (item) => item.product_name === selectedCategory
+      (item) => (item.productName || item.product_name)?.toLowerCase() === selectedCategory?.toLowerCase()
     );
 
     const calculatedItems = filteredProducts.map((product) => {
-      // Map tier names to database field names - use the exact field names from ProductData interface
-      const tierMapping: Record<string, keyof ProductData> = {
-        'Export': 'Export',
-        'M.Distributor': 'M.Distributor', 
-        'Dealer': 'Dealer',
-        'Dealer2': 'Dealer2',
-        'ApprovalNeeded': 'ApprovalNeeded',
-        'TierStage25': 'TierStage25',
-        'TierStage2': 'TierStage2',
-        'TierStage15': 'TierStage15',
-        'TierStage1': 'TierStage1',
-        'Retail': 'Retail'
+      // Map tier names to database field names - use the actual camelCase field names from API response
+      const tierMapping: Record<string, string> = {
+        'Export': 'exportPrice',
+        'M.Distributor': 'masterDistributorPrice', 
+        'Dealer': 'dealerPrice',
+        'Dealer2': 'dealer2Price',
+        'ApprovalNeeded': 'approvalNeededPrice',
+        'TierStage25': 'tierStage25Price',
+        'TierStage2': 'tierStage2Price',
+        'TierStage15': 'tierStage15Price',
+        'TierStage1': 'tierStage1Price',
+        'Retail': 'retailPrice'
       };
       
       const tierField = tierMapping[selectedTier];
-      const pricePerSqM = Number(product[tierField]) || 0;
+      const pricePerSqM = Number((product as any)[tierField]) || 0;
       const sqm = parseFloat(String(product.totalSqm || 0));
       const pricePerSheet = +(pricePerSqM * sqm).toFixed(2);
       const minQty = Number(product.minQuantity) || 1;
@@ -372,10 +376,10 @@ export default function PriceList() {
       const pricePerPack = +applyRetailRounding(rawPricePerPack, isRetailTier).toFixed(2);
 
       return {
-        productType: String(product.ProductType || 'Unknown'),
-        productName: String(product.product_name || selectedCategory),
+        productType: String(product.productType || product.ProductType || 'Unknown'),
+        productName: String(product.productName || product.product_name || selectedCategory),
         size: String(product.size || 'N/A'),
-        itemCode: String(product.ItemCode || '-'),
+        itemCode: String(product.itemCode || product.ItemCode || '-'),
         minQty,
         pricePerSqM,
         pricePerSheet,
