@@ -92,7 +92,11 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
     
     if (lines.length < 2) {
       fs.unlinkSync(filePath);
-      return res.status(400).json({ error: "CSV file must have header and at least one data row" });
+      return res.status(400).json({ 
+        error: "CSV file must have header and at least one data row",
+        details: `Found ${lines.length} line(s). Please ensure your CSV file has a header row followed by data rows.`,
+        suggestion: "Check that your CSV file is properly formatted and not empty."
+      });
     }
 
     const headers = parseCSVLine(lines[0]);

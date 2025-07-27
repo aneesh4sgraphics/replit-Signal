@@ -177,7 +177,16 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
   
   const headerRow = csvRows[0];
   if (!headerRow || headerRow.length < expectedHeaders.length) {
-    throw new Error(`CSV header does not match expected format. Expected ${expectedHeaders.length} columns, got ${headerRow?.length || 0}. Expected headers: ${expectedHeaders.join(', ')}`);
+    const foundHeaders = headerRow ? headerRow.join(', ') : 'No headers found';
+    throw new Error(`CSV header validation failed. Found ${headerRow?.length || 0} columns, need ${expectedHeaders.length} columns.
+
+Expected format (download the customer template from Customer Management):
+${expectedHeaders.join(', ')}
+
+Your file headers:
+${foundHeaders}
+
+Please ensure your CSV has all required columns in the correct order.`);
   }
   
   console.log(`Header validation passed: ${headerRow.length} columns found`);

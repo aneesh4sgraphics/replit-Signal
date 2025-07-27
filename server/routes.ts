@@ -892,9 +892,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   const upload = multer({
     dest: 'uploads/',
     fileFilter: (req, file, cb) => {
-      if (file.mimetype === 'text/csv' || file.originalname.endsWith('.csv')) {
+      console.log(`File upload check: ${file.originalname}, mimetype: ${file.mimetype}`);
+      // Accept files that end with .csv or have CSV mimetype
+      // Some browsers may not set the correct mimetype for CSV files
+      if (file.originalname.toLowerCase().endsWith('.csv') || 
+          file.mimetype === 'text/csv' || 
+          file.mimetype === 'application/csv' ||
+          file.mimetype === 'text/plain') {
         cb(null, true);
       } else {
+        console.log(`File rejected: ${file.originalname} with mimetype ${file.mimetype}`);
         cb(new Error('Only CSV files are allowed'));
       }
     },
