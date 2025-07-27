@@ -36,24 +36,33 @@ const companyDetails = {
 };
 
 function getLogoBase64(): string {
-  // Use the new high-resolution 4S Graphics logo
+  // Try the newest high-resolution 4S Graphics logo first
+  const newestLogoPath = path.join(process.cwd(), "client", "public", "4s-logo-newest.png");
+  
+  if (fs.existsSync(newestLogoPath)) {
+    console.log(`✓ Using newest 4S Graphics logo from: ${newestLogoPath}`);
+    const buffer = fs.readFileSync(newestLogoPath);
+    return buffer.toString("base64");
+  }
+  
+  // Fallback to existing high-res logo
   const logoPath = path.join(process.cwd(), "client", "public", "4s-logo-high-res.png");
   
   if (fs.existsSync(logoPath)) {
-    console.log(`Using 4S Graphics high-res logo from: ${logoPath}`);
+    console.log(`✓ Using 4S Graphics high-res logo from: ${logoPath}`);
     const buffer = fs.readFileSync(logoPath);
     return buffer.toString("base64");
   }
   
-  // Fallback to old logo if new one isn't found
+  // Final fallback to old logo
   const fallbackLogoPath = path.join(process.cwd(), "client", "public", "company-logo.jpg");
   if (fs.existsSync(fallbackLogoPath)) {
-    console.log(`Using fallback logo from: ${fallbackLogoPath}`);
+    console.log(`⚠ Using fallback logo from: ${fallbackLogoPath}`);
     const buffer = fs.readFileSync(fallbackLogoPath);
     return buffer.toString("base64");
   }
   
-  console.warn("No logo found at expected locations");
+  console.error("❌ No logo found at any expected locations!");
   return "";
 }
 
