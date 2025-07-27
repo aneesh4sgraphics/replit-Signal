@@ -1872,6 +1872,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate PDF quote as actual PDF file
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
+    const { PerformanceMonitor } = await import('./performance-monitor.js');
+    const perf = new PerformanceMonitor('QuickQuotes PDF Generation');
+    
     try {
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
@@ -1893,6 +1896,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
       
+      perf.checkpoint('Validation & Setup');
+      
       // Generate HTML
       const htmlContent = generateQuoteHTMLForDownload({
         customerName,
@@ -1902,6 +1907,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         totalAmount,
         salesRep: currentUserEmail
       });
+      
+      perf.checkpoint('HTML Generation');
+      console.log('📏 HTML Size:', htmlContent.length, 'characters');
       
       // Save quote to database (upsert to prevent duplicates)
       await storage.upsertSentQuote({
@@ -1914,6 +1922,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'sent'
       });
       
+      perf.checkpoint('Database Save');
+      
       // Generate filename following the requested format: QuickQuotes_4SGraphics_Date_for_CustomerName.pdf
       const currentDate = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }).replace(/\//g, '-');
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
@@ -1925,6 +1935,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'Content-Disposition': `attachment; filename="${filename.replace('.pdf', '.html')}"`
       });
       res.send(htmlContent);
+      
+      perf.checkpoint('File Streaming');
+      perf.summary('QuickQuotes PDF Generation');
     } catch (error) {
       console.error("Error generating PDF quote:", error);
       res.status(500).json({ error: "Failed to generate PDF quote" });
@@ -2764,6 +2777,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate Price List PDF
   app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
+    const { PerformanceMonitor } = await import('./performance-monitor.js');
+    const perf = new PerformanceMonitor('Price List PDF Generation');
+    
     try {
       const { customerName, selectedCategory, selectedTier, priceListItems } = req.body;
 
@@ -2783,6 +2799,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         () => chars[Math.floor(Math.random() * chars.length)]
       ).join("");
 
+      perf.checkpoint('Request Validation');
+
       // Generate HTML using the price list function
       const html = await generatePriceListHTML({
         categoryName: selectedCategory,
@@ -2792,6 +2810,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quoteNumber,
         title: "PRICE LIST"
       });
+      
+      perf.checkpoint('HTML Generation');
+      console.log('📏 HTML Size:', html.length, 'characters');
 
       // Configure html-pdf-node for MAXIMUM SPEED in Replit environment
       const options = {
@@ -2834,18 +2855,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
         timeout: 15000 // 15 second timeout instead of default 30s
       };
 
-      debugLog('Price List PDF generation', 'Starting PDF generation with Chromium path:', process.env.PUPPETEER_EXECUTABLE_PATH);
+      console.log('🖥️ Starting Chromium PDF generation with path:', process.env.PUPPETEER_EXECUTABLE_PATH);
 
       // Generate PDF
       const file = { content: html };
       const pdfBuffer = await pdf.generatePdf(file, options);
 
-      debugLog('Price List PDF generation', 'PDF generated successfully, size:', pdfBuffer.length);
+      perf.checkpoint('Chromium Rendering');
+      console.log('📦 PDF Buffer size:', pdfBuffer.length, 'bytes');
 
       // Set headers for file download
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="PriceList_${selectedCategory}_${selectedTier}_${new Date().toISOString().split('T')[0]}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
+      
+      perf.checkpoint('Header Setup');
 
       // Calculate total amount from price list items
       const totalAmount = priceListItems.reduce((sum: number, item: any) => {
@@ -2872,14 +2896,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'sent'
         });
         
-        debugLog('Price List PDF generation', 'Price list saved to Saved Quotes with number:', quoteNumber);
+        perf.checkpoint('Database Save');
+        console.log('✅ Price list saved to Saved Quotes with number:', quoteNumber);
       } catch (saveError) {
-        console.error('Error saving price list to Saved Quotes:', saveError);
+        console.error('❌ Error saving price list to Saved Quotes:', saveError);
         // Don't fail the PDF generation if saving fails
       }
 
       // Send the PDF
       res.end(pdfBuffer);
+      
+      perf.checkpoint('File Streaming');
+      perf.summary('Price List PDF Generation');
 
       logDownload(`PriceList_${selectedCategory}_${selectedTier}.pdf`, 'PDF price list generation');
 
