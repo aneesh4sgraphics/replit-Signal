@@ -310,10 +310,12 @@ export default function PriceList() {
   });
 
   // Get unique categories - memoize to prevent re-renders and filter out empty values
-  const categories = useMemo(() => 
-    Array.from(new Set(productData.map(item => item.product_name).filter(Boolean))).sort(),
-    [productData]
-  );
+  const categories = useMemo(() => {
+    if (!productData || productData.length === 0) return [];
+    // Try both product_name and productName fields, filter out empty values
+    const categoryNames = productData.map(item => item.product_name || item.productName || '').filter(Boolean);
+    return Array.from(new Set(categoryNames)).sort();
+  }, [productData]);
 
   // Generate price list when category or tier changes
   useEffect(() => {
@@ -384,6 +386,35 @@ export default function PriceList() {
     );
   }
 
+  // Add debug information when no data is available
+  if (!productData || productData.length === 0) {
+    return (
+      <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
+        <div className="max-w-7xl mx-auto px-6 py-6">
+          <div className="mb-6 relative">
+            <h1 className="text-xl font-normal text-gray-800 mb-2">Price List</h1>
+            <p className="text-sm text-gray-500 mb-4">
+              Generate comprehensive price lists for your products
+            </p>
+          </div>
+          
+          <div className="bg-white rounded-lg border border-gray-200 p-8 text-center">
+            <div className="text-gray-600 mb-4">
+              <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
+              <h3 className="text-lg font-medium mb-2">No Product Data Available</h3>
+              <p className="text-sm text-gray-500 mb-4">
+                No product pricing data found in the database. Please upload product data through the ProductPricing Management app.
+              </p>
+              <div className="text-xs text-gray-400 bg-gray-50 p-2 rounded border">
+                Debug: Found {productData?.length || 0} records in database
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
       <div className="max-w-7xl mx-auto px-6 py-6">
@@ -409,11 +440,17 @@ export default function PriceList() {
                     <SelectValue placeholder="Select product category" />
                   </SelectTrigger>
                   <SelectContent className="w-full">
-                    {categories.filter(Boolean).map(category => (
-                      <SelectItem key={String(category)} value={String(category)} className="text-sm">
-                        {String(category)}
+                    {categories.length > 0 ? (
+                      categories.map(category => (
+                        <SelectItem key={String(category)} value={String(category)} className="text-sm">
+                          {String(category)}
+                        </SelectItem>
+                      ))
+                    ) : (
+                      <SelectItem value="no-categories" disabled className="text-sm text-gray-400">
+                        No categories available
                       </SelectItem>
-                    ))}
+                    )}
                   </SelectContent>
                 </Select>
               </div>
