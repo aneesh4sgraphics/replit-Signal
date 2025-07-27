@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
@@ -16,6 +16,7 @@ import { getUserRoleFromEmail, canAccessTier } from "@/utils/roleBasedTiers";
 import { useAuth } from "@/hooks/useAuth";
 import { AdaptiveTable } from "@/components/OdooTable";
 import { getPriceColumnHeader } from "@/utils/sizeUtils";
+import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 
 interface ProductData {
   id: number;
@@ -89,6 +90,7 @@ export default function QuoteCalculator() {
   const [selectedSize, setSelectedSize] = useState<string>("");
   const [quantity, setQuantity] = useState<number>(1);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
+  const [orderedQuoteItems, setOrderedQuoteItems] = useState<QuoteItem[]>([]);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -209,6 +211,22 @@ export default function QuoteCalculator() {
 
   const removeFromQuote = (id: string) => {
     setQuoteItems(prev => prev.filter(item => item.id !== id));
+    // Reset ordered items when items are removed
+    setOrderedQuoteItems([]);
+  };
+
+  // Handle quote item reordering
+  const handleQuoteItemReorder = (reorderedItems: any[]) => {
+    const updatedItems = reorderedItems.map(item => {
+      // Find the original item to preserve all data
+      const originalItem = quoteItems.find(original => original.id === item.id);
+      return originalItem || item;
+    });
+    setOrderedQuoteItems(updatedItems);
+    toast({
+      title: "Quote Items Reordered",
+      description: "Quote item order updated successfully for PDF generation"
+    });
   };
 
   const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
@@ -220,6 +238,7 @@ export default function QuoteCalculator() {
       }
 
       const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
+      const itemsToUse = orderedQuoteItems.length > 0 ? orderedQuoteItems : quoteItems;
       
       const response = await fetch('/api/generate-pdf-quote', {
         method: 'POST',
@@ -227,7 +246,7 @@ export default function QuoteCalculator() {
         body: JSON.stringify({
           customerName: selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : "Customer",
           customerEmail: selectedCustomer?.email || null,
-          quoteItems,
+          quoteItems: itemsToUse,
           totalAmount
         })
       });
@@ -796,7 +815,33 @@ ${user?.email ? user.email.split('@')[0].charAt(0).toUpperCase() + user.email.sp
       {/* Quote Items */}
       {quoteItems.length > 0 && (
         <div className="border border-gray-200 rounded-lg p-6 bg-white mb-6">
-          <h2 className="text-lg font-medium text-gray-800 mb-2">Quote Items</h2>
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-lg font-medium text-gray-800">Quote Items</h2>
+            <ProductOrderingDialog
+              items={quoteItems.map(item => ({
+                id: item.id,
+                productType: item.productType,
+                size: item.size,
+                itemCode: item.itemCode,
+                pricePerSheet: item.pricePerSheet,
+                total: item.total,
+                quantity: item.quantity
+              }))}
+              onReorder={handleQuoteItemReorder}
+              title="Reorder Quote Items"
+              description="Change the order of quote items for PDF generation based on customer requests"
+              trigger={
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="flex items-center gap-2 border-gray-300 hover:border-gray-400"
+                >
+                  <ArrowUpDown className="h-4 w-4" />
+                  Order Items
+                </Button>
+              }
+            />
+          </div>
           <p className="text-sm text-gray-500 mb-6">Items added to your current quote</p>
           <div>
             <AdaptiveTable

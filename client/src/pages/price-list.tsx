@@ -6,7 +6,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, FileSpreadsheet } from "lucide-react";
+import { FileText, Download, FileSpreadsheet, ArrowUpDown } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { getUserRoleFromEmail, canAccessTier } from "@/utils/roleBasedTiers";
@@ -15,6 +15,7 @@ import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
 import { HeaderDivider, SimpleCardFrame, FloatingElements, IconBadge, SectionDivider } from "@/components/NotionLineArt";
 import { AdaptiveTable } from "@/components/OdooTable";
 import { getPriceColumnHeader } from "@/utils/sizeUtils";
+import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 
 interface ProductData {
   [key: string]: string | number;
@@ -94,6 +95,7 @@ export default function PriceList() {
   const [selectedTier, setSelectedTier] = useState<string>("");
   const [priceListItems, setPriceListItems] = useState<PriceListItem[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [orderedItems, setOrderedItems] = useState<PriceListItem[]>([]);
   
   const { toast } = useToast();
   const { user } = useAuth();
@@ -118,7 +120,7 @@ export default function PriceList() {
           customerName,
           selectedCategory,
           selectedTier,
-          priceListItems: priceListItems.map(item => ({
+          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
             itemCode: item.itemCode,
             productType: item.productType,
             size: item.size,
@@ -180,7 +182,7 @@ export default function PriceList() {
         body: JSON.stringify({
           selectedCategory,
           selectedTier,
-          priceListItems: priceListItems.map(item => ({
+          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
             itemCode: item.itemCode,
             productName: item.productName,
             price: item.pricePerSheet
@@ -227,7 +229,7 @@ export default function PriceList() {
         body: JSON.stringify({
           selectedCategory,
           selectedTier,
-          priceListItems: priceListItems.map(item => ({
+          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
             itemCode: item.itemCode,
             productType: item.productType,
             size: item.size,
@@ -317,10 +319,25 @@ export default function PriceList() {
     return Array.from(new Set(categoryNames)).sort();
   }, [productData]);
 
+  // Handle product reordering
+  const handleProductReorder = (reorderedItems: any[]) => {
+    const updatedItems = reorderedItems.map(item => {
+      // Find the original item to preserve all pricing data
+      const originalItem = priceListItems.find(original => original.itemCode === item.itemCode);
+      return originalItem || item;
+    });
+    setOrderedItems(updatedItems);
+    toast({
+      title: "Products Reordered",
+      description: "Product order updated successfully for PDF generation"
+    });
+  };
+
   // Generate price list when category or tier changes
   useEffect(() => {
     if (!selectedCategory || !selectedTier || !productData.length) {
       setPriceListItems([]);
+      setOrderedItems([]); // Reset ordered items when selections change
       return;
     }
 
@@ -497,6 +514,29 @@ export default function PriceList() {
               </span>
             </div>
             <div className="flex gap-2">
+              <ProductOrderingDialog
+                items={priceListItems.map(item => ({
+                  id: item.itemCode,
+                  productType: item.productType,
+                  size: item.size,
+                  itemCode: item.itemCode,
+                  pricePerSheet: item.pricePerSheet,
+                  pricePerPack: item.pricePerPack,
+                  minQty: item.minQty
+                }))}
+                onReorder={handleProductReorder}
+                title="Reorder Price List Products"
+                description="Change the order of products for PDF generation based on customer requests"
+                trigger={
+                  <Button
+                    variant="outline"
+                    className="px-4 py-2 rounded-md flex items-center gap-2 label-small border-gray-300 hover:border-gray-400"
+                  >
+                    <ArrowUpDown className="h-4 w-4" />
+                    Order Products
+                  </Button>
+                }
+              />
               <Button
                 onClick={handleDownloadCSV}
                 disabled={downloadCSVMutation.isPending}
