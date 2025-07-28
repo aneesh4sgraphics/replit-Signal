@@ -124,11 +124,11 @@ export function generateQuoteHTMLForDownload(data: any): string {
       
       return `
         <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; font-family: monospace; color: #000;">${item.itemCode || '-'}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; color: #000;">${item.size}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: center; color: #000;">${item.minOrderQty || 0}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; color: #000;">$${item.pricePerSheet.toFixed(2)}/${unitLabel}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; color: #000;">$${itemTotal.toFixed(2)}</td>
+          <td style="padding: 8px 12px; border: 1px solid #dee2e6; font-family: 'Roboto', 'Helvetica Neue', Helvetica, monospace, sans-serif; color: #000;">${item.itemCode || '-'}</td>
+          <td style="padding: 8px 12px; border: 1px solid #dee2e6; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">${item.size}</td>
+          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: center; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">${item.minOrderQty || 0}</td>
+          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">$${item.pricePerSheet.toFixed(2)}/${unitLabel}</td>
+          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">$${itemTotal.toFixed(2)}</td>
         </tr>
       `;
     }).join('');
@@ -136,16 +136,16 @@ export function generateQuoteHTMLForDownload(data: any): string {
     return `
       <div style="margin-bottom: 25px;">
         <div style="margin-bottom: 10px;">
-          <div style="font-size: 16px; font-weight: bold; color: #1f2937;">${productType}</div>
+          <div style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #1f2937;">${productType}</div>
         </div>
         <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white; border: 1px solid #ddd;">
           <thead>
             <tr style="background-color: #bfdbfe;">
-              <th style="padding: 10px 12px; color: #000; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #dee2e6;">Item Code</th>
-              <th style="padding: 10px 12px; color: #000; text-align: left; font-weight: bold; font-size: 11px; border: 1px solid #dee2e6;">Size</th>
-              <th style="padding: 10px 12px; color: #000; text-align: center; font-weight: bold; font-size: 11px; border: 1px solid #dee2e6;">Min Order Qty</th>
-              <th style="padding: 10px 12px; color: #000; text-align: right; font-weight: bold; font-size: 11px; border: 1px solid #dee2e6;">Price/Unit</th>
-              <th style="padding: 10px 12px; color: #000; text-align: right; font-weight: bold; font-size: 11px; border: 1px solid #dee2e6;">Total</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: left; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Item Code</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: left; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Size</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: center; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Min Order Qty</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: right; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Price/Unit</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: right; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -164,12 +164,15 @@ export function generateQuoteHTMLForDownload(data: any): string {
       <title>${title} - ${quoteNumber}</title>
       <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
       <style>
+        @import url('https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap');
+        
         body {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           margin: 40px;
           font-size: 12px;
           color: #000;
           font-weight: 400;
+          line-height: 1.4;
         }
         .header {
           text-align: center;
@@ -179,20 +182,20 @@ export function generateQuoteHTMLForDownload(data: any): string {
           height: 60px;
         }
         .company-name {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           font-size: 22px;
           font-weight: 700;
           margin-top: 10px;
         }
         .company-details {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           font-size: 13px;
           font-weight: 300;
           margin-top: 4px;
           color: #374151;
         }
         .document-title {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           font-size: 18px;
           font-weight: 700;
           margin: 30px 0 10px;
@@ -221,20 +224,20 @@ export function generateQuoteHTMLForDownload(data: any): string {
           padding: 8px;
         }
         th {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           background-color: #f0f4f8;
           text-align: left;
           font-weight: 700;
         }
         .total {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           margin-top: 20px;
           text-align: right;
           font-size: 14px;
           font-weight: 700;
         }
         .footer {
-          font-family: 'Roboto', Arial, sans-serif;
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           margin-top: 40px;
           text-align: center;
           font-size: 11px;
