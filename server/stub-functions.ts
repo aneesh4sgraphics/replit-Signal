@@ -123,12 +123,12 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
       const unitLabel = (item.minOrderQty === 1) ? 'roll' : 'sheet';
       
       return `
-        <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f8f9fa'};">
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; font-family: 'Roboto', 'Helvetica Neue', Helvetica, monospace, sans-serif; color: #000;">${item.itemCode || '-'}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">${item.size}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: center; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">${item.minOrderQty || 0}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">$${item.pricePerSheet.toFixed(2)}/${unitLabel}</td>
-          <td style="padding: 8px 12px; border: 1px solid #dee2e6; text-align: right; font-weight: bold; font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; color: #000;">$${itemTotal.toFixed(2)}</td>
+        <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f9f9f9'};">
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;">${item.itemCode || '-'}</td>
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;">${item.size}</td>
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;">${item.minOrderQty || 0}</td>
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;">$${item.pricePerSheet.toFixed(2)}/${unitLabel}</td>
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:500;">$${itemTotal.toFixed(2)}</td>
         </tr>
       `;
     }).join('');
@@ -138,14 +138,14 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
         <div style="margin-bottom: 10px;">
           <div style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; font-size: 16px; font-weight: 700; color: #1f2937;">${productType}</div>
         </div>
-        <table style="width: 100%; border-collapse: collapse; margin-bottom: 15px; background-color: white; border: 1px solid #ddd;">
+        <table width="100%" style="border-collapse:collapse;margin-bottom:16px;">
           <thead>
-            <tr style="background-color: #bfdbfe;">
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: left; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Item Code</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: left; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Size</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: center; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Min Order Qty</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: right; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Price/Unit</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: #000; text-align: right; font-weight: 700; font-size: 11px; border: 1px solid #dee2e6;">Total</th>
+            <tr style="background:#bfdbfe;color:#000000;">
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Item Code</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:left;font-weight:700;">Size</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Min Order Qty</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Price/Unit</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Total</th>
             </tr>
           </thead>
           <tbody>
@@ -168,18 +168,24 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
         
         body {
           font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-          margin: 40px;
           font-size: 12px;
-          color: #000;
           font-weight: 400;
+          padding: 24px;
+          color: #333;
           line-height: 1.4;
         }
         .header {
           text-align: center;
-          margin-bottom: 20px;
+          margin-bottom: 32px;
+          background-color: white;
+          border: 1px solid #e5e7eb;
+          padding: 20px;
+          border-radius: 8px;
         }
         .header img {
-          height: 60px;
+          height: 45px;
+          display: block;
+          margin: 0 auto 15px auto;
         }
         .company-name {
           font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
@@ -198,7 +204,7 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
           font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
           font-size: 18px;
           font-weight: 700;
-          margin: 30px 0 10px;
+          margin: 15px 0;
           text-transform: uppercase;
           color: #1f2937;
           text-align: center;
@@ -231,23 +237,32 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
         }
         .total {
           font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-          margin-top: 20px;
           text-align: right;
-          font-size: 14px;
+          font-size: 16px;
           font-weight: 700;
+          margin-top: 24px;
         }
         .footer {
           font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
-          margin-top: 40px;
-          text-align: center;
           font-size: 11px;
           font-weight: 300;
+          margin-top: 40px;
+          line-height: 1.5;
           color: #555;
+        }
+        .footer p {
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          margin: 5px 0;
+        }
+        .footer strong {
+          font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif;
+          font-weight: 500;
         }
       </style>
     </head>
     <body>
       <div class="header">
+        ${logo ? `<img src="data:image/png;base64,${logo}" alt="4S Graphics Logo" style="height: 45px; display: block; margin: 0 auto 15px auto;" />` : ''}
         <div class="company-name">4S Graphics, Inc.</div>
         <div class="company-details">
           764 NW 57th Court, Fort Lauderdale, FL 33309<br>
@@ -257,26 +272,23 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
 
       <div class="document-title">${title}</div>
 
-      <div class="quote-info">
-        <div><strong>Quote #:</strong> ${quoteNumber}</div>
-        <div><strong>Date:</strong> ${currentDate}</div>
-      </div>
-
-      <div style="margin-bottom: 20px; padding: 10px; background-color: #f5f5f5;">
-        <div style="font-weight: bold;">Prepared for: ${customerName}</div>
-      </div>
+      <div><strong>Quote #:</strong> ${quoteNumber} <span style="float:right;"><strong>Date:</strong> ${currentDate}</span></div>
+      <p><strong>Prepared for:</strong> ${customerName}</p>
 
       <div class="items-section">
         ${productTables}
       </div>
 
-      <div class="total" style="margin-top: 25px; text-align: right; padding: 15px; background-color: #f9f9f9;">
-        <strong style="font-size: 16px;">Total Amount: $${totalAmount.toFixed(2)}</strong>
-      </div>
+      <div class="total">Total Amount: $${totalAmount.toFixed(2)}</div>
 
       <div class="footer">
-        <p>Thank you for your business!</p>
-        <p>For questions about this quote, please contact us at (954) 493.6484</p>
+        <p><strong>Payment Instructions</strong></p>
+        <p>All payments should be made to 4S GRAPHICS, INC. only.</p>
+        <p>ACH Payments: Account# 0126734133 | Routing# 063104668 | SWIFT: UPNBUS44 / ABA: 062005690</p>
+        <p>Credit Cards: Visa, MasterCard, and AmEx (4.5% processing fee applies)</p>
+        <p>Zelle: 260-580-0526</p>
+        <p>PayPal: info@4sgraphics.com (4.5% fee applies)</p>
+        <p>Shipping Costs: At Actuals — Discuss with Sales Rep</p>
       </div>
     </body>
     </html>
