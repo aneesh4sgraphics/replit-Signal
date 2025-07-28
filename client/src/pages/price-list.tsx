@@ -322,7 +322,9 @@ export default function PriceList() {
   const categories = useMemo(() => {
     if (!productData || productData.length === 0) return [];
     // Try both productName and product_name fields (API uses productName, legacy uses product_name), filter out empty values
-    const categoryNames = productData.map(item => item.productName || item.product_name || '').filter(Boolean);
+    const categoryNames = productData
+      .map(item => item.productName || item.product_name || '')
+      .filter(name => name && name.trim().length > 0); // Filter out empty/whitespace strings
     return Array.from(new Set(categoryNames)).sort();
   }, [productData]);
 
@@ -473,7 +475,11 @@ export default function PriceList() {
                   <SelectContent className="w-full">
                     {categories.length > 0 ? (
                       categories.map(category => (
-                        <SelectItem key={String(category)} value={String(category)} className="text-sm">
+                        <SelectItem 
+                          key={String(category)} 
+                          value={String(category)} 
+                          className="text-sm"
+                        >
                           {String(category)}
                         </SelectItem>
                       ))
