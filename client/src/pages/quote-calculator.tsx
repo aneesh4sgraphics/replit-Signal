@@ -7,7 +7,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import SearchableCustomerSelect from "@/components/SearchableCustomerSelect";
@@ -177,8 +177,30 @@ export default function QuoteCalculator() {
     return floorPrice + 0.99;
   };
 
+  // Check if a tier is already selected for the current product configuration
+  const isTierAlreadySelected = (tier: string): boolean => {
+    if (!selectedProduct) return false;
+    
+    return quoteItems.some(item => 
+      item.productName === selectedProduct.productName &&
+      item.productType === selectedProduct.productType &&
+      item.size === selectedProduct.size &&
+      item.tier === tier
+    );
+  };
+
   const addToQuote = (tier: string) => {
     if (!selectedProduct) return;
+
+    // Check if this tier is already selected for this product configuration
+    if (isTierAlreadySelected(tier)) {
+      toast({
+        title: "Tier Already Selected",
+        description: "This pricing tier is already added to your quote for this product configuration",
+        variant: "destructive",
+      });
+      return;
+    }
 
     const tierPrice = selectedProduct[tier as keyof ProductData] as number;
     const pricePerSheet = tierPrice * parseFloat(String(selectedProduct.totalSqm || 0));
@@ -216,6 +238,45 @@ export default function QuoteCalculator() {
     setQuoteItems(prev => prev.filter(item => item.id !== id));
     // Reset ordered items when items are removed
     setOrderedQuoteItems([]);
+  };
+
+  // Update quantity for a specific quote item
+  const updateQuoteItemQuantity = (id: string, newQuantity: number) => {
+    if (newQuantity < 1) return; // Prevent invalid quantities
+    
+    setQuoteItems(prev => prev.map(item => {
+      if (item.id === id) {
+        // Recalculate total based on new quantity
+        const isRetailTier = item.tier === 'retailPrice';
+        const rawTotal = item.pricePerSheet * newQuantity;
+        const total = applyRetailRounding(rawTotal, isRetailTier);
+        
+        return {
+          ...item,
+          quantity: newQuantity,
+          total: total
+        };
+      }
+      return item;
+    }));
+    
+    // Also update ordered items if they exist
+    if (orderedQuoteItems.length > 0) {
+      setOrderedQuoteItems(prev => prev.map(item => {
+        if (item.id === id) {
+          const isRetailTier = item.tier === 'retailPrice';
+          const rawTotal = item.pricePerSheet * newQuantity;
+          const total = applyRetailRounding(rawTotal, isRetailTier);
+          
+          return {
+            ...item,
+            quantity: newQuantity,
+            total: total
+          };
+        }
+        return item;
+      }));
+    }
   };
 
   // Handle quote item reordering
@@ -716,12 +777,22 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                             </span>
                           );
                         case 'add':
+                          const isAlreadySelected = isTierAlreadySelected(item.tierKey);
                           return (
                             <button
                               onClick={() => addToQuote(item.tierKey)}
-                              className="w-6 h-6 rounded-md border border-gray-300 bg-white hover:bg-gray-100 flex items-center justify-center transition-colors mx-auto"
+                              disabled={isAlreadySelected}
+                              className={`w-6 h-6 rounded-md border flex items-center justify-center transition-colors mx-auto ${
+                                isAlreadySelected 
+                                  ? 'border-green-300 bg-green-50 cursor-not-allowed' 
+                                  : 'border-gray-300 bg-white hover:bg-gray-100'
+                              }`}
                             >
-                              <Plus className="h-3 w-3 text-gray-600" />
+                              {isAlreadySelected ? (
+                                <Check className="h-3 w-3 text-green-600" />
+                              ) : (
+                                <Plus className="h-3 w-3 text-gray-600" />
+                              )}
                             </button>
                           );
                         default:
@@ -928,7 +999,18 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       </span>
                     );
                   case 'qty':
-                    return <span className="text-sm text-gray-600">{item.quantity}</span>;
+                    return (
+                      <Input
+                        type="number"
+                        min="1"
+                        value={item.quantity}
+                        onChange={(e) => {
+                          const newQuantity = parseInt(e.target.value) || 1;
+                          updateQuoteItemQuantity(item.id, newQuantity);
+                        }}
+                        className="w-16 h-7 text-sm text-center border-gray-300 focus:border-blue-500 focus:ring-1 focus:ring-blue-500"
+                      />
+                    );
                   case 'pricePerSqM':
                     return <span className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</span>;
                   case 'pricePerSheet':
