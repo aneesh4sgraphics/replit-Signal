@@ -117,8 +117,10 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
     const categoryName = getCategoryDisplayName(productType);
     
     const productRows = items.map((item: any, index: number) => {
-      const orderQty = Math.max(item.minOrderQty || 0, item.quantity);
-      const itemTotal = orderQty * item.pricePerSheet;
+      // Use the updated quantity from the frontend
+      const displayQty = item.quantity;
+      // Use the already calculated total from the frontend (includes retail rounding)
+      const itemTotal = item.total;
       // Determine unit based on minimum order quantity
       const unitLabel = (item.minOrderQty === 1) ? 'roll' : 'sheet';
       
@@ -126,6 +128,7 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
         <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f9f9f9'};">
           <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;">${item.itemCode || '-'}</td>
           <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;">${item.size}</td>
+          <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;">${displayQty}</td>
           <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;">${item.minOrderQty || 0}</td>
           <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;">$${item.pricePerSheet.toFixed(2)}/${unitLabel}</td>
           <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:500;">$${itemTotal.toFixed(2)}</td>
@@ -143,6 +146,7 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
             <tr style="background:#bfdbfe;color:#000000;">
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Item Code</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:left;font-weight:700;">Size</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Quantity</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:center;font-weight:700;">Min Order Qty</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Price/Unit</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding:8px;text-align:right;font-weight:700;">Total</th>
