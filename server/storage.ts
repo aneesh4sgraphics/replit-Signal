@@ -195,12 +195,32 @@ export class DatabaseStorage implements IStorage {
   }
 
   async changeUserRole(userId: string, role: string): Promise<User | undefined> {
-    const [user] = await db
-      .update(users)
-      .set({ role, updatedAt: new Date() })
-      .where(eq(users.id, userId))
-      .returning();
-    return user;
+    try {
+      console.log('Storage: changeUserRole called with:', { userId, role });
+      
+      // First check if user exists
+      const existingUser = await this.getUser(userId);
+      console.log('Storage: Existing user found:', existingUser ? { id: existingUser.id, email: existingUser.email, currentRole: existingUser.role } : 'null');
+      
+      if (!existingUser) {
+        console.log('Storage: User not found with id:', userId);
+        return undefined;
+      }
+      
+      // Update the user role
+      const [user] = await db
+        .update(users)
+        .set({ role, updatedAt: new Date() })
+        .where(eq(users.id, userId))
+        .returning();
+      
+      console.log('Storage: User after update:', user ? { id: user.id, email: user.email, newRole: user.role } : 'null');
+      
+      return user;
+    } catch (error) {
+      console.error('Storage: Error in changeUserRole:', error);
+      throw error;
+    }
   }
 
   async updateUserRole(userId: string, role: string): Promise<User | undefined> {

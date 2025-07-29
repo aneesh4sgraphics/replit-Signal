@@ -323,11 +323,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Support both :userId and :id patterns for compatibility
   app.patch('/api/admin/users/:userId/role', requireAdmin, async (req: any, res) => {
     try {
-      debugLog('=== SERVER ROLE CHANGE REQUEST (userId pattern) ===');
-      debugLog('userId:', req.params.userId);
-      debugLog('decoded userId:', decodeURIComponent(req.params.userId));
-      debugLog('role from body:', req.body.role);
-      debugLog('request body:', req.body);
+      console.log('=== SERVER ROLE CHANGE REQUEST (userId pattern) ===');
+      console.log('userId:', req.params.userId);
+      console.log('decoded userId:', decodeURIComponent(req.params.userId));
+      console.log('role from body:', req.body.role);
+      console.log('request body:', JSON.stringify(req.body));
       
       const userId = decodeURIComponent(req.params.userId);
       const { role } = req.body;
@@ -345,11 +345,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ message: "User not found" });
       }
       
-      console.log('Role change successful, returning user:', user);
+      console.log('Role change successful, returning user:', JSON.stringify(user));
       res.json(user);
     } catch (error) {
-      console.error("Error updating user role:", error);
-      res.status(500).json({ message: "Failed to update user role" });
+      console.error("Error updating user role - full error:", error);
+      console.error("Error stack:", error instanceof Error ? error.stack : 'No stack');
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update user role" });
     }
   });
 
