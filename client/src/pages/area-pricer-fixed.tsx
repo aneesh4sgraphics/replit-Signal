@@ -105,8 +105,10 @@ export default function AreaPricer() {
         pricePerSqFt = pricePerSqIn * 144;
         pricePerSqMeter = pricePerSqFt * 10.7639;
       } else {
-        // Roll calculation - w is width in feet, h is length in feet
-        totalSqFt = w * h * qty;
+        // Roll calculation - w is width in inches, h is length in feet
+        const widthInFeet = w / 12; // Convert width from inches to feet
+        const lengthInFeet = h; // Length is already in feet
+        totalSqFt = widthInFeet * lengthInFeet * qty;
         totalSqIn = totalSqFt * 144;
         totalSqMeter = totalSqFt / 10.7639;
         
@@ -206,8 +208,8 @@ export default function AreaPricer() {
       headers.join(","),
       ...calculations.map(calc => [
         calc.type,
-        `${calc.width} ${calc.type === "roll" ? "ft" : "in"}`,
-        `${calc.length} ${calc.type === "roll" ? "ft" : "in"}`,
+        `${calc.width} in`, // Width is always in inches
+        `${calc.length} ${calc.type === "roll" ? "ft" : "in"}`, // Length is in feet for rolls, inches for sheets
         calc.packQty,
         `$${calc.inputPrice.toFixed(2)}`,
         `"${calc.thickness}"`,
@@ -258,10 +260,10 @@ export default function AreaPricer() {
       for (const calc of calculations) {
         const entry = {
           type: calc.type,
-          dimensions: `${calc.width} × ${calc.length} ${calc.type === "roll" ? "ft" : "in"}`,
+          dimensions: `${calc.width}" × ${calc.length}${calc.type === "roll" ? "'" : '"'}`, // Width always inches, length feet(') for rolls or inches(") for sheets
           width: calc.width,
           length: calc.length,
-          unit: calc.type === "roll" ? "ft" : "in",
+          unit: calc.type === "roll" ? "in×ft" : "in×in", // Clarify mixed units for rolls
           packQty: calc.packQty,
           inputPrice: calc.inputPrice,
           thickness: calc.thickness,
@@ -365,7 +367,7 @@ export default function AreaPricer() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="roll" id="roll" />
-                  <Label htmlFor="roll" className="text-sm sm:text-base">Roll (feet)</Label>
+                  <Label htmlFor="roll" className="text-sm sm:text-base">Roll (width: inches, length: feet)</Label>
                 </div>
               </RadioGroup>
             </div>
@@ -374,7 +376,7 @@ export default function AreaPricer() {
             <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 sm:gap-4">
               <div>
                 <Label htmlFor="width" className="text-sm sm:text-base font-medium">
-                  Width ({calculationType === "sheets" ? "inches" : "feet"})
+                  Width (inches)
                 </Label>
                 <Input
                   id="width"
@@ -382,7 +384,7 @@ export default function AreaPricer() {
                   step="0.01"
                   value={width}
                   onChange={(e) => setWidth(e.target.value)}
-                  placeholder={calculationType === "sheets" ? "12" : "4"}
+                  placeholder={calculationType === "sheets" ? "12" : "54"}
                   className="mt-1"
                 />
               </div>
