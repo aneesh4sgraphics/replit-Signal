@@ -182,7 +182,7 @@ export default function SearchableCustomerSelect({
           value={searchTerm}
           onChange={(e) => handleInputChange(e.target.value)}
           onFocus={() => setShowDropdown(true)}
-          className="pl-10 pr-4"
+          className="pl-10 pr-4 h-10 flex items-center"
         />
       </div>
 
