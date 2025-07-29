@@ -37,6 +37,12 @@ import {
   Trash2,
   Filter,
   RefreshCw,
+  Grid3X3,
+  List,
+  Columns,
+  Check,
+  Eye,
+  EyeOff,
 } from "lucide-react";
 import { Link } from "wouter";
 
@@ -79,6 +85,26 @@ export default function CustomerTable() {
     emailMarketing: "all",
   });
   const [showFilters, setShowFilters] = useState(false);
+  const [viewMode, setViewMode] = useState<'table' | 'cards'>('table');
+  const [showColumnFilter, setShowColumnFilter] = useState(false);
+  const [editingRowId, setEditingRowId] = useState<string | null>(null);
+  const [editingData, setEditingData] = useState<Partial<Customer>>({});
+  const [visibleColumns, setVisibleColumns] = useState({
+    firstName: true,
+    lastName: true,
+    email: true,
+    company: true,
+    city: true,
+    province: true,
+    country: true,
+    phone: true,
+    totalSpent: true,
+    totalOrders: true,
+    taxExempt: true,
+    acceptsEmailMarketing: true,
+    note: true,
+    tags: true
+  });
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -259,6 +285,43 @@ export default function CustomerTable() {
     setSearchTerm("");
   };
 
+  // Inline editing functions
+  const startEdit = (customer: Customer) => {
+    setEditingRowId(customer.id);
+    setEditingData({ ...customer });
+  };
+
+  const cancelEdit = () => {
+    setEditingRowId(null);
+    setEditingData({});
+  };
+
+  const saveEdit = () => {
+    if (editingRowId && editingData) {
+      updateCustomerMutation.mutate(editingData as Customer);
+      setEditingRowId(null);
+      setEditingData({});
+    }
+  };
+
+  const updateEditingField = (field: keyof Customer, value: any) => {
+    setEditingData(prev => ({ ...prev, [field]: value }));
+  };
+
+  // Column visibility functions
+  const toggleColumnVisibility = (column: keyof typeof visibleColumns) => {
+    setVisibleColumns(prev => ({ ...prev, [column]: !prev[column] }));
+  };
+
+  const getDisplayName = (customer: Customer) => {
+    const firstName = customer.firstName || '';
+    const lastName = customer.lastName || '';
+    if (firstName && lastName) return `${firstName} ${lastName}`;
+    if (firstName) return firstName;
+    if (lastName) return lastName;
+    return customer.email || customer.id;
+  };
+
   // Handle loading and error states after all hooks are declared
   if (isLoading) {
     return (
@@ -333,6 +396,35 @@ export default function CustomerTable() {
                 />
               </div>
             </div>
+            
+            {/* View Mode Toggle */}
+            <div className="flex border rounded-md">
+              <Button
+                onClick={() => setViewMode('table')}
+                variant={viewMode === 'table' ? "default" : "ghost"}
+                size="sm"
+                className="rounded-r-none"
+              >
+                <List className="h-4 w-4" />
+              </Button>
+              <Button
+                onClick={() => setViewMode('cards')}
+                variant={viewMode === 'cards' ? "default" : "ghost"}
+                size="sm"
+                className="rounded-l-none"
+              >
+                <Grid3X3 className="h-4 w-4" />
+              </Button>
+            </div>
+            
+            <Button
+              onClick={() => setShowColumnFilter(!showColumnFilter)}
+              variant={showColumnFilter ? "default" : "outline"}
+              className="gap-2"
+            >
+              <Columns className="h-4 w-4" />
+              Columns
+            </Button>
             <Button
               onClick={() => setShowFilters(!showFilters)}
               variant={showFilters ? "default" : "outline"}
@@ -351,6 +443,38 @@ export default function CustomerTable() {
             </Button>
           </div>
         </div>
+
+        {/* Column Filter Panel */}
+        {showColumnFilter && (
+          <Card className="bg-white shadow-lg border-0">
+            <CardHeader>
+              <CardTitle className="text-lg">Visible Columns</CardTitle>
+            </CardHeader>
+            <CardContent>
+              <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-7 gap-4">
+                {Object.entries(visibleColumns).map(([column, isVisible]) => (
+                  <div key={column} className="flex items-center space-x-2">
+                    <Checkbox
+                      id={column}
+                      checked={isVisible}
+                      onCheckedChange={() => toggleColumnVisibility(column as keyof typeof visibleColumns)}
+                      disabled={column === 'firstName' || column === 'email'} // Name and Email always visible
+                    />
+                    <Label htmlFor={column} className="text-sm">
+                      {column === 'firstName' ? 'First Name' :
+                       column === 'lastName' ? 'Last Name' :
+                       column === 'acceptsEmailMarketing' ? 'Email Marketing' :
+                       column === 'totalSpent' ? 'Total Spent' :
+                       column === 'totalOrders' ? 'Total Orders' :
+                       column === 'taxExempt' ? 'Tax Exempt' :
+                       column.charAt(0).toUpperCase() + column.slice(1)}
+                    </Label>
+                  </div>
+                ))}
+              </div>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Filters Panel */}
         {showFilters && (
@@ -410,104 +534,332 @@ export default function CustomerTable() {
           </Card>
         )}
 
-        {/* Customer Table */}
+        {/* Customer Data Display */}
         <Card className="bg-white shadow-lg border-0">
           <CardHeader>
             <CardTitle className="text-xl text-blue-900">Customer Information</CardTitle>
           </CardHeader>
           <CardContent>
-            <div>
-              <Table className="table-fixed w-full">
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="w-36">Name</TableHead>
-                    <TableHead className="w-48">Email</TableHead>
-                    <TableHead className="w-40">Company</TableHead>
-                    <TableHead className="w-32">Phone</TableHead>
-                    <TableHead className="w-40">Location</TableHead>
-                    <TableHead className="w-20 text-center">Orders</TableHead>
-                    <TableHead className="w-28 text-right">Total Spent</TableHead>
-                    <TableHead className="w-24">Status</TableHead>
-                    <TableHead className="w-20 text-right">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id}>
-                      <TableCell className="w-36">
-                        <div className="font-medium truncate">
-                          {customer.firstName} {customer.lastName}
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-48">
-                        <div className="truncate">{customer.email || "-"}</div>
-                      </TableCell>
-                      <TableCell className="w-40">
-                        <div className="truncate">{customer.company || "-"}</div>
-                      </TableCell>
-                      <TableCell className="w-32">
-                        <div className="truncate">{customer.phone || "-"}</div>
-                      </TableCell>
-                      <TableCell className="w-40">
-                        <div className="text-sm truncate">
-                          {customer.city && customer.province ? 
-                            `${customer.city}, ${customer.province}` : 
-                            customer.city || customer.province || "-"
-                          }
-                        </div>
-                      </TableCell>
-                      <TableCell className="w-20 text-center">{customer.totalOrders}</TableCell>
-                      <TableCell className="w-28 text-right">${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</TableCell>
-                      <TableCell className="w-24">
-                        <div className="flex flex-col gap-1">
-                          {customer.taxExempt && (
-                            <Badge variant="secondary" className="text-xs w-fit">Tax Exempt</Badge>
+            {viewMode === 'table' ? (
+              /* Table View with Inline Editing */
+              <div className="overflow-x-auto">
+                <Table>
+                  <TableHeader>
+                    <TableRow>
+                      {visibleColumns.firstName && <TableHead>First Name</TableHead>}
+                      {visibleColumns.lastName && <TableHead>Last Name</TableHead>}
+                      {visibleColumns.email && <TableHead>Email</TableHead>}
+                      {visibleColumns.company && <TableHead>Company</TableHead>}
+                      {visibleColumns.city && <TableHead>City</TableHead>}
+                      {visibleColumns.province && <TableHead>Province</TableHead>}
+                      {visibleColumns.country && <TableHead>Country</TableHead>}
+                      {visibleColumns.phone && <TableHead>Phone</TableHead>}
+                      {visibleColumns.totalSpent && <TableHead>Total Spent</TableHead>}
+                      {visibleColumns.totalOrders && <TableHead>Orders</TableHead>}
+                      {visibleColumns.taxExempt && <TableHead>Tax Exempt</TableHead>}
+                      {visibleColumns.acceptsEmailMarketing && <TableHead>Email Marketing</TableHead>}
+                      {visibleColumns.note && <TableHead>Note</TableHead>}
+                      {visibleColumns.tags && <TableHead>Tags</TableHead>}
+                      <TableHead>Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {filteredCustomers.map((customer) => (
+                      <TableRow key={customer.id}>
+                        {visibleColumns.firstName && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.firstName || ''}
+                                onChange={(e) => updateEditingField('firstName', e.target.value)}
+                                className="h-8"
+                                disabled // Names not editable
+                              />
+                            ) : (
+                              <span>{customer.firstName || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.lastName && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.lastName || ''}
+                                onChange={(e) => updateEditingField('lastName', e.target.value)}
+                                className="h-8"
+                                disabled // Names not editable
+                              />
+                            ) : (
+                              <span>{customer.lastName || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.email && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.email || ''}
+                                onChange={(e) => updateEditingField('email', e.target.value)}
+                                className="h-8"
+                                disabled // Email not editable
+                              />
+                            ) : (
+                              <span>{customer.email || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.company && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.company || ''}
+                                onChange={(e) => updateEditingField('company', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span>{customer.company || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.city && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.city || ''}
+                                onChange={(e) => updateEditingField('city', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span>{customer.city || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.province && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.province || ''}
+                                onChange={(e) => updateEditingField('province', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span>{customer.province || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.country && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.country || ''}
+                                onChange={(e) => updateEditingField('country', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span>{customer.country || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.phone && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.phone || ''}
+                                onChange={(e) => updateEditingField('phone', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span>{customer.phone || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.totalSpent && (
+                          <TableCell>
+                            <span>${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</span>
+                          </TableCell>
+                        )}
+                        {visibleColumns.totalOrders && (
+                          <TableCell>
+                            <span>{customer.totalOrders}</span>
+                          </TableCell>
+                        )}
+                        {visibleColumns.taxExempt && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Checkbox
+                                checked={editingData.taxExempt || false}
+                                onCheckedChange={(checked) => updateEditingField('taxExempt', checked)}
+                              />
+                            ) : (
+                              <Badge variant={customer.taxExempt ? "default" : "secondary"}>
+                                {customer.taxExempt ? "Yes" : "No"}
+                              </Badge>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.acceptsEmailMarketing && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Checkbox
+                                checked={editingData.acceptsEmailMarketing || false}
+                                onCheckedChange={(checked) => updateEditingField('acceptsEmailMarketing', checked)}
+                              />
+                            ) : (
+                              <Badge variant={customer.acceptsEmailMarketing ? "default" : "secondary"}>
+                                {customer.acceptsEmailMarketing ? "Yes" : "No"}
+                              </Badge>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.note && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Textarea
+                                value={editingData.note || ''}
+                                onChange={(e) => updateEditingField('note', e.target.value)}
+                                className="h-20 text-xs"
+                              />
+                            ) : (
+                              <span className="text-xs">{customer.note || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        {visibleColumns.tags && (
+                          <TableCell>
+                            {editingRowId === customer.id ? (
+                              <Input
+                                value={editingData.tags || ''}
+                                onChange={(e) => updateEditingField('tags', e.target.value)}
+                                className="h-8"
+                              />
+                            ) : (
+                              <span className="text-xs">{customer.tags || '-'}</span>
+                            )}
+                          </TableCell>
+                        )}
+                        <TableCell>
+                          <div className="flex gap-1">
+                            {editingRowId === customer.id ? (
+                              <>
+                                <Button onClick={saveEdit} size="sm" variant="default">
+                                  <Save className="h-3 w-3" />
+                                </Button>
+                                <Button onClick={cancelEdit} size="sm" variant="outline">
+                                  <X className="h-3 w-3" />
+                                </Button>
+                              </>
+                            ) : (
+                              <>
+                                <Button onClick={() => startEdit(customer)} size="sm" variant="outline">
+                                  <Edit className="h-3 w-3" />
+                                </Button>
+                                <Button
+                                  onClick={() => handleDeleteCustomer(customer.id)}
+                                  size="sm"
+                                  variant="destructive"
+                                >
+                                  <Trash2 className="h-3 w-3" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            ) : (
+              /* Card View */
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {filteredCustomers.map((customer) => (
+                  <Card key={customer.id} className="p-4 border border-gray-200 hover:shadow-md transition-shadow">
+                    <div className="space-y-3">
+                      <div className="flex justify-between items-start">
+                        <div>
+                          <h3 className="font-semibold text-lg">
+                            {getDisplayName(customer)}
+                          </h3>
+                          {customer.company && (
+                            <p className="text-sm text-gray-600">{customer.company}</p>
                           )}
-                          {customer.acceptsEmailMarketing && (
-                            <Badge variant="outline" className="text-xs w-fit">Email</Badge>
-                          )}
-                          {customer.acceptsSmsMarketing && (
-                            <Badge variant="outline" className="text-xs w-fit">SMS</Badge>
-                          )}
                         </div>
-                      </TableCell>
-                      <TableCell className="w-20 text-right">
-                        <div className="flex flex-col gap-1">
-                          <Button
-                            onClick={() => handleEditCustomer(customer)}
-                            size="sm"
-                            variant="outline"
-                            className="w-fit px-2"
-                          >
+                        <div className="flex gap-1">
+                          <Button onClick={() => startEdit(customer)} size="sm" variant="outline">
                             <Edit className="h-3 w-3" />
                           </Button>
                           <Button
                             onClick={() => handleDeleteCustomer(customer.id)}
                             size="sm"
                             variant="destructive"
-                            className="w-fit px-2"
                           >
                             <Trash2 className="h-3 w-3" />
                           </Button>
                         </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-              
-              {filteredCustomers.length === 0 && (
-                <div className="text-center py-12">
-                  <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                  <p className="text-gray-600">No customers found matching your criteria</p>
-                  {(searchTerm || Object.values(filters).some(f => f && f !== "all")) && (
-                    <Button onClick={clearFilters} variant="outline" className="mt-4">
-                      Clear Filters
-                    </Button>
-                  )}
-                </div>
-              )}
-            </div>
+                      </div>
+                      
+                      <div className="space-y-2 text-sm">
+                        {customer.email && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Email:</span>
+                            <span>{customer.email}</span>
+                          </div>
+                        )}
+                        {customer.phone && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Phone:</span>
+                            <span>{customer.phone}</span>
+                          </div>
+                        )}
+                        {(customer.city || customer.province || customer.country) && (
+                          <div className="flex items-center gap-2">
+                            <span className="text-gray-500">Location:</span>
+                            <span>
+                              {[customer.city, customer.province, customer.country]
+                                .filter(Boolean)
+                                .join(', ')}
+                            </span>
+                          </div>
+                        )}
+                      </div>
+                      
+                      <div className="flex justify-between items-center pt-2 border-t">
+                        <div className="text-sm">
+                          <span className="text-gray-500">Orders:</span> {customer.totalOrders}
+                        </div>
+                        <div className="text-sm font-medium">
+                          ${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}
+                        </div>
+                      </div>
+                      
+                      <div className="flex gap-2 flex-wrap">
+                        {customer.taxExempt && (
+                          <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
+                        )}
+                        {customer.acceptsEmailMarketing && (
+                          <Badge variant="outline" className="text-xs">Email Marketing</Badge>
+                        )}
+                        {customer.acceptsSmsMarketing && (
+                          <Badge variant="outline" className="text-xs">SMS Marketing</Badge>
+                        )}
+                      </div>
+                    </div>
+                  </Card>
+                ))}
+              </div>
+            )}
+            
+            {filteredCustomers.length === 0 && (
+              <div className="text-center py-12">
+                <Users className="h-12 w-12 text-gray-400 mx-auto mb-4" />
+                <p className="text-gray-600">No customers found matching your criteria</p>
+                {(searchTerm || Object.values(filters).some(f => f && f !== "all")) && (
+                  <Button onClick={clearFilters} variant="outline" className="mt-4">
+                    Clear Filters
+                  </Button>
+                )}
+              </div>
+            )}
           </CardContent>
         </Card>
 
