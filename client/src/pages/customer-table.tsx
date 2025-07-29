@@ -543,220 +543,223 @@ export default function CustomerTable() {
             {viewMode === 'table' ? (
               /* Table View with Inline Editing */
               <div className="overflow-x-auto">
-                <Table>
+                <Table className="table-compact">
                   <TableHeader>
-                    <TableRow>
-                      {visibleColumns.firstName && <TableHead>First Name</TableHead>}
-                      {visibleColumns.lastName && <TableHead>Last Name</TableHead>}
-                      {visibleColumns.email && <TableHead>Email</TableHead>}
-                      {visibleColumns.company && <TableHead>Company</TableHead>}
-                      {visibleColumns.city && <TableHead>City</TableHead>}
-                      {visibleColumns.province && <TableHead>Province</TableHead>}
-                      {visibleColumns.country && <TableHead>Country</TableHead>}
-                      {visibleColumns.phone && <TableHead>Phone</TableHead>}
-                      {visibleColumns.totalSpent && <TableHead>Total Spent</TableHead>}
-                      {visibleColumns.totalOrders && <TableHead>Orders</TableHead>}
-                      {visibleColumns.taxExempt && <TableHead>Tax Exempt</TableHead>}
-                      {visibleColumns.acceptsEmailMarketing && <TableHead>Email Marketing</TableHead>}
-                      {visibleColumns.note && <TableHead>Note</TableHead>}
-                      {visibleColumns.tags && <TableHead>Tags</TableHead>}
-                      <TableHead>Actions</TableHead>
+                    <TableRow className="h-8">
+                      {visibleColumns.firstName && <TableHead className="py-1 px-2 text-xs">First Name</TableHead>}
+                      {visibleColumns.lastName && <TableHead className="py-1 px-2 text-xs">Last Name</TableHead>}
+                      {visibleColumns.email && <TableHead className="py-1 px-2 text-xs">Email</TableHead>}
+                      {visibleColumns.company && <TableHead className="py-1 px-2 text-xs">Company</TableHead>}
+                      {visibleColumns.city && <TableHead className="py-1 px-2 text-xs">City</TableHead>}
+                      {visibleColumns.province && <TableHead className="py-1 px-2 text-xs">Province</TableHead>}
+                      {visibleColumns.country && <TableHead className="py-1 px-2 text-xs">Country</TableHead>}
+                      {visibleColumns.phone && <TableHead className="py-1 px-2 text-xs">Phone</TableHead>}
+                      {visibleColumns.totalSpent && <TableHead className="py-1 px-2 text-xs">Total Spent</TableHead>}
+                      {visibleColumns.totalOrders && <TableHead className="py-1 px-2 text-xs">Orders</TableHead>}
+                      {visibleColumns.taxExempt && <TableHead className="py-1 px-2 text-xs">Tax Exempt</TableHead>}
+                      {visibleColumns.acceptsEmailMarketing && <TableHead className="py-1 px-2 text-xs">Email Marketing</TableHead>}
+                      {visibleColumns.note && <TableHead className="py-1 px-2 text-xs">Note</TableHead>}
+                      {visibleColumns.tags && <TableHead className="py-1 px-2 text-xs">Tags</TableHead>}
+                      <TableHead className="py-1 px-2 text-xs">Actions</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
                     {filteredCustomers.map((customer) => (
-                      <TableRow key={customer.id}>
+                      <TableRow key={customer.id} className="h-10">
                         {visibleColumns.firstName && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.firstName || ''}
                                 onChange={(e) => updateEditingField('firstName', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                                 disabled // Names not editable
                               />
                             ) : (
-                              <span>{customer.firstName || '-'}</span>
+                              <span className="text-xs">{customer.firstName || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.lastName && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.lastName || ''}
                                 onChange={(e) => updateEditingField('lastName', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                                 disabled // Names not editable
                               />
                             ) : (
-                              <span>{customer.lastName || '-'}</span>
+                              <span className="text-xs">{customer.lastName || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.email && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.email || ''}
                                 onChange={(e) => updateEditingField('email', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                                 disabled // Email not editable
                               />
                             ) : (
-                              <span>{customer.email || '-'}</span>
+                              <span className="text-xs truncate block max-w-32">{customer.email || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.company && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.company || ''}
                                 onChange={(e) => updateEditingField('company', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
-                              <span>{customer.company || '-'}</span>
+                              <span className="text-xs truncate block max-w-28">{customer.company || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.city && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.city || ''}
                                 onChange={(e) => updateEditingField('city', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
-                              <span>{customer.city || '-'}</span>
+                              <span className="text-xs">{customer.city || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.province && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.province || ''}
                                 onChange={(e) => updateEditingField('province', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
-                              <span>{customer.province || '-'}</span>
+                              <span className="text-xs">{customer.province || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.country && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.country || ''}
                                 onChange={(e) => updateEditingField('country', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
-                              <span>{customer.country || '-'}</span>
+                              <span className="text-xs">{customer.country || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.phone && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.phone || ''}
                                 onChange={(e) => updateEditingField('phone', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
-                              <span>{customer.phone || '-'}</span>
+                              <span className="text-xs">{customer.phone || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.totalSpent && (
-                          <TableCell>
-                            <span>${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</span>
+                          <TableCell className="py-1 px-2 text-right">
+                            <span className="text-xs font-medium">${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</span>
                           </TableCell>
                         )}
                         {visibleColumns.totalOrders && (
-                          <TableCell>
-                            <span>{customer.totalOrders}</span>
+                          <TableCell className="py-1 px-2 text-center">
+                            <span className="text-xs">{customer.totalOrders}</span>
                           </TableCell>
                         )}
                         {visibleColumns.taxExempt && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Checkbox
                                 checked={editingData.taxExempt || false}
                                 onCheckedChange={(checked) => updateEditingField('taxExempt', checked)}
+                                className="h-3 w-3"
                               />
                             ) : (
-                              <Badge variant={customer.taxExempt ? "default" : "secondary"}>
+                              <Badge variant={customer.taxExempt ? "default" : "secondary"} className="text-xs py-0 px-1 h-4">
                                 {customer.taxExempt ? "Yes" : "No"}
                               </Badge>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.acceptsEmailMarketing && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Checkbox
                                 checked={editingData.acceptsEmailMarketing || false}
                                 onCheckedChange={(checked) => updateEditingField('acceptsEmailMarketing', checked)}
+                                className="h-3 w-3"
                               />
                             ) : (
-                              <Badge variant={customer.acceptsEmailMarketing ? "default" : "secondary"}>
+                              <Badge variant={customer.acceptsEmailMarketing ? "default" : "secondary"} className="text-xs py-0 px-1 h-4">
                                 {customer.acceptsEmailMarketing ? "Yes" : "No"}
                               </Badge>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.note && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2 max-w-32">
                             {editingRowId === customer.id ? (
                               <Textarea
                                 value={editingData.note || ''}
                                 onChange={(e) => updateEditingField('note', e.target.value)}
-                                className="h-20 text-xs"
+                                className="h-16 text-xs"
                               />
                             ) : (
-                              <span className="text-xs">{customer.note || '-'}</span>
+                              <span className="text-xs truncate block">{customer.note || '-'}</span>
                             )}
                           </TableCell>
                         )}
                         {visibleColumns.tags && (
-                          <TableCell>
+                          <TableCell className="py-1 px-2">
                             {editingRowId === customer.id ? (
                               <Input
                                 value={editingData.tags || ''}
                                 onChange={(e) => updateEditingField('tags', e.target.value)}
-                                className="h-8"
+                                className="h-6 text-xs"
                               />
                             ) : (
                               <span className="text-xs">{customer.tags || '-'}</span>
                             )}
                           </TableCell>
                         )}
-                        <TableCell>
+                        <TableCell className="py-1 px-2">
                           <div className="flex gap-1">
                             {editingRowId === customer.id ? (
                               <>
-                                <Button onClick={saveEdit} size="sm" variant="default">
+                                <Button onClick={saveEdit} size="sm" variant="default" className="h-6 w-6 p-0">
                                   <Save className="h-3 w-3" />
                                 </Button>
-                                <Button onClick={cancelEdit} size="sm" variant="outline">
+                                <Button onClick={cancelEdit} size="sm" variant="outline" className="h-6 w-6 p-0">
                                   <X className="h-3 w-3" />
                                 </Button>
                               </>
                             ) : (
                               <>
-                                <Button onClick={() => startEdit(customer)} size="sm" variant="outline">
+                                <Button onClick={() => startEdit(customer)} size="sm" variant="outline" className="h-6 w-6 p-0">
                                   <Edit className="h-3 w-3" />
                                 </Button>
                                 <Button
                                   onClick={() => handleDeleteCustomer(customer.id)}
                                   size="sm"
                                   variant="destructive"
+                                  className="h-6 w-6 p-0"
                                 >
                                   <Trash2 className="h-3 w-3" />
                                 </Button>
