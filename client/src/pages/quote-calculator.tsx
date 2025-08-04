@@ -93,6 +93,9 @@ export default function QuoteCalculator() {
   const [quantity, setQuantity] = useState<number>(1);
   const [quoteItems, setQuoteItems] = useState<QuoteItem[]>([]);
   const [orderedQuoteItems, setOrderedQuoteItems] = useState<QuoteItem[]>([]);
+  const [isCustomSize, setIsCustomSize] = useState<boolean>(false);
+  const [customWidth, setCustomWidth] = useState<string>("");
+  const [customHeight, setCustomHeight] = useState<string>("");
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -161,6 +164,13 @@ export default function QuoteCalculator() {
       ).sort((a, b) => parseFloat(String(a.totalSqm || 0)) - parseFloat(String(b.totalSqm || 0)))
     : [];
 
+  // Check if category supports custom sizes
+  const supportsCustomSize = (category: string): boolean => {
+    return category === 'Graffiti Polyester Paper' || 
+           category === 'Graffiti Blended Poly' || 
+           category.includes('Graffiti STICK');
+  };
+
   // Get selected product details
   const selectedProduct = productData.find(item =>
     item.productName === selectedCategory &&
@@ -190,7 +200,54 @@ export default function QuoteCalculator() {
   };
 
   const addToQuote = (tier: string) => {
-    if (!selectedProduct) return;
+    if (!selectedProduct && !isCustomSize) return;
+
+    // For custom sizes
+    if (isCustomSize && customWidth && customHeight) {
+      // Get reference product for pricing
+      const referenceProduct = availableSizes[0];
+      if (!referenceProduct) {
+        toast({
+          title: "Error",
+          description: "No reference pricing available for this product",
+          variant: "destructive",
+        });
+        return;
+      }
+
+      const tierPrice = referenceProduct[tier as keyof ProductData] as number;
+      const customSqm = parseFloat(customWidth) * parseFloat(customHeight) * 0.00064516;
+      const pricePerSheet = tierPrice * customSqm;
+      const useQuantity = quantity; // Custom sizes use entered quantity
+      
+      // Apply retail rounding for RETAIL tier only to total
+      const isRetailTier = tier === 'retailPrice';
+      const rawTotal = pricePerSheet * useQuantity;
+      const total = applyRetailRounding(rawTotal, isRetailTier);
+
+      const quoteItem: QuoteItem = {
+        id: `${Date.now()}-${Math.random()}`,
+        productName: referenceProduct.productName,
+        productType: referenceProduct.productType,
+        size: `${customWidth}" × ${customHeight}" (Custom)`,
+        itemCode: `${referenceProduct.itemCode}-CUSTOM`,
+        quantity: useQuantity,
+        pricePerSqM: tierPrice,
+        pricePerSheet: pricePerSheet,
+        total: total,
+        tier: tier,
+        squareMeters: customSqm,
+        minOrderQty: 1,
+        sortOrder: referenceProduct.sortOrder
+      };
+
+      setQuoteItems(prev => [...prev, quoteItem]);
+      toast({
+        title: "Item Added",
+        description: `Added custom size ${customWidth}" × ${customHeight}" to quote`,
+      });
+      return;
+    }
 
     // Check if this tier is already selected for this product configuration
     if (isTierAlreadySelected(tier)) {
@@ -549,7 +606,17 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               {selectedType && (
                 <div className="space-y-2">
                   <label className="block label-medium text-gray-800">Size</label>
-                  <Select value={selectedSize} onValueChange={setSelectedSize}>
+                  <Select 
+                    value={selectedSize} 
+                    onValueChange={(value) => {
+                      setSelectedSize(value);
+                      setIsCustomSize(value === 'custom');
+                      if (value !== 'custom') {
+                        setCustomWidth('');
+                        setCustomHeight('');
+                      }
+                    }}
+                  >
                     <SelectTrigger className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
                       <SelectValue placeholder="Select size" className="truncate" />
                     </SelectTrigger>
@@ -559,8 +626,47 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                           <span className="whitespace-nowrap">{product.size} ({parseFloat(String(product.totalSqm || 0)).toFixed(4)} m²)</span>
                         </SelectItem>
                       ))}
+                      {supportsCustomSize(selectedCategory) && (
+                        <SelectItem value="custom" className="max-w-none whitespace-nowrap">
+                          <span className="whitespace-nowrap font-medium text-purple-600">Custom Size</span>
+                        </SelectItem>
+                      )}
                     </SelectContent>
                   </Select>
+                </div>
+              )}
+
+              {/* Custom Size Input */}
+              {isCustomSize && selectedType && (
+                <div className="space-y-2">
+                  <label className="block label-medium text-gray-800">Custom Dimensions (inches)</label>
+                  <div className="flex items-center gap-2">
+                    <Input
+                      type="number"
+                      value={customWidth}
+                      onChange={(e) => setCustomWidth(e.target.value)}
+                      placeholder="Width"
+                      className="w-full"
+                      min="1"
+                      step="0.25"
+                    />
+                    <span className="text-gray-600">×</span>
+                    <Input
+                      type="number"
+                      value={customHeight}
+                      onChange={(e) => setCustomHeight(e.target.value)}
+                      placeholder="Height"
+                      className="w-full"
+                      min="1"
+                      step="0.25"
+                    />
+                  </div>
+                  {customWidth && customHeight && (
+                    <p className="text-sm text-gray-600">
+                      Area: {(parseFloat(customWidth) * parseFloat(customHeight) / 144).toFixed(4)} sq ft
+                      ({(parseFloat(customWidth) * parseFloat(customHeight) * 0.00064516).toFixed(4)} m²)
+                    </p>
+                  )}
                 </div>
               )}
 
@@ -573,11 +679,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   onChange={(e) => setQuantity(Math.max(1, parseInt(e.target.value) || 1))}
                   onFocus={(e) => e.target.select()}
                   onClick={(e) => (e.target as HTMLInputElement).select()}
-                  min={selectedProduct?.minQuantity || 1}
+                  min={isCustomSize ? 1 : (selectedProduct?.minQuantity || 1)}
                   className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white disabled:bg-gray-100"
-                  disabled={!selectedSize}
+                  disabled={!selectedSize && !isCustomSize}
                 />
-                {selectedProduct && quantity < selectedProduct.minQuantity && (
+                {selectedProduct && quantity < selectedProduct.minQuantity && !isCustomSize && (
                   <p className="text-sm text-red-500">
                     Minimum order quantity: {selectedProduct.minQuantity}
                   </p>
@@ -593,7 +699,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
             <h2 className="heading-secondary text-gray-800 mb-2">Quote Summary</h2>
             <p className="body-small text-gray-500 mb-6">Using default pricing</p>
             <div>
-            {selectedProduct ? (
+            {(selectedProduct || (isCustomSize && customWidth && customHeight)) ? (
               <div className="space-y-4">
                 {/* Product Details Summary */}
                 <div className="space-y-2 pb-4 border-b border-gray-200">
@@ -639,14 +745,19 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Product Size:</span>
-                    <span className="text-sm text-gray-800">{selectedSize || 'Not Selected'}</span>
+                    <span className="text-sm text-gray-800">
+                      {isCustomSize ? `${customWidth}" × ${customHeight}"` : (selectedSize || 'Not Selected')}
+                    </span>
                   </div>
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Total Sqm:</span>
                     <span className="text-sm text-gray-800">
-                      {selectedProduct ? 
-                        `${parseFloat(String(selectedProduct.totalSqm || 0)).toFixed(4)} sqm` : 
-                        'Not Calculated'
+                      {isCustomSize && customWidth && customHeight ? 
+                        `${(parseFloat(customWidth) * parseFloat(customHeight) * 0.00064516).toFixed(4)} sqm` :
+                        (selectedProduct ? 
+                          `${parseFloat(String(selectedProduct.totalSqm || 0)).toFixed(4)} sqm` : 
+                          'Not Calculated'
+                        )
                       }
                     </span>
                   </div>
@@ -679,9 +790,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Min. Order Qty:</span>
                     <span className="text-sm text-gray-800">
-                      {selectedProduct ? 
-                        `${selectedProduct.minQuantity} Sheets` : 
-                        'Not Available'
+                      {isCustomSize ? '1 Sheet' : 
+                        (selectedProduct ? 
+                          `${selectedProduct.minQuantity} Sheets` : 
+                          'Not Available'
+                        )
                       }
                     </span>
                   </div>
@@ -709,7 +822,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       }] : []),
                       { 
                         key: 'pricePerSheet', 
-                        title: selectedProduct ? getPriceColumnHeader(selectedProduct.size) : 'Price/Sheet', 
+                        title: isCustomSize ? 'Price/Sheet' : (selectedProduct ? getPriceColumnHeader(selectedProduct.size) : 'Price/Sheet'), 
                         weight: 1.2,
                         minWidth: 100,
                         align: 'center' 
@@ -732,9 +845,29 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       }
                     ]}
                     data={pricingTiers.map(tier => {
-                      const price = selectedProduct[tier.key as keyof ProductData] as number;
-                      const pricePerSheet = price * parseFloat(String(selectedProduct.totalSqm || 0));
-                      const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
+                      // For custom sizes, get a reference product to determine pricing per m²
+                      let price: number;
+                      let totalSqm: number;
+                      let minQty: number;
+                      
+                      if (isCustomSize && customWidth && customHeight) {
+                        // Get first available product from same category and type for pricing reference
+                        const referenceProduct = availableSizes[0];
+                        if (!referenceProduct) return null;
+                        
+                        price = referenceProduct[tier.key as keyof ProductData] as number;
+                        totalSqm = parseFloat(customWidth) * parseFloat(customHeight) * 0.00064516;
+                        minQty = 1; // Custom sizes have min quantity of 1
+                      } else if (selectedProduct) {
+                        price = selectedProduct[tier.key as keyof ProductData] as number;
+                        totalSqm = parseFloat(String(selectedProduct.totalSqm || 0));
+                        minQty = selectedProduct.minQuantity;
+                      } else {
+                        return null;
+                      }
+                      
+                      const pricePerSheet = price * totalSqm;
+                      const useQuantity = Math.max(quantity, minQty);
                       
                       // Apply retail rounding for RETAIL tier only to Min Order Qty Price (total)
                       const isRetailTier = tier.key === 'retailPrice';
@@ -748,7 +881,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                         total: total,
                         tierKey: tier.key
                       };
-                    })}
+                    }).filter(item => item !== null)}
                     renderCell={(item, column) => {
                       switch (column.key) {
                         case 'tier':
