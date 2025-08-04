@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { MicroFeedbackProvider } from "@/components/MicroFeedbackProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
+import { FloatingCalculator } from "@/components/FloatingCalculator";
 import AppHeader from "@/components/AppHeader";
 // Removed: FirecrackerAnimation import - animation removed per user request
 import OdooLayout from "@/components/OdooLayout";
@@ -155,6 +156,7 @@ function App() {
         <MicroFeedbackProvider>
           <Toaster />
           <Router />
+          <FloatingCalculator />
         </MicroFeedbackProvider>
       </TooltipProvider>
     </QueryClientProvider>
