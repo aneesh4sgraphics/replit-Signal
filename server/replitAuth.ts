@@ -109,19 +109,31 @@ async function upsertUser(claims: any) {
   const currentUser = await storage.getUser(claims["sub"]);
   const currentDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD format
   
-  await storage.upsertUser({
-    id: claims["sub"],
+  console.log("Auth claims received:", {
+    sub: claims["sub"],
     email: claims["email"],
-    firstName: firstName,
-    lastName: claims["last_name"] || null,
-    profileImageUrl: claims["profile_image_url"] || null,
-    role: isAdmin ? "admin" : "user",
-    status: isPreApproved ? "approved" : "pending",
-    approvedBy: isPreApproved ? "system" : null,
-    approvedAt: isPreApproved ? new Date() : null,
-    loginCount: (currentUser?.loginCount || 0) + 1,
-    lastLoginDate: currentDate,
+    existing_user_id: currentUser?.id
   });
+  
+  try {
+    await storage.upsertUser({
+      id: claims["sub"],
+      email: claims["email"],
+      firstName: firstName,
+      lastName: claims["last_name"] || null,
+      profileImageUrl: claims["profile_image_url"] || null,
+      role: isAdmin ? "admin" : "user",
+      status: isPreApproved ? "approved" : "pending",
+      approvedBy: isPreApproved ? "system" : null,
+      approvedAt: isPreApproved ? new Date() : null,
+      loginCount: (currentUser?.loginCount || 0) + 1,
+      lastLoginDate: currentDate,
+    });
+  } catch (error) {
+    console.error("Error in upsertUser:", error);
+    console.error("Attempted to upsert with ID:", claims["sub"], "and email:", claims["email"]);
+    throw error;
+  }
 }
 
 export async function setupAuth(app: Express) {

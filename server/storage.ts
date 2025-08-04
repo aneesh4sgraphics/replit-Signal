@@ -148,33 +148,61 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
-    // First, check if a user with this email already exists
-    const existingUser = await db
-      .select()
-      .from(users)
-      .where(eq(users.email, userData.email))
-      .limit(1);
+    try {
+      // First try to find user by ID
+      const existingUserById = await db
+        .select()
+        .from(users)
+        .where(eq(users.id, userData.id))
+        .limit(1);
 
-    if (existingUser.length > 0) {
-      // If user exists with this email, update by email instead of id
-      // This handles cases where the auth provider gives a different id
-      const [user] = await db
-        .update(users)
-        .set({
-          ...userData,
-          id: userData.id, // Update the id to match the auth provider
-          updatedAt: new Date(),
-        })
+      if (existingUserById.length > 0) {
+        // User exists with this ID, update it
+        const [user] = await db
+          .update(users)
+          .set({
+            ...userData,
+            updatedAt: new Date(),
+          })
+          .where(eq(users.id, userData.id))
+          .returning();
+        return user;
+      }
+
+      // Check if a user with this email already exists (but different ID)
+      const existingUserByEmail = await db
+        .select()
+        .from(users)
         .where(eq(users.email, userData.email))
-        .returning();
-      return user;
-    } else {
-      // If no user with this email exists, insert normally
+        .limit(1);
+
+      if (existingUserByEmail.length > 0) {
+        // Delete the old record with the old ID
+        await db
+          .delete(users)
+          .where(eq(users.email, userData.email));
+        
+        // Insert new record with the new ID from auth provider
+        const [user] = await db
+          .insert(users)
+          .values({
+            ...userData,
+            createdAt: existingUserByEmail[0].createdAt, // Preserve original creation date
+          })
+          .returning();
+        return user;
+      }
+
+      // No existing user, insert new one
       const [user] = await db
         .insert(users)
         .values(userData)
         .returning();
       return user;
+    } catch (error) {
+      console.error("Error in upsertUser:", error);
+      console.error("Attempted userData:", userData);
+      throw error;
     }
   }
 
