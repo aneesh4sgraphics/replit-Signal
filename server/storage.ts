@@ -148,57 +148,49 @@ export class DatabaseStorage implements IStorage {
   }
 
   async upsertUser(userData: UpsertUser): Promise<User> {
+    // Use PostgreSQL's INSERT ... ON CONFLICT with proper handling for both id and email
+    const query = sql`
+      INSERT INTO users (
+        id, email, first_name, last_name, profile_image_url, 
+        role, status, approved_by, approved_at, login_count, 
+        last_login_date, created_at, updated_at
+      )
+      VALUES (
+        ${userData.id},
+        ${userData.email},
+        ${userData.firstName},
+        ${userData.lastName},
+        ${userData.profileImageUrl},
+        ${userData.role},
+        ${userData.status},
+        ${userData.approvedBy},
+        ${userData.approvedAt},
+        ${userData.loginCount},
+        ${userData.lastLoginDate},
+        CURRENT_TIMESTAMP,
+        CURRENT_TIMESTAMP
+      )
+      ON CONFLICT (email) DO UPDATE SET
+        id = EXCLUDED.id,
+        first_name = EXCLUDED.first_name,
+        last_name = EXCLUDED.last_name,
+        profile_image_url = EXCLUDED.profile_image_url,
+        role = EXCLUDED.role,
+        status = EXCLUDED.status,
+        approved_by = EXCLUDED.approved_by,
+        approved_at = EXCLUDED.approved_at,
+        login_count = EXCLUDED.login_count,
+        last_login_date = EXCLUDED.last_login_date,
+        updated_at = CURRENT_TIMESTAMP
+      RETURNING *
+    `;
+
     try {
-      // First try to find user by ID
-      const existingUserById = await db
-        .select()
-        .from(users)
-        .where(eq(users.id, userData.id))
-        .limit(1);
-
-      if (existingUserById.length > 0) {
-        // User exists with this ID, update it
-        const [user] = await db
-          .update(users)
-          .set({
-            ...userData,
-            updatedAt: new Date(),
-          })
-          .where(eq(users.id, userData.id))
-          .returning();
-        return user;
+      const result = await db.execute(query);
+      if (result.rows && result.rows.length > 0) {
+        return result.rows[0] as User;
       }
-
-      // Check if a user with this email already exists (but different ID)
-      const existingUserByEmail = await db
-        .select()
-        .from(users)
-        .where(eq(users.email, userData.email))
-        .limit(1);
-
-      if (existingUserByEmail.length > 0) {
-        // Delete the old record with the old ID
-        await db
-          .delete(users)
-          .where(eq(users.email, userData.email));
-        
-        // Insert new record with the new ID from auth provider
-        const [user] = await db
-          .insert(users)
-          .values({
-            ...userData,
-            createdAt: existingUserByEmail[0].createdAt, // Preserve original creation date
-          })
-          .returning();
-        return user;
-      }
-
-      // No existing user, insert new one
-      const [user] = await db
-        .insert(users)
-        .values(userData)
-        .returning();
-      return user;
+      throw new Error("No user returned from upsert operation");
     } catch (error) {
       console.error("Error in upsertUser:", error);
       console.error("Attempted userData:", userData);
