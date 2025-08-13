@@ -7,6 +7,7 @@ import archiver from "archiver";
 import pdf from 'html-pdf-node';
 import puppeteer from 'puppeteer';
 import OpenAI from 'openai';
+import { hybridRAG, hasTroubleshootingDocs } from "./rag";
 import { storage } from "./storage";
 import { z } from "zod";
 // Removed: parseProductData import - legacy CSV parser no longer used
@@ -3177,7 +3178,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ message: "Message is required" });
       }
 
+      // Check if the question is about troubleshooting - use hybrid RAG
+      const messageLower = message.toLowerCase();
+      const isTroubleshooting = messageLower.includes('troubleshoot') || 
+                                messageLower.includes('problem') || 
+                                messageLower.includes('issue') ||
+                                messageLower.includes('error') ||
+                                messageLower.includes('fix') ||
+                                messageLower.includes('clean') ||
+                                messageLower.includes('setting') ||
+                                messageLower.includes('machine') ||
+                                messageLower.includes('print') ||
+                                messageLower.includes('static') ||
+                                messageLower.includes('tips');
+
+      // Use hybrid RAG for troubleshooting questions or when we have troubleshooting docs
+      if (isTroubleshooting || hasTroubleshootingDocs()) {
+        try {
+          const ragResponse = await hybridRAG(
+            message, 
+            conversationHistory,
+            process.env.OPENAI_API_KEY
+          );
+          
+          return res.json(ragResponse);
+        } catch (ragError) {
+          console.error("RAG system error, falling back to product search:", ragError);
+          // Fall through to product pricing logic
+        }
+      }
+
       if (!process.env.OPENAI_API_KEY) {
+        // If no API key, try local search anyway
+        const localResponse = await hybridRAG(message, conversationHistory);
+        if (localResponse.message) {
+          return res.json(localResponse);
+        }
+        
         return res.status(500).json({ 
           message: "⚠️ OpenAI API key not configured. Please contact your administrator to add the OPENAI_API_KEY.\n\nIn the meantime, you can use:\n• Price List to view products\n• Quote Calculator for pricing" 
         });
@@ -3214,7 +3251,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       };
       
       // Check if the message is asking about specific products or pricing
-      const messageLower = message.toLowerCase();
+      // messageLower already declared above
       const isAskingAboutPricing = messageLower.includes('price') || messageLower.includes('pricing') || 
                                    messageLower.includes('cost') || messageLower.includes('quote') ||
                                    messageLower.includes('product') || messageLower.includes('graffiti') ||
@@ -3321,21 +3358,49 @@ Remember: Do not guess. Do not use outside knowledge. Only use the context provi
     } catch (error: any) {
       console.error("Error in chat endpoint:", error);
       
-      // Handle OpenAI quota exceeded error
+      // Handle OpenAI quota exceeded error - try local search fallback
       if (error.code === 'insufficient_quota' || error.status === 429) {
+        try {
+          const localResponse = await hybridRAG(req.body.message, req.body.conversationHistory);
+          if (localResponse.message) {
+            console.log("OpenAI quota exceeded, using local search fallback");
+            return res.json(localResponse);
+          }
+        } catch (fallbackError) {
+          console.error("Local search fallback also failed:", fallbackError);
+        }
+        
         return res.status(503).json({ 
-          message: "⚠️ The OpenAI API quota has been exceeded. Please contact your administrator to add more credits to the OpenAI account.\n\nIn the meantime, you can:\n• Use the Price List to view all products\n• Use the Quote Calculator for pricing\n• Check Product Pricing Management for details" 
+          message: "⚠️ The OpenAI API quota has been exceeded. I'm using local search to help you.\n\nFor better results:\n• Contact your administrator to add OpenAI credits\n• Use the Price List to view all products\n• Use the Quote Calculator for pricing" 
         });
       }
       
-      // Handle API key issues
+      // Handle API key issues - try local search
       if (error instanceof Error && error.message.includes('API key')) {
+        try {
+          const localResponse = await hybridRAG(req.body.message, req.body.conversationHistory);
+          if (localResponse.message) {
+            return res.json(localResponse);
+          }
+        } catch {
+          // Ignore and return error message
+        }
+        
         return res.status(503).json({ 
           message: "⚠️ There's an issue with the OpenAI API configuration. Please contact your administrator to check the API key.\n\nYou can still use:\n• Price List for product information\n• Quote Calculator for generating quotes" 
         });
       }
       
-      // Generic error fallback - but still use 'message' field consistently
+      // Generic error fallback - try local search first
+      try {
+        const localResponse = await hybridRAG(req.body.message, req.body.conversationHistory);
+        if (localResponse.message) {
+          return res.json(localResponse);
+        }
+      } catch {
+        // Ignore and return generic error
+      }
+      
       res.status(500).json({ 
         message: "Sorry, I encountered an error processing your request. Please try again or use the Price List and Quote Calculator directly." 
       });

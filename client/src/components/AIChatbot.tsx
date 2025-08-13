@@ -22,7 +22,7 @@ export function AIChatbot({ isOpen, onToggle }: AIChatbotProps) {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m here to help you with product pricing and app questions. I only provide information from our product database to ensure accuracy.\n\nYou can ask me things like:\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How do I add custom sizes?"\n• "What are the different pricing tiers?"\n\nNote: I only answer based on data in our system. For questions I can\'t answer, I\'ll guide you to the right section of the app.\n\nWhat would you like to know?',
+      content: 'Hello! I\'m here to help you with product pricing and troubleshooting questions. I provide information from our product database and troubleshooting documents.\n\nYou can ask me things like:\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How to troubleshoot printing issues?"\n• "Machine settings for digital printing"\n• "Tips for cleaning and maintenance"\n\nNote: I answer based on our internal documentation. If OpenAI credits are exhausted, I\'ll use local search to help you.\n\nWhat would you like to know?',
       timestamp: new Date()
     }
   ]);
@@ -67,7 +67,15 @@ export function AIChatbot({ isOpen, onToggle }: AIChatbotProps) {
       const data = await response.json();
       
       // Handle both success and error responses from the backend
-      const responseContent = data.message || data.error || 'Sorry, I couldn\'t process your request.';
+      let responseContent = data.message || data.error || 'Sorry, I couldn\'t process your request.';
+      
+      // Add source information if available
+      if (data.sources && data.sources.length > 0) {
+        responseContent += '\n\n📚 Sources:';
+        data.sources.forEach((source: any, i: number) => {
+          responseContent += `\n${i + 1}. ${source.file}${source.page ? ` (page ${source.page})` : ''}`;
+        });
+      }
 
       const assistantMessage: ChatMessage = {
         id: (Date.now() + 1).toString(),
