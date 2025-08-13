@@ -3188,31 +3188,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
         apiKey: process.env.OPENAI_API_KEY,
       });
 
-      // Get some context about the app for the AI
+      // Get context data from the database
       const categories = await storage.getProductCategories();
       const categoryNames = categories.map(c => c.name).join(', ');
+      
+      // Retrieve relevant product pricing data based on the user's message
+      let contextData = "";
+      let relevantProducts: any[] = [];
+      
+      // Simple similarity scoring function
+      const calculateSimilarity = (text1: string, text2: string): number => {
+        const words1 = text1.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        const words2 = text2.toLowerCase().split(/\s+/).filter(w => w.length > 2);
+        
+        if (words1.length === 0 || words2.length === 0) return 0;
+        
+        let matches = 0;
+        words1.forEach(word => {
+          if (words2.some(w => w.includes(word) || word.includes(w))) {
+            matches++;
+          }
+        });
+        
+        return matches / Math.max(words1.length, words2.length);
+      };
+      
+      // Check if the message is asking about specific products or pricing
+      const messageLower = message.toLowerCase();
+      const isAskingAboutPricing = messageLower.includes('price') || messageLower.includes('pricing') || 
+                                   messageLower.includes('cost') || messageLower.includes('quote') ||
+                                   messageLower.includes('product') || messageLower.includes('graffiti') ||
+                                   messageLower.includes('cliq') || messageLower.includes('vinyl');
+      
+      const MIN_SIMILARITY = 0.25; // Minimum similarity threshold
+      let hasRelevantContext = false;
+      
+      if (isAskingAboutPricing) {
+        try {
+          // Get all product pricing data
+          const allPricing = await storage.getAllProductPricingMaster();
+          
+          // Calculate similarity scores and filter relevant products
+          const scoredProducts = allPricing.map((product: any) => {
+            const productInfo = `${product.productName} ${product.productType} ${product.size}`;
+            const similarity = calculateSimilarity(message, productInfo);
+            return { product, similarity };
+          })
+          .filter(item => item.similarity >= MIN_SIMILARITY)
+          .sort((a, b) => b.similarity - a.similarity)
+          .slice(0, 10); // Get top 10 most relevant products
+          
+          relevantProducts = scoredProducts.map(item => item.product);
+          hasRelevantContext = scoredProducts.length > 0;
+          
+          if (hasRelevantContext) {
+            contextData = "\n\nRelevant Product Pricing Data from Database:\n";
+            scoredProducts.forEach(({ product, similarity }) => {
+              contextData += `\n• ${product.productName} - ${product.productType} - Size: ${product.size}`;
+              contextData += `\n  Pricing Tiers: Export: $${product.exportPrice}, Dealer: $${product.dealerPrice}, Retail: $${product.retailPrice}`;
+              contextData += `\n  Min Quantity: ${product.minQuantity}, Square Meters: ${product.totalSqm}`;
+              // contextData += `\n  (Relevance: ${(similarity * 100).toFixed(0)}%)`; // Optional: show relevance score
+            });
+          }
+        } catch (error) {
+          console.error("Error fetching pricing data for context:", error);
+        }
+      }
+      
+      // If no relevant context found, prepare a response guiding user to the right place
+      if (isAskingAboutPricing && !hasRelevantContext) {
+        return res.json({ 
+          message: "I don't have enough information in our product database to answer that specific question yet.\n\n" +
+                   "Here's how you can find the information you need:\n" +
+                   "• **Price List**: Go to the Price List section to view all products and their pricing\n" +
+                   "• **Quote Calculator**: Use this to generate quotes for specific products\n" +
+                   "• **Product Pricing Management**: Check here for detailed pricing data\n\n" +
+                   "Try asking about specific products like 'Graffiti Blended Poly' or 'CliQ Aqueous' for better results."
+        });
+      }
 
-      // Build conversation context
-      const systemMessage = `You are an AI assistant for the 4S Graphics employee portal, a comprehensive quote and pricing management system. 
+      // Build strict system message that enforces context-only answering
+      const systemMessage = `You are a 4S Graphics assistant that helps employees with product pricing and quotes.
 
-Key features of the app:
-- QuickQuotes: Generate product quotes with tiered pricing (Export, Master Distributor, Dealer, Dealer 2, Approval Needed, Stage 2.5, Stage 2, Stage 1.5, Stage 1, Retail)
-- Price List: Generate customer price lists for specific categories and tiers
-- Customer Management: Manage customer database with 1900+ customers
-- Product Pricing: Manage pricing for different product categories
-- Custom Sizes: Available for Graffiti products (Polyester Paper, Blended Poly, STICK) - input dimensions in inches
-- Area Calculator: Built-in calculator for square meter calculations
-- PDF Generation: Create professional PDFs for quotes and price lists
+CRITICAL RULES:
+1. You must ONLY answer using the provided context about 4S Graphics products and features.
+2. If specific pricing or product information is not in the context, say EXACTLY: "I don't have enough information in our product database to answer that yet. Please check the Price List or Quote Calculator sections for current pricing."
+3. NEVER guess or use outside knowledge about products or pricing.
+4. NEVER make up prices, sizes, or product specifications.
+5. Always cite the specific source when providing information (e.g., "Based on our pricing database...")
 
-Available product categories: ${categoryNames}
+AVAILABLE CONTEXT:
+- App Features: QuickQuotes, Price List, Customer Management, Product Pricing Management
+- Pricing Tiers: Export, Master Distributor, Dealer, Dealer 2, Approval Needed, Stage 2.5, Stage 2, Stage 1.5, Stage 1, Retail
+- Product Categories: ${categoryNames}
+- Custom Sizes: Available for Graffiti products (input dimensions in inches)
+${contextData}
 
-When users ask about pricing, ask clarifying questions like:
-- Which product category are they interested in?
-- What pricing tier do they need?
-- Are they looking for standard sizes or custom dimensions?
-- Do they need a quote or a price list?
+When answering:
+1. First check if the answer is in the provided context
+2. If yes, provide a direct answer with citations
+3. If no, respond with the exact message about not having enough information
+4. Guide users to use the appropriate app sections for detailed information`;
 
-Always be helpful and guide users through the features step by step. If you need specific pricing data, ask them to use the relevant sections of the app.`;
+      // Build user prompt that reinforces context-only answering
+      const userPrompt = `Answer using ONLY the context provided above. If the context doesn't contain the answer, say exactly: "I don't have enough information in our product database to answer that yet."
+
+User Question: ${message}
+
+Remember: Do not guess. Do not use outside knowledge. Only use the context provided.`;
 
       // Build messages array
       const messages = [
@@ -3222,14 +3305,14 @@ Always be helpful and guide users through the features step by step. If you need
           role: msg.role,
           content: msg.content
         })),
-        { role: "user", content: message }
+        { role: "user", content: userPrompt }
       ];
 
       const response = await openai.chat.completions.create({
         model: "gpt-4o", // the newest OpenAI model is "gpt-4o" which was released May 13, 2024. do not change this unless explicitly requested by the user
         messages: messages,
         max_tokens: 500,
-        temperature: 0.7,
+        temperature: 0.2, // Lower temperature for more consistent, context-focused responses
       });
 
       const assistantMessage = response.choices[0].message.content;

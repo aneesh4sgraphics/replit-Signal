@@ -22,7 +22,7 @@ export function AIChatbot({ isOpen, onToggle }: AIChatbotProps) {
     {
       id: '1',
       role: 'assistant',
-      content: 'Hello! I\'m here to help you with product pricing and app questions. You can ask me things like:\n\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How do I add custom sizes?"\n• "What are the different pricing tiers?"\n\nWhat would you like to know?',
+      content: 'Hello! I\'m here to help you with product pricing and app questions. I only provide information from our product database to ensure accuracy.\n\nYou can ask me things like:\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How do I add custom sizes?"\n• "What are the different pricing tiers?"\n\nNote: I only answer based on data in our system. For questions I can\'t answer, I\'ll guide you to the right section of the app.\n\nWhat would you like to know?',
       timestamp: new Date()
     }
   ]);
@@ -103,7 +103,7 @@ export function AIChatbot({ isOpen, onToggle }: AIChatbotProps) {
       {
         id: '1',
         role: 'assistant',
-        content: 'Hello! I\'m here to help you with product pricing and app questions. You can ask me things like:\n\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How do I add custom sizes?"\n• "What are the different pricing tiers?"\n\nWhat would you like to know?',
+        content: 'Hello! I\'m here to help you with product pricing and app questions. I only provide information from our product database to ensure accuracy.\n\nYou can ask me things like:\n• "What\'s the pricing for Graffiti products?"\n• "Show me CliQ Aqueous pricing"\n• "How do I add custom sizes?"\n• "What are the different pricing tiers?"\n\nNote: I only answer based on data in our system. For questions I can\'t answer, I\'ll guide you to the right section of the app.\n\nWhat would you like to know?',
         timestamp: new Date()
       }
     ]);
