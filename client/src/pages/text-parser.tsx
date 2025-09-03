@@ -367,14 +367,31 @@ export default function TextParser() {
   };
   
   const createOdooLead = (contact: ParsedContact) => {
-    // Build the Odoo URL with pre-filled contact information
-    const baseUrl = 'https://4sgraphics.odoo.com';
+    // Build the Odoo URL with pre-filled parameters
+    const baseUrl = 'https://4sgraphics.odoo.com/odoo/action-208/new';
     
-    // Create a descriptive lead name
-    const leadName = `Lead from ${contact.name || 'Unknown Contact'} - ${new Date().toLocaleDateString()}`;
+    // Create URL parameters for pre-filling the lead form
+    const params = new URLSearchParams();
     
-    // Build the description with all available contact details
+    // Add contact details as URL parameters
+    if (contact.name) params.append('default_name', contact.name);
+    if (contact.email) params.append('default_email_from', contact.email);
+    if (contact.phone) params.append('default_phone', contact.phone);
+    if (contact.city) params.append('default_city', contact.city);
+    if (contact.state) params.append('default_state_id', contact.state);
+    if (contact.zip) params.append('default_zip', contact.zip);
+    if (contact.country) params.append('default_country_id', contact.country);
+    if (contact.website) params.append('default_website', contact.website);
+    
+    // Build full address for street field
+    if (contact.address) {
+      params.append('default_street', contact.address);
+    }
+    
+    // Add a description with all contact details
     const description = [
+      'Contact imported from Text Parser',
+      '',
       contact.name && `Company/Name: ${contact.name}`,
       contact.email && `Email: ${contact.email}`,
       contact.phone && `Phone: ${contact.phone}`,
@@ -386,18 +403,17 @@ export default function TextParser() {
       contact.website && `Website: ${contact.website}`,
     ].filter(Boolean).join('\n');
     
-    // Open Odoo in a new tab
-    // Note: Direct CRM lead creation URL may require authentication
-    // This will open the Odoo login page where users can then create the lead
-    window.open(baseUrl, '_blank');
+    params.append('default_description', description);
     
-    // Copy lead information to clipboard for easy pasting
-    const clipboardText = `${leadName}\n\n${description}`;
-    navigator.clipboard.writeText(clipboardText);
+    // Build the full URL with parameters
+    const fullUrl = params.toString() ? `${baseUrl}?${params.toString()}` : baseUrl;
+    
+    // Open Odoo lead creation form in a new tab
+    window.open(fullUrl, '_blank');
     
     toast({ 
-      title: "Opening Odoo CRM", 
-      description: "Contact details copied to clipboard. Paste them when creating the lead in Odoo."
+      title: "Opening Odoo Lead Form", 
+      description: "Contact details are being pre-filled in the lead creation form."
     });
   };
   
@@ -680,7 +696,20 @@ export default function TextParser() {
                             </>
                           ) : (
                             <>
-                              <TableCell className="font-medium">{contact.name}</TableCell>
+                              <TableCell className="font-medium">
+                                <div className="flex items-center gap-2">
+                                  <span>{contact.name}</span>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
+                                    onClick={() => createOdooLead(contact)}
+                                    title="Create Lead in Odoo CRM"
+                                    className="h-6 w-6 p-0"
+                                  >
+                                    <ExternalLink className="h-3 w-3" />
+                                  </Button>
+                                </div>
+                              </TableCell>
                               <TableCell>{contact.email}</TableCell>
                               <TableCell>{contact.phone}</TableCell>
                               <TableCell>{contact.city}</TableCell>
@@ -688,14 +717,6 @@ export default function TextParser() {
                               <TableCell>{contact.country || 'USA'}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end">
-                                  <Button
-                                    size="sm"
-                                    variant="ghost"
-                                    onClick={() => createOdooLead(contact)}
-                                    title="Create Odoo Lead"
-                                  >
-                                    <ExternalLink className="h-4 w-4" />
-                                  </Button>
                                   <Button
                                     size="sm"
                                     variant="ghost"
