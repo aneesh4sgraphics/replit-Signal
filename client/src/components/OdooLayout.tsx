@@ -15,12 +15,14 @@ import {
   Calculator,
   TrendingUp,
   Truck,
-  ScanText
+  ScanText,
+  RefreshCw
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { User } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
+import { ResetAppDataButton } from '@/components/ResetAppDataModal';
 
 interface OdooLayoutProps {
   children: React.ReactNode;
@@ -159,15 +161,22 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
             )}
           </div>
           {sidebarOpen && (
-            <Button
-              variant="ghost"
-              size="sm"
-              onClick={logout}
-              className="w-full mt-3 justify-start text-gray-600 hover:text-gray-900"
-            >
-              <LogOut className="h-4 w-4 mr-2" />
-              Sign Out
-            </Button>
+            <div className="space-y-2 mt-3">
+              <ResetAppDataButton
+                variant="ghost"
+                size="sm"
+                className="w-full justify-start text-gray-600 hover:text-gray-900"
+              />
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={logout}
+                className="w-full justify-start text-gray-600 hover:text-gray-900"
+              >
+                <LogOut className="h-4 w-4 mr-2" />
+                Sign Out
+              </Button>
+            </div>
           )}
         </div>
       </aside>
