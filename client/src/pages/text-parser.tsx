@@ -9,7 +9,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { Download, Upload, Trash2, Edit2, Save, X, FileText, Globe, Copy } from "lucide-react";
+import { Download, Upload, Trash2, Edit2, Save, X, FileText, Globe, Copy, ExternalLink } from "lucide-react";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 
 // Constants for parsing
@@ -366,6 +366,41 @@ export default function TextParser() {
     setEditForm(null);
   };
   
+  const createOdooLead = (contact: ParsedContact) => {
+    // Build the Odoo URL with pre-filled contact information
+    const baseUrl = 'https://4sgraphics.odoo.com';
+    
+    // Create a descriptive lead name
+    const leadName = `Lead from ${contact.name || 'Unknown Contact'} - ${new Date().toLocaleDateString()}`;
+    
+    // Build the description with all available contact details
+    const description = [
+      contact.name && `Company/Name: ${contact.name}`,
+      contact.email && `Email: ${contact.email}`,
+      contact.phone && `Phone: ${contact.phone}`,
+      contact.address && `Address: ${contact.address}`,
+      contact.city && `City: ${contact.city}`,
+      contact.state && `State: ${contact.state}`,
+      contact.zip && `Zip: ${contact.zip}`,
+      contact.country && `Country: ${contact.country}`,
+      contact.website && `Website: ${contact.website}`,
+    ].filter(Boolean).join('\n');
+    
+    // Open Odoo in a new tab
+    // Note: Direct CRM lead creation URL may require authentication
+    // This will open the Odoo login page where users can then create the lead
+    window.open(baseUrl, '_blank');
+    
+    // Copy lead information to clipboard for easy pasting
+    const clipboardText = `${leadName}\n\n${description}`;
+    navigator.clipboard.writeText(clipboardText);
+    
+    toast({ 
+      title: "Opening Odoo CRM", 
+      description: "Contact details copied to clipboard. Paste them when creating the lead in Odoo."
+    });
+  };
+  
   return (
     <div className="container mx-auto p-6 max-w-7xl">
       <div className="mb-6">
@@ -496,6 +531,13 @@ export default function TextParser() {
                     </Button>
                     <Button
                       variant="outline"
+                      onClick={() => createOdooLead(parsedData)}
+                    >
+                      <ExternalLink className="mr-2 h-4 w-4" />
+                      Create Odoo Lead
+                    </Button>
+                    <Button
+                      variant="outline"
                       onClick={() => {
                         navigator.clipboard.writeText(JSON.stringify(parsedData, null, 2));
                         toast({ title: "Copied to clipboard" });
@@ -547,7 +589,7 @@ export default function TextParser() {
                         <TableHead>City</TableHead>
                         <TableHead>State</TableHead>
                         <TableHead>Country</TableHead>
-                        <TableHead className="text-right">Actions</TableHead>
+                        <TableHead className="text-right w-32">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
                     <TableBody>
@@ -649,7 +691,16 @@ export default function TextParser() {
                                   <Button
                                     size="sm"
                                     variant="ghost"
+                                    onClick={() => createOdooLead(contact)}
+                                    title="Create Odoo Lead"
+                                  >
+                                    <ExternalLink className="h-4 w-4" />
+                                  </Button>
+                                  <Button
+                                    size="sm"
+                                    variant="ghost"
                                     onClick={() => handleEdit(contact)}
+                                    title="Edit Contact"
                                   >
                                     <Edit2 className="h-4 w-4" />
                                   </Button>
@@ -658,6 +709,7 @@ export default function TextParser() {
                                     variant="ghost"
                                     onClick={() => contact.id && deleteMutation.mutate(contact.id)}
                                     disabled={deleteMutation.isPending}
+                                    title="Delete Contact"
                                   >
                                     <Trash2 className="h-4 w-4" />
                                   </Button>
