@@ -546,6 +546,7 @@ export default function TextParser() {
                         <TableHead>Phone</TableHead>
                         <TableHead>City</TableHead>
                         <TableHead>State</TableHead>
+                        <TableHead>Country</TableHead>
                         <TableHead className="text-right">Actions</TableHead>
                       </TableRow>
                     </TableHeader>
@@ -604,6 +605,17 @@ export default function TextParser() {
                                   className="h-8 w-16"
                                 />
                               </TableCell>
+                              <TableCell>
+                                <Input
+                                  value={editForm?.country || ""}
+                                  onChange={(e) => setEditForm({
+                                    ...editForm!,
+                                    country: e.target.value
+                                  })}
+                                  className="h-8"
+                                  placeholder="USA"
+                                />
+                              </TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end">
                                   <Button
@@ -631,6 +643,7 @@ export default function TextParser() {
                               <TableCell>{contact.phone}</TableCell>
                               <TableCell>{contact.city}</TableCell>
                               <TableCell>{contact.state}</TableCell>
+                              <TableCell>{contact.country || 'USA'}</TableCell>
                               <TableCell className="text-right">
                                 <div className="flex gap-1 justify-end">
                                   <Button
