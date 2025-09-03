@@ -1,0 +1,62 @@
+// --- Text Parser endpoints ---
+import { fetchURL, findLikelyContactLink, normalizeURL } from "./fetch-utils";
+import { extractFromHTML } from "./extract-contacts";
+
+app.post("/api/fetch-url", async (req, res) => {
+  try {
+    const { url } = req.body || {};
+    if (!url || !/^https?:\/\//i.test(normalizeURL(url))) {
+      return res.status(400).json({ error: "Invalid URL" });
+    }
+    const main = await fetchURL(url);
+    let contact: { finalUrl: string; html: string } | undefined;
+    const maybeContact = findLikelyContactLink(main.html, main.finalUrl);
+    if (maybeContact) {
+      try {
+        const c = await fetchURL(maybeContact);
+        contact = { finalUrl: c.finalUrl, html: c.html };
+      } catch {/* ignore */}
+    }
+    res.json({ main: { finalUrl: main.finalUrl, html: main.html }, contact });
+  } catch (e: any) {
+    console.error("fetch-url error", e);
+    res.status(500).json({ error: "Failed to fetch URL" });
+  }
+});
+
+app.post("/api/extract-contacts", async (req, res) => {
+  try {
+    const { mainHtml, contactHtml, baseUrl } = req.body || {};
+    if (!mainHtml || !baseUrl) {
+      return res.status(400).json({ error: "mainHtml and baseUrl required" });
+    }
+    const main = extractFromHTML(mainHtml, baseUrl);
+    const alt = contactHtml ? extractFromHTML(contactHtml, baseUrl) : null;
+
+    // Merge best candidates
+    let primary = main.primary;
+    const alternatives = [...main.alternatives];
+    if (alt) {
+      alternatives.push(alt.primary, ...alt.alternatives);
+      // Prefer higher confidence from contact page
+      if (alt.primary.confidence > primary.confidence) {
+        alternatives.unshift(primary);
+        primary = alt.primary;
+      }
+    }
+
+    // De-dup alternatives by serialized content
+    const seen = new Set<string>();
+    const dedup = alternatives.filter((c) => {
+      const key = JSON.stringify([c.company, c.address1, c.city, c.state, c.zip, c.country, c.email]);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    res.json({ primary, alternatives: dedup.slice(0, 5) });
+  } catch (e: any) {
+    console.error("extract-contacts error", e);
+    res.status(500).json({ error: "Failed to extract contacts" });
+  }
+});

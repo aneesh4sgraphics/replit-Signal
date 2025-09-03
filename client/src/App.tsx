@@ -9,6 +9,7 @@ import { useState, useEffect } from "react";
 import { FloatingCalculator } from "@/components/FloatingCalculator";
 import { AIChatbot, ChatbotToggle } from "@/components/AIChatbot";
 import AppHeader from "@/components/AppHeader";
+import { ServiceWorkerUpdater } from "@/components/ServiceWorkerUpdater";
 // Removed: FirecrackerAnimation import - animation removed per user request
 import OdooLayout from "@/components/OdooLayout";
 import AreaPricer from "@/pages/area-pricer-fixed";
@@ -162,6 +163,7 @@ function App() {
           <Toaster />
           <Router />
           <FloatingCalculator />
+          <ServiceWorkerUpdater />
           <ChatbotToggle 
             onClick={() => setIsChatbotOpen(!isChatbotOpen)} 
             isOpen={isChatbotOpen} 
