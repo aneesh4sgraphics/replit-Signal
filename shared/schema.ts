@@ -136,8 +136,8 @@ export const customers = pgTable("customers", {
 });
 
 // Customer schema types
-export type Customer = typeof customers.$inferSelect;
-export type InsertCustomer = typeof customers.$inferInsert;
+// export type Customer = typeof customers.$inferSelect;
+// export type InsertCustomer = typeof customers.$inferInsert;
 
 export const sentQuotes = pgTable("sent_quotes", {
   id: serial("id").primaryKey(),

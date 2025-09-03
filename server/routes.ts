@@ -1716,17 +1716,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Convert data to CSV format
       const csvRows = pricingData.map(entry => [
-        entry.productId,
+        entry.itemCode,
         entry.productType,
         entry.exportPrice || '',
         entry.masterDistributorPrice || '',
         entry.dealerPrice || '',
         entry.dealer2Price || '',
-        entry.approvalRetailPrice || '',
-        entry.stage25Price || '',
-        entry.stage2Price || '',
-        entry.stage15Price || '',
-        entry.stage1Price || '',
+        entry.approvalNeededPrice || '',
+        entry.tierStage25Price || '',
+        entry.tierStage2Price || '',
+        entry.tierStage15Price || '',
+        entry.tierStage1Price || '',
         entry.retailPrice || ''
       ]);
       
@@ -2597,18 +2597,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
               { tierName: 'MASTER_DISTRIBUTOR', tierId: 2, price: pricingEntry.masterDistributorPrice },
               { tierName: 'DEALER', tierId: 3, price: pricingEntry.dealerPrice },
               { tierName: 'DEALER_2', tierId: 4, price: pricingEntry.dealer2Price },
-              { tierName: 'Approval_Retail', tierId: 5, price: pricingEntry.approvalRetailPrice },
-              { tierName: 'Stage25', tierId: 6, price: pricingEntry.stage25Price },
-              { tierName: 'Stage2', tierId: 7, price: pricingEntry.stage2Price },
-              { tierName: 'Stage15', tierId: 8, price: pricingEntry.stage15Price },
-              { tierName: 'Stage1', tierId: 9, price: pricingEntry.stage1Price },
+              { tierName: 'Approval_Retail', tierId: 5, price: pricingEntry.approvalNeededPrice },
+              { tierName: 'Stage25', tierId: 6, price: pricingEntry.tierStage25Price },
+              { tierName: 'Stage2', tierId: 7, price: pricingEntry.tierStage2Price },
+              { tierName: 'Stage15', tierId: 8, price: pricingEntry.tierStage15Price },
+              { tierName: 'Stage1', tierId: 9, price: pricingEntry.tierStage1Price },
               { tierName: 'Retail', tierId: 10, price: pricingEntry.retailPrice }
             ];
             
             for (const tier of tierMappings) {
               if (tier.price && parseFloat(String(tier.price)) > 0) {
                 try {
-                  await storage.upsertProductPricing({
+                  await storage.upsertProductPricingMaster({
                     productTypeId: matchingType.id,
                     tierId: tier.tierId,
                     pricePerSquareMeter: parseFloat(String(tier.price)),
