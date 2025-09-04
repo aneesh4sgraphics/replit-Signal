@@ -1,4 +1,6 @@
 import express, { type Request, Response, NextFunction } from "express";
+import cors from 'cors';
+import cookieParser from 'cookie-parser';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 
@@ -8,25 +10,26 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
 }
 
 const app = express();
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
+app.use(cookieParser());
 
-// Enhanced CORS setup for development and production
-app.use((req, res, next) => {
-  // Allow credentials and set CORS headers
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Origin', req.headers.origin || '*');
-  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, PATCH, OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Origin, X-Requested-With, Content-Type, Accept, Authorization, Cache-Control, Pragma, If-Modified-Since');
-  res.header('Access-Control-Max-Age', '86400'); // 24 hours
-  
-  // Handle preflight requests
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-  
-  next();
-});
+// --- CORS ---
+const allowedOrigins = [
+  process.env.FRONTEND_ORIGIN || '',
+  'http://localhost:5173',
+  'http://localhost:5000',
+  process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : '',
+].filter(Boolean);
+
+app.use(cors({
+  origin: (origin, cb) => {
+    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    return cb(new Error(`CORS blocked origin: ${origin}`));
+  },
+  credentials: true,
+}));
 
 // Security headers to prevent indexing and embedding
 app.use((req, res, next) => {
@@ -77,15 +80,16 @@ app.use((req, res, next) => {
 (async () => {
   const server = await registerRoutes(app);
 
+  // --- Unified error handler that returns JSON (never HTML) ---
   app.use((err: any, _req: Request, res: Response, _next: NextFunction) => {
     const status = err.status || err.statusCode || 500;
-    const message = err.message || "Internal Server Error";
+    const message = err.message || 'Server error';
 
     console.error('Express error handler:', err);
     
-    // Only send response if headers haven't been sent yet
+    // Always return JSON, never HTML
     if (!res.headersSent) {
-      res.status(status).json({ message });
+      res.status(status).json({ error: message });
     }
     
     // Log the error but don't throw to prevent server crashes

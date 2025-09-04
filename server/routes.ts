@@ -231,14 +231,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Health check endpoint for connection testing and service monitoring
-  app.get("/api/health", (req, res) => {
+  // --- Health check (for debugging connectivity quickly) ---
+  app.get('/api/health', (_req, res) => {
     res.json({ 
-      status: "ok", 
-      timestamp: new Date().toISOString(),
+      ok: true, 
+      env: process.env.NODE_ENV, 
+      time: new Date().toISOString(),
       version: "1.0.0",
       database: "connected",
-      auth: "enabled",
       cache: cache.size
     });
   });
@@ -3361,6 +3361,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Use the new chat router
   app.use(chatRouter);
+
+  // Catch-all for unmatched API routes - return JSON 404 instead of HTML
+  app.use('/api/*', (req, res) => {
+    res.status(404).json({ error: `API endpoint not found: ${req.path}` });
+  });
 
   const httpServer = createServer(app);
   return httpServer;
