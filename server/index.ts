@@ -20,7 +20,11 @@ const allowedOrigins = [
   process.env.FRONTEND_ORIGIN || '',
   'http://localhost:5173',
   'http://localhost:5000',
+  // Support both old and new Replit URL formats
   process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.${process.env.REPL_OWNER}.repl.co` : '',
+  process.env.REPL_SLUG ? `https://${process.env.REPL_SLUG}.replit.app` : '',
+  // Add the deployed URL directly as fallback
+  'https://4sgraphics.replit.app',
 ].filter(Boolean);
 
 app.use(cors({
