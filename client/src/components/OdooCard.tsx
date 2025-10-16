@@ -10,14 +10,14 @@ interface OdooCardProps {
 
 export default function OdooCard({ title, description, children, className = "" }: OdooCardProps) {
   return (
-    <Card className={`bg-white border-gray-200 shadow-sm hover:shadow-md transition-shadow ${className}`}>
+    <Card className={`modern-card ${className}`}>
       {(title || description) && (
         <CardHeader className="pb-4">
           {title && (
-            <CardTitle className="text-lg font-medium text-gray-900">{title}</CardTitle>
+            <CardTitle className="heading-sm">{title}</CardTitle>
           )}
           {description && (
-            <CardDescription className="text-sm text-gray-600">{description}</CardDescription>
+            <CardDescription className="body-sm text-gray-600 mt-1">{description}</CardDescription>
           )}
         </CardHeader>
       )}
