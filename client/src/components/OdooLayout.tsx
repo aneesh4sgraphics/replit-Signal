@@ -15,7 +15,6 @@ import {
   Calculator,
   TrendingUp,
   Truck,
-  ScanText,
   RefreshCw,
   ChevronRight
 } from 'lucide-react';
@@ -54,7 +53,6 @@ const mainItems = [
   { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator' },
   { path: '/competitor-pricing', icon: TrendingUp, label: 'ComIntel' },
   { path: '/shipping-calculator', icon: Truck, label: 'Shipping Calculator' },
-  { path: '/text-parser', icon: ScanText, label: 'Text Parser' },
 ];
 
 const adminItems = [
