@@ -329,13 +329,13 @@ export default function ClientDatabase() {
       phone: "",
       defaultAddressPhone: "",
       acceptsSmsMarketing: false,
-      totalSpent: 0,
+      totalSpent: "0",
       totalOrders: 0,
       note: "",
       taxExempt: false,
       tags: "",
-      createdAt: "",
-      updatedAt: "",
+      createdAt: null,
+      updatedAt: null,
     });
     setIsCreateDialogOpen(true);
   };
@@ -438,7 +438,7 @@ export default function ClientDatabase() {
             <div className="flex items-center justify-between">
               <div>
                 <p className="label-caps text-gray-500">Active</p>
-                <p className="heading-md text-gray-900 mt-1">{customers.filter(c => c.totalOrders > 0).length}</p>
+                <p className="heading-md text-gray-900 mt-1">{customers.filter(c => (c.totalOrders || 0) > 0).length}</p>
               </div>
               <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
             </div>
@@ -487,7 +487,7 @@ export default function ClientDatabase() {
                 <Filter className="h-4 w-4 mr-2" />
                 Filters
               </Button>
-              <Button onClick={refetch} variant="outline" data-testid="button-refresh">
+              <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh">
                 <RefreshCw className="h-4 w-4" />
               </Button>
             </div>
