@@ -96,8 +96,9 @@ function safeParseInt(value: string | undefined, defaultValue: number = 0): numb
 }
 
 function parseCustomerRow(row: string[]): ParsedCustomerRow | null {
+  // Accept rows with 20 or more columns (Shopify may add extra metafield columns)
   if (row.length < 20) {
-    console.log(`Skipping row with insufficient columns: ${row.length}`);
+    console.log(`Skipping row with insufficient columns: ${row.length} (need at least 20)`);
     return null;
   }
 
@@ -178,15 +179,20 @@ export async function parseCustomerCSV(csvContent: string): Promise<{
   const headerRow = csvRows[0];
   if (!headerRow || headerRow.length < expectedHeaders.length) {
     const foundHeaders = headerRow ? headerRow.join(', ') : 'No headers found';
-    throw new Error(`CSV header validation failed. Found ${headerRow?.length || 0} columns, need ${expectedHeaders.length} columns.
+    throw new Error(`CSV header validation failed. Found ${headerRow?.length || 0} columns, need at least ${expectedHeaders.length} columns.
 
-Expected format (download the customer template from Customer Management):
+Expected format (first 20 columns from Shopify customer export):
 ${expectedHeaders.join(', ')}
 
 Your file headers:
 ${foundHeaders}
 
-Please ensure your CSV has all required columns in the correct order.`);
+Note: Extra columns (like Shopify metafields) will be ignored. Please ensure your CSV has the required columns in the correct order.`);
+  }
+  
+  // Warn if there are extra columns (like Shopify metafields)
+  if (headerRow.length > expectedHeaders.length) {
+    console.log(`CSV has ${headerRow.length} columns. Using first ${expectedHeaders.length} columns, ignoring extra columns: ${headerRow.slice(expectedHeaders.length).join(', ')}`);
   }
   
   console.log(`Header validation passed: ${headerRow.length} columns found`);
