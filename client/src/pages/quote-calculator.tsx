@@ -122,7 +122,8 @@ export default function QuoteCalculator() {
   };
   
   // Get user role and filter pricing tiers accordingly
-  const userRole = getUserRoleFromEmail((user as any)?.email || '');
+  // Use role from user object directly, fallback to email-based detection
+  const userRole = (user as any)?.role || getUserRoleFromEmail((user as any)?.email || '');
   const pricingTiers = allPricingTiers.filter(tier => canAccessTier(tier.label, userRole));
 
   // Product category icon mapping with colors
