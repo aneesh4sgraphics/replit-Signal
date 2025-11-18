@@ -6,6 +6,12 @@ This is a full-stack TypeScript application that provides a quote calculator for
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
+## Recent Changes (November 18, 2025)
+- **Enhanced Production Error Diagnostics**: Added comprehensive error logging to API endpoints with structured console logs (===START/END markers), duration tracking, and specific error suggestions based on error type (database connection, query errors, permissions, etc.)
+- **Secure Error Display**: Frontend now extracts and displays only sanitized error fields from backend (details, suggestion, message, type, timestamp, duration) without exposing raw responses or stack traces
+- **Health Monitoring**: Created `/api/diagnostics` endpoint for system health checks (environment variables, database connection, API endpoint status)
+- **Debugging Documentation**: Added DEBUGGING_GUIDE.md with step-by-step instructions for using browser DevTools Network tab to inspect API failures and diagnose connection problems
+
 ## System Architecture
 
 ### Frontend Architecture
@@ -25,6 +31,7 @@ Preferred communication style: Simple, everyday language.
 - **Session Management**: PostgreSQL session store (connect-pg-simple)
 - **Development**: tsx for TypeScript execution
 - **Technical Implementations**: Server-side PDF generation using html-pdf-node configured for system Chromium, robust authentication system with role-based access control, comprehensive CSV upload and synchronization logic with hash-based change detection, and dynamic logo fetching with fallback mechanisms.
+- **Error Handling & Diagnostics**: Production-ready error logging with timestamped structured logs, performance tracking (request duration), and detailed error responses with actionable suggestions. Frontend displays only sanitized error fields (never raw responses or stack traces). Includes `/api/diagnostics` health check endpoint for system status monitoring.
 - **AI Chatbot**: Hybrid RAG system with automatic fallback - uses OpenAI GPT-4o when available, falls back to local BM25 search over troubleshooting PDFs when quota exceeded. Features context-only answering with similarity scoring (threshold 0.25), retrieves relevant products from database, enforces strict "no guessing" policy, provides source citations from PDFs, and guides users to appropriate app sections when lacking data. Works offline with local search even without OpenAI credits.
 
 ### Database Architecture
