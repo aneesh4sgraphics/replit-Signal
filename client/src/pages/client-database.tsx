@@ -410,7 +410,7 @@ export default function ClientDatabase() {
           {isAdmin && (
             <Button onClick={() => setShowUploadDialog(true)} variant="outline" data-testid="button-upload">
               <Upload className="h-4 w-4 mr-2" />
-              Upload CSV
+              Import from Shopify
             </Button>
           )}
           <Button onClick={handleCreateCustomer} data-testid="button-create-client">
@@ -735,9 +735,9 @@ export default function ClientDatabase() {
         <Dialog open={showUploadDialog} onOpenChange={setShowUploadDialog}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
-              <DialogTitle>Upload Client Data</DialogTitle>
+              <DialogTitle>Import from Shopify</DialogTitle>
               <DialogDescription>
-                Upload a CSV file to bulk import or update client information
+                Upload a CSV file exported from Shopify to bulk import or update client information
               </DialogDescription>
             </DialogHeader>
 
@@ -798,11 +798,13 @@ export default function ClientDatabase() {
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
-                <h3 className="font-semibold text-blue-900 mb-2">Instructions</h3>
+                <h3 className="font-semibold text-blue-900 mb-2">How to Export from Shopify</h3>
                 <ul className="text-sm text-blue-800 space-y-1">
-                  <li>• CSV files should include Customer ID, Name, Email, Company, and Address fields</li>
-                  <li>• New clients will be added, existing clients will be updated</li>
-                  <li>• Matching is done by Customer ID or Email address</li>
+                  <li>1. In Shopify Admin, go to Customers</li>
+                  <li>2. Click "Export" and select "All customers"</li>
+                  <li>3. Choose "Plain CSV file" format</li>
+                  <li>4. Upload the exported CSV file here</li>
+                  <li>• New clients will be added, existing clients will be updated based on Customer ID or Email</li>
                 </ul>
               </div>
             </div>
