@@ -394,6 +394,10 @@ export default function QuoteCalculator() {
         throw new Error('No items in quote to generate PDF');
       }
 
+      if (!selectedCustomer) {
+        throw new Error('Please select a client from the Client Database before downloading the quote');
+      }
+
       const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
       const itemsToUse = orderedQuoteItems.length > 0 ? orderedQuoteItems : quoteItems;
       
@@ -444,6 +448,15 @@ export default function QuoteCalculator() {
       toast({
         title: "No Items in Quote",
         description: "Please add items to your quote before sending email",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedCustomer) {
+      toast({
+        title: "No Client Selected",
+        description: "Please select a client from the Client Database before emailing the quote",
         variant: "destructive",
       });
       return;
