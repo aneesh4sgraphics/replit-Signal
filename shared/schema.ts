@@ -131,6 +131,7 @@ export const customers = pgTable("customers", {
   note: text("note"),
   taxExempt: boolean("tax_exempt").default(false),
   tags: varchar("tags", { length: 500 }),
+  sources: text("sources").array().default([]), // Track import sources: ['odoo', 'shopify']
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
