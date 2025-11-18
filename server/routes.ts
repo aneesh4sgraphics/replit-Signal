@@ -276,6 +276,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
     });
   });
 
+  // --- Comprehensive diagnostics endpoint ---
+  app.get('/api/diagnostics', async (_req, res) => {
+    try {
+      const diagnostics: any = {
+        timestamp: new Date().toISOString(),
+        environment: process.env.NODE_ENV,
+        server: {
+          uptime: process.uptime(),
+          memory: process.memoryUsage(),
+          nodeVersion: process.version
+        },
+        env_vars: {
+          DATABASE_URL: process.env.DATABASE_URL ? '✓ Set' : '✗ Missing',
+          REPL_ID: process.env.REPL_ID ? '✓ Set' : '✗ Missing',
+          REPL_SLUG: process.env.REPL_SLUG ? '✓ Set' : '✗ Missing',
+          NODE_ENV: process.env.NODE_ENV || 'not set',
+        },
+        database: {
+          connected: false,
+          error: null as string | null
+        },
+        api_endpoints: {
+          '/api/product-pricing-database': 'unknown',
+          '/api/customers': 'unknown',
+          '/api/auth/user': 'unknown'
+        }
+      };
+
+      // Test database connection
+      try {
+        const testQuery = await storage.db.execute('SELECT 1 as test');
+        diagnostics.database.connected = true;
+        diagnostics.database.rowCount = testQuery.rows.length;
+      } catch (dbError) {
+        diagnostics.database.connected = false;
+        diagnostics.database.error = dbError instanceof Error ? dbError.message : String(dbError);
+      }
+
+      // Test critical API endpoints
+      try {
+        const pricingData = await storage.getAllProductPricing();
+        diagnostics.api_endpoints['/api/product-pricing-database'] = `✓ Working (${pricingData.length} items)`;
+      } catch (apiError) {
+        diagnostics.api_endpoints['/api/product-pricing-database'] = `✗ Error: ${apiError instanceof Error ? apiError.message : String(apiError)}`;
+      }
+
+      res.json({
+        status: diagnostics.database.connected ? 'healthy' : 'degraded',
+        diagnostics
+      });
+    } catch (error) {
+      console.error('Diagnostics endpoint error:', error);
+      res.status(500).json({
+        status: 'error',
+        error: error instanceof Error ? error.message : 'Unknown error',
+        stack: process.env.NODE_ENV === 'development' && error instanceof Error ? error.stack : undefined
+      });
+    }
+  });
+
   // Setup authentication middleware AFTER the public routes
   await setupAuth(app);
 

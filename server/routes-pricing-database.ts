@@ -591,10 +591,23 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
 
 // Get all product pricing from database
 router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
+  const startTime = Date.now();
   try {
+    console.log("=== GET /api/product-pricing-database START ===");
+    console.log("Request headers:", req.headers);
+    console.log("User authenticated:", !!req.user);
+    
     console.log("Fetching product pricing from database...");
     const pricingData = await storage.getAllProductPricingMaster();
-    console.log(`Retrieved ${pricingData.length} pricing records from database`);
+    console.log(`✓ Retrieved ${pricingData.length} pricing records from database in ${Date.now() - startTime}ms`);
+    
+    if (pricingData.length === 0) {
+      console.warn("⚠ No pricing data found in database");
+      return res.json({ 
+        data: [],
+        warning: "No pricing data found. Please upload pricing data through the admin panel."
+      });
+    }
     
     // Transform decimal strings to numbers for frontend compatibility
     const transformedData = pricingData.map(item => ({
@@ -612,10 +625,58 @@ router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
       retailPrice: parseFloat(String(item.retailPrice || 0))
     }));
     
+    console.log(`✓ Successfully transformed ${transformedData.length} records`);
+    console.log(`=== GET /api/product-pricing-database END (${Date.now() - startTime}ms) ===`);
+    
     res.json({ data: transformedData });
   } catch (error) {
-    console.error("Error fetching product pricing from database:", error);
-    res.status(500).json({ error: "Failed to fetch product pricing from database" });
+    const duration = Date.now() - startTime;
+    console.error("=== GET /api/product-pricing-database ERROR ===");
+    console.error("Duration before error:", duration + "ms");
+    console.error("Error type:", error instanceof Error ? error.constructor.name : typeof error);
+    console.error("Error message:", error instanceof Error ? error.message : String(error));
+    console.error("Error stack:", error instanceof Error ? error.stack : "No stack trace");
+    console.error("Database connection status:", process.env.DATABASE_URL ? 'URL present' : 'URL missing');
+    
+    // Build detailed error response
+    const errorResponse: any = {
+      error: "Failed to fetch product pricing from database",
+      timestamp: new Date().toISOString(),
+      duration: duration + "ms"
+    };
+    
+    // Add specific error details based on error type
+    if (error instanceof Error) {
+      errorResponse.message = error.message;
+      errorResponse.type = error.constructor.name;
+      
+      // Database connection errors
+      if (error.message.includes('ECONNREFUSED') || error.message.includes('connect ETIMEDOUT')) {
+        errorResponse.details = "Cannot connect to database. Please check database configuration in Secrets.";
+        errorResponse.suggestion = "Ensure DATABASE_URL is set correctly in the Secrets tab.";
+      }
+      // Query errors
+      else if (error.message.includes('relation') || error.message.includes('table')) {
+        errorResponse.details = "Database table not found. The pricing table may not exist.";
+        errorResponse.suggestion = "Run database migrations or contact support.";
+      }
+      // Permission errors
+      else if (error.message.includes('permission') || error.message.includes('denied')) {
+        errorResponse.details = "Database permission error.";
+        errorResponse.suggestion = "Check database user permissions.";
+      }
+      // Generic database errors
+      else {
+        errorResponse.details = error.message;
+      }
+      
+      // In development, include stack trace
+      if (process.env.NODE_ENV === 'development') {
+        errorResponse.stack = error.stack;
+      }
+    }
+    
+    res.status(500).json(errorResponse);
   }
 });
 

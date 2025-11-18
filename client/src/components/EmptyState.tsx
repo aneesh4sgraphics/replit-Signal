@@ -312,8 +312,42 @@ export const getErrorMessage = (error: any): string => {
 export const getErrorDetails = (error: any): string => {
   const details: string[] = [];
   
+  // Backend error details (from enhanced error responses)
+  if (error.responseText) {
+    try {
+      const parsedError = JSON.parse(error.responseText);
+      
+      if (parsedError.details) {
+        details.push(`Details: ${parsedError.details}`);
+      }
+      
+      if (parsedError.suggestion) {
+        details.push(`Suggestion: ${parsedError.suggestion}`);
+      }
+      
+      if (parsedError.message && parsedError.message !== parsedError.error) {
+        details.push(`Message: ${parsedError.message}`);
+      }
+      
+      if (parsedError.type) {
+        details.push(`Error Type: ${parsedError.type}`);
+      }
+      
+      if (parsedError.timestamp) {
+        details.push(`Timestamp: ${parsedError.timestamp}`);
+      }
+      
+      if (parsedError.duration) {
+        details.push(`Duration: ${parsedError.duration}`);
+      }
+    } catch (e) {
+      // If parsing fails, show raw response
+      details.push(`Response: ${error.responseText}`);
+    }
+  }
+  
   if (error.status) {
-    details.push(`Status: ${error.status}`);
+    details.push(`HTTP Status: ${error.status}`);
   }
   
   if (error.statusText) {
