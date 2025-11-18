@@ -113,7 +113,7 @@ export default function ClientDatabase() {
       return await apiRequest("PUT", `/api/customers/${customer.id}`, customer);
     },
     onSuccess: (_, customer) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       logUserAction("UPDATED CLIENT", `${customer.firstName} ${customer.lastName} (${customer.email})`);
       toast({
         title: "Client updated",
@@ -137,7 +137,7 @@ export default function ClientDatabase() {
       return await apiRequest("POST", "/api/customers", customer);
     },
     onSuccess: (_, customer) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      queryClient.invalidateQueries({ queryKey: ["customers"] });
       logUserAction("CREATED CLIENT", `${customer.firstName} ${customer.lastName} (${customer.email})`);
       toast({
         title: "Client created",
@@ -167,7 +167,7 @@ export default function ClientDatabase() {
       });
       
       setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+        queryClient.invalidateQueries({ queryKey: ["customers"] });
       }, 100);
     },
     onError: (error: any) => {
@@ -231,7 +231,7 @@ export default function ClientDatabase() {
         count: totalProcessed
       });
 
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['customers'] });
 
       toast({
         title: "Upload Successful",
