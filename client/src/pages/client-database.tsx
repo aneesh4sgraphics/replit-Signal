@@ -215,7 +215,16 @@ export default function ClientDatabase() {
         } catch {
           errorData = { error: `HTTP ${response.status}: ${response.statusText}`, details: errorText };
         }
-        throw new Error(errorData.error || `Upload failed with status ${response.status}`);
+        
+        // More specific error messages
+        let errorMessage = errorData.error || errorData.message || `Upload failed with status ${response.status}`;
+        if (response.status === 401) {
+          errorMessage = "Authentication failed. Please refresh the page and try again.";
+        } else if (response.status === 403) {
+          errorMessage = "Admin access required. Please contact your administrator.";
+        }
+        
+        throw new Error(errorMessage);
       }
 
       const result = await response.json();
