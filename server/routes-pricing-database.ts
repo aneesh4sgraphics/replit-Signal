@@ -787,6 +787,24 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
     console.log(`=== PATCH /api/product-pricing/${id} START ===`);
     console.log("Updates received:", updates);
     
+    // SECURITY: Strict whitelist of allowed price fields - reject any non-whitelisted fields
+    const ALLOWED_PRICE_FIELDS = new Set([
+      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price', 
+      'tierStage15Price', 'tierStage1Price', 'retailPrice'
+    ]);
+    
+    // Check for any disallowed fields in the request
+    const receivedFields = Object.keys(updates);
+    const disallowedFields = receivedFields.filter(f => !ALLOWED_PRICE_FIELDS.has(f));
+    if (disallowedFields.length > 0) {
+      console.warn(`Security: Rejected non-price fields: ${disallowedFields.join(', ')}`);
+      return res.status(400).json({
+        error: "Invalid fields",
+        details: `Only price fields can be updated. Rejected: ${disallowedFields.join(', ')}`
+      });
+    }
+    
     // First, get the current record to merge with
     const allPricing = await storage.getAllProductPricingMaster();
     const currentRecord = allPricing.find(p => p.id === parseInt(id));
@@ -795,24 +813,20 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
       return res.status(404).json({ error: "Product not found" });
     }
     
-    // Validate and sanitize price updates
-    const validPriceFields = [
-      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
-      'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price', 
-      'tierStage15Price', 'tierStage1Price', 'retailPrice'
-    ];
-    
-    const sanitizedUpdates: Record<string, string> = {};
+    // Validate and sanitize price updates - convert to numbers, validate range
+    const sanitizedUpdates: Record<string, number> = {};
     const invalidFields: string[] = [];
     
-    for (const key of validPriceFields) {
-      if (key in updates) {
-        const value = parseFloat(updates[key]);
-        if (isNaN(value) || value < 0) {
-          invalidFields.push(key);
-        } else {
-          sanitizedUpdates[key] = value.toString();
-        }
+    for (const key of receivedFields) {
+      const rawValue = updates[key];
+      // Parse the value - handle both string and number inputs
+      const numValue = typeof rawValue === 'number' ? rawValue : parseFloat(rawValue);
+      
+      if (isNaN(numValue) || numValue < 0 || numValue > 999999.99) {
+        invalidFields.push(key);
+      } else {
+        // Store as number (2 decimal precision maintained via rounding)
+        sanitizedUpdates[key] = Math.round(numValue * 100) / 100;
       }
     }
     
@@ -831,7 +845,7 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
       });
     }
     
-    // Helper to safely get existing numeric value as string
+    // Helper to safely get existing numeric value
     const getExistingPrice = (value: any): string => {
       if (value === null || value === undefined) return '0';
       const num = parseFloat(String(value));
@@ -839,6 +853,7 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
     };
     
     // Build complete record with existing data + only the validated updates
+    // Note: Updates are already validated numbers, existing values are converted from DB strings
     const completeRecord: any = {
       itemCode: currentRecord.itemCode,
       productName: currentRecord.productName,
@@ -847,17 +862,17 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
       size: currentRecord.size,
       totalSqm: getExistingPrice(currentRecord.totalSqm),
       minQuantity: currentRecord.minQuantity || 50,
-      // For each price field: use update if provided, otherwise keep existing value
-      exportPrice: sanitizedUpdates.exportPrice !== undefined ? sanitizedUpdates.exportPrice : getExistingPrice(currentRecord.exportPrice),
-      masterDistributorPrice: sanitizedUpdates.masterDistributorPrice !== undefined ? sanitizedUpdates.masterDistributorPrice : getExistingPrice(currentRecord.masterDistributorPrice),
-      dealerPrice: sanitizedUpdates.dealerPrice !== undefined ? sanitizedUpdates.dealerPrice : getExistingPrice(currentRecord.dealerPrice),
-      dealer2Price: sanitizedUpdates.dealer2Price !== undefined ? sanitizedUpdates.dealer2Price : getExistingPrice(currentRecord.dealer2Price),
-      approvalNeededPrice: sanitizedUpdates.approvalNeededPrice !== undefined ? sanitizedUpdates.approvalNeededPrice : getExistingPrice(currentRecord.approvalNeededPrice),
-      tierStage25Price: sanitizedUpdates.tierStage25Price !== undefined ? sanitizedUpdates.tierStage25Price : getExistingPrice(currentRecord.tierStage25Price),
-      tierStage2Price: sanitizedUpdates.tierStage2Price !== undefined ? sanitizedUpdates.tierStage2Price : getExistingPrice(currentRecord.tierStage2Price),
-      tierStage15Price: sanitizedUpdates.tierStage15Price !== undefined ? sanitizedUpdates.tierStage15Price : getExistingPrice(currentRecord.tierStage15Price),
-      tierStage1Price: sanitizedUpdates.tierStage1Price !== undefined ? sanitizedUpdates.tierStage1Price : getExistingPrice(currentRecord.tierStage1Price),
-      retailPrice: sanitizedUpdates.retailPrice !== undefined ? sanitizedUpdates.retailPrice : getExistingPrice(currentRecord.retailPrice),
+      // For each price field: use update (as number) if provided, otherwise keep existing value
+      exportPrice: sanitizedUpdates.exportPrice !== undefined ? sanitizedUpdates.exportPrice.toString() : getExistingPrice(currentRecord.exportPrice),
+      masterDistributorPrice: sanitizedUpdates.masterDistributorPrice !== undefined ? sanitizedUpdates.masterDistributorPrice.toString() : getExistingPrice(currentRecord.masterDistributorPrice),
+      dealerPrice: sanitizedUpdates.dealerPrice !== undefined ? sanitizedUpdates.dealerPrice.toString() : getExistingPrice(currentRecord.dealerPrice),
+      dealer2Price: sanitizedUpdates.dealer2Price !== undefined ? sanitizedUpdates.dealer2Price.toString() : getExistingPrice(currentRecord.dealer2Price),
+      approvalNeededPrice: sanitizedUpdates.approvalNeededPrice !== undefined ? sanitizedUpdates.approvalNeededPrice.toString() : getExistingPrice(currentRecord.approvalNeededPrice),
+      tierStage25Price: sanitizedUpdates.tierStage25Price !== undefined ? sanitizedUpdates.tierStage25Price.toString() : getExistingPrice(currentRecord.tierStage25Price),
+      tierStage2Price: sanitizedUpdates.tierStage2Price !== undefined ? sanitizedUpdates.tierStage2Price.toString() : getExistingPrice(currentRecord.tierStage2Price),
+      tierStage15Price: sanitizedUpdates.tierStage15Price !== undefined ? sanitizedUpdates.tierStage15Price.toString() : getExistingPrice(currentRecord.tierStage15Price),
+      tierStage1Price: sanitizedUpdates.tierStage1Price !== undefined ? sanitizedUpdates.tierStage1Price.toString() : getExistingPrice(currentRecord.tierStage1Price),
+      retailPrice: sanitizedUpdates.retailPrice !== undefined ? sanitizedUpdates.retailPrice.toString() : getExistingPrice(currentRecord.retailPrice),
       uploadBatch: currentRecord.uploadBatch,
       rowHash: currentRecord.rowHash,
       sortOrder: currentRecord.sortOrder,
