@@ -85,7 +85,12 @@ export default function ClientDatabase() {
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
+  const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  
+  // Alphabet for tabs
+  const alphabet = 'ABCDEFGHIJKLMNOPQRSTUVWXYZ'.split('');
+  const specialFilters = ['All', '#'];
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -121,8 +126,34 @@ export default function ClientDatabase() {
     if (!email) return 0;
     return quoteCounts[email.toLowerCase()] || 0;
   };
+  
+  // Get first letter of customer name for alphabet filtering
+  const getFirstLetter = (customer: Customer): string => {
+    const name = getDisplayName(customer);
+    const firstChar = name.charAt(0).toUpperCase();
+    if (/[A-Z]/.test(firstChar)) {
+      return firstChar;
+    }
+    return '#'; // For numbers or special characters
+  };
+  
+  // Count customers per letter for the tabs
+  const letterCounts = customers.reduce((acc, customer) => {
+    const letter = getFirstLetter(customer);
+    acc[letter] = (acc[letter] || 0) + 1;
+    return acc;
+  }, {} as Record<string, number>);
 
   const filteredCustomers = customers.filter((customer) => {
+    // First apply alphabet filter
+    if (selectedLetter && selectedLetter !== 'All') {
+      const firstLetter = getFirstLetter(customer);
+      if (selectedLetter === '#') {
+        if (/[A-Z]/.test(firstLetter)) return false;
+      } else if (firstLetter !== selectedLetter) {
+        return false;
+      }
+    }
     const matchesSearch = !searchTerm || 
       customer.firstName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
       customer.lastName?.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -716,16 +747,104 @@ export default function ClientDatabase() {
         </CardContent>
       </Card>
 
+      {/* Alphabet Index Tabs */}
+      <Card className="border-0 shadow-none bg-transparent">
+        <CardContent className="p-0">
+          <div className="flex items-center gap-1 flex-wrap justify-center bg-white rounded-xl p-3 shadow-sm border border-gray-200">
+            {/* All button */}
+            <Button
+              variant={selectedLetter === null || selectedLetter === 'All' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => setSelectedLetter(null)}
+              className={`h-9 min-w-[50px] font-medium ${selectedLetter === null || selectedLetter === 'All' ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}
+              data-testid="button-letter-all"
+            >
+              All
+            </Button>
+            
+            {/* Alphabet letters */}
+            {alphabet.map((letter) => {
+              const count = letterCounts[letter] || 0;
+              const hasClients = count > 0;
+              const isSelected = selectedLetter === letter;
+              
+              return (
+                <Button
+                  key={letter}
+                  variant={isSelected ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => hasClients && setSelectedLetter(letter)}
+                  disabled={!hasClients}
+                  className={`h-9 w-9 p-0 font-semibold transition-all ${
+                    isSelected 
+                      ? 'bg-primary text-white scale-110' 
+                      : hasClients 
+                        ? 'hover:bg-primary/10 hover:text-primary' 
+                        : 'text-gray-300 cursor-not-allowed'
+                  }`}
+                  title={hasClients ? `${count} clients` : 'No clients'}
+                  data-testid={`button-letter-${letter}`}
+                >
+                  {letter}
+                </Button>
+              );
+            })}
+            
+            {/* Special characters button */}
+            <Button
+              variant={selectedLetter === '#' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => (letterCounts['#'] || 0) > 0 && setSelectedLetter('#')}
+              disabled={!(letterCounts['#'] || 0)}
+              className={`h-9 w-9 p-0 font-semibold ${
+                selectedLetter === '#' 
+                  ? 'bg-primary text-white' 
+                  : (letterCounts['#'] || 0) > 0 
+                    ? 'hover:bg-primary/10 hover:text-primary' 
+                    : 'text-gray-300 cursor-not-allowed'
+              }`}
+              title={`${letterCounts['#'] || 0} clients starting with numbers/symbols`}
+              data-testid="button-letter-hash"
+            >
+              #
+            </Button>
+          </div>
+          
+          {/* Current selection indicator */}
+          {selectedLetter && selectedLetter !== 'All' && (
+            <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-600">
+              <span>Showing clients starting with</span>
+              <Badge variant="secondary" className="text-lg px-3 py-1 font-bold">
+                {selectedLetter}
+              </Badge>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setSelectedLetter(null)}
+                className="text-gray-500 hover:text-gray-700"
+              >
+                <X className="h-4 w-4 mr-1" /> Clear
+              </Button>
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       {/* Client List */}
       <Card>
         <CardHeader>
           <div className="flex items-center justify-between">
             <CardTitle className="heading-sm">
               {filteredCustomers.length} {filteredCustomers.length === 1 ? 'Client' : 'Clients'}
+              {selectedLetter && selectedLetter !== 'All' && (
+                <span className="text-gray-500 font-normal ml-2">
+                  starting with "{selectedLetter}"
+                </span>
+              )}
             </CardTitle>
-            {(searchTerm || Object.values(filters).some(f => f && f !== "all")) && (
-              <Button onClick={clearFilters} variant="outline" size="sm">
-                Clear Filters
+            {(searchTerm || selectedLetter || Object.values(filters).some(f => f && f !== "all")) && (
+              <Button onClick={() => { clearFilters(); setSelectedLetter(null); }} variant="outline" size="sm">
+                Clear All Filters
               </Button>
             )}
           </div>

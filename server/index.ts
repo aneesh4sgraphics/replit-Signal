@@ -30,7 +30,18 @@ const allowedOrigins = [
 
 app.use(cors({
   origin: (origin, cb) => {
-    if (!origin || allowedOrigins.includes(origin)) return cb(null, true);
+    // Allow requests with no origin (same-origin requests, mobile apps, curl, etc.)
+    if (!origin) return cb(null, true);
+    
+    // Allow any replit.dev domain (development environments)
+    if (origin.endsWith('.replit.dev') || origin.endsWith('.repl.co') || origin.endsWith('.replit.app')) {
+      return cb(null, true);
+    }
+    
+    // Allow explicit allowed origins
+    if (allowedOrigins.includes(origin)) return cb(null, true);
+    
+    // Block other origins
     return cb(new Error(`CORS blocked origin: ${origin}`));
   },
   credentials: true,
