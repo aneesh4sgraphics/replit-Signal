@@ -8,7 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle, Trash2, History, RotateCcw, Clock, Package, Edit2, Save, X, Search } from "lucide-react";
+import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle, Trash2, History, RotateCcw, Clock, Package, Edit2, Save, X, Search, Layers, Copy } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
@@ -207,6 +207,9 @@ export default function ProductPricingManagementNew() {
   const [searchTerm, setSearchTerm] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
+  const [bulkEditValues, setBulkEditValues] = useState<Record<string, string>>({});
+  const [bulkEditProductIds, setBulkEditProductIds] = useState<number[]>([]);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -290,6 +293,30 @@ export default function ProductPricingManagementNew() {
     },
   });
 
+  // Bulk update pricing mutation
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async ({ ids, updates }: { ids: number[]; updates: Record<string, string> }) => {
+      return await apiRequest('PATCH', '/api/product-pricing/bulk-update', { ids, updates });
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Bulk Update Complete",
+        description: `Updated pricing for ${data.updatedCount || bulkEditProductIds.length} products.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database', (user as any)?.id] });
+      setShowBulkEditDialog(false);
+      setBulkEditValues({});
+      setBulkEditProductIds([]);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Bulk Update Failed",
+        description: error.message || "Failed to update pricing",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Filter products by search term
   const filteredPricingData = pricingData.filter(item => 
     searchTerm === "" ||
@@ -298,6 +325,89 @@ export default function ProductPricingManagementNew() {
     item.productType.toLowerCase().includes(searchTerm.toLowerCase()) ||
     item.size.toLowerCase().includes(searchTerm.toLowerCase())
   );
+
+  // Extract SKU prefix from item code (everything before the last dash or size indicator)
+  const getSkuPrefix = (itemCode: string): string => {
+    // Match pattern like "G0SF05-08x11" -> "G0SF05"
+    const match = itemCode.match(/^([A-Z0-9]+)-/i);
+    return match ? match[1] : itemCode;
+  };
+
+  // Check if filtered products share a common SKU prefix (for bulk edit eligibility)
+  const getCommonSkuPrefix = (): string | null => {
+    if (filteredPricingData.length < 2) return null;
+    const prefixes = filteredPricingData.map(item => getSkuPrefix(item.itemCode));
+    const uniquePrefixes = Array.from(new Set(prefixes));
+    // If all products share the same prefix, return it
+    if (uniquePrefixes.length === 1) {
+      return uniquePrefixes[0];
+    }
+    return null;
+  };
+
+  const commonSkuPrefix = searchTerm.length >= 3 ? getCommonSkuPrefix() : null;
+  const canBulkEdit = filteredPricingData.length > 1 && commonSkuPrefix;
+
+  // Start bulk editing
+  const startBulkEditing = () => {
+    if (!canBulkEdit) return;
+    
+    // Use the first product's prices as defaults
+    const firstItem = filteredPricingData[0];
+    setBulkEditValues({
+      exportPrice: firstItem.exportPrice.toString(),
+      masterDistributorPrice: firstItem.masterDistributorPrice.toString(),
+      dealerPrice: firstItem.dealerPrice.toString(),
+      dealer2Price: firstItem.dealer2Price.toString(),
+      approvalNeededPrice: firstItem.approvalNeededPrice.toString(),
+      tierStage25Price: firstItem.tierStage25Price.toString(),
+      tierStage2Price: firstItem.tierStage2Price.toString(),
+      tierStage15Price: firstItem.tierStage15Price.toString(),
+      tierStage1Price: firstItem.tierStage1Price.toString(),
+      retailPrice: firstItem.retailPrice.toString(),
+    });
+    setBulkEditProductIds(filteredPricingData.map(item => item.id));
+    setShowBulkEditDialog(true);
+  };
+
+  // Save bulk edit changes
+  const saveBulkChanges = () => {
+    // Validate all price fields
+    const invalidFields: string[] = [];
+    const updates: Record<string, string> = {};
+    
+    const priceFields = [
+      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price',
+      'tierStage15Price', 'tierStage1Price', 'retailPrice'
+    ];
+    
+    for (const key of priceFields) {
+      const value = bulkEditValues[key];
+      if (value === '' || value === undefined) {
+        invalidFields.push(TIER_LABELS[key] || key);
+        continue;
+      }
+      
+      const numValue = parseFloat(value);
+      if (isNaN(numValue) || numValue < 0) {
+        invalidFields.push(TIER_LABELS[key] || key);
+      } else {
+        updates[key] = numValue.toFixed(2);
+      }
+    }
+    
+    if (invalidFields.length > 0) {
+      toast({
+        title: "Invalid Prices",
+        description: `Please enter valid prices for: ${invalidFields.join(', ')}`,
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    bulkUpdateMutation.mutate({ ids: bulkEditProductIds, updates });
+  };
 
   // Editing functions
   const startEditing = (item: ProductPricingMaster) => {
@@ -678,15 +788,44 @@ export default function ProductPricingManagementNew() {
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search products..."
+                  placeholder="Search by SKU prefix (e.g., G0SF05)..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-7 h-8 text-xs w-48"
+                  className="pl-7 h-8 text-xs w-64"
                   data-testid="input-search-products"
                 />
               </div>
+              {canBulkEdit && (
+                <Button
+                  onClick={startBulkEditing}
+                  size="sm"
+                  className="h-8 text-xs bg-purple-600 hover:bg-purple-700"
+                  data-testid="button-bulk-edit"
+                >
+                  <Layers className="h-3 w-3 mr-1" />
+                  Bulk Edit ({filteredPricingData.length})
+                </Button>
+              )}
             </div>
           </div>
+          
+          {/* Bulk Edit Banner */}
+          {canBulkEdit && (
+            <div className="bg-purple-50 border border-purple-200 rounded-lg p-3 mb-3 flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Copy className="h-4 w-4 text-purple-600" />
+                <div>
+                  <p className="text-sm font-medium text-purple-800">
+                    {filteredPricingData.length} products share SKU prefix "{commonSkuPrefix}"
+                  </p>
+                  <p className="text-xs text-purple-600">
+                    Click "Bulk Edit" to update all sizes at once with the same pricing
+                  </p>
+                </div>
+              </div>
+            </div>
+          )}
+          
           <SectionDivider />
           
           {/* Compact Card Grid */}
@@ -778,6 +917,90 @@ export default function ProductPricingManagementNew() {
           </AlertDescription>
         </Alert>
       )}
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={showBulkEditDialog} onOpenChange={setShowBulkEditDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Layers className="h-5 w-5 text-purple-600" />
+              Bulk Edit Pricing - {commonSkuPrefix}
+            </DialogTitle>
+            <DialogDescription>
+              Update pricing for all {bulkEditProductIds.length} products with SKU prefix "{commonSkuPrefix}".
+              All sizes will receive the same pricing.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            {/* Products being updated */}
+            <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
+              <p className="text-xs font-medium text-gray-600 mb-2">Products to update:</p>
+              <div className="flex flex-wrap gap-1">
+                {filteredPricingData.slice(0, 10).map(item => (
+                  <Badge key={item.id} variant="secondary" className="text-[10px]">
+                    {item.itemCode}
+                  </Badge>
+                ))}
+                {filteredPricingData.length > 10 && (
+                  <Badge variant="outline" className="text-[10px]">
+                    +{filteredPricingData.length - 10} more
+                  </Badge>
+                )}
+              </div>
+            </div>
+
+            {/* Price Input Grid */}
+            <div className="grid grid-cols-2 gap-3">
+              {Object.entries(TIER_LABELS).map(([key, label]) => (
+                <div key={key} className="space-y-1">
+                  <Label className="text-xs text-gray-600">{label}</Label>
+                  <div className="relative">
+                    <span className="absolute left-2 top-1/2 transform -translate-y-1/2 text-gray-400 text-sm">$</span>
+                    <Input
+                      type="number"
+                      step="0.01"
+                      min="0"
+                      value={bulkEditValues[key] || ''}
+                      onChange={(e) => setBulkEditValues(prev => ({ ...prev, [key]: e.target.value }))}
+                      className="pl-6 h-9 text-sm"
+                      placeholder="0.00"
+                      data-testid={`bulk-input-${key}`}
+                    />
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowBulkEditDialog(false)}
+              disabled={bulkUpdateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={saveBulkChanges}
+              disabled={bulkUpdateMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {bulkUpdateMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Updating...
+                </>
+              ) : (
+                <>
+                  <Save className="h-4 w-4 mr-2" />
+                  Update {bulkEditProductIds.length} Products
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

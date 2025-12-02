@@ -900,6 +900,134 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
   }
 });
 
+// Bulk update multiple product prices (admin only)
+router.patch("/product-pricing/bulk-update", isAuthenticated, requireAdmin, async (req: any, res) => {
+  try {
+    const { ids, updates } = req.body;
+    
+    console.log(`=== PATCH /api/product-pricing/bulk-update START ===`);
+    console.log(`Updating ${ids?.length} products`);
+    
+    // Validate input
+    if (!Array.isArray(ids) || ids.length === 0) {
+      return res.status(400).json({
+        error: "Invalid request",
+        details: "Product IDs array is required"
+      });
+    }
+    
+    if (!updates || typeof updates !== 'object') {
+      return res.status(400).json({
+        error: "Invalid request",
+        details: "Price updates object is required"
+      });
+    }
+    
+    // SECURITY: Strict whitelist of allowed price fields
+    const ALLOWED_PRICE_FIELDS = new Set([
+      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price', 
+      'tierStage15Price', 'tierStage1Price', 'retailPrice'
+    ]);
+    
+    // Check for any disallowed fields
+    const receivedFields = Object.keys(updates);
+    const disallowedFields = receivedFields.filter(f => !ALLOWED_PRICE_FIELDS.has(f));
+    if (disallowedFields.length > 0) {
+      console.warn(`Security: Rejected non-price fields: ${disallowedFields.join(', ')}`);
+      return res.status(400).json({
+        error: "Invalid fields",
+        details: `Only price fields can be updated. Rejected: ${disallowedFields.join(', ')}`
+      });
+    }
+    
+    // Validate and sanitize price updates
+    const sanitizedUpdates: Record<string, number> = {};
+    const invalidFields: string[] = [];
+    
+    for (const key of receivedFields) {
+      const rawValue = updates[key];
+      const numValue = typeof rawValue === 'number' ? rawValue : parseFloat(rawValue);
+      
+      if (isNaN(numValue) || numValue < 0 || numValue > 999999.99) {
+        invalidFields.push(key);
+      } else {
+        sanitizedUpdates[key] = Math.round(numValue * 100) / 100;
+      }
+    }
+    
+    if (invalidFields.length > 0) {
+      return res.status(400).json({ 
+        error: "Invalid price values",
+        details: `The following fields have invalid values: ${invalidFields.join(', ')}`
+      });
+    }
+    
+    // Get all pricing data
+    const allPricing = await storage.getAllProductPricingMaster();
+    
+    // Helper to safely get existing numeric value
+    const getExistingPrice = (value: any): string => {
+      if (value === null || value === undefined) return '0';
+      const num = parseFloat(String(value));
+      return isNaN(num) ? '0' : num.toString();
+    };
+    
+    // Update each product
+    let updatedCount = 0;
+    for (const productId of ids) {
+      const currentRecord = allPricing.find(p => p.id === parseInt(productId));
+      if (!currentRecord) {
+        console.warn(`Product not found: ${productId}`);
+        continue;
+      }
+      
+      // Build complete record with existing data + updates
+      const completeRecord: any = {
+        itemCode: currentRecord.itemCode,
+        productName: currentRecord.productName,
+        productType: currentRecord.productType,
+        productTypeId: currentRecord.productTypeId,
+        size: currentRecord.size,
+        totalSqm: getExistingPrice(currentRecord.totalSqm),
+        minQuantity: currentRecord.minQuantity || 50,
+        exportPrice: sanitizedUpdates.exportPrice !== undefined ? sanitizedUpdates.exportPrice.toString() : getExistingPrice(currentRecord.exportPrice),
+        masterDistributorPrice: sanitizedUpdates.masterDistributorPrice !== undefined ? sanitizedUpdates.masterDistributorPrice.toString() : getExistingPrice(currentRecord.masterDistributorPrice),
+        dealerPrice: sanitizedUpdates.dealerPrice !== undefined ? sanitizedUpdates.dealerPrice.toString() : getExistingPrice(currentRecord.dealerPrice),
+        dealer2Price: sanitizedUpdates.dealer2Price !== undefined ? sanitizedUpdates.dealer2Price.toString() : getExistingPrice(currentRecord.dealer2Price),
+        approvalNeededPrice: sanitizedUpdates.approvalNeededPrice !== undefined ? sanitizedUpdates.approvalNeededPrice.toString() : getExistingPrice(currentRecord.approvalNeededPrice),
+        tierStage25Price: sanitizedUpdates.tierStage25Price !== undefined ? sanitizedUpdates.tierStage25Price.toString() : getExistingPrice(currentRecord.tierStage25Price),
+        tierStage2Price: sanitizedUpdates.tierStage2Price !== undefined ? sanitizedUpdates.tierStage2Price.toString() : getExistingPrice(currentRecord.tierStage2Price),
+        tierStage15Price: sanitizedUpdates.tierStage15Price !== undefined ? sanitizedUpdates.tierStage15Price.toString() : getExistingPrice(currentRecord.tierStage15Price),
+        tierStage1Price: sanitizedUpdates.tierStage1Price !== undefined ? sanitizedUpdates.tierStage1Price.toString() : getExistingPrice(currentRecord.tierStage1Price),
+        retailPrice: sanitizedUpdates.retailPrice !== undefined ? sanitizedUpdates.retailPrice.toString() : getExistingPrice(currentRecord.retailPrice),
+        uploadBatch: currentRecord.uploadBatch,
+        rowHash: currentRecord.rowHash,
+        sortOrder: currentRecord.sortOrder,
+      };
+      
+      await storage.updateProductPricingMasterByItemCode(currentRecord.itemCode, completeRecord);
+      updatedCount++;
+    }
+    
+    console.log(`✓ Bulk updated ${updatedCount} products`);
+    console.log(`=== PATCH /api/product-pricing/bulk-update END ===`);
+    
+    res.json({ 
+      success: true, 
+      message: `Updated pricing for ${updatedCount} products`,
+      updatedCount,
+      updatedFields: Object.keys(sanitizedUpdates)
+    });
+  } catch (error) {
+    console.error("Error in bulk update:", error);
+    res.status(500).json({ 
+      error: "Failed to bulk update product pricing",
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
 // Rollback to specific batch
 router.post("/rollback-batch/:batchId", isAuthenticated, requireAdmin, async (req, res) => {
   try {
