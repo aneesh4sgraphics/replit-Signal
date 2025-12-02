@@ -75,15 +75,15 @@ interface QuoteItem {
 }
 
 const allPricingTiers = [
-  { key: 'exportPrice', label: 'Export' },
-  { key: 'masterDistributorPrice', label: 'Master Distributor' },
-  { key: 'dealerPrice', label: 'Dealer' },
-  { key: 'dealer2Price', label: 'Dealer 2' },
-  { key: 'approvalNeededPrice', label: 'Approval Needed' },
-  { key: 'tierStage25Price', label: 'Stage 2.5' },
-  { key: 'tierStage2Price', label: 'Stage 2' },
-  { key: 'tierStage15Price', label: 'Stage 1.5' },
-  { key: 'tierStage1Price', label: 'Stage 1' },
+  { key: 'exportPrice', label: 'Export Only' },
+  { key: 'masterDistributorPrice', label: 'Distributor' },
+  { key: 'dealerPrice', label: 'Dealer-VIP' },
+  { key: 'dealer2Price', label: 'Dealer' },
+  { key: 'approvalNeededPrice', label: 'Shopify Lowest' },
+  { key: 'tierStage25Price', label: 'Shopify3' },
+  { key: 'tierStage2Price', label: 'Shopify2' },
+  { key: 'tierStage15Price', label: 'Shopify1' },
+  { key: 'tierStage1Price', label: 'Shopify-Display' },
   { key: 'retailPrice', label: 'Retail' }
 ];
 
@@ -1139,7 +1139,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                         case 'tier':
                           return (
                             <span className="text-sm text-gray-800 uppercase font-medium">
-                              {item.tier.label.replace('Approval Needed', 'Approval (Retail)')}
+                              {item.tier.label}
                             </span>
                           );
                         case 'pricePerSqM':

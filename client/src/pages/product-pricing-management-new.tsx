@@ -443,15 +443,15 @@ export default function ProductPricingManagementNew() {
                     <th className="text-xs font-medium text-gray-800 text-left py-1 px-2 whitespace-nowrap">Item Code</th>
                     <th className="text-xs font-medium text-gray-800 text-left py-1 px-2 whitespace-nowrap">Product Name</th>
                     <th className="text-xs font-medium text-gray-800 text-left py-1 px-2 whitespace-nowrap">Size</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Export</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Master Dist</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Export Only</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Distributor</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Dealer-VIP</th>
                     <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Dealer</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Dealer 2</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Approval</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Stage 2.5</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Stage 2</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Stage 1.5</th>
-                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Stage 1</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Shopify Lowest</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Shopify3</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Shopify2</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Shopify1</th>
+                    <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Shopify-Display</th>
                     <th className="text-xs font-medium text-gray-800 text-right py-1 px-2 whitespace-nowrap">Retail</th>
                   </tr>
                 </thead>

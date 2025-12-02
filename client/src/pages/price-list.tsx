@@ -77,15 +77,15 @@ interface Customer {
 }
 
 const allPricingTiers = [
-  { key: 'Export', label: 'Export' },
-  { key: 'M.Distributor', label: 'Master Distributor' },
-  { key: 'Dealer', label: 'Dealer' },
-  { key: 'Dealer2', label: 'Dealer 2' },
-  { key: 'ApprovalNeeded', label: 'Approval Needed' },
-  { key: 'TierStage25', label: 'Stage 2.5' },
-  { key: 'TierStage2', label: 'Stage 2' },
-  { key: 'TierStage15', label: 'Stage 1.5' },
-  { key: 'TierStage1', label: 'Stage 1' },
+  { key: 'Export', label: 'Export Only' },
+  { key: 'M.Distributor', label: 'Distributor' },
+  { key: 'Dealer', label: 'Dealer-VIP' },
+  { key: 'Dealer2', label: 'Dealer' },
+  { key: 'ApprovalNeeded', label: 'Shopify Lowest' },
+  { key: 'TierStage25', label: 'Shopify3' },
+  { key: 'TierStage2', label: 'Shopify2' },
+  { key: 'TierStage15', label: 'Shopify1' },
+  { key: 'TierStage1', label: 'Shopify-Display' },
   { key: 'Retail', label: 'Retail' }
 ];
 
