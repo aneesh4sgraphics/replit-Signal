@@ -98,6 +98,7 @@ export interface IStorage {
   createSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
   upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
   deleteSentQuote(id: number): Promise<boolean>;
+  getQuoteCountsByCustomerEmail(): Promise<Record<string, number>>;
   
   // Competitor Pricing
   getCompetitorPricing(): Promise<CompetitorPricing[]>;
@@ -619,6 +620,30 @@ export class DatabaseStorage implements IStorage {
     } catch (error) {
       console.error('Error deleting sent quote:', error);
       return false;
+    }
+  }
+
+  async getQuoteCountsByCustomerEmail(): Promise<Record<string, number>> {
+    try {
+      const result = await db
+        .select({
+          email: sql<string>`LOWER(${sentQuotes.customerEmail})`,
+          count: sql<number>`COUNT(*)::int`
+        })
+        .from(sentQuotes)
+        .where(sql`${sentQuotes.customerEmail} IS NOT NULL AND ${sentQuotes.customerEmail} != ''`)
+        .groupBy(sql`LOWER(${sentQuotes.customerEmail})`);
+      
+      const counts: Record<string, number> = {};
+      for (const row of result) {
+        if (row.email) {
+          counts[row.email.toLowerCase()] = row.count;
+        }
+      }
+      return counts;
+    } catch (error) {
+      console.error('Error getting quote counts:', error);
+      return {};
     }
   }
 

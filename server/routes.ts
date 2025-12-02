@@ -883,6 +883,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get quote counts per customer email
+  app.get("/api/customers/quote-counts", isAuthenticated, async (req, res) => {
+    try {
+      const counts = await storage.getQuoteCountsByCustomerEmail();
+      res.json(counts);
+    } catch (error) {
+      console.error("Error fetching quote counts:", error);
+      res.status(500).json({ error: "Failed to fetch quote counts" });
+    }
+  });
+
   // Get customer by ID
   app.get("/api/customers/:id", async (req, res) => {
     try {

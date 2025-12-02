@@ -6,7 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { useToast } from "@/hooks/use-toast";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQueryClient, useQuery } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useCustomers } from "@/features/customers/useCustomers";
@@ -27,6 +27,11 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import { Label } from "@/components/ui/label";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Textarea } from "@/components/ui/textarea";
@@ -50,6 +55,9 @@ import {
   Mail,
   Phone,
   MapPin,
+  FileText,
+  ChevronDown,
+  ChevronRight,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 
@@ -76,6 +84,7 @@ export default function ClientDatabase() {
   const [isUploading, setIsUploading] = useState(false);
   const [uploadProgress, setUploadProgress] = useState(0);
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
+  const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   const { toast } = useToast();
@@ -88,6 +97,30 @@ export default function ClientDatabase() {
   }, [logPageView]);
 
   const { data: customers = [], isLoading, error, refetch } = useCustomers();
+  
+  // Fetch quote counts per customer
+  const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ['/api/customers/quote-counts'],
+  });
+  
+  // Toggle card expansion
+  const toggleCardExpansion = (customerId: string) => {
+    setExpandedCards(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerId)) {
+        newSet.delete(customerId);
+      } else {
+        newSet.add(customerId);
+      }
+      return newSet;
+    });
+  };
+  
+  // Get quote count for a customer by email
+  const getQuoteCount = (email: string | null | undefined): number => {
+    if (!email) return 0;
+    return quoteCounts[email.toLowerCase()] || 0;
+  };
 
   const filteredCustomers = customers.filter((customer) => {
     const matchesSearch = !searchTerm || 
@@ -588,20 +621,35 @@ export default function ClientDatabase() {
         </Card>
       </div>
 
-      {/* Search and Filters */}
-      <Card>
-        <CardContent className="pt-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            <div className="flex-1 relative">
-              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-gray-400" />
+      {/* Quick Search Bar - Prominent */}
+      <Card className="bg-gradient-to-r from-gray-50 to-white border-2 border-gray-100">
+        <CardContent className="py-4">
+          <div className="flex flex-col md:flex-row gap-4 items-center">
+            <div className="flex-1 relative w-full">
+              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <Input
-                placeholder="Search by name, email, company, or ID..."
+                placeholder="Quick search clients by name, email, company, or ID..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-10"
-                data-testid="input-search"
+                className="pl-12 h-12 text-lg border-2 border-gray-200 focus:border-primary rounded-xl shadow-sm"
+                data-testid="input-client-search"
               />
+              {searchTerm && (
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  onClick={() => setSearchTerm("")}
+                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
+                >
+                  <X className="h-4 w-4" />
+                </Button>
+              )}
             </div>
+            {searchTerm && (
+              <div className="text-sm text-gray-500 whitespace-nowrap">
+                <span className="font-semibold text-primary">{filteredCustomers.length}</span> results found
+              </div>
+            )}
             <div className="flex gap-2">
               <Button onClick={() => setShowFilters(!showFilters)} variant="outline" data-testid="button-filters">
                 <Filter className="h-4 w-4 mr-2" />
@@ -704,100 +752,193 @@ export default function ClientDatabase() {
               )}
             </div>
           ) : viewMode === 'cards' ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-              {filteredCustomers.map((customer) => (
-                <Card key={customer.id} className="hover:shadow-lg transition-shadow border-gray-200" data-testid={`card-client-${customer.id}`}>
-                  <CardContent className="p-4">
-                    <div className="space-y-3">
-                      <div className="flex justify-between items-start">
-                        <div className="flex-1">
-                          <h3 className="font-semibold text-base text-gray-900">
-                            {getDisplayName(customer)}
-                          </h3>
-                          {customer.company && (
-                            <p className="body-sm text-gray-600 flex items-center gap-1 mt-1">
-                              <Building2 className="h-3 w-3" />
-                              {customer.company}
-                            </p>
-                          )}
-                        </div>
-                        <div className="flex gap-1">
-                          <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" data-testid={`button-edit-${customer.id}`}>
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDeleteCustomer(customer.id)}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                            data-testid={`button-delete-${customer.id}`}
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </div>
+            <div className="space-y-2">
+              {filteredCustomers.map((customer, index) => {
+                const quoteCount = getQuoteCount(customer.email);
+                const isExpanded = expandedCards.has(customer.id);
+                
+                return (
+                  <Collapsible
+                    key={customer.id}
+                    open={isExpanded}
+                    onOpenChange={() => toggleCardExpansion(customer.id)}
+                  >
+                    <div 
+                      className="relative"
+                      data-testid={`card-client-${customer.id}`}
+                    >
+                      {/* Rolodex stacked effect - shadow cards behind */}
+                      <div className="absolute inset-0 bg-gray-100 rounded-lg transform translate-y-1 translate-x-0.5 -z-10" />
+                      <div className="absolute inset-0 bg-gray-200 rounded-lg transform translate-y-2 translate-x-1 -z-20" />
                       
-                      <div className="space-y-2 body-sm">
-                        {customer.email && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Mail className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">{customer.email}</span>
-                          </div>
-                        )}
-                        {customer.phone && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <Phone className="h-3 w-3 flex-shrink-0" />
-                            <span>{customer.phone}</span>
-                          </div>
-                        )}
-                        {(customer.city || customer.province || customer.country) && (
-                          <div className="flex items-center gap-2 text-gray-600">
-                            <MapPin className="h-3 w-3 flex-shrink-0" />
-                            <span className="truncate">
-                              {[customer.city, customer.province, customer.country]
-                                .filter(Boolean)
-                                .join(', ')}
-                            </span>
-                          </div>
-                        )}
-                      </div>
-                      
-                      <div className="flex justify-between items-center pt-2 border-t border-gray-100">
-                        <div className="body-sm text-gray-600">
-                          <span className="font-medium">{customer.totalOrders}</span> orders
-                        </div>
-                        <div className="body-sm font-semibold text-gray-900">
-                          ${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}
-                        </div>
-                      </div>
-                      
-                      {(customer.taxExempt || customer.acceptsEmailMarketing || customer.acceptsSmsMarketing || customer.sources?.length) && (
-                        <div className="flex gap-1 flex-wrap items-center">
-                          {customer.taxExempt && (
-                            <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
-                          )}
-                          {customer.acceptsEmailMarketing && (
-                            <Badge variant="outline" className="text-xs">Email</Badge>
-                          )}
-                          {customer.acceptsSmsMarketing && (
-                            <Badge variant="outline" className="text-xs">SMS</Badge>
-                          )}
-                          {customer.sources?.includes('shopify') && (
-                            <div className="flex items-center gap-1 text-green-600" title="Imported from Shopify">
-                              <SiShopify className="h-4 w-4" />
+                      <Card className={`border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 ${isExpanded ? 'ring-2 ring-primary/20' : ''}`}>
+                        {/* Collapsed Card Header - Always visible */}
+                        <CollapsibleTrigger asChild>
+                          <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 rounded-t-lg">
+                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                              {/* Expand/Collapse indicator */}
+                              <div className="text-gray-400">
+                                {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                              </div>
+                              
+                              {/* Name and Company */}
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <h3 className="font-semibold text-gray-900 truncate">
+                                    {getDisplayName(customer)}
+                                  </h3>
+                                  {/* Quote count badge */}
+                                  {quoteCount > 0 && (
+                                    <Badge variant="default" className="bg-blue-600 text-white text-xs px-2 py-0.5 flex items-center gap-1">
+                                      <FileText className="h-3 w-3" />
+                                      {quoteCount}
+                                    </Badge>
+                                  )}
+                                </div>
+                                {customer.company && (
+                                  <p className="text-sm text-gray-500 flex items-center gap-1 truncate">
+                                    <Building2 className="h-3 w-3 flex-shrink-0" />
+                                    {customer.company}
+                                  </p>
+                                )}
+                              </div>
+                              
+                              {/* Quick contact info */}
+                              <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
+                                {customer.email && (
+                                  <span className="flex items-center gap-1 truncate max-w-[200px]">
+                                    <Mail className="h-3 w-3 flex-shrink-0" />
+                                    {customer.email}
+                                  </span>
+                                )}
+                                {customer.phone && (
+                                  <span className="flex items-center gap-1">
+                                    <Phone className="h-3 w-3 flex-shrink-0" />
+                                    {customer.phone}
+                                  </span>
+                                )}
+                              </div>
+                              
+                              {/* Source badges */}
+                              <div className="flex items-center gap-1">
+                                {customer.sources?.includes('shopify') && (
+                                  <div className="text-green-600" title="Shopify">
+                                    <SiShopify className="h-4 w-4" />
+                                  </div>
+                                )}
+                                {customer.sources?.includes('odoo') && (
+                                  <div className="text-purple-600" title="Odoo">
+                                    <SiOdoo className="h-4 w-4" />
+                                  </div>
+                                )}
+                              </div>
                             </div>
-                          )}
-                          {customer.sources?.includes('odoo') && (
-                            <div className="flex items-center gap-1 text-purple-600" title="Imported from Odoo">
-                              <SiOdoo className="h-4 w-4" />
+                            
+                            {/* Action buttons */}
+                            <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                              <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" data-testid={`button-edit-${customer.id}`}>
+                                <Edit className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                onClick={() => handleDeleteCustomer(customer.id)}
+                                size="sm"
+                                variant="ghost"
+                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                data-testid={`button-delete-${customer.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
-                          )}
-                        </div>
-                      )}
+                          </div>
+                        </CollapsibleTrigger>
+                        
+                        {/* Expanded Card Content */}
+                        <CollapsibleContent>
+                          <CardContent className="pt-0 pb-4 px-4 border-t border-gray-100">
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
+                              {/* Contact Information */}
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Contact</h4>
+                                <div className="space-y-2 text-sm">
+                                  {customer.email && (
+                                    <div className="flex items-center gap-2 text-gray-600">
+                                      <Mail className="h-4 w-4 text-gray-400" />
+                                      <a href={`mailto:${customer.email}`} className="hover:text-primary">{customer.email}</a>
+                                    </div>
+                                  )}
+                                  {customer.phone && (
+                                    <div className="flex items-center gap-2 text-gray-600">
+                                      <Phone className="h-4 w-4 text-gray-400" />
+                                      <a href={`tel:${customer.phone}`} className="hover:text-primary">{customer.phone}</a>
+                                    </div>
+                                  )}
+                                </div>
+                              </div>
+                              
+                              {/* Address */}
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Address</h4>
+                                <div className="text-sm text-gray-600 space-y-1">
+                                  {customer.address1 && <p>{customer.address1}</p>}
+                                  {customer.address2 && <p>{customer.address2}</p>}
+                                  <p>
+                                    {[customer.city, customer.province, customer.zip]
+                                      .filter(Boolean)
+                                      .join(', ')}
+                                  </p>
+                                  {customer.country && <p>{customer.country}</p>}
+                                </div>
+                              </div>
+                              
+                              {/* Stats & Status */}
+                              <div className="space-y-3">
+                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Stats</h4>
+                                <div className="space-y-2">
+                                  {/* Quote count prominently displayed */}
+                                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
+                                    <span className="text-sm font-medium text-blue-800">Quotes Requested</span>
+                                    <span className="text-2xl font-bold text-blue-600">{quoteCount}</span>
+                                  </div>
+                                  
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500">Orders</span>
+                                    <span className="font-medium">{customer.totalOrders || 0}</span>
+                                  </div>
+                                  <div className="flex items-center justify-between text-sm">
+                                    <span className="text-gray-500">Total Spent</span>
+                                    <span className="font-medium">${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</span>
+                                  </div>
+                                  
+                                  {/* Status badges */}
+                                  <div className="flex flex-wrap gap-1 pt-2">
+                                    {customer.taxExempt && (
+                                      <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
+                                    )}
+                                    {customer.acceptsEmailMarketing && (
+                                      <Badge variant="outline" className="text-xs">Email Marketing</Badge>
+                                    )}
+                                    {customer.acceptsSmsMarketing && (
+                                      <Badge variant="outline" className="text-xs">SMS Marketing</Badge>
+                                    )}
+                                  </div>
+                                </div>
+                              </div>
+                            </div>
+                            
+                            {/* Notes section if available */}
+                            {customer.note && (
+                              <div className="mt-4 pt-4 border-t border-gray-100">
+                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide mb-2">Notes</h4>
+                                <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{customer.note}</p>
+                              </div>
+                            )}
+                          </CardContent>
+                        </CollapsibleContent>
+                      </Card>
                     </div>
-                  </CardContent>
-                </Card>
-              ))}
+                  </Collapsible>
+                );
+              })}
             </div>
           ) : (
             <div className="overflow-x-auto">
