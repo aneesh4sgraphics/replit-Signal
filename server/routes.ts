@@ -2020,10 +2020,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate PDF quote - returns HTML for browser printing
+  // Generate PDF quote as actual PDF file
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
-      console.log('📄 Starting quote generation...');
+      console.log('📄 Starting PDF quote generation...');
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
       if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
@@ -2069,19 +2069,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Generate filename
       const currentDate = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }).replace(/\//g, '-');
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-      const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.html`;
+      const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.pdf`;
       
-      // Return HTML file for download (user can print to PDF from browser)
-      res.set({
-        'Content-Type': 'text/html',
-        'Content-Disposition': `attachment; filename="${filename}"`
-      });
-      res.send(htmlContent);
+      // Configure html-pdf-node for Replit environment (same as Price List)
+      const options = {
+        format: 'A4',
+        margin: { top: "15px", right: "15px", bottom: "15px", left: "15px" },
+        printBackground: true,
+        preferCSSPageSize: true,
+        args: [
+          '--no-sandbox',
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--disable-gpu',
+          '--disable-software-rasterizer',
+          '--disable-background-timer-throttling',
+          '--disable-backgrounding-occluded-windows',
+          '--disable-renderer-backgrounding',
+          '--disable-features=TranslateUI',
+          '--disable-ipc-flooding-protection',
+          '--disable-default-apps',
+          '--disable-extensions',
+          '--disable-plugins',
+          '--disable-sync',
+          '--disable-translate',
+          '--hide-scrollbars',
+          '--mute-audio',
+          '--no-first-run',
+          '--disable-infobars',
+          '--disable-breakpad',
+          '--disable-canvas-aa',
+          '--disable-2d-canvas-clip-aa',
+          '--disable-gl-drawing-for-tests',
+          '--disable-threaded-animation',
+          '--disable-threaded-scrolling',
+          '--disable-in-process-stack-traces',
+          '--disable-histogram-customizer',
+          '--disable-gl-extensions',
+          '--disable-composited-antialiasing'
+        ],
+        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
+        timeout: 30000 // 30 second timeout
+      };
+
+      console.log('🖥️ Starting Chromium PDF generation...');
+
+      // Generate PDF
+      const file = { content: htmlContent };
+      const pdfBuffer = await pdf.generatePdf(file, options);
+
+      console.log('📦 PDF Buffer size:', pdfBuffer.length, 'bytes');
+
+      // Set headers for file download
+      res.setHeader('Content-Type', 'application/pdf');
+      res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+      res.setHeader('Content-Length', pdfBuffer.length);
+
+      // Send the PDF
+      res.end(pdfBuffer);
       
-      console.log('✅ Quote HTML generated successfully:', filename);
+      console.log('✅ Quote PDF generated successfully:', filename);
     } catch (error) {
-      console.error("Error generating quote:", error);
-      res.status(500).json({ error: "Failed to generate quote" });
+      console.error("Error generating PDF quote:", error);
+      const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      res.status(500).json({ 
+        error: "Failed to generate PDF quote", 
+        details: errorMessage,
+        timestamp: new Date().toISOString()
+      });
     }
   });
 
