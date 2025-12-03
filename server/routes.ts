@@ -2164,7 +2164,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.text(salesperson, leftMargin + 360, yPos + 14);
 
       // === PRODUCT TABLE ===
-      yPos = 235;
+      yPos = 250;
       
       // Table column positions (removed Disc.% and Taxes columns)
       const colWidths = {
