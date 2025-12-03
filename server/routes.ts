@@ -2166,16 +2166,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // === PRODUCT TABLE ===
       yPos = 235;
       
-      // Table column positions
+      // Table column positions (removed Disc.% and Taxes columns)
       const colWidths = {
-        code: 70,
-        desc: 180,
-        qty: 50,
-        uom: 40,
-        price: 55,
-        disc: 40,
-        taxes: 40,
-        amount: 55
+        code: 80,
+        desc: 230,
+        qty: 55,
+        uom: 45,
+        price: 60,
+        amount: 60
       };
       
       const colX = {
@@ -2184,9 +2182,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         qty: leftMargin + colWidths.code + colWidths.desc,
         uom: leftMargin + colWidths.code + colWidths.desc + colWidths.qty,
         price: leftMargin + colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom,
-        disc: leftMargin + colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom + colWidths.price,
-        taxes: leftMargin + colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom + colWidths.price + colWidths.disc,
-        amount: leftMargin + colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom + colWidths.price + colWidths.disc + colWidths.taxes
+        amount: leftMargin + colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom + colWidths.price
       };
       
       // Table header
@@ -2196,8 +2192,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.text('Quantity', colX.qty, yPos, { width: colWidths.qty, align: 'right' });
       doc.text('UoM', colX.uom + 5, yPos, { width: colWidths.uom });
       doc.text('Unit Price', colX.price, yPos, { width: colWidths.price, align: 'right' });
-      doc.text('Disc.%', colX.disc, yPos, { width: colWidths.disc, align: 'right' });
-      doc.text('Taxes', colX.taxes, yPos, { width: colWidths.taxes, align: 'right' });
       doc.text('Amount', colX.amount, yPos, { width: colWidths.amount, align: 'right' });
       
       // Header line
@@ -2226,14 +2220,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         doc.fontSize(9).font('Helvetica').fillColor(textDark);
-        doc.fontSize(7).text(productCode.substring(0, 15), colX.code, yPos + 1, { width: colWidths.code - 2 });
+        doc.fontSize(8).text(productCode.substring(0, 15), colX.code, yPos + 1, { width: colWidths.code - 2 });
         doc.fontSize(9);
         doc.text(description, colX.desc, yPos, { width: colWidths.desc - 5 });
         doc.text(qty.toFixed(2), colX.qty, yPos, { width: colWidths.qty, align: 'right' });
         doc.text(uom, colX.uom + 5, yPos, { width: colWidths.uom });
         doc.text(unitPrice.toFixed(4), colX.price, yPos, { width: colWidths.price, align: 'right' });
-        doc.text('0%', colX.disc, yPos, { width: colWidths.disc, align: 'right' });
-        doc.text('0%', colX.taxes, yPos, { width: colWidths.taxes, align: 'right' });
         doc.text(`$ ${amount.toFixed(2)}`, colX.amount, yPos, { width: colWidths.amount, align: 'right' });
         
         yPos += rowHeight;
