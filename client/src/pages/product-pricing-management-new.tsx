@@ -217,9 +217,14 @@ export default function ProductPricingManagementNew() {
 
   // Fetch current product pricing data from database
   const { data: pricingData = [], isLoading, error } = useQuery<ProductPricingMaster[]>({
-    queryKey: ['/api/product-pricing-database', (user as any)?.id],
+    queryKey: ['/api/product-pricing-database'],
     queryFn: async () => {
-      const response = await fetch('/api/product-pricing-database');
+      const response = await fetch('/api/product-pricing-database', {
+        credentials: 'include',
+        headers: {
+          'Cache-Control': 'no-cache',
+        },
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch pricing data');
       }
@@ -230,9 +235,11 @@ export default function ProductPricingManagementNew() {
 
   // Fetch upload batch history
   const { data: batchHistory = [], isLoading: batchHistoryLoading } = useQuery<{ batches: UploadBatch[] }>({
-    queryKey: ['/api/upload-batches', (user as any)?.id],
+    queryKey: ['/api/upload-batches'],
     queryFn: async () => {
-      const response = await fetch('/api/upload-batches');
+      const response = await fetch('/api/upload-batches', {
+        credentials: 'include',
+      });
       if (!response.ok) {
         throw new Error('Failed to fetch batch history');
       }
@@ -258,7 +265,7 @@ export default function ProductPricingManagementNew() {
         title: "Rollback Successful",
         description: data.message,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database', (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database'] });
       setShowBatchHistory(false);
     },
     onError: (error) => {
@@ -280,7 +287,7 @@ export default function ProductPricingManagementNew() {
         title: "Price Updated",
         description: "Product pricing has been saved successfully.",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database', (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database'] });
       setEditingId(null);
       setEditValues({});
     },
@@ -303,7 +310,7 @@ export default function ProductPricingManagementNew() {
         title: "Bulk Update Complete",
         description: `Updated pricing for ${data.updatedCount || bulkEditProductIds.length} products.`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database', (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database'] });
       setShowBulkEditDialog(false);
       setBulkEditValues({});
       setBulkEditProductIds([]);
@@ -545,7 +552,7 @@ export default function ProductPricingManagementNew() {
       setPendingFile(null);
       
       // Invalidate and refetch pricing data
-      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database', (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database'] });
       
       toast({
         title: "Upload Successful",
