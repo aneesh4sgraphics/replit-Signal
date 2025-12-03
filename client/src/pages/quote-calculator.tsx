@@ -423,17 +423,30 @@ export default function QuoteCalculator() {
       
       if (!response.ok) throw new Error('Failed to generate PDF');
       
-      // Handle direct PDF file download
+      // Handle HTML file download - open in new window for printing to PDF
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
+      
+      // Open in new window so user can print to PDF
+      const printWindow = window.open(url, '_blank');
+      if (printWindow) {
+        printWindow.onload = () => {
+          setTimeout(() => {
+            printWindow.print();
+          }, 500);
+        };
+      }
+      
+      // Also trigger download
       const a = document.createElement('a');
       a.href = url;
       const customerName = selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}`.replace(/[^a-zA-Z0-9]/g, '_') : 'Customer';
-      a.download = `QuickQuotes_4SGraphics_${new Date().toLocaleDateString().replace(/\//g, '-')}_for_${customerName}.pdf`;
+      a.download = `QuickQuotes_4SGraphics_${new Date().toLocaleDateString().replace(/\//g, '-')}_for_${customerName}.html`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
-      URL.revokeObjectURL(url);
+      
+      setTimeout(() => URL.revokeObjectURL(url), 1000);
       
       return { success: true };
     },
@@ -441,8 +454,8 @@ export default function QuoteCalculator() {
       const customerName = selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` : 'Customer';
       logQuoteDownload(`${customerName}_${new Date().toLocaleDateString()}`, 'PDF');
       toast({
-        title: "PDF Downloaded",
-        description: "Quote PDF has been downloaded successfully",
+        title: "Quote Ready",
+        description: "Quote file downloaded. Use browser Print (Ctrl+P) to save as PDF.",
       });
     },
     onError: (error) => {

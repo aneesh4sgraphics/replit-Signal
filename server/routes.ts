@@ -2020,9 +2020,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate PDF quote as actual PDF file
+  // Generate PDF quote - returns HTML for browser printing
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
+      console.log('📄 Starting quote generation...');
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
       if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
@@ -2065,30 +2066,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'sent'
       });
       
-      // Generate filename following the requested format: QuickQuotes_4SGraphics_Date_for_CustomerName.pdf
+      // Generate filename
       const currentDate = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }).replace(/\//g, '-');
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
-      const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.pdf`;
+      const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.html`;
       
-      // Generate actual PDF using html-pdf-node
-      const pdfOptions = {
-        format: 'A4' as const,
-        printBackground: true,
-      };
-      const file = { content: htmlContent };
-      const pdfBuffer = await pdf.generatePdf(file, pdfOptions);
-      
-      // Return PDF file
+      // Return HTML file for download (user can print to PDF from browser)
       res.set({
-        'Content-Type': 'application/pdf',
+        'Content-Type': 'text/html',
         'Content-Disposition': `attachment; filename="${filename}"`
       });
-      res.send(Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer as any));
+      res.send(htmlContent);
       
-      console.log('✅ PDF generated successfully:', filename);
+      console.log('✅ Quote HTML generated successfully:', filename);
     } catch (error) {
-      console.error("Error generating PDF quote:", error);
-      res.status(500).json({ error: "Failed to generate PDF quote" });
+      console.error("Error generating quote:", error);
+      res.status(500).json({ error: "Failed to generate quote" });
     }
   });
 
