@@ -2098,7 +2098,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let logoLoaded = false;
       try {
         if (fs.existsSync(logoPath)) {
-          doc.image(logoPath, leftMargin, 30, { width: 70 });
+          doc.image(logoPath, leftMargin, 30, { width: 45 });
           logoLoaded = true;
         }
       } catch (e) {
@@ -2106,7 +2106,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Company name and address next to logo
-      const companyTextX = logoLoaded ? leftMargin + 80 : leftMargin;
+      const companyTextX = logoLoaded ? leftMargin + 55 : leftMargin;
       doc.fontSize(12).font('Helvetica-Bold').fillColor(textDark);
       doc.text('4S Graphics, Inc.', companyTextX, 30);
       doc.fontSize(9).font('Helvetica').fillColor(textMuted);
