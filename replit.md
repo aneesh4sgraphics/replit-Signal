@@ -6,7 +6,18 @@ This is a full-stack TypeScript application that provides a quote calculator for
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
-## Recent Changes (November 18, 2025)
+## Recent Changes (December 3, 2025)
+- **Codebase Optimization**: Removed unused files and dead code to improve maintainability
+  - Deleted unused pages: `dashboard.tsx` (replaced by `dashboard-odoo.tsx`)
+  - Deleted unused components: `AppHeader.tsx`
+  - Deleted unused feature hooks: `useProducts.ts`, `useCompetitorPricing.ts`, `useSentQuotes.ts`, `usePricingData.ts`
+  - Deleted unused server files: `csv-parser.ts`, `performance-monitor.ts`, `pdf-bottleneck-analyzer.ts`, `rag-simple.ts`
+- **Fixed React DOM Warnings**: Resolved nested anchor tag issues in `OdooLayout.tsx` and `dashboard-odoo.tsx` by properly using `Link` component className instead of wrapping `<a>` tags
+- **Bulk Edit Enhancement**: Expanded bulk edit to allow selection of any products via checkboxes instead of SKU prefix matching
+- **Production Cookie Fix**: Added `sameSite: 'lax'` to production session cookie configuration
+- **Improved Error Messages**: Frontend now displays actual HTTP status codes on API failures
+
+## Previous Changes (November 18, 2025)
 - **Enhanced Production Error Diagnostics**: Added comprehensive error logging to API endpoints with structured console logs (===START/END markers), duration tracking, and specific error suggestions based on error type (database connection, query errors, permissions, etc.)
 - **Secure Error Display**: Frontend now extracts and displays only sanitized error fields from backend (details, suggestion, message, type, timestamp, duration) without exposing raw responses or stack traces
 - **Health Monitoring**: Created `/api/diagnostics` endpoint for system health checks (environment variables, database connection, API endpoint status)
