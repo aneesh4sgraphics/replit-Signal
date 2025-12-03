@@ -2264,7 +2264,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Tax row
       yPos += 22;
       doc.rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).fill('#ffffff');
-      doc.strokeColor(borderColor).rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).stroke();
+      doc.lineWidth(0.5).strokeColor(borderColor).rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).stroke();
       doc.fillColor(textDark);
       doc.text('Tax 15%', totalsStartX + 8, yPos + 6, { width: totalsLabelWidth - 10 });
       doc.text(`$ ${taxAmount.toFixed(2)}`, totalsStartX + totalsLabelWidth, yPos + 6, { width: totalsAmountWidth - 8, align: 'right' });
@@ -2272,15 +2272,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Total row (green text)
       yPos += 22;
       doc.rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).fill('#ffffff');
-      doc.strokeColor(borderColor).rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).stroke();
+      doc.lineWidth(0.5).strokeColor(borderColor).rect(totalsStartX, yPos, totalsLabelWidth + totalsAmountWidth, 22).stroke();
       doc.fontSize(10).font('Helvetica-Bold').fillColor(brandGreen);
       doc.text('Total', totalsStartX + 8, yPos + 6, { width: totalsLabelWidth - 10 });
       doc.text(`$ ${totalAmount.toFixed(2)}`, totalsStartX + totalsLabelWidth, yPos + 6, { width: totalsAmountWidth - 8, align: 'right' });
       
-      // Total in words
+      // Total in words (on one line with wider width)
       yPos += 30;
       doc.fontSize(10).font('Helvetica').fillColor(textDark);
-      doc.text('Total is: ', totalsStartX, yPos, { continued: true });
+      doc.text(`Total is: `, leftMargin, yPos, { continued: true });
       doc.font('Helvetica-Bold').text(`USD dollars ${numberToWords(Math.floor(totalAmount))}`, { continued: false });
 
       // === PAYMENT TERMS ===
