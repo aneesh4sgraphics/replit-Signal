@@ -2167,14 +2167,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       yPos = 250;
       
       // Table column positions (removed Disc.% and Taxes columns)
+      // Distribute columns to fit within contentWidth
       const colWidths = {
-        code: 80,
-        desc: 230,
+        code: 75,
+        desc: 210,
         qty: 55,
         uom: 45,
-        price: 60,
-        amount: 60
+        price: 65,
+        amount: 65
       };
+      const tableWidth = colWidths.code + colWidths.desc + colWidths.qty + colWidths.uom + colWidths.price + colWidths.amount;
       
       const colX = {
         code: leftMargin,
@@ -2190,7 +2192,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.text('Product Code', colX.code, yPos, { width: colWidths.code });
       doc.text('Description', colX.desc, yPos, { width: colWidths.desc });
       doc.text('Quantity', colX.qty, yPos, { width: colWidths.qty, align: 'right' });
-      doc.text('UoM', colX.uom + 5, yPos, { width: colWidths.uom });
+      doc.text('UoM', colX.uom, yPos, { width: colWidths.uom, align: 'center' });
       doc.text('Unit Price', colX.price, yPos, { width: colWidths.price, align: 'right' });
       doc.text('Amount', colX.amount, yPos, { width: colWidths.amount, align: 'right' });
       
@@ -2214,17 +2216,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const descLines = Math.ceil(description.length / 35);
         const rowHeight = Math.max(20, descLines * 12 + 8);
         
-        // Alternate row shading
+        // Alternate row shading - extend to full content width
         if (index % 2 === 0) {
-          doc.rect(leftMargin, yPos - 2, contentWidth, rowHeight).fill('#f8f8f8');
+          doc.rect(leftMargin, yPos - 2, contentWidth, rowHeight).fill('#f5f5f5');
         }
         
         doc.fontSize(9).font('Helvetica').fillColor(textDark);
-        doc.fontSize(8).text(productCode.substring(0, 15), colX.code, yPos + 1, { width: colWidths.code - 2 });
+        doc.fontSize(8).text(productCode.substring(0, 15), colX.code, yPos + 1, { width: colWidths.code - 5 });
         doc.fontSize(9);
         doc.text(description, colX.desc, yPos, { width: colWidths.desc - 5 });
         doc.text(qty.toFixed(2), colX.qty, yPos, { width: colWidths.qty, align: 'right' });
-        doc.text(uom, colX.uom + 5, yPos, { width: colWidths.uom });
+        doc.text(uom, colX.uom, yPos, { width: colWidths.uom, align: 'center' });
         doc.text(`$ ${unitPrice.toFixed(4)}`, colX.price, yPos, { width: colWidths.price, align: 'right' });
         doc.text(`$ ${amount.toFixed(2)}`, colX.amount, yPos, { width: colWidths.amount, align: 'right' });
         
