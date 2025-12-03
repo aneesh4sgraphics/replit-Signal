@@ -2321,6 +2321,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         yPos += 11;
       });
 
+      // Shipping note
+      yPos += 10;
+      doc.fontSize(8).font('Helvetica-Oblique').fillColor(textDark);
+      doc.text('Shipping Extra at Actuals. Free Shipping available with minimum Order Quantities.', leftMargin, yPos);
+
       // === FOOTER ===
       const footerY = doc.page.height - 50;
       doc.moveTo(leftMargin, footerY).lineTo(rightMargin, footerY).strokeColor(borderColor).stroke();
