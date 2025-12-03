@@ -2220,6 +2220,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const descLines = Math.ceil(description.length / 35);
         const rowHeight = Math.max(20, descLines * 12 + 8);
         
+        // Alternate row shading
+        if (index % 2 === 0) {
+          doc.rect(leftMargin, yPos - 2, contentWidth, rowHeight).fill('#f8f8f8');
+        }
+        
         doc.fontSize(9).font('Helvetica').fillColor(textDark);
         doc.fontSize(7).text(productCode.substring(0, 15), colX.code, yPos + 1, { width: colWidths.code - 2 });
         doc.fontSize(9);
