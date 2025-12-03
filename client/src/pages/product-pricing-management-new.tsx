@@ -99,7 +99,9 @@ function ProductPricingCard({
   onSave,
   onCancel,
   onValueChange,
-  isSaving
+  isSaving,
+  isSelected,
+  onToggleSelect
 }: {
   item: ProductPricingMaster;
   isEditing: boolean;
@@ -109,6 +111,8 @@ function ProductPricingCard({
   onCancel: () => void;
   onValueChange: (field: string, value: string) => void;
   isSaving: boolean;
+  isSelected: boolean;
+  onToggleSelect: () => void;
 }) {
   const priceFields = [
     { key: 'exportPrice', value: item.exportPrice },
@@ -124,18 +128,27 @@ function ProductPricingCard({
   ];
 
   return (
-    <div className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-md transition-shadow" data-testid={`card-product-${item.id}`}>
+    <div className={`bg-white border rounded-lg p-3 hover:shadow-md transition-shadow ${isSelected ? 'border-purple-400 bg-purple-50/30 ring-1 ring-purple-200' : 'border-gray-200'}`} data-testid={`card-product-${item.id}`}>
       {/* Header */}
       <div className="flex items-start justify-between mb-2">
-        <div className="flex-1 min-w-0">
-          <div className="flex items-center gap-2">
-            <span className="font-mono text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{item.itemCode}</span>
-            <Badge variant="outline" className="text-[10px] px-1 py-0">{item.size}</Badge>
+        <div className="flex items-start gap-2 flex-1 min-w-0">
+          <input
+            type="checkbox"
+            checked={isSelected}
+            onChange={onToggleSelect}
+            className="h-4 w-4 mt-0.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer"
+            data-testid={`checkbox-select-${item.id}`}
+          />
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="font-mono text-xs text-purple-600 bg-purple-50 px-1.5 py-0.5 rounded">{item.itemCode}</span>
+              <Badge variant="outline" className="text-[10px] px-1 py-0">{item.size}</Badge>
+            </div>
+            <h3 className="text-sm font-medium text-gray-800 truncate mt-1" title={item.productName}>
+              {item.productName}
+            </h3>
+            <p className="text-[10px] text-gray-500">{item.productType}</p>
           </div>
-          <h3 className="text-sm font-medium text-gray-800 truncate mt-1" title={item.productName}>
-            {item.productName}
-          </h3>
-          <p className="text-[10px] text-gray-500">{item.productType}</p>
         </div>
         {!isEditing ? (
           <button
@@ -210,6 +223,7 @@ export default function ProductPricingManagementNew() {
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
   const [bulkEditValues, setBulkEditValues] = useState<Record<string, string>>({});
   const [bulkEditProductIds, setBulkEditProductIds] = useState<number[]>([]);
+  const [selectedProductIds, setSelectedProductIds] = useState<Set<number>>(new Set());
   const fileInputRef = useRef<HTMLInputElement>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -333,34 +347,46 @@ export default function ProductPricingManagementNew() {
     item.size.toLowerCase().includes(searchTerm.toLowerCase())
   );
 
-  // Extract SKU prefix from item code (everything before the last dash or size indicator)
-  const getSkuPrefix = (itemCode: string): string => {
-    // Match pattern like "G0SF05-08x11" -> "G0SF05"
-    const match = itemCode.match(/^([A-Z0-9]+)-/i);
-    return match ? match[1] : itemCode;
+  // Toggle product selection
+  const toggleProductSelection = (productId: number) => {
+    setSelectedProductIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(productId)) {
+        newSet.delete(productId);
+      } else {
+        newSet.add(productId);
+      }
+      return newSet;
+    });
   };
 
-  // Check if filtered products share a common SKU prefix (for bulk edit eligibility)
-  const getCommonSkuPrefix = (): string | null => {
-    if (filteredPricingData.length < 2) return null;
-    const prefixes = filteredPricingData.map(item => getSkuPrefix(item.itemCode));
-    const uniquePrefixes = Array.from(new Set(prefixes));
-    // If all products share the same prefix, return it
-    if (uniquePrefixes.length === 1) {
-      return uniquePrefixes[0];
-    }
-    return null;
+  // Select all filtered products
+  const selectAllFiltered = () => {
+    const allFilteredIds = filteredPricingData.map(item => item.id);
+    setSelectedProductIds(new Set(allFilteredIds));
   };
 
-  const commonSkuPrefix = searchTerm.length >= 3 ? getCommonSkuPrefix() : null;
-  const canBulkEdit = filteredPricingData.length > 1 && commonSkuPrefix;
+  // Clear all selections
+  const clearAllSelections = () => {
+    setSelectedProductIds(new Set());
+  };
 
-  // Start bulk editing
+  // Check if all filtered products are selected
+  const allFilteredSelected = filteredPricingData.length > 0 && 
+    filteredPricingData.every(item => selectedProductIds.has(item.id));
+
+  // Can bulk edit if 2+ products are selected
+  const canBulkEdit = selectedProductIds.size >= 2;
+
+  // Start bulk editing with selected products
   const startBulkEditing = () => {
     if (!canBulkEdit) return;
     
-    // Use the first product's prices as defaults
-    const firstItem = filteredPricingData[0];
+    // Get the first selected product's prices as defaults
+    const selectedIds = Array.from(selectedProductIds);
+    const firstItem = pricingData.find(item => item.id === selectedIds[0]);
+    if (!firstItem) return;
+    
     setBulkEditValues({
       exportPrice: firstItem.exportPrice.toString(),
       masterDistributorPrice: firstItem.masterDistributorPrice.toString(),
@@ -373,7 +399,7 @@ export default function ProductPricingManagementNew() {
       tierStage1Price: firstItem.tierStage1Price.toString(),
       retailPrice: firstItem.retailPrice.toString(),
     });
-    setBulkEditProductIds(filteredPricingData.map(item => item.id));
+    setBulkEditProductIds(selectedIds);
     setShowBulkEditDialog(true);
   };
 
@@ -795,7 +821,7 @@ export default function ProductPricingManagementNew() {
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
                 <Input
                   type="text"
-                  placeholder="Search by SKU prefix (e.g., G0SF05)..."
+                  placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-7 h-8 text-xs w-64"
@@ -810,10 +836,43 @@ export default function ProductPricingManagementNew() {
                   data-testid="button-bulk-edit"
                 >
                   <Layers className="h-3 w-3 mr-1" />
-                  Bulk Edit ({filteredPricingData.length})
+                  Bulk Edit ({selectedProductIds.size})
                 </Button>
               )}
             </div>
+          </div>
+          
+          {/* Selection Controls */}
+          <div className="flex items-center gap-3 mb-3 py-2 px-3 bg-gray-50 rounded-lg">
+            <div className="flex items-center gap-2">
+              <input
+                type="checkbox"
+                checked={allFilteredSelected}
+                onChange={() => allFilteredSelected ? clearAllSelections() : selectAllFiltered()}
+                className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                data-testid="checkbox-select-all"
+              />
+              <span className="text-xs text-gray-600">
+                {allFilteredSelected ? 'Deselect all' : `Select all (${filteredPricingData.length})`}
+              </span>
+            </div>
+            {selectedProductIds.size > 0 && (
+              <>
+                <span className="text-xs text-gray-400">|</span>
+                <span className="text-xs text-purple-600 font-medium">
+                  {selectedProductIds.size} selected
+                </span>
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={clearAllSelections}
+                  className="h-6 text-xs text-gray-500 hover:text-gray-700 px-2"
+                  data-testid="button-clear-selection"
+                >
+                  Clear
+                </Button>
+              </>
+            )}
           </div>
           
           {/* Bulk Edit Banner */}
@@ -823,10 +882,10 @@ export default function ProductPricingManagementNew() {
                 <Copy className="h-4 w-4 text-purple-600" />
                 <div>
                   <p className="text-sm font-medium text-purple-800">
-                    {filteredPricingData.length} products share SKU prefix "{commonSkuPrefix}"
+                    {selectedProductIds.size} products selected for bulk edit
                   </p>
                   <p className="text-xs text-purple-600">
-                    Click "Bulk Edit" to update all sizes at once with the same pricing
+                    Click "Bulk Edit" to update all selected products with the same pricing
                   </p>
                 </div>
               </div>
@@ -848,6 +907,8 @@ export default function ProductPricingManagementNew() {
                 onCancel={cancelEditing}
                 onValueChange={(field, value) => setEditValues(prev => ({ ...prev, [field]: value }))}
                 isSaving={updateMutation.isPending}
+                isSelected={selectedProductIds.has(item.id)}
+                onToggleSelect={() => toggleProductSelection(item.id)}
               />
             ))}
           </div>
@@ -931,11 +992,11 @@ export default function ProductPricingManagementNew() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Layers className="h-5 w-5 text-purple-600" />
-              Bulk Edit Pricing - {commonSkuPrefix}
+              Bulk Edit Pricing
             </DialogTitle>
             <DialogDescription>
-              Update pricing for all {bulkEditProductIds.length} products with SKU prefix "{commonSkuPrefix}".
-              All sizes will receive the same pricing.
+              Update pricing for {bulkEditProductIds.length} selected products.
+              All selected products will receive the same pricing.
             </DialogDescription>
           </DialogHeader>
           
@@ -944,14 +1005,14 @@ export default function ProductPricingManagementNew() {
             <div className="bg-gray-50 rounded-lg p-3 max-h-32 overflow-y-auto">
               <p className="text-xs font-medium text-gray-600 mb-2">Products to update:</p>
               <div className="flex flex-wrap gap-1">
-                {filteredPricingData.slice(0, 10).map(item => (
+                {pricingData.filter(item => bulkEditProductIds.includes(item.id)).slice(0, 10).map(item => (
                   <Badge key={item.id} variant="secondary" className="text-[10px]">
                     {item.itemCode}
                   </Badge>
                 ))}
-                {filteredPricingData.length > 10 && (
+                {bulkEditProductIds.length > 10 && (
                   <Badge variant="outline" className="text-[10px]">
-                    +{filteredPricingData.length - 10} more
+                    +{bulkEditProductIds.length - 10} more
                   </Badge>
                 )}
               </div>
