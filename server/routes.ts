@@ -2285,26 +2285,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       // === PAYMENT TERMS ===
       yPos += 35;
-      doc.fontSize(10).font('Helvetica').fillColor(textDark);
+      doc.fontSize(8).font('Helvetica').fillColor(textDark);
       doc.text('Payment terms: ', leftMargin, yPos, { continued: true });
       doc.font('Helvetica-Bold').text('Immediate Payment', { continued: false });
       
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + 30);
-      doc.font('Helvetica').text(`Payment due date: ${dueDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}`, leftMargin, yPos + 16);
+      doc.font('Helvetica').text(`Payment due date: ${dueDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}`, leftMargin, yPos + 12);
 
       // === PAYMENT INSTRUCTIONS ===
-      yPos += 50;
-      doc.fontSize(10).font('Helvetica-Bold').fillColor(textDark);
+      yPos += 38;
+      doc.fontSize(8).font('Helvetica-Bold').fillColor(textDark);
       doc.text('Payment Instructions', leftMargin, yPos);
-      yPos += 15;
-      doc.fontSize(9).font('Helvetica');
+      yPos += 12;
+      doc.fontSize(8).font('Helvetica');
       doc.text('All payments should be made to ', leftMargin, yPos, { continued: true });
       doc.font('Helvetica-Bold').text('4S GRAPHICS, INC.', { continued: true });
       doc.font('Helvetica').text(' only.', { continued: false });
       
-      yPos += 18;
-      doc.fontSize(9).font('Helvetica').fillColor(textDark);
+      yPos += 14;
+      doc.fontSize(8).font('Helvetica').fillColor(textDark);
       
       // Payment method bullets
       const paymentMethods = [
@@ -2318,7 +2318,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         doc.font('Helvetica').text('•  ', leftMargin, yPos, { continued: true });
         doc.font('Helvetica-Bold').text(method.label + ' ', { continued: true });
         doc.font('Helvetica').text(method.value, { continued: false });
-        yPos += 14;
+        yPos += 11;
       });
 
       // === FOOTER ===
