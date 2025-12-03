@@ -6,6 +6,7 @@ import fs from "fs";
 import archiver from "archiver";
 import pdf from 'html-pdf-node';
 import puppeteer from 'puppeteer';
+import PDFDocument from 'pdfkit';
 import OpenAI from 'openai';
 import { storage } from "./storage";
 import chatRouter from "./chat";
@@ -2020,10 +2021,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate PDF quote as actual PDF file
+  // Generate PDF quote using pdfkit (no Chromium required)
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
     try {
-      console.log('📄 Starting PDF quote generation...');
+      console.log('📄 Starting PDF quote generation with pdfkit...');
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
       if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
@@ -2043,18 +2044,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
       
-      // Generate HTML content
-      const htmlContent = await generateQuoteHTMLForDownload({
-        customerName,
-        customerEmail,
-        quoteItems,
-        quoteNumber: finalQuoteNumber,
-        totalAmount,
-        salesRep: currentUserEmail
-      });
-      
-      console.log('📏 HTML Size:', htmlContent.length, 'characters');
-      
       // Save quote to database (upsert to prevent duplicates)
       await storage.upsertSentQuote({
         quoteNumber: finalQuoteNumber,
@@ -2071,53 +2060,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
       const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.pdf`;
       
-      // Configure html-pdf-node for Replit environment (same as Price List)
-      const options = {
-        format: 'A4',
-        margin: { top: "15px", right: "15px", bottom: "15px", left: "15px" },
-        printBackground: true,
-        preferCSSPageSize: true,
-        args: [
-          '--no-sandbox',
-          '--disable-setuid-sandbox', 
-          '--disable-dev-shm-usage',
-          '--disable-gpu',
-          '--disable-software-rasterizer',
-          '--disable-background-timer-throttling',
-          '--disable-backgrounding-occluded-windows',
-          '--disable-renderer-backgrounding',
-          '--disable-features=TranslateUI',
-          '--disable-ipc-flooding-protection',
-          '--disable-default-apps',
-          '--disable-extensions',
-          '--disable-plugins',
-          '--disable-sync',
-          '--disable-translate',
-          '--hide-scrollbars',
-          '--mute-audio',
-          '--no-first-run',
-          '--disable-infobars',
-          '--disable-breakpad',
-          '--disable-canvas-aa',
-          '--disable-2d-canvas-clip-aa',
-          '--disable-gl-drawing-for-tests',
-          '--disable-threaded-animation',
-          '--disable-threaded-scrolling',
-          '--disable-in-process-stack-traces',
-          '--disable-histogram-customizer',
-          '--disable-gl-extensions',
-          '--disable-composited-antialiasing'
-        ],
-        executablePath: process.env.PUPPETEER_EXECUTABLE_PATH || undefined,
-        timeout: 30000 // 30 second timeout
-      };
+      console.log('📝 Generating PDF with pdfkit...');
 
-      console.log('🖥️ Starting Chromium PDF generation...');
+      // Create PDF using pdfkit
+      const doc = new PDFDocument({ 
+        size: 'A4', 
+        margin: 50,
+        bufferPages: true
+      });
+      
+      // Collect PDF into buffer
+      const chunks: Buffer[] = [];
+      doc.on('data', (chunk: Buffer) => chunks.push(chunk));
+      
+      const pdfPromise = new Promise<Buffer>((resolve, reject) => {
+        doc.on('end', () => resolve(Buffer.concat(chunks)));
+        doc.on('error', reject);
+      });
 
-      // Generate PDF
-      const file = { content: htmlContent };
-      const pdfBuffer = await pdf.generatePdf(file, options);
-
+      // Header with company branding
+      doc.fontSize(24).font('Helvetica-Bold').fillColor('#714B67')
+         .text('4S GRAPHICS, INC.', { align: 'center' });
+      doc.fontSize(10).font('Helvetica').fillColor('#666666')
+         .text('Premium Vinyl Products', { align: 'center' });
+      doc.moveDown(0.5);
+      
+      // Quote title and number
+      doc.fontSize(18).font('Helvetica-Bold').fillColor('#333333')
+         .text('QUOTE', { align: 'center' });
+      doc.fontSize(12).font('Helvetica').fillColor('#714B67')
+         .text(`Quote #: ${finalQuoteNumber}`, { align: 'center' });
+      doc.fontSize(10).fillColor('#666666')
+         .text(`Date: ${new Date().toLocaleDateString()}`, { align: 'center' });
+      doc.moveDown(1.5);
+      
+      // Customer info section
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#333333')
+         .text('Bill To:');
+      doc.fontSize(11).font('Helvetica').fillColor('#444444')
+         .text(customerName);
+      if (customerEmail) {
+        doc.text(customerEmail);
+      }
+      doc.moveDown(1);
+      
+      // Sales rep info
+      doc.fontSize(10).font('Helvetica').fillColor('#666666')
+         .text(`Sales Representative: ${currentUserEmail}`);
+      doc.moveDown(1.5);
+      
+      // Table header
+      const tableTop = doc.y;
+      const colWidths = { item: 150, size: 80, qty: 60, price: 80, total: 80 };
+      const tableLeft = 50;
+      
+      // Header background
+      doc.rect(tableLeft, tableTop, 450, 20).fill('#714B67');
+      
+      // Header text
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#FFFFFF');
+      doc.text('Product', tableLeft + 5, tableTop + 5, { width: colWidths.item });
+      doc.text('Size', tableLeft + colWidths.item + 5, tableTop + 5, { width: colWidths.size });
+      doc.text('Qty', tableLeft + colWidths.item + colWidths.size + 5, tableTop + 5, { width: colWidths.qty });
+      doc.text('Unit Price', tableLeft + colWidths.item + colWidths.size + colWidths.qty + 5, tableTop + 5, { width: colWidths.price });
+      doc.text('Total', tableLeft + colWidths.item + colWidths.size + colWidths.qty + colWidths.price + 5, tableTop + 5, { width: colWidths.total });
+      
+      // Table rows
+      let currentY = tableTop + 25;
+      doc.font('Helvetica').fillColor('#333333').fontSize(9);
+      
+      quoteItems.forEach((item: any, index: number) => {
+        // Alternate row background
+        if (index % 2 === 0) {
+          doc.rect(tableLeft, currentY - 3, 450, 18).fill('#F5F5F5');
+        }
+        
+        doc.fillColor('#333333');
+        const productName = item.productType || item.itemCode || 'Product';
+        doc.text(productName.substring(0, 25), tableLeft + 5, currentY, { width: colWidths.item });
+        doc.text(item.size || '-', tableLeft + colWidths.item + 5, currentY, { width: colWidths.size });
+        doc.text(String(item.quantity || 1), tableLeft + colWidths.item + colWidths.size + 5, currentY, { width: colWidths.qty });
+        doc.text(`$${Number(item.pricePerUnit || item.pricePerSheet || 0).toFixed(2)}`, tableLeft + colWidths.item + colWidths.size + colWidths.qty + 5, currentY, { width: colWidths.price });
+        doc.text(`$${Number(item.total || 0).toFixed(2)}`, tableLeft + colWidths.item + colWidths.size + colWidths.qty + colWidths.price + 5, currentY, { width: colWidths.total });
+        
+        currentY += 18;
+        
+        // Add new page if needed
+        if (currentY > 700) {
+          doc.addPage();
+          currentY = 50;
+        }
+      });
+      
+      // Total section
+      currentY += 10;
+      doc.rect(tableLeft + 300, currentY, 150, 25).fill('#714B67');
+      doc.fontSize(12).font('Helvetica-Bold').fillColor('#FFFFFF')
+         .text(`TOTAL: $${totalAmount.toFixed(2)}`, tableLeft + 310, currentY + 6, { width: 130, align: 'right' });
+      
+      // Footer
+      doc.fontSize(9).font('Helvetica').fillColor('#666666');
+      const footerY = doc.page.height - 80;
+      doc.text('Thank you for your business!', 50, footerY, { align: 'center', width: 495 });
+      doc.text('4S Graphics, Inc. | www.4sgraphics.com', 50, footerY + 15, { align: 'center', width: 495 });
+      doc.text('This quote is valid for 30 days from the date of issue.', 50, footerY + 30, { align: 'center', width: 495 });
+      
+      // Finalize PDF
+      doc.end();
+      
+      const pdfBuffer = await pdfPromise;
       console.log('📦 PDF Buffer size:', pdfBuffer.length, 'bytes');
 
       // Set headers for file download
