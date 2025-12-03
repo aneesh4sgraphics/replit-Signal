@@ -2022,9 +2022,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate PDF quote as actual PDF file
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
-    const { PerformanceMonitor } = await import('./performance-monitor.js');
-    const perf = new PerformanceMonitor('QuickQuotes PDF Generation');
-    
     try {
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
@@ -2036,7 +2033,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const currentUserEmail = req.user?.claims?.email || "sales@4sgraphics.com";
 
       // Generate unique quote number
-      // Generate 7-digit alphanumeric quote number
       const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
       const finalQuoteNumber = Array.from(
         { length: 7 },
@@ -2046,9 +2042,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
       
-      perf.checkpoint('Validation & Setup');
-      
-      // Generate HTML
+      // Generate HTML content
       const htmlContent = await generateQuoteHTMLForDownload({
         customerName,
         customerEmail,
@@ -2058,7 +2052,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         salesRep: currentUserEmail
       });
       
-      perf.checkpoint('HTML Generation');
       console.log('📏 HTML Size:', htmlContent.length, 'characters');
       
       // Save quote to database (upsert to prevent duplicates)
@@ -2072,22 +2065,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         status: 'sent'
       });
       
-      perf.checkpoint('Database Save');
-      
       // Generate filename following the requested format: QuickQuotes_4SGraphics_Date_for_CustomerName.pdf
       const currentDate = new Date().toLocaleDateString('en-US', { month: 'numeric', day: 'numeric', year: 'numeric' }).replace(/\//g, '-');
       const sanitizedCustomerName = customerName.replace(/[^a-zA-Z0-9]/g, '_').substring(0, 30);
       const filename = `QuickQuotes_4SGraphics_${currentDate}_for_${sanitizedCustomerName}.pdf`;
       
-      // Return HTML for direct download as HTML file (user can print to PDF)
-      res.set({
-        'Content-Type': 'application/octet-stream',
-        'Content-Disposition': `attachment; filename="${filename.replace('.pdf', '.html')}"`
-      });
-      res.send(htmlContent);
+      // Generate actual PDF using html-pdf-node
+      const pdfOptions = {
+        format: 'A4' as const,
+        printBackground: true,
+      };
+      const file = { content: htmlContent };
+      const pdfBuffer = await pdf.generatePdf(file, pdfOptions);
       
-      perf.checkpoint('File Streaming');
-      perf.summary('QuickQuotes PDF Generation');
+      // Return PDF file
+      res.set({
+        'Content-Type': 'application/pdf',
+        'Content-Disposition': `attachment; filename="${filename}"`
+      });
+      res.send(Buffer.isBuffer(pdfBuffer) ? pdfBuffer : Buffer.from(pdfBuffer as any));
+      
+      console.log('✅ PDF generated successfully:', filename);
     } catch (error) {
       console.error("Error generating PDF quote:", error);
       res.status(500).json({ error: "Failed to generate PDF quote" });
@@ -2899,37 +2897,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Add database-backed pricing routes
   app.use("/api", pricingDatabaseRoutes);
 
-  // API endpoints for PDF and CSV generation
-  app.post("/api/generate-pdf-quote", isAuthenticated, async (req, res) => {
-    try {
-      const { customerName, quoteItems, quoteNumber, totalAmount } = req.body;
-      
-      if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
-        return res.status(400).json({ error: "Customer name and quote items are required" });
-      }
-
-      // Import the function from stub-functions
-      const { generateQuoteHTMLForDownload } = await import('./stub-functions.js');
-      
-      const html = await generateQuoteHTMLForDownload({
-        customerName,
-        quoteNumber,
-        quoteItems,
-        totalAmount: totalAmount || quoteItems.reduce((sum: number, item: any) => sum + item.total, 0)
-      });
-      
-      res.json({ html });
-    } catch (error) {
-      console.error("Error generating PDF quote:", error);
-      res.status(500).json({ error: "Failed to generate PDF quote" });
-    }
-  });
-
   // Generate Price List PDF
   app.post("/api/generate-price-list-pdf", isAuthenticated, async (req, res) => {
-    const { PerformanceMonitor } = await import('./performance-monitor.js');
-    const perf = new PerformanceMonitor('Price List PDF Generation');
-    
     try {
       const { customerName, selectedCategory, selectedTier, priceListItems } = req.body;
 
@@ -2949,8 +2918,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         () => chars[Math.floor(Math.random() * chars.length)]
       ).join("");
 
-      perf.checkpoint('Request Validation');
-
       // Generate HTML using the price list function
       const html = await generatePriceListHTML({
         categoryName: selectedCategory,
@@ -2961,7 +2928,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         title: "PRICE LIST"
       });
       
-      perf.checkpoint('HTML Generation');
       console.log('📏 HTML Size:', html.length, 'characters');
 
       // Configure html-pdf-node for MAXIMUM SPEED in Replit environment
@@ -3011,15 +2977,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const file = { content: html };
       const pdfBuffer = await pdf.generatePdf(file, options);
 
-      perf.checkpoint('Chromium Rendering');
       console.log('📦 PDF Buffer size:', pdfBuffer.length, 'bytes');
 
       // Set headers for file download
       res.setHeader('Content-Type', 'application/pdf');
       res.setHeader('Content-Disposition', `attachment; filename="PriceList_${selectedCategory}_${selectedTier}_${new Date().toISOString().split('T')[0]}.pdf"`);
       res.setHeader('Content-Length', pdfBuffer.length);
-      
-      perf.checkpoint('Header Setup');
 
       // Calculate total amount from price list items
       const totalAmount = priceListItems.reduce((sum: number, item: any) => {
@@ -3046,7 +3009,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           status: 'sent'
         });
         
-        perf.checkpoint('Database Save');
         console.log('✅ Price list saved to Saved Quotes with number:', quoteNumber);
       } catch (saveError) {
         console.error('❌ Error saving price list to Saved Quotes:', saveError);
@@ -3056,9 +3018,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Send the PDF
       res.end(pdfBuffer);
       
-      perf.checkpoint('File Streaming');
-      perf.summary('Price List PDF Generation');
-
+      console.log('✅ PDF generated successfully');
       logDownload(`PriceList_${selectedCategory}_${selectedTier}.pdf`, 'PDF price list generation');
 
     } catch (error) {
