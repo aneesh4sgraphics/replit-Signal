@@ -8,7 +8,6 @@ import { useAuth } from "@/hooks/useAuth";
 import { useState, useEffect } from "react";
 import { FloatingCalculator } from "@/components/FloatingCalculator";
 import { AIChatbot, ChatbotToggle } from "@/components/AIChatbot";
-import AppHeader from "@/components/AppHeader";
 import { ServiceWorkerUpdater } from "@/components/ServiceWorkerUpdater";
 import { AuthWatcher } from "@/components/AuthWatcher";
 // Removed: FirecrackerAnimation import - animation removed per user request

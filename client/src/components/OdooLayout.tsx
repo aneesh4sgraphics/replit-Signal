@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import { useState } from 'react';
 import { Link, useLocation } from 'wouter';
 import { 
   Home, 
@@ -63,7 +63,7 @@ const adminItems = [
 ];
 
 function SettingsMenu() {
-  const [showResetDialog, setShowResetDialog] = React.useState(false);
+  const [showResetDialog, setShowResetDialog] = useState(false);
   
   const handleReset = () => {
     resetAppData({ whitelistKeys: ['theme'] });
@@ -163,18 +163,20 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
               const isActive = location === item.path;
               
               return (
-                <Link key={item.path} href={item.path}>
-                  <a className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
+                <Link 
+                  key={item.path} 
+                  href={item.path}
+                  className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
                     isActive 
                       ? 'bg-black text-white shadow-sm'
                       : 'text-gray-700 hover:bg-gray-200'
-                  }`}>
-                    <div className="flex items-center gap-3">
-                      <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
-                      {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
-                    </div>
-                    {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
-                  </a>
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                    {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
+                  </div>
+                  {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
                 </Link>
               );
             })}
@@ -191,18 +193,20 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 const isActive = location === item.path;
                 
                 return (
-                  <Link key={item.path} href={item.path}>
-                    <a className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
+                  <Link 
+                    key={item.path} 
+                    href={item.path}
+                    className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
                       isActive 
                         ? 'bg-primary text-white shadow-sm'
                         : 'text-gray-700 hover:bg-gray-200'
-                    }`}>
-                      <div className="flex items-center gap-3">
-                        <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
-                        {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
-                      </div>
-                      {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
-                    </a>
+                    }`}
+                  >
+                    <div className="flex items-center gap-3">
+                      <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
+                      {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
+                    </div>
+                    {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
                   </Link>
                 );
               })}
