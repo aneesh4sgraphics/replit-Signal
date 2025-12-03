@@ -2204,11 +2204,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       yPos += 8;
       doc.font('Helvetica').fontSize(9).fillColor(textDark);
       
+      // Helper function to determine if product is in roll format
+      const isRollFormat = (size: string): boolean => {
+        if (!size) return false;
+        return size.includes("'") || size.toLowerCase().includes("feet") || /\d+x\d+\'/.test(size);
+      };
+
       quoteItems.forEach((item: any, index: number) => {
         const productCode = item.itemCode || item.sku || 'ITEM-' + (index + 1);
         const description = `${item.productType || 'Product'}${item.size ? ` size ${item.size}` : ''}`;
         const qty = item.quantity || 1;
-        const uom = 'Units';
+        const uom = isRollFormat(item.size || '') ? 'Rolls' : 'Sheets';
         const unitPrice = Number(item.pricePerUnit || item.pricePerSheet || 0);
         const amount = Number(item.total || 0);
         
