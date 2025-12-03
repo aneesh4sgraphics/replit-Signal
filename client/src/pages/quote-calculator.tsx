@@ -423,12 +423,13 @@ export default function QuoteCalculator() {
       
       if (!response.ok) throw new Error('Failed to generate PDF');
       
-      // Handle direct file download
+      // Handle direct PDF file download
       const blob = await response.blob();
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `QuickQuote_${new Date().toLocaleDateString().replace(/\//g, '-')}.html`;
+      const customerName = selectedCustomer ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}`.replace(/[^a-zA-Z0-9]/g, '_') : 'Customer';
+      a.download = `QuickQuotes_4SGraphics_${new Date().toLocaleDateString().replace(/\//g, '-')}_for_${customerName}.pdf`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -441,7 +442,7 @@ export default function QuoteCalculator() {
       logQuoteDownload(`${customerName}_${new Date().toLocaleDateString()}`, 'PDF');
       toast({
         title: "PDF Downloaded",
-        description: "Quote HTML file has been downloaded - open it and print to PDF",
+        description: "Quote PDF has been downloaded successfully",
       });
     },
     onError: (error) => {
