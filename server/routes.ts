@@ -2034,17 +2034,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get current user's email from authenticated session
       const currentUserEmail = req.user?.claims?.email || "sales@4sgraphics.com";
 
-      // Generate unique quote number
-      const chars = "0123456789ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-      const finalQuoteNumber = Array.from(
-        { length: 7 },
-        () => chars[Math.floor(Math.random() * chars.length)]
-      ).join("");
+      // Generate unique quote number with S prefix
+      const quoteNum = Math.floor(10000 + Math.random() * 90000);
+      const finalQuoteNumber = `S0${quoteNum}`;
       
-      // Calculate total
-      const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
+      // Calculate totals
+      const untaxedAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
+      const taxRate = 0.15;
+      const taxAmount = untaxedAmount * taxRate;
+      const totalAmount = untaxedAmount + taxAmount;
       
-      // Save quote to database (upsert to prevent duplicates)
+      // Save quote to database
       await storage.upsertSentQuote({
         quoteNumber: finalQuoteNumber,
         customerName,
@@ -2065,7 +2065,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Create PDF using pdfkit
       const doc = new PDFDocument({ 
         size: 'A4', 
-        margin: 50,
+        margins: { top: 40, bottom: 40, left: 50, right: 50 },
         bufferPages: true
       });
       
@@ -2078,92 +2078,181 @@ export async function registerRoutes(app: Express): Promise<Server> {
         doc.on('error', reject);
       });
 
-      // Header with company branding
-      doc.fontSize(24).font('Helvetica-Bold').fillColor('#714B67')
-         .text('4S GRAPHICS, INC.', { align: 'center' });
-      doc.fontSize(10).font('Helvetica').fillColor('#666666')
-         .text('Premium Vinyl Products', { align: 'center' });
-      doc.moveDown(0.5);
+      const pageWidth = doc.page.width;
+      const leftMargin = 50;
+      const rightMargin = pageWidth - 50;
+      const contentWidth = rightMargin - leftMargin;
+
+      // === HEADER SECTION ===
+      // Company logo placeholder (text-based since we don't have image)
+      doc.fontSize(22).font('Helvetica-Bold');
+      doc.fillColor('#2E7D32').text('4', leftMargin, 40, { continued: true });
+      doc.fillColor('#FFC107').text('S', { continued: true });
+      doc.fillColor('#2E7D32').text(' Graphics, Inc.', { continued: false });
       
-      // Quote title and number
-      doc.fontSize(18).font('Helvetica-Bold').fillColor('#333333')
-         .text('QUOTE', { align: 'center' });
-      doc.fontSize(12).font('Helvetica').fillColor('#714B67')
-         .text(`Quote #: ${finalQuoteNumber}`, { align: 'center' });
-      doc.fontSize(10).fillColor('#666666')
-         .text(`Date: ${new Date().toLocaleDateString()}`, { align: 'center' });
-      doc.moveDown(1.5);
+      doc.fontSize(9).font('Helvetica').fillColor('#333333');
+      doc.text('764 Northwest 57th Court', leftMargin, 65);
+      doc.text('Fort Lauderdale FL 33309', leftMargin, 77);
+      doc.text('United States', leftMargin, 89);
       
-      // Customer info section
-      doc.fontSize(12).font('Helvetica-Bold').fillColor('#333333')
-         .text('Bill To:');
-      doc.fontSize(11).font('Helvetica').fillColor('#444444')
-         .text(customerName);
+      // Right side header
+      doc.fontSize(11).font('Helvetica-Bold').fillColor('#2E7D32');
+      doc.text('Synthetic & Specialty Substrates Supplier', rightMargin - 200, 40, { width: 200, align: 'right' });
+      doc.fontSize(10).font('Helvetica').fillColor('#333333');
+      doc.text(`Order # ${finalQuoteNumber}`, rightMargin - 200, 55, { width: 200, align: 'right' });
+
+      // === CUSTOMER SECTION ===
+      let yPos = 120;
+      doc.rect(leftMargin, yPos, 200, 70).stroke('#333333');
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#333333');
+      doc.text('Customer', leftMargin + 5, yPos + 5);
+      doc.fontSize(10).font('Helvetica').fillColor('#444444');
+      doc.text(customerName, leftMargin + 5, yPos + 20);
       if (customerEmail) {
-        doc.text(customerEmail);
+        doc.text(customerEmail, leftMargin + 5, yPos + 35);
       }
-      doc.moveDown(1);
+
+      // === ORDER INFO ROW ===
+      yPos = 210;
+      doc.fontSize(9).font('Helvetica').fillColor('#666666');
+      doc.text('PO', leftMargin, yPos);
+      doc.text('Order Date', leftMargin + 180, yPos);
+      doc.text('Salesperson', leftMargin + 360, yPos);
       
-      // Sales rep info
-      doc.fontSize(10).font('Helvetica').fillColor('#666666')
-         .text(`Sales Representative: ${currentUserEmail}`);
-      doc.moveDown(1.5);
+      doc.fontSize(10).font('Helvetica').fillColor('#333333');
+      doc.text('-', leftMargin, yPos + 15);
+      doc.text(new Date().toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' }), leftMargin + 180, yPos + 15);
+      doc.text(currentUserEmail.split('@')[0], leftMargin + 360, yPos + 15);
+
+      // === PRODUCT TABLE ===
+      yPos = 260;
       
       // Table header
-      const tableTop = doc.y;
-      const colWidths = { item: 150, size: 80, qty: 60, price: 80, total: 80 };
-      const tableLeft = 50;
+      const colX = {
+        code: leftMargin,
+        desc: leftMargin + 80,
+        qty: leftMargin + 250,
+        uom: leftMargin + 300,
+        price: leftMargin + 340,
+        disc: leftMargin + 400,
+        taxes: leftMargin + 440,
+        amount: leftMargin + 480
+      };
       
-      // Header background
-      doc.rect(tableLeft, tableTop, 450, 20).fill('#714B67');
+      doc.fontSize(9).font('Helvetica-Bold').fillColor('#333333');
+      doc.text('Product Code', colX.code, yPos);
+      doc.text('Description', colX.desc, yPos);
+      doc.text('Quantity', colX.qty, yPos);
+      doc.text('UoM', colX.uom, yPos);
+      doc.text('Unit Price', colX.price, yPos);
+      doc.text('Disc.%', colX.disc, yPos);
+      doc.text('Taxes', colX.taxes, yPos);
+      doc.text('Amount', colX.amount, yPos);
       
-      // Header text
-      doc.fontSize(10).font('Helvetica-Bold').fillColor('#FFFFFF');
-      doc.text('Product', tableLeft + 5, tableTop + 5, { width: colWidths.item });
-      doc.text('Size', tableLeft + colWidths.item + 5, tableTop + 5, { width: colWidths.size });
-      doc.text('Qty', tableLeft + colWidths.item + colWidths.size + 5, tableTop + 5, { width: colWidths.qty });
-      doc.text('Unit Price', tableLeft + colWidths.item + colWidths.size + colWidths.qty + 5, tableTop + 5, { width: colWidths.price });
-      doc.text('Total', tableLeft + colWidths.item + colWidths.size + colWidths.qty + colWidths.price + 5, tableTop + 5, { width: colWidths.total });
+      // Header line
+      yPos += 15;
+      doc.moveTo(leftMargin, yPos).lineTo(rightMargin, yPos).stroke('#333333');
       
       // Table rows
-      let currentY = tableTop + 25;
-      doc.font('Helvetica').fillColor('#333333').fontSize(9);
+      yPos += 10;
+      doc.font('Helvetica').fontSize(9).fillColor('#333333');
       
       quoteItems.forEach((item: any, index: number) => {
         // Alternate row background
         if (index % 2 === 0) {
-          doc.rect(tableLeft, currentY - 3, 450, 18).fill('#F5F5F5');
+          doc.rect(leftMargin, yPos - 3, contentWidth, 20).fill('#F5F5F5');
+          doc.fillColor('#333333');
         }
         
-        doc.fillColor('#333333');
-        const productName = item.productType || item.itemCode || 'Product';
-        doc.text(productName.substring(0, 25), tableLeft + 5, currentY, { width: colWidths.item });
-        doc.text(item.size || '-', tableLeft + colWidths.item + 5, currentY, { width: colWidths.size });
-        doc.text(String(item.quantity || 1), tableLeft + colWidths.item + colWidths.size + 5, currentY, { width: colWidths.qty });
-        doc.text(`$${Number(item.pricePerUnit || item.pricePerSheet || 0).toFixed(2)}`, tableLeft + colWidths.item + colWidths.size + colWidths.qty + 5, currentY, { width: colWidths.price });
-        doc.text(`$${Number(item.total || 0).toFixed(2)}`, tableLeft + colWidths.item + colWidths.size + colWidths.qty + colWidths.price + 5, currentY, { width: colWidths.total });
+        const productCode = item.itemCode || item.productType?.substring(0, 15) || 'PROD';
+        const description = item.productType || 'Product';
+        const qty = item.quantity || 1;
+        const uom = qty === 1 ? 'Roll' : 'Sheet';
+        const unitPrice = Number(item.pricePerUnit || item.pricePerSheet || 0);
+        const amount = Number(item.total || 0);
         
-        currentY += 18;
+        doc.text(productCode.substring(0, 12), colX.code, yPos, { width: 75 });
+        doc.text(description.substring(0, 25), colX.desc, yPos, { width: 165 });
+        doc.text(String(qty), colX.qty, yPos);
+        doc.text(uom, colX.uom, yPos);
+        doc.text(`$${unitPrice.toFixed(2)}`, colX.price, yPos);
+        doc.text('0%', colX.disc, yPos);
+        doc.text('-', colX.taxes, yPos);
+        doc.text(`$${amount.toFixed(2)}`, colX.amount, yPos);
+        
+        yPos += 20;
         
         // Add new page if needed
-        if (currentY > 700) {
+        if (yPos > 650) {
           doc.addPage();
-          currentY = 50;
+          yPos = 50;
         }
       });
+
+      // === TOTALS SECTION ===
+      yPos += 30;
+      const totalsX = leftMargin + 280;
+      const totalsWidth = 120;
+      const amountX = leftMargin + 420;
       
-      // Total section
-      currentY += 10;
-      doc.rect(tableLeft + 300, currentY, 150, 25).fill('#714B67');
-      doc.fontSize(12).font('Helvetica-Bold').fillColor('#FFFFFF')
-         .text(`TOTAL: $${totalAmount.toFixed(2)}`, tableLeft + 310, currentY + 6, { width: 130, align: 'right' });
+      // Gray background for totals rows
+      doc.rect(totalsX, yPos, totalsWidth + 80, 25).fill('#E8E8E8');
+      doc.fillColor('#333333').fontSize(10).font('Helvetica');
+      doc.text('Untaxed Amount', totalsX + 5, yPos + 7);
+      doc.text(`$${untaxedAmount.toFixed(2)}`, amountX, yPos + 7, { width: 70, align: 'right' });
       
-      // Footer
-      doc.fontSize(9).font('Helvetica').fillColor('#666666');
-      const footerY = doc.page.height - 80;
-      doc.text('Thank you for your business!', 50, footerY, { align: 'center', width: 495 });
-      doc.text('4S Graphics, Inc. | www.4sgraphics.com', 50, footerY + 15, { align: 'center', width: 495 });
-      doc.text('This quote is valid for 30 days from the date of issue.', 50, footerY + 30, { align: 'center', width: 495 });
+      yPos += 25;
+      doc.rect(totalsX, yPos, totalsWidth + 80, 25).fill('#F5F5F5');
+      doc.fillColor('#333333');
+      doc.text('Tax 15%', totalsX + 5, yPos + 7);
+      doc.text(`$${taxAmount.toFixed(2)}`, amountX, yPos + 7, { width: 70, align: 'right' });
+      
+      yPos += 25;
+      doc.rect(totalsX, yPos, totalsWidth + 80, 25).fill('#FFA726');
+      doc.fillColor('#FFFFFF').font('Helvetica-Bold');
+      doc.text('Total', totalsX + 5, yPos + 7);
+      doc.text(`$${totalAmount.toFixed(2)}`, amountX, yPos + 7, { width: 70, align: 'right' });
+      
+      // Total in words
+      yPos += 35;
+      doc.fontSize(10).font('Helvetica').fillColor('#333333');
+      doc.text(`Total is: `, totalsX, yPos, { continued: true });
+      doc.font('Helvetica-Bold').text(`USD dollars ${numberToWords(Math.floor(totalAmount))}`, { continued: false });
+
+      // === PAYMENT TERMS ===
+      yPos += 40;
+      doc.fontSize(10).font('Helvetica').fillColor('#333333');
+      doc.text('Payment terms: ', leftMargin, yPos, { continued: true });
+      doc.font('Helvetica-Bold').text('Immediate Payment', { continued: false });
+      
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + 30);
+      doc.font('Helvetica').text(`Payment due date: ${dueDate.toLocaleDateString('en-US', { month: '2-digit', day: '2-digit', year: 'numeric' })}`, leftMargin, yPos + 18);
+
+      // === PAYMENT INSTRUCTIONS ===
+      yPos += 55;
+      doc.fontSize(10).font('Helvetica-Bold').fillColor('#333333');
+      doc.text('Payment Instructions', leftMargin, yPos);
+      doc.fontSize(9).font('Helvetica');
+      doc.text('All payments should be made to ', leftMargin, yPos + 15, { continued: true });
+      doc.font('Helvetica-Bold').text('4S GRAPHICS, INC.', { continued: true });
+      doc.font('Helvetica').text(' only.', { continued: false });
+      
+      yPos += 35;
+      doc.fontSize(9).font('Helvetica').fillColor('#333333');
+      doc.list([
+        'ACH Payments: Account# 0126734133 | Routing# 063104668 | SWIFT Code: UPNBUS44 / ABA: 062005690',
+        'Credit Cards: Visa, MasterCard, and American Express (4.5% processing fee applies)',
+        'Zelle Payments: Linked Phone Number for Payment: 260-580-0526',
+        'PayPal Payments: info@4sgraphics.com (4.5% PayPal fee applies)'
+      ], leftMargin + 10, yPos, { bulletRadius: 2, textIndent: 15 });
+
+      // === FOOTER ===
+      const footerY = doc.page.height - 60;
+      doc.moveTo(leftMargin, footerY).lineTo(rightMargin, footerY).stroke('#CCCCCC');
+      doc.fontSize(9).font('Helvetica').fillColor('#333333');
+      doc.text('+1 954-493-6484 | info@4sgraphics.com | www.4sgraphics.com', leftMargin, footerY + 15, { align: 'center', width: contentWidth });
+      doc.text(`Page 1 / 1`, leftMargin, footerY + 30, { align: 'center', width: contentWidth });
       
       // Finalize PDF
       doc.end();
@@ -2190,6 +2279,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
     }
   });
+  
+  // Helper function to convert number to words
+  function numberToWords(num: number): string {
+    if (num === 0) return 'Zero';
+    const ones = ['', 'One', 'Two', 'Three', 'Four', 'Five', 'Six', 'Seven', 'Eight', 'Nine', 'Ten',
+      'Eleven', 'Twelve', 'Thirteen', 'Fourteen', 'Fifteen', 'Sixteen', 'Seventeen', 'Eighteen', 'Nineteen'];
+    const tens = ['', '', 'Twenty', 'Thirty', 'Forty', 'Fifty', 'Sixty', 'Seventy', 'Eighty', 'Ninety'];
+    const thousands = ['', 'Thousand', 'Million'];
+    
+    if (num < 20) return ones[num];
+    if (num < 100) return tens[Math.floor(num / 10)] + (num % 10 ? ' ' + ones[num % 10] : '');
+    if (num < 1000) return ones[Math.floor(num / 100)] + ' Hundred' + (num % 100 ? ' ' + numberToWords(num % 100) : '');
+    
+    for (let i = thousands.length - 1; i >= 0; i--) {
+      const divisor = Math.pow(1000, i);
+      if (num >= divisor) {
+        return numberToWords(Math.floor(num / divisor)) + ' ' + thousands[i] + (num % divisor ? ' ' + numberToWords(num % divisor) : '');
+      }
+    }
+    return String(num);
+  }
 
   // Send email quote
   app.post("/api/send-email-quote", isAuthenticated, async (req: any, res) => {
