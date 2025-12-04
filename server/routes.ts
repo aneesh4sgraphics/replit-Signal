@@ -3331,45 +3331,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Generate Price List CSV (ODOO format - Item Code, Product Name, Price)
+  // Generate Price List Excel (ODOO import format)
   app.post("/api/generate-price-list-csv-odoo", isAuthenticated, async (req, res) => {
     try {
-      const { selectedCategory, selectedTier, priceListItems } = req.body;
+      const { selectedCategory, selectedTier, priceListItems, tierLabel } = req.body;
 
       // Validate required data
       if (!priceListItems || !Array.isArray(priceListItems) || priceListItems.length === 0) {
         return res.status(400).json({ error: "Price list items are required" });
       }
 
-      // Create CSV content with ODOO format (Item Code, Product Name, Price)
-      const headers = ['Item Code', 'Product Name', 'Price'];
-      const csvRows = [headers.join(',')];
+      // Import xlsx library
+      const XLSX = await import('xlsx');
 
-      priceListItems.forEach(item => {
+      // ODOO template headers matching the uploaded template exactly
+      const headers = [
+        'External ID',
+        'Pricelist Name',
+        'Pricelist Items/Apply On',
+        'Pricelist Items/Product',
+        'Pricelist Items/Min. Quantity',
+        'Pricelist Items/Start Date',
+        'Pricelist Items/End Date',
+        'Pricelist Items/Compute Price',
+        'Pricelist Items/Fixed Price',
+        'Pricelist Items/Percentage Price',
+        'Pricelist Items/Based on',
+        'Pricelist Items/Other Pricelist',
+        'Pricelist Items/Price Discount',
+        'Pricelist Items/Price Surcharge',
+        'Pricelist Items/Price Rounding',
+        'Pricelist Items/Min. Price Margin',
+        'Pricelist Items/Max. Price Margin'
+      ];
+
+      const worksheetData = [headers];
+
+      // Generate pricelist ID from tier and category (sanitized for ODOO)
+      const sanitizedCategory = selectedCategory.replace(/[^\w]/g, '_').replace(/_+/g, '_');
+      const pricelistExternalId = `pricelist_${selectedTier}_${sanitizedCategory}`;
+      const pricelistDisplayName = tierLabel || selectedTier;
+
+      priceListItems.forEach((item, index) => {
         const row = [
-          item.itemCode || '',
-          `"${item.productName || ''}"`, // Quote product name to handle commas
-          item.price || 0
+          index === 0 ? pricelistExternalId : '',  // External ID (only first row)
+          index === 0 ? pricelistDisplayName : '', // Pricelist Name (only first row)
+          'Product',                               // Apply On
+          `[${item.itemCode}] ${item.productName}`, // Product (format: [itemCode] productName)
+          item.minQty || '',                       // Min. Quantity
+          '',                                      // Start Date
+          '',                                      // End Date
+          'Fixed Price',                           // Compute Price
+          item.price || 0,                         // Fixed Price
+          '',                                      // Percentage Price
+          'Sales Price',                           // Based on
+          '',                                      // Other Pricelist
+          '',                                      // Price Discount
+          '',                                      // Price Surcharge
+          '',                                      // Price Rounding
+          '',                                      // Min. Price Margin
+          ''                                       // Max. Price Margin
         ];
-        csvRows.push(row.join(','));
+        worksheetData.push(row);
       });
 
-      const csvContent = csvRows.join('\n');
+      // Create workbook and worksheet
+      const workbook = XLSX.utils.book_new();
+      const worksheet = XLSX.utils.aoa_to_sheet(worksheetData);
 
-      // Set headers for CSV download
-      res.setHeader('Content-Type', 'text/csv');
-      res.setHeader('Content-Disposition', `attachment; filename="PriceList_ODOO_${selectedCategory}_${selectedTier}_${new Date().toISOString().split('T')[0]}.csv"`);
+      // Set column widths for better readability
+      worksheet['!cols'] = [
+        { wch: 25 },  // External ID
+        { wch: 20 },  // Pricelist Name
+        { wch: 25 },  // Apply On
+        { wch: 50 },  // Product
+        { wch: 20 },  // Min. Quantity
+        { wch: 15 },  // Start Date
+        { wch: 15 },  // End Date
+        { wch: 25 },  // Compute Price
+        { wch: 15 },  // Fixed Price
+        { wch: 20 },  // Percentage Price
+        { wch: 15 },  // Based on
+        { wch: 20 },  // Other Pricelist
+        { wch: 18 },  // Price Discount
+        { wch: 18 },  // Price Surcharge
+        { wch: 18 },  // Price Rounding
+        { wch: 20 },  // Min. Price Margin
+        { wch: 20 }   // Max. Price Margin
+      ];
 
-      // Send the CSV
-      res.send(csvContent);
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Template');
 
-      logDownload(`PriceList_ODOO_${selectedCategory}_${selectedTier}.csv`, 'CSV ODOO format generation');
+      // Generate buffer
+      const buffer = XLSX.write(workbook, { type: 'buffer', bookType: 'xls' });
+
+      // Set headers for Excel download
+      res.setHeader('Content-Type', 'application/vnd.ms-excel');
+      res.setHeader('Content-Disposition', `attachment; filename="PriceList_ODOO_${selectedCategory}_${pricelistDisplayName}_${new Date().toISOString().split('T')[0]}.xls"`);
+
+      // Send the Excel file
+      res.send(buffer);
+
+      logDownload(`PriceList_ODOO_${selectedCategory}_${selectedTier}.xls`, 'ODOO Excel format generation');
 
     } catch (error) {
-      console.error("Price List CSV ODOO generation error:", error);
+      console.error("Price List ODOO Excel generation error:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
       res.status(500).json({ 
-        error: "Failed to generate Price List CSV", 
+        error: "Failed to generate Price List for ODOO", 
         details: errorMessage,
         timestamp: new Date().toISOString()
       });

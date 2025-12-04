@@ -196,25 +196,28 @@ export default function PriceList() {
     downloadPDFMutation.mutate();
   };
 
-  // CSV Download Mutation (ODOO format - Item Code, Product Name, Price)
+  // ODOO Excel Download Mutation (ODOO import format)
   const downloadCSVMutation = useMutation({
     mutationFn: async () => {
+      const tierLabel = pricingTiers.find(t => t.key === selectedTier)?.label || selectedTier;
       const response = await fetch('/api/generate-price-list-csv-odoo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           selectedCategory,
           selectedTier,
+          tierLabel,
           priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
             itemCode: item.itemCode,
             productName: item.productName,
-            price: item.pricePerSheet
+            price: item.pricePerSheet,
+            minQty: item.minQty
           }))
         })
       });
 
       if (!response.ok) {
-        throw new Error('Failed to generate CSV');
+        throw new Error('Failed to generate ODOO Excel');
       }
 
       return response.blob();
@@ -223,7 +226,7 @@ export default function PriceList() {
       const url = URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `PriceList_ODOO_${selectedCategory}_${pricingTiers.find(t => t.key === selectedTier)?.label}_${new Date().toISOString().split('T')[0]}.csv`;
+      a.download = `PriceList_ODOO_${selectedCategory}_${pricingTiers.find(t => t.key === selectedTier)?.label}_${new Date().toISOString().split('T')[0]}.xls`;
       document.body.appendChild(a);
       a.click();
       document.body.removeChild(a);
@@ -231,13 +234,13 @@ export default function PriceList() {
       
       toast({
         title: "Success",
-        description: "ODOO CSV downloaded successfully"
+        description: "ODOO Excel file downloaded successfully"
       });
     },
     onError: () => {
       toast({
         title: "Error",
-        description: "Failed to generate CSV",
+        description: "Failed to generate ODOO Excel file",
         variant: "destructive"
       });
     }
@@ -295,11 +298,11 @@ export default function PriceList() {
     }
   });
 
-  const handleDownloadCSV = () => {
+  const handleDownloadODOO = () => {
     if (priceListItems.length === 0) {
       toast({
         title: "No Data",
-        description: "Please select a category and tier to generate CSV",
+        description: "Please select a category and tier to generate ODOO file",
         variant: "destructive"
       });
       return;
@@ -720,12 +723,13 @@ export default function PriceList() {
                 }
               />
               <Button
-                onClick={handleDownloadCSV}
+                onClick={handleDownloadODOO}
                 disabled={downloadCSVMutation.isPending}
                 className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-md flex items-center gap-2 label-small"
+                data-testid="button-download-odoo"
               >
                 <FileSpreadsheet className="h-4 w-4" />
-                {downloadCSVMutation.isPending ? 'Generating...' : 'CSV Download - ODOO'}
+                {downloadCSVMutation.isPending ? 'Generating...' : 'Download for ODOO'}
               </Button>
               <Button
                 onClick={handleDownloadExcel}
