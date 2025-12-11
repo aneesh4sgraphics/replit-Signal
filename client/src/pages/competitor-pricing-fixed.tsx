@@ -307,7 +307,7 @@ export default function CompetitorPricing() {
   const exportToCSV = () => {
     if (filteredData.length === 0) return;
 
-    const headers = ["Source", "Type", "Dimensions", "Pack Qty", "Input Price", "Thickness", "Product Kind", "Surface Finish", "Supplier", "Info From", "Price/m²", "Notes", "Date"];
+    const headers = ["Source", "Type", "Dimensions", "Pack Qty", "Price/Pack", "Thickness", "Product Kind", "Surface Finish", "Supplier", "Info From", "Price/m²", "Notes", "Date"];
     const csvContent = [
       headers.join(","),
       ...filteredData.map(item => [
@@ -375,7 +375,7 @@ export default function CompetitorPricing() {
               <TrendingUp className="h-8 w-8 text-orange-600" />
             </div>
             <div>
-              <h1 className="text-3xl font-bold text-gray-900">ComIntel</h1>
+              <h1 className="text-3xl font-bold text-gray-900">Market Prices</h1>
               <p className="text-gray-600">Track, analyze, and contribute competitor pricing information</p>
             </div>
           </div>
@@ -583,7 +583,7 @@ export default function CompetitorPricing() {
                   <TableHead className="whitespace-nowrap">Type</TableHead>
                   <TableHead className="whitespace-nowrap">Dimensions</TableHead>
                   <TableHead className="whitespace-nowrap">Pack Qty</TableHead>
-                  <TableHead className="whitespace-nowrap">Input Price</TableHead>
+                  <TableHead className="whitespace-nowrap">Price/Pack</TableHead>
                   <TableHead className="whitespace-nowrap">Thickness</TableHead>
                   <TableHead className="whitespace-nowrap">Product Kind</TableHead>
                   <TableHead className="whitespace-nowrap">Surface Finish</TableHead>

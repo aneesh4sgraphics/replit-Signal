@@ -199,7 +199,7 @@ export default function AreaPricer() {
     }
 
     const headers = [
-      "Type", "Width", "Length", "Pack Qty", "Input Price", "Thickness", 
+      "Type", "Width", "Length", "Pack Qty", "Price/Pack", "Thickness", 
       "Product Kind", "Surface Finish", "Supplier Info", "Info Received From",
       "Price per Sq In", "Price per Sq Ft", "Price per Sq Meter", "Notes"
     ];

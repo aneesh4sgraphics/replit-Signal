@@ -128,7 +128,17 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  if (app.get("env") === "development") {
+  // Use multiple checks to determine if we're in production:
+  // 1. NODE_ENV set to production
+  // 2. REPLIT_DEPLOYMENT env var exists (Replit deployments)
+  // 3. REPL_SLUG exists but REPLIT_DEV is not set
+  const isProduction = process.env.NODE_ENV === "production" || 
+                       process.env.REPLIT_DEPLOYMENT === "1" ||
+                       (process.env.REPL_SLUG && !process.env.REPLIT_DEV_DOMAIN);
+  
+  log(`Environment: ${isProduction ? 'production' : 'development'}`);
+  
+  if (!isProduction) {
     await setupVite(app, server);
   } else {
     serveStatic(app);

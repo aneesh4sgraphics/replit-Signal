@@ -52,7 +52,7 @@ const mainItems = [
   { path: '/saved-quotes', icon: FileText, label: 'Saved Quotes' },
   { path: '/clients', icon: Building2, label: 'Client Database' },
   { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator' },
-  { path: '/competitor-pricing', icon: TrendingUp, label: 'ComIntel' },
+  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices' },
   { path: '/shipping-calculator', icon: Truck, label: 'Shipping Calculator' },
 ];
 
