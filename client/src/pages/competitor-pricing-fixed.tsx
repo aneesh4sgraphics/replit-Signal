@@ -50,8 +50,6 @@ export default function CompetitorPricing() {
   const [thicknessFilter, setThicknessFilter] = useState("all");
   const [productKindFilter, setProductKindFilter] = useState("all");
   const [surfaceFinishFilter, setSurfaceFinishFilter] = useState("all");
-  const [minPrice, setMinPrice] = useState("");
-  const [maxPrice, setMaxPrice] = useState("");
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<number[][]>([]);
   
@@ -307,28 +305,8 @@ export default function CompetitorPricing() {
       filtered = filtered.filter(item => item.surfaceFinish === surfaceFinishFilter);
     }
     
-    if (minPrice) {
-      const min = parseFloat(minPrice);
-      if (!isNaN(min)) {
-        filtered = filtered.filter(item => {
-          const price = parseFloat(item.pricePerSqMeter);
-          return !isNaN(price) && price >= min;
-        });
-      }
-    }
-    
-    if (maxPrice) {
-      const max = parseFloat(maxPrice);
-      if (!isNaN(max)) {
-        filtered = filtered.filter(item => {
-          const price = parseFloat(item.pricePerSqMeter);
-          return !isNaN(price) && price <= max;
-        });
-      }
-    }
-    
     return filtered;
-  }, [competitorData, supplierFilter, thicknessFilter, productKindFilter, surfaceFinishFilter, minPrice, maxPrice]);
+  }, [competitorData, supplierFilter, thicknessFilter, productKindFilter, surfaceFinishFilter]);
 
   // Reset filters
   const resetFilters = () => {
@@ -336,8 +314,6 @@ export default function CompetitorPricing() {
     setThicknessFilter("all");
     setProductKindFilter("all");
     setSurfaceFinishFilter("all");
-    setMinPrice("");
-    setMaxPrice("");
   };
 
   // Find duplicates function
@@ -581,41 +557,14 @@ export default function CompetitorPricing() {
             </div>
           </div>
           
-          <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-            <div>
-              <Label htmlFor="minPrice">Min Price ($/m²)</Label>
-              <Input
-                id="minPrice"
-                type="number"
-                step="0.01"
-                placeholder="0.00"
-                value={minPrice}
-                onChange={(e) => setMinPrice(e.target.value)}
-              />
-            </div>
-            
-            <div>
-              <Label htmlFor="maxPrice">Max Price ($/m²)</Label>
-              <Input
-                id="maxPrice"
-                type="number"
-                step="0.01"
-                placeholder="999.99"
-                value={maxPrice}
-                onChange={(e) => setMaxPrice(e.target.value)}
-              />
-            </div>
-            
-            <div className="flex items-end">
-              <Button 
-                onClick={resetFilters} 
-                variant="outline" 
-                className="w-full"
-              >
-                <RotateCcw className="w-4 h-4 mr-2" />
-                Reset Filters
-              </Button>
-            </div>
+          <div className="flex justify-end mt-4">
+            <Button 
+              onClick={resetFilters} 
+              variant="outline"
+            >
+              <RotateCcw className="w-4 h-4 mr-2" />
+              Reset Filters
+            </Button>
           </div>
         </CardContent>
       </Card>
