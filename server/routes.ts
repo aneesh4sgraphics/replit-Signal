@@ -2580,23 +2580,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Row data:', rowData);
         
-        // Parse input price
-        const inputPriceStr = String(rowData['Input Price'] || '0');
+        // Parse input price (supports multiple column names)
+        const inputPriceStr = String(rowData['Price/Pack'] || rowData['Input Price'] || '0');
         const inputPrice = parseFloat(inputPriceStr.replace(/[$,]/g, ''));
-        console.log('Input Price:', inputPriceStr, '->', inputPrice);
+        console.log('Price/Pack:', inputPriceStr, '->', inputPrice);
         
-        // Parse per-unit prices
+        // Parse price per sheet
+        const pricePerSheetStr = String(rowData['Price/Sheet'] || '0');
+        const pricePerSheet = parseFloat(pricePerSheetStr.replace(/[$,]/g, ''));
+        console.log('Price/Sheet:', pricePerSheetStr, '->', pricePerSheet);
+        
+        // Parse per-unit prices (optional, will be calculated if zero)
         const pricePerSqInStr = String(rowData['Price/in²'] || '0');
         const pricePerSqIn = parseFloat(pricePerSqInStr.replace(/[$,]/g, ''));
-        console.log('Price/in²:', pricePerSqInStr, '->', pricePerSqIn);
         
         const pricePerSqFtStr = String(rowData['Price/ft²'] || '0');
         const pricePerSqFt = parseFloat(pricePerSqFtStr.replace(/[$,]/g, ''));
-        console.log('Price/ft²:', pricePerSqFtStr, '->', pricePerSqFt);
         
         const pricePerSqMeterStr = String(rowData['Price/m²'] || '0');
         const pricePerSqMeter = parseFloat(pricePerSqMeterStr.replace(/[$,]/g, ''));
-        console.log('Price/m²:', pricePerSqMeterStr, '->', pricePerSqMeter);
         
         // Parse dimensions 
         const widthStr = String(rowData.Width || '0');
@@ -2607,25 +2609,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         console.log('Dimensions:', widthStr, 'x', lengthStr, '->', width, 'x', length);
         
+        // Get unit from CSV or default to 'in'
+        const unit = rowData.Unit || 'in';
+        
         // Create competitor data object
         const competitorData = {
           type: rowData.Type || 'sheets',
-          dimensions: `${width} x ${length} in`,
+          dimensions: `${width} x ${length} ${unit}`,
           width: width,
           length: length,
-          unit: 'in',
+          unit: unit,
           packQty: parseInt(rowData['Pack Qty'] || '1') || 1,
           inputPrice: inputPrice,
           thickness: rowData.Thickness || 'N/A',
           productKind: rowData['Product Kind'] || 'Non Adhesive',
           surfaceFinish: rowData['Surface Finish'] || 'N/A',
-          supplierInfo: rowData['Supplier Info'] || 'N/A',
-          infoReceivedFrom: rowData['Info Received From'] || 'N/A',
+          supplierInfo: rowData['Supplier'] || rowData['Supplier Info'] || 'N/A',
+          infoReceivedFrom: rowData['Info From'] || rowData['Info Received From'] || 'N/A',
           pricePerSqIn: pricePerSqIn,
           pricePerSqFt: pricePerSqFt,
           pricePerSqMeter: pricePerSqMeter,
           notes: rowData.Notes || 'N/A',
-          source: 'CSV Upload',
+          source: rowData['Source'] || 'CSV Upload',
+          pricePerSheet: pricePerSheet,
           addedBy: (req.user as any)?.claims?.sub || 'admin'
         };
         

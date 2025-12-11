@@ -25,6 +25,7 @@ interface CompetitorData {
   unit?: string;
   packQty: number | string;
   inputPrice: number | string;
+  pricePerSheet?: number | string;
   thickness: string;
   productKind: string;
   surfaceFinish: string;

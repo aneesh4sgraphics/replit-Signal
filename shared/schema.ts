@@ -162,6 +162,7 @@ export const competitorPricing = pgTable("competitor_pricing", {
   unit: varchar("unit", { length: 10 }),
   packQty: integer("pack_qty").notNull(),
   inputPrice: decimal("input_price", { precision: 10, scale: 2 }).notNull(),
+  pricePerSheet: decimal("price_per_sheet", { precision: 10, scale: 4 }),
   thickness: varchar("thickness", { length: 50 }).notNull(),
   productKind: varchar("product_kind", { length: 100 }).notNull(),
   surfaceFinish: varchar("surface_finish", { length: 100 }).notNull(),
