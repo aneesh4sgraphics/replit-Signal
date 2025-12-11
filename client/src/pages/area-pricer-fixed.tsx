@@ -239,9 +239,6 @@ export default function AreaPricer() {
   };
 
   const addToCompInfo = async () => {
-    // Alert to confirm button click registration
-    alert("ADD TO COMP INFO button clicked! Function is working.");
-    
     if (calculations.length === 0) {
       toast({
         title: "No Data",
@@ -253,19 +250,22 @@ export default function AreaPricer() {
 
     setIsAddingToCompInfo(true);
 
-
     try {
       let successCount = 0;
       
       for (const calc of calculations) {
+        // Calculate pricePerSheet (Price/Pack ÷ Pack Qty)
+        const pricePerSheet = calc.packQty > 0 ? calc.inputPrice / calc.packQty : 0;
+        
         const entry = {
           type: calc.type,
-          dimensions: `${calc.width}" × ${calc.length}${calc.type === "roll" ? "'" : '"'}`, // Width always inches, length feet(') for rolls or inches(") for sheets
+          dimensions: `${calc.width}" × ${calc.length}${calc.type === "roll" ? "'" : '"'}`,
           width: calc.width,
           length: calc.length,
-          unit: calc.type === "roll" ? "in×ft" : "in×in", // Clarify mixed units for rolls
+          unit: calc.type === "roll" ? "in×ft" : "in×in",
           packQty: calc.packQty,
           inputPrice: calc.inputPrice,
+          pricePerSheet: pricePerSheet,
           thickness: calc.thickness,
           productKind: calc.productKind,
           surfaceFinish: calc.surfaceFinish,
@@ -274,8 +274,9 @@ export default function AreaPricer() {
           pricePerSqIn: calc.pricePerSqIn,
           pricePerSqFt: calc.pricePerSqFt,
           pricePerSqMeter: calc.pricePerSqMeter,
-          notes: calc.notes || "Added from Area Pricer",
-          source: "Area Pricer"
+          notes: calc.notes || "Added from SqM Calculator",
+          source: "SqM Calculator",
+          addedBy: (user as any)?.email || (user as any)?.id || "unknown"
         };
         
         const response = await fetch('/api/competitor-pricing', {
@@ -297,7 +298,7 @@ export default function AreaPricer() {
       
       toast({
         title: "Success!",
-        description: `Added ${successCount} entries to competitor pricing database`,
+        description: `Added ${successCount} entries to Market Prices`,
       });
       
       // Clear calculations after successful upload
@@ -306,7 +307,7 @@ export default function AreaPricer() {
     } catch (error) {
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to add calculations",
+        description: error instanceof Error ? error.message : "Failed to add to Market Prices",
         variant: "destructive",
       });
     } finally {
