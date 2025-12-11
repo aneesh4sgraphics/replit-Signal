@@ -1490,16 +1490,35 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               </div>
               <div className="flex gap-3">
                 <button
-                  onClick={handleDownloadPDF}
-                  disabled={isPDFGenerating}
+                  onClick={() => {
+                    if (!selectedCustomer) {
+                      toast({
+                        title: "Please select a client first 😊",
+                        description: "Choose a client from the Customer Selection section above before downloading the PDF.",
+                      });
+                      return;
+                    }
+                    handleDownloadPDF();
+                  }}
+                  disabled={isPDFGenerating || !selectedCustomer}
                   className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Download className="h-4 w-4" />
                   {isPDFGenerating ? 'Generating...' : 'Download PDF'}
                 </button>
                 <button
-                  onClick={handleEmailQuote}
-                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 transition-colors"
+                  onClick={() => {
+                    if (!selectedCustomer) {
+                      toast({
+                        title: "Please select a client first 😊",
+                        description: "Choose a client from the Customer Selection section above before sending an email.",
+                      });
+                      return;
+                    }
+                    handleEmailQuote();
+                  }}
+                  disabled={!selectedCustomer}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md border border-gray-300 bg-white text-sm font-medium text-gray-700 hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                 >
                   <Mail className="h-4 w-4" />
                   Email Quote
