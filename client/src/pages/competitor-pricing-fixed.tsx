@@ -486,88 +486,80 @@ export default function CompetitorPricing() {
         </div>
       </div>
 
-      {/* Filters */}
-      <Card className="mb-6">
-        <CardHeader>
-          <CardTitle className="flex items-center">
-            <Filter className="w-5 h-5 mr-2" />
-            Filter Data
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-4">
-            <div>
-              <Label htmlFor="supplier">Supplier</Label>
-              <Select value={supplierFilter} onValueChange={setSupplierFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All suppliers" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Suppliers</SelectItem>
-                  {suppliers.map(supplier => (
-                    <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="thickness">Thickness</Label>
-              <Select value={thicknessFilter} onValueChange={setThicknessFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All thicknesses" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Thicknesses</SelectItem>
-                  {thicknesses.map(thickness => (
-                    <SelectItem key={thickness} value={thickness}>{thickness}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="productKind">Product Kind</Label>
-              <Select value={productKindFilter} onValueChange={setProductKindFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All product kinds" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Product Kinds</SelectItem>
-                  {productKinds.map(kind => (
-                    <SelectItem key={kind} value={kind}>{kind}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            
-            <div>
-              <Label htmlFor="surfaceFinish">Surface Finish</Label>
-              <Select value={surfaceFinishFilter} onValueChange={setSurfaceFinishFilter}>
-                <SelectTrigger>
-                  <SelectValue placeholder="All finishes" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">All Surface Finishes</SelectItem>
-                  {surfaceFinishes.map(finish => (
-                    <SelectItem key={finish} value={finish}>{finish}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+      {/* Filters - Compact inline design */}
+      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        <div className="flex flex-wrap items-end gap-3">
+          <div className="flex-1 min-w-[160px] max-w-[200px]">
+            <Label htmlFor="supplier" className="text-xs text-gray-500 mb-1 block">Supplier</Label>
+            <Select value={supplierFilter} onValueChange={setSupplierFilter}>
+              <SelectTrigger className="h-9 bg-white">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Suppliers</SelectItem>
+                {suppliers.map(supplier => (
+                  <SelectItem key={supplier} value={supplier}>{supplier}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
           
-          <div className="flex justify-end mt-4">
-            <Button 
-              onClick={resetFilters} 
-              variant="outline"
-            >
-              <RotateCcw className="w-4 h-4 mr-2" />
-              Reset Filters
-            </Button>
+          <div className="flex-1 min-w-[140px] max-w-[180px]">
+            <Label htmlFor="thickness" className="text-xs text-gray-500 mb-1 block">Thickness</Label>
+            <Select value={thicknessFilter} onValueChange={setThicknessFilter}>
+              <SelectTrigger className="h-9 bg-white">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Thicknesses</SelectItem>
+                {thicknesses.map(thickness => (
+                  <SelectItem key={thickness} value={thickness}>{thickness}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
-        </CardContent>
-      </Card>
+          
+          <div className="flex-1 min-w-[160px] max-w-[200px]">
+            <Label htmlFor="productKind" className="text-xs text-gray-500 mb-1 block">Product Kind</Label>
+            <Select value={productKindFilter} onValueChange={setProductKindFilter}>
+              <SelectTrigger className="h-9 bg-white">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Product Kinds</SelectItem>
+                {productKinds.map(kind => (
+                  <SelectItem key={kind} value={kind}>{kind}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <div className="flex-1 min-w-[160px] max-w-[200px]">
+            <Label htmlFor="surfaceFinish" className="text-xs text-gray-500 mb-1 block">Surface Finish</Label>
+            <Select value={surfaceFinishFilter} onValueChange={setSurfaceFinishFilter}>
+              <SelectTrigger className="h-9 bg-white">
+                <SelectValue placeholder="All" />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="all">All Surface Finishes</SelectItem>
+                {surfaceFinishes.map(finish => (
+                  <SelectItem key={finish} value={finish}>{finish}</SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+          
+          <Button 
+            onClick={resetFilters} 
+            variant="ghost"
+            size="sm"
+            className="h-9 px-3 text-gray-500 hover:text-gray-700"
+          >
+            <RotateCcw className="w-3.5 h-3.5 mr-1" />
+            Reset
+          </Button>
+        </div>
+      </div>
 
       {/* Actions */}
       <div className="flex justify-between items-center mb-6">
