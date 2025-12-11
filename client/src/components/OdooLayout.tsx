@@ -107,16 +107,15 @@ function SettingsMenu() {
 
 export default function OdooLayout({ children }: OdooLayoutProps) {
   const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [isLoggingOut, setIsLoggingOut] = useState(false);
   const [location] = useLocation();
   const { user } = useAuth();
   
   const logout = () => {
-    queryClient.invalidateQueries({ queryKey: ['/api/product-pricing-database'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/sent-quotes'] });
-    queryClient.invalidateQueries({ queryKey: ['/api/upload-batches'] });
-    queryClient.clear();
+    if (isLoggingOut) return;
+    setIsLoggingOut(true);
     
+    queryClient.clear();
     localStorage.clear();
     sessionStorage.clear();
     window.location.href = '/api/logout';
@@ -234,12 +233,13 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
               <Button
                 variant="outline"
                 onClick={logout}
-                className="w-full justify-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
+                disabled={isLoggingOut}
+                className="w-full justify-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 disabled:opacity-50"
                 data-testid="button-logout"
                 aria-label="Log out of your account"
               >
                 <LogOut className="h-4 w-4" />
-                <span>Logout</span>
+                <span>{isLoggingOut ? 'Logging out...' : 'Logout'}</span>
               </Button>
             </div>
           ) : (
@@ -253,10 +253,11 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 variant="outline"
                 size="sm"
                 onClick={logout}
-                className="p-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg"
+                disabled={isLoggingOut}
+                className="p-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg disabled:opacity-50"
                 data-testid="button-logout"
                 aria-label="Log out of your account"
-                title="Logout"
+                title={isLoggingOut ? 'Logging out...' : 'Logout'}
               >
                 <LogOut className="h-4 w-4" />
               </Button>
