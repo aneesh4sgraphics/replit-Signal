@@ -5,9 +5,8 @@ import { Toaster } from "@/components/ui/toaster";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { MicroFeedbackProvider } from "@/components/MicroFeedbackProvider";
 import { useAuth } from "@/hooks/useAuth";
-import { useState, useEffect } from "react";
-import { FloatingCalculator } from "@/components/FloatingCalculator";
-import { AIChatbot, ChatbotToggle } from "@/components/AIChatbot";
+import { useEffect } from "react";
+// Removed: FloatingCalculator and AIChatbot per user request
 import { ServiceWorkerUpdater } from "@/components/ServiceWorkerUpdater";
 import { AuthWatcher } from "@/components/AuthWatcher";
 // Removed: FirecrackerAnimation import - animation removed per user request
@@ -154,8 +153,6 @@ function Router() {
 }
 
 function App() {
-  const [isChatbotOpen, setIsChatbotOpen] = useState(false);
-
   return (
     <QueryClientProvider client={queryClient}>
       <TooltipProvider>
@@ -163,16 +160,7 @@ function App() {
           <Toaster />
           <AuthWatcher />
           <Router />
-          <FloatingCalculator />
           <ServiceWorkerUpdater />
-          <ChatbotToggle 
-            onClick={() => setIsChatbotOpen(!isChatbotOpen)} 
-            isOpen={isChatbotOpen} 
-          />
-          <AIChatbot 
-            isOpen={isChatbotOpen} 
-            onToggle={() => setIsChatbotOpen(!isChatbotOpen)} 
-          />
         </MicroFeedbackProvider>
       </TooltipProvider>
     </QueryClientProvider>
