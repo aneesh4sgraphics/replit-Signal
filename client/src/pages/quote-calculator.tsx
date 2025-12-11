@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -397,9 +397,9 @@ export default function QuoteCalculator() {
   const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
 
   const [isPDFGenerating, setIsPDFGenerating] = useState(false);
-  const pdfAbortControllerRef = useRef<AbortController | null>(null);
   
   const handleDownloadPDF = async () => {
+    // Validate quote items first
     if (quoteItems.length === 0) {
       toast({
         title: "No Items",
@@ -409,6 +409,7 @@ export default function QuoteCalculator() {
       return;
     }
 
+    // Validate customer selection
     if (!selectedCustomer) {
       toast({
         title: "No Client Selected",
@@ -422,15 +423,6 @@ export default function QuoteCalculator() {
     if (isPDFGenerating) {
       return;
     }
-
-    // Abort any previous request
-    if (pdfAbortControllerRef.current) {
-      pdfAbortControllerRef.current.abort();
-    }
-
-    // Create new abort controller for this request
-    const abortController = new AbortController();
-    pdfAbortControllerRef.current = abortController;
 
     setIsPDFGenerating(true);
     
@@ -446,7 +438,6 @@ export default function QuoteCalculator() {
           'Content-Type': 'application/json',
         },
         credentials: 'include',
-        signal: abortController.signal,
         body: JSON.stringify({
           customerName,
           customerEmail: selectedCustomer?.email || null,
@@ -458,24 +449,12 @@ export default function QuoteCalculator() {
       if (!response.ok) {
         const errorText = await response.text();
         console.error('PDF Generation failed:', response.status, errorText);
-        toast({
-          title: "Error",
-          description: `Failed to generate PDF (Error ${response.status}). Please try again.`,
-          variant: "destructive",
-        });
-        setIsPDFGenerating(false);
-        return;
+        throw new Error(`Failed to generate PDF (Error ${response.status})`);
       }
       
       const blob = await response.blob();
       if (blob.size === 0) {
-        toast({
-          title: "Error",
-          description: "Received empty PDF. Please try again.",
-          variant: "destructive",
-        });
-        setIsPDFGenerating(false);
-        return;
+        throw new Error("Received empty PDF");
       }
       
       const url = URL.createObjectURL(blob);
@@ -493,34 +472,16 @@ export default function QuoteCalculator() {
         title: "PDF Downloaded",
         description: "Quote PDF has been downloaded successfully",
       });
-      setIsPDFGenerating(false);
       
     } catch (error) {
-      // Ignore abort errors
-      if (error instanceof Error && error.name === 'AbortError') {
-        console.log('PDF request was cancelled');
-        setIsPDFGenerating(false);
-        return;
-      }
       console.error('PDF Generation Error:', error);
-      
-      // Handle specific network errors
-      let errorMessage = "Failed to generate PDF. Please try again.";
-      if (error instanceof TypeError && error.message === 'Failed to fetch') {
-        errorMessage = "Network error - please check your connection and try again.";
-      } else if (error instanceof Error) {
-        errorMessage = error.message;
-      }
-      
       toast({
         title: "Error",
-        description: errorMessage,
+        description: error instanceof Error ? error.message : "Failed to generate PDF. Please try again.",
         variant: "destructive",
       });
-      setIsPDFGenerating(false);
     } finally {
-      // Clear the abort controller reference
-      pdfAbortControllerRef.current = null;
+      setIsPDFGenerating(false);
     }
   };
 
