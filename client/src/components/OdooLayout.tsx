@@ -217,8 +217,8 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
         {/* User Profile */}
         <div className="p-4 border-t border-gray-200">
           {sidebarOpen ? (
-            <div className="flex items-center justify-between p-3 rounded-lg bg-white border border-gray-200">
-              <div className="flex items-center gap-3">
+            <div className="space-y-3">
+              <div className="flex items-center gap-3 p-3 rounded-lg bg-white border border-gray-200">
                 <Avatar className="h-10 w-10 bg-black">
                   <AvatarFallback className="bg-black text-white font-semibold">
                     {userInitials}
@@ -232,13 +232,14 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 </div>
               </div>
               <Button
-                variant="ghost"
-                size="sm"
+                variant="outline"
                 onClick={logout}
-                className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg"
+                className="w-full justify-center gap-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700"
                 data-testid="button-logout"
+                aria-label="Log out of your account"
               >
                 <LogOut className="h-4 w-4" />
+                <span>Logout</span>
               </Button>
             </div>
           ) : (
@@ -249,11 +250,13 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 </AvatarFallback>
               </Avatar>
               <Button
-                variant="ghost"
+                variant="outline"
                 size="sm"
                 onClick={logout}
-                className="p-2 hover:bg-red-50 hover:text-red-600 rounded-lg"
+                className="p-2 text-red-600 border-red-200 hover:bg-red-50 hover:border-red-300 hover:text-red-700 rounded-lg"
                 data-testid="button-logout"
+                aria-label="Log out of your account"
+                title="Logout"
               >
                 <LogOut className="h-4 w-4" />
               </Button>
