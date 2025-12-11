@@ -87,6 +87,60 @@ export default function CompetitorPricing() {
     });
   };
   
+  // Calculate Price/m² from dimensions and price/sheet
+  const calculatePricePerM2 = (item: CompetitorData) => {
+    // If pricePerSqMeter exists and is not zero, use it
+    const existingPrice = parseFloat(String(item.pricePerSqMeter || 0));
+    if (existingPrice > 0) return existingPrice;
+    
+    // Calculate from dimensions
+    let widthIn = 0;
+    let lengthIn = 0;
+    
+    // Try to get width and length from item properties
+    if (item.width && item.length) {
+      widthIn = parseFloat(String(item.width)) || 0;
+      lengthIn = parseFloat(String(item.length)) || 0;
+      
+      // Convert if unit is not inches
+      const unit = (item.unit || 'in').toLowerCase();
+      if (unit === 'mm') {
+        widthIn = widthIn / 25.4;
+        lengthIn = lengthIn / 25.4;
+      } else if (unit === 'cm') {
+        widthIn = widthIn / 2.54;
+        lengthIn = lengthIn / 2.54;
+      } else if (unit === 'm') {
+        widthIn = widthIn * 39.3701;
+        lengthIn = lengthIn * 39.3701;
+      } else if (unit === 'ft') {
+        widthIn = widthIn * 12;
+        lengthIn = lengthIn * 12;
+      }
+    } else if (item.dimensions) {
+      // Parse dimensions string like "48 x 96" or "48x96"
+      const match = item.dimensions.match(/(\d+\.?\d*)\s*[xX×]\s*(\d+\.?\d*)/);
+      if (match) {
+        widthIn = parseFloat(match[1]) || 0;
+        lengthIn = parseFloat(match[2]) || 0;
+      }
+    }
+    
+    if (widthIn <= 0 || lengthIn <= 0) return 0;
+    
+    // Calculate area in m² (1 sq inch = 0.00064516 m²)
+    const areaM2 = widthIn * lengthIn * 0.00064516;
+    
+    // Calculate price per sheet
+    const pricePerSheet = item.pricePerSheet && parseFloat(String(item.pricePerSheet)) > 0 
+      ? parseFloat(String(item.pricePerSheet)) 
+      : (parseFloat(String(item.inputPrice)) / (parseInt(String(item.packQty)) || 1));
+    
+    if (areaM2 <= 0 || pricePerSheet <= 0) return 0;
+    
+    return pricePerSheet / areaM2;
+  };
+
   // Download CSV template
   const downloadTemplate = () => {
     const headers = ["Source", "Type", "Width", "Length", "Unit", "Pack Qty", "Price/Pack", "Price/Sheet", "Thickness", "Product Kind", "Surface Finish", "Supplier", "Info From", "Notes"];
@@ -385,7 +439,7 @@ export default function CompetitorPricing() {
           `"${item.surfaceFinish}"`,
           `"${item.supplierInfo}"`,
           `"${item.infoReceivedFrom}"`,
-          `$${parseFloat(item.pricePerSqMeter).toFixed(4)}`,
+          `$${calculatePricePerM2(item).toFixed(4)}`,
           `"${item.notes}"`,
           new Date(item.timestamp || item.createdAt).toLocaleDateString()
         ].join(",");
@@ -716,7 +770,7 @@ export default function CompetitorPricing() {
                     {visibleColumns.has('surfaceFinish') && <TableCell className="whitespace-nowrap">{item.surfaceFinish}</TableCell>}
                     {visibleColumns.has('supplier') && <TableCell className="whitespace-nowrap">{item.supplierInfo}</TableCell>}
                     {visibleColumns.has('infoFrom') && <TableCell className="whitespace-nowrap">{item.infoReceivedFrom}</TableCell>}
-                    {visibleColumns.has('priceM2') && <TableCell className="whitespace-nowrap">${parseFloat(item.pricePerSqMeter).toFixed(4)}</TableCell>}
+                    {visibleColumns.has('priceM2') && <TableCell className="whitespace-nowrap">${calculatePricePerM2(item).toFixed(4)}</TableCell>}
                     {visibleColumns.has('notes') && <TableCell className="max-w-32 truncate" title={item.notes}>{item.notes}</TableCell>}
                     {visibleColumns.has('date') && (
                       <TableCell className="whitespace-nowrap">
