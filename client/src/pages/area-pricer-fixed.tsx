@@ -675,7 +675,7 @@ export default function AreaPricer() {
                   className="bg-blue-600 hover:bg-blue-700 text-white"
                 >
                   <Plus className="w-4 h-4 mr-2" />
-                  {isAddingToCompInfo ? "Adding..." : "Add to Comp Info"}
+                  {isAddingToCompInfo ? "Adding..." : "Add to Market Prices"}
                 </Button>
               </div>
             </div>
