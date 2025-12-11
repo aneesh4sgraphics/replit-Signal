@@ -499,15 +499,28 @@ export default function QuoteCalculator() {
       // Ignore abort errors
       if (error instanceof Error && error.name === 'AbortError') {
         console.log('PDF request was cancelled');
+        setIsPDFGenerating(false);
         return;
       }
       console.error('PDF Generation Error:', error);
+      
+      // Handle specific network errors
+      let errorMessage = "Failed to generate PDF. Please try again.";
+      if (error instanceof TypeError && error.message === 'Failed to fetch') {
+        errorMessage = "Network error - please check your connection and try again.";
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+      
       toast({
         title: "Error",
-        description: error instanceof Error ? error.message : "Failed to generate PDF. Please try again.",
+        description: errorMessage,
         variant: "destructive",
       });
       setIsPDFGenerating(false);
+    } finally {
+      // Clear the abort controller reference
+      pdfAbortControllerRef.current = null;
     }
   };
 
