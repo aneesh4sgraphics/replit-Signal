@@ -765,20 +765,21 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
+    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-100">
       <div className="max-w-full mx-auto px-4 py-4 xl:px-8 xl:py-6">
-        {/* Floating elements for visual enhancement */}
-        <div className="mb-6 relative">
-          <FloatingElements />
-        </div>
-
         {/* Configure Product Section - Outside main layout */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-4">
-            <Calculator className="h-6 w-6 text-[#7E57C2]" />
-            <h1 className="heading-primary text-gray-800">Configure Product</h1>
+            <div className="p-3 bg-white/50 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60">
+              <Calculator className="h-7 w-7 text-purple-600" />
+            </div>
+            <div>
+              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent">
+                QuickQuotes
+              </h1>
+              <p className="text-sm text-gray-600/80">Configure products and generate professional quotes</p>
+            </div>
           </div>
-          <p className="body-regular text-gray-600 mb-6">Select your product specifications</p>
         </div>
 
         {/* No Results Banner */}
@@ -807,7 +808,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
       <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
         {/* Left Panel - Product Selection */}
         <div className="xl:col-span-2 lg:col-span-1">
-          <SimpleCardFrame className="p-6 mb-6">
+          <div className="bg-white/60 backdrop-blur-xl border border-white/50 shadow-xl shadow-purple-500/10 rounded-2xl p-6 mb-6">
             <div className="space-y-6">
               {/* Product Category */}
               <div className="space-y-2">
@@ -1005,12 +1006,12 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                 </div>
               )}
             </div>
-          </SimpleCardFrame>
+          </div>
         </div>
 
         {/* Right Panel - Quote Summary */}
         <div className="xl:col-span-3 lg:col-span-3">
-          <div className="border border-gray-200 rounded-lg p-6 bg-white mb-6">
+          <div className="bg-white/60 backdrop-blur-xl border border-white/50 shadow-xl shadow-blue-500/10 rounded-2xl p-6 mb-6">
             <h2 className="heading-secondary text-gray-800 mb-2">Quote Summary</h2>
             <p className="body-small text-gray-500 mb-6">Using default pricing</p>
             <div>
@@ -1263,12 +1264,12 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
       </div>
 
       {/* Customer Selection Section - Single Column */}
-      <SimpleCardFrame className="p-6 mb-6 bg-white border border-gray-100">
-        <h2 className="text-lg font-normal text-gray-800 mb-2 flex items-center gap-2">
-          <IconBadge icon={User} label="Customer Selection" className="px-0 py-0 bg-transparent border-none text-lg font-normal text-gray-800" />
+      <div className="bg-white/60 backdrop-blur-xl border border-white/50 shadow-xl shadow-indigo-500/10 rounded-2xl p-6 mb-6">
+        <h2 className="text-lg font-medium text-gray-800 mb-2 flex items-center gap-2">
+          <User className="h-5 w-5 text-indigo-600" />
+          Customer Selection
         </h2>
         <p className="text-sm text-gray-500 mb-6">Select a customer to generate quotes for</p>
-        <SectionDivider />
         
         <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
           {/* Customer Search */}
@@ -1332,11 +1333,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
             )}
           </div>
         </div>
-      </SimpleCardFrame>
+      </div>
 
       {/* Quote Items */}
       {quoteItems.length > 0 && (
-        <div className="border border-gray-200 rounded-lg p-6 bg-white mb-6">
+        <div className="bg-white/60 backdrop-blur-xl border border-white/50 shadow-xl shadow-green-500/10 rounded-2xl p-6 mb-6">
           <div className="flex items-center justify-between mb-2">
             <h2 className="text-lg font-medium text-gray-800">Quote Items</h2>
             <ProductOrderingDialog
