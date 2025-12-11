@@ -100,6 +100,7 @@ export default function QuoteCalculator() {
   const [customWidth, setCustomWidth] = useState<string>("");
   const [customHeight, setCustomHeight] = useState<string>("");
   const [filtersInitialized, setFiltersInitialized] = useState<boolean>(false);
+  const [sizeSortOrder, setSizeSortOrder] = useState<'default' | 'asc' | 'desc'>('default');
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -186,12 +187,18 @@ export default function QuoteCalculator() {
     ? Array.from(new Set(productData.filter(item => item.productName === selectedCategory).map(item => item.productType))).sort()
     : [];
 
-  // Get sizes for selected type
+  // Get sizes for selected type with sorting
   const availableSizes = selectedCategory && selectedType
     ? productData.filter(item => 
         item.productName === selectedCategory && 
         item.productType === selectedType
-      ).sort((a, b) => parseFloat(String(a.totalSqm || 0)) - parseFloat(String(b.totalSqm || 0)))
+      ).sort((a, b) => {
+        const sqmA = parseFloat(String(a.totalSqm || 0));
+        const sqmB = parseFloat(String(b.totalSqm || 0));
+        if (sizeSortOrder === 'asc') return sqmA - sqmB;
+        if (sizeSortOrder === 'desc') return sqmB - sqmA;
+        return sqmA - sqmB; // default is ascending by size
+      })
     : [];
 
   // Check if current filters produce no results
@@ -909,7 +916,20 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               {/* Size Selection */}
               {selectedType && (
                 <div className="space-y-2">
-                  <label className="block label-medium text-gray-800">Size</label>
+                  <div className="flex items-center justify-between">
+                    <label className="block label-medium text-gray-800">Size</label>
+                    <button
+                      onClick={() => {
+                        setSizeSortOrder(prev => prev === 'asc' ? 'desc' : 'asc');
+                      }}
+                      className="flex items-center gap-1 px-2 py-1 text-xs font-medium text-gray-600 hover:text-gray-800 hover:bg-gray-100 rounded transition-colors"
+                      title={sizeSortOrder === 'desc' ? 'Sorted: Largest first' : 'Sorted: Smallest first'}
+                      data-testid="button-sort-size"
+                    >
+                      <ArrowUpDown className="h-3 w-3" />
+                      {sizeSortOrder === 'desc' ? 'Largest first' : 'Smallest first'}
+                    </button>
+                  </div>
                   <Select 
                     value={selectedSize} 
                     onValueChange={(value) => {
