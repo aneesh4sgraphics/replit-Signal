@@ -367,11 +367,11 @@ export default function AreaPricer() {
               >
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="sheets" id="sheets" />
-                  <Label htmlFor="sheets" className="text-sm sm:text-base">Sheets (inches)</Label>
+                  <Label htmlFor="sheets" className="text-sm sm:text-base">Sheets <span className="text-xs font-normal text-gray-500">(inches)</span></Label>
                 </div>
                 <div className="flex items-center space-x-2">
                   <RadioGroupItem value="roll" id="roll" />
-                  <Label htmlFor="roll" className="text-sm sm:text-base">Roll (width: inches, length: feet)</Label>
+                  <Label htmlFor="roll" className="text-sm sm:text-base">Roll <span className="text-xs font-normal text-gray-500">(width: inches, length: feet)</span></Label>
                 </div>
               </RadioGroup>
             </div>
