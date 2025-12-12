@@ -55,6 +55,9 @@ export default function CompetitorPricing() {
   const [showDuplicates, setShowDuplicates] = useState(false);
   const [duplicateGroups, setDuplicateGroups] = useState<number[][]>([]);
   
+  // Bulk selection state
+  const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  
   // Column visibility state
   const allColumns = [
     { key: 'source', label: 'Source' },
@@ -267,6 +270,58 @@ export default function CompetitorPricing() {
   const handleDeleteEntry = (id: number) => {
     if (window.confirm("Are you sure you want to delete this entry?")) {
       deleteMutation.mutate(id);
+    }
+  };
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setSelectedIds(new Set());
+      toast({
+        title: "Success",
+        description: `${selectedIds.size} entries deleted successfully`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete some entries",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Bulk selection helpers
+  const toggleRowSelection = (id: number) => {
+    setSelectedIds(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(id)) {
+        newSet.delete(id);
+      } else {
+        newSet.add(id);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === filteredData.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(filteredData.map((item: any) => item.id)));
+    }
+  };
+
+  const handleBulkDelete = () => {
+    if (selectedIds.size === 0) return;
+    if (window.confirm(`Are you sure you want to delete ${selectedIds.size} entries?`)) {
+      bulkDeleteMutation.mutate(Array.from(selectedIds));
     }
   };
 
@@ -617,6 +672,17 @@ export default function CompetitorPricing() {
               Clear Highlighting
             </Button>
           )}
+          {isAdmin && selectedIds.size > 0 && (
+            <Button
+              onClick={handleBulkDelete}
+              disabled={bulkDeleteMutation.isPending}
+              className="bg-red-600 hover:bg-red-700"
+              data-testid="button-bulk-delete"
+            >
+              <Trash2 className="w-4 h-4 mr-2" />
+              {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
+            </Button>
+          )}
           <Popover>
             <PopoverTrigger asChild>
               <Button variant="outline">
@@ -698,6 +764,15 @@ export default function CompetitorPricing() {
             <Table className="min-w-full">
               <TableHeader>
                 <TableRow>
+                  {isAdmin && (
+                    <TableHead className="w-10">
+                      <Checkbox
+                        checked={selectedIds.size === filteredData.length && filteredData.length > 0}
+                        onCheckedChange={toggleSelectAll}
+                        data-testid="checkbox-select-all"
+                      />
+                    </TableHead>
+                  )}
                   {visibleColumns.has('source') && <TableHead className="whitespace-nowrap">Source</TableHead>}
                   {visibleColumns.has('type') && <TableHead className="whitespace-nowrap">Type</TableHead>}
                   {visibleColumns.has('dimensions') && <TableHead className="whitespace-nowrap">Dimensions</TableHead>}
@@ -718,6 +793,15 @@ export default function CompetitorPricing() {
               <TableBody>
                 {filteredData.map((item, index) => (
                   <TableRow key={item.id} className={getRowColor(index)}>
+                    {isAdmin && (
+                      <TableCell className="w-10">
+                        <Checkbox
+                          checked={selectedIds.has(item.id)}
+                          onCheckedChange={() => toggleRowSelection(item.id)}
+                          data-testid={`checkbox-row-${item.id}`}
+                        />
+                      </TableCell>
+                    )}
                     {visibleColumns.has('source') && <TableCell className="whitespace-nowrap">{item.source}</TableCell>}
                     {visibleColumns.has('type') && <TableCell className="whitespace-nowrap">{item.type}</TableCell>}
                     {visibleColumns.has('dimensions') && <TableCell className="whitespace-nowrap">{item.dimensions}</TableCell>}
