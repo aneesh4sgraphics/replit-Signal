@@ -125,7 +125,21 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
   };
 
   const isAdmin = (user as any)?.role === 'admin';
-  const userInitials = (user as any)?.email?.slice(0, 2).toUpperCase() || 'U';
+  
+  // Map users to their specific initials
+  const getUserInitials = (email: string | undefined): string => {
+    if (!email) return 'U';
+    const emailLower = email.toLowerCase();
+    if (emailLower.includes('aneesh')) return 'AP';
+    if (emailLower.includes('patricio')) return 'PD';
+    if (emailLower.includes('santiago')) return 'SC';
+    if (emailLower.includes('oscar')) return 'OA';
+    if (emailLower.includes('warehouse') || emailLower.includes('rey')) return 'RC';
+    if (emailLower.includes('gustavo')) return 'GR';
+    // Fallback: use first two characters of email
+    return email.slice(0, 2).toUpperCase();
+  };
+  const userInitials = getUserInitials((user as any)?.email);
 
   return (
     <div className="min-h-screen bg-white flex">
