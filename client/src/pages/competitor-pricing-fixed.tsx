@@ -578,32 +578,33 @@ export default function CompetitorPricing() {
   const isAdmin = user?.role === 'admin' || user?.email === 'aneesh@4sgraphics.com' || user?.email === 'oscar@4sgraphics.com';
 
   return (
-    <div className="container mx-auto p-6 max-w-7xl">
-      {/* Header */}
-      <div className="mb-8">
-        <div className="flex justify-between items-center mb-4">
-          <div className="flex items-center">
-            <div className="p-3 bg-orange-100 rounded-lg mr-4">
-              <TrendingUp className="h-8 w-8 text-orange-600" />
+    <div className="glass-container p-6">
+      <div className="max-w-7xl mx-auto relative z-10">
+        {/* Header */}
+        <div className="glass-card p-6 mb-8">
+          <div className="flex justify-between items-center">
+            <div className="flex items-center">
+              <div className="glass-icon-btn bg-gradient-to-br from-orange-400 to-orange-600 text-white mr-4">
+                <TrendingUp className="h-6 w-6" />
+              </div>
+              <div>
+                <h1 className="text-3xl font-bold text-gray-900">Market Prices</h1>
+                <p className="text-gray-600">Track, analyze, and contribute competitor pricing information</p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-3xl font-bold text-gray-900">Market Prices</h1>
-              <p className="text-gray-600">Track, analyze, and contribute competitor pricing information</p>
+            <div className="flex gap-2">
+              <Link href="/area-pricer">
+                <Button className="glass-button bg-gradient-to-r from-purple-500 to-purple-600 text-white hover:from-purple-600 hover:to-purple-700">
+                  <Plus className="w-4 h-4 mr-2" />
+                  Add New Entry
+                </Button>
+              </Link>
             </div>
-          </div>
-          <div className="flex gap-2">
-            <Link href="/area-pricer">
-              <Button className="bg-purple-600 hover:bg-purple-700 text-white">
-                <Plus className="w-4 h-4 mr-2" />
-                Add New Entry
-              </Button>
-            </Link>
           </div>
         </div>
-      </div>
 
-      {/* Filters - Compact inline design */}
-      <div className="mb-6 p-4 bg-gray-50 rounded-lg border border-gray-200">
+        {/* Filters - Compact inline design */}
+        <div className="glass-card-solid mb-6 p-4">
         <div className="flex flex-wrap items-end gap-3">
           <div className="flex-1 min-w-[160px] max-w-[200px]">
             <Label htmlFor="supplier" className="text-xs text-gray-500 mb-1 block">Supplier</Label>
@@ -874,18 +875,17 @@ export default function CompetitorPricing() {
           )}
         </div>
       </div>
+      </div>
 
       {/* Data Table */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center justify-between">
-            <span className="flex items-center">
-              <FileText className="w-5 h-5 mr-2" />
-              Competitor Pricing Data ({filteredData.length} entries)
-            </span>
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
+      <div className="glass-card p-6">
+        <div className="flex items-center justify-between mb-4">
+          <span className="flex items-center text-lg font-semibold text-gray-900">
+            <FileText className="w-5 h-5 mr-2" />
+            Competitor Pricing Data ({filteredData.length} entries)
+          </span>
+        </div>
+        <div>
           <div className="overflow-x-auto max-w-full">
             <Table className="min-w-full">
               <TableHeader>
@@ -992,15 +992,15 @@ export default function CompetitorPricing() {
               </div>
             )}
           </div>
-        </CardContent>
-      </Card>
+        </div>
+      </div>
 
       {/* Bulk Edit Modal */}
       <Dialog open={showBulkEditModal} onOpenChange={setShowBulkEditModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="glass-card-solid sm:max-w-md border-0">
           <DialogHeader>
-            <DialogTitle>Bulk Edit {selectedIds.size} Entries</DialogTitle>
-            <DialogDescription>
+            <DialogTitle className="text-gray-900">Bulk Edit {selectedIds.size} Entries</DialogTitle>
+            <DialogDescription className="text-gray-600">
               Select a field and enter the new value. This will update all selected entries.
             </DialogDescription>
           </DialogHeader>
@@ -1038,13 +1038,14 @@ export default function CompetitorPricing() {
                 setBulkEditField("");
                 setBulkEditValue("");
               }}
+              className="glass-button-outline"
             >
               Cancel
             </Button>
             <Button
               onClick={handleBulkEdit}
               disabled={!bulkEditField || bulkEditMutation.isPending}
-              className="bg-blue-600 hover:bg-blue-700"
+              className="glass-button bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"
             >
               {bulkEditMutation.isPending ? "Updating..." : "Update All"}
             </Button>

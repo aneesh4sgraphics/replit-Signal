@@ -132,181 +132,183 @@ export default function Dashboard() {
   });
 
   return (
-    <div className="space-y-12">
-      {/* Hero Section */}
-      <div className="space-y-4">
-        <div className="flex items-center gap-3">
-          <div className="icon-container icon-container-primary">
-            <Zap className="h-6 w-6" />
-          </div>
-          <div>
-            <h1 className="heading-lg">Welcome back, {firstName}</h1>
-            <p className="body-lg text-gray-600">Here's what's happening with your workspace today</p>
-          </div>
-        </div>
-      </div>
-
-      {/* Stats Grid */}
-      {!statsLoading && stats && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-          <div className="stat-card group hover:border-black hover:shadow-sm transition-all duration-200">
-            <div className="flex items-start justify-between mb-4">
-              <div className="icon-container bg-blue-50 text-blue-600">
-                <FileText className="h-5 w-5" />
-              </div>
-              <Activity className="h-4 w-4 text-gray-400" />
-            </div>
-            <div className="stat-value text-black">{stats.totalQuotes}</div>
-            <div className="stat-label">Total Quotes</div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="flex items-center gap-2 text-green-600 body-sm font-medium">
-                <TrendingUp className="h-4 w-4" />
-                {stats.quotesThisMonth} this month
-              </div>
-            </div>
-          </div>
-
-          <div className="stat-card group hover:border-black hover:shadow-sm transition-all duration-200">
-            <div className="flex items-start justify-between mb-4">
-              <div className="icon-container bg-green-50 text-green-600">
-                <DollarSign className="h-5 w-5" />
-              </div>
-              <Activity className="h-4 w-4 text-gray-400" />
-            </div>
-            <div className="stat-value text-black">${stats.monthlyRevenue.toLocaleString()}</div>
-            <div className="stat-label">Monthly Revenue</div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="body-sm text-gray-500">From {stats.quotesThisMonth} quotes</div>
-            </div>
-          </div>
-
-          <div className="stat-card group hover:border-black hover:shadow-sm transition-all duration-200">
-            <div className="flex items-start justify-between mb-4">
-              <div className="icon-container bg-purple-50 text-purple-600">
-                <Building2 className="h-5 w-5" />
-              </div>
-              <Activity className="h-4 w-4 text-gray-400" />
-            </div>
-            <div className="stat-value text-black">{stats.totalCustomers}</div>
-            <div className="stat-label">Total Customers</div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="body-sm text-gray-500">In your database</div>
-            </div>
-          </div>
-
-          <div className="stat-card group hover:border-black hover:shadow-sm transition-all duration-200">
-            <div className="flex items-start justify-between mb-4">
-              <div className="icon-container bg-amber-50 text-amber-600">
-                <Package className="h-5 w-5" />
-              </div>
-              <Activity className="h-4 w-4 text-gray-400" />
-            </div>
-            <div className="stat-value text-black">{stats.totalProducts}</div>
-            <div className="stat-label">Products</div>
-            <div className="mt-3 pt-3 border-t border-gray-100">
-              <div className="body-sm text-gray-500">Available items</div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Quick Actions */}
-      <div>
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h2 className="heading-md">Quick Actions</h2>
-            <p className="body-base text-gray-600 mt-1">Your most-used tools and features</p>
-          </div>
-        </div>
-
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-          {mainApps.map((app) => {
-            const Icon = app.icon;
-            return (
-              <Link 
-                key={app.path} 
-                href={app.path}
-                className="group modern-card hover:border-black hover:shadow-md cursor-pointer transition-all duration-200 block"
-              >
-                <div className="flex items-start justify-between mb-4">
-                  <div className={`icon-container ${app.color} text-white`}>
-                    <Icon className="h-6 w-6" />
-                  </div>
-                  <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-black group-hover:translate-x-1 transition-all duration-200" />
-                </div>
-                <h3 className="heading-sm mb-2 group-hover:text-primary transition-colors">{app.title}</h3>
-                <p className="body-sm text-gray-600">{app.description}</p>
-              </Link>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Admin Section */}
-      {isAdmin && (
-        <div>
-          <div className="flex items-center gap-3 mb-6">
-            <div className="icon-container bg-primary text-white">
-              <Settings className="h-5 w-5" />
+    <div className="glass-container p-6">
+      <div className="space-y-12 relative z-10">
+        {/* Hero Section */}
+        <div className="glass-card p-6 space-y-4">
+          <div className="flex items-center gap-3">
+            <div className="glass-icon-btn bg-gradient-to-br from-blue-500 to-indigo-600 text-white">
+              <Zap className="h-6 w-6" />
             </div>
             <div>
-              <h2 className="heading-md">Admin Tools</h2>
-              <p className="body-base text-gray-600">Manage system settings and data</p>
+              <h1 className="heading-lg">Welcome back, {firstName}</h1>
+              <p className="body-lg text-gray-600">Here's what's happening with your workspace today</p>
+            </div>
+          </div>
+        </div>
+
+        {/* Stats Grid */}
+        {!statsLoading && stats && (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
+            <div className="glass-stat p-6 group transition-all duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="glass-icon-btn bg-gradient-to-br from-blue-400 to-blue-600 text-white">
+                  <FileText className="h-5 w-5" />
+                </div>
+                <Activity className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="stat-value text-black">{stats.totalQuotes}</div>
+              <div className="stat-label">Total Quotes</div>
+              <div className="mt-3 pt-3 border-t border-gray-100/50">
+                <div className="flex items-center gap-2 text-green-600 body-sm font-medium">
+                  <TrendingUp className="h-4 w-4" />
+                  {stats.quotesThisMonth} this month
+                </div>
+              </div>
+            </div>
+
+            <div className="glass-stat p-6 group transition-all duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="glass-icon-btn bg-gradient-to-br from-green-400 to-green-600 text-white">
+                  <DollarSign className="h-5 w-5" />
+                </div>
+                <Activity className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="stat-value text-black">${stats.monthlyRevenue.toLocaleString()}</div>
+              <div className="stat-label">Monthly Revenue</div>
+              <div className="mt-3 pt-3 border-t border-gray-100/50">
+                <div className="body-sm text-gray-500">From {stats.quotesThisMonth} quotes</div>
+              </div>
+            </div>
+
+            <div className="glass-stat p-6 group transition-all duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="glass-icon-btn bg-gradient-to-br from-purple-400 to-purple-600 text-white">
+                  <Building2 className="h-5 w-5" />
+                </div>
+                <Activity className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="stat-value text-black">{stats.totalCustomers}</div>
+              <div className="stat-label">Total Customers</div>
+              <div className="mt-3 pt-3 border-t border-gray-100/50">
+                <div className="body-sm text-gray-500">In your database</div>
+              </div>
+            </div>
+
+            <div className="glass-stat p-6 group transition-all duration-200">
+              <div className="flex items-start justify-between mb-4">
+                <div className="glass-icon-btn bg-gradient-to-br from-amber-400 to-amber-600 text-white">
+                  <Package className="h-5 w-5" />
+                </div>
+                <Activity className="h-4 w-4 text-gray-400" />
+              </div>
+              <div className="stat-value text-black">{stats.totalProducts}</div>
+              <div className="stat-label">Products</div>
+              <div className="mt-3 pt-3 border-t border-gray-100/50">
+                <div className="body-sm text-gray-500">Available items</div>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Quick Actions */}
+        <div className="glass-card p-6">
+          <div className="flex items-center justify-between mb-6">
+            <div>
+              <h2 className="heading-md">Quick Actions</h2>
+              <p className="body-base text-gray-600 mt-1">Your most-used tools and features</p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {adminApps.map((app) => {
+            {mainApps.map((app) => {
               const Icon = app.icon;
               return (
                 <Link 
                   key={app.path} 
                   href={app.path}
-                  className="group bold-card hover:shadow-lg cursor-pointer transition-all duration-200 block"
+                  className="group glass-card-solid p-6 hover:shadow-lg cursor-pointer transition-all duration-200 block"
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div className={`icon-container ${app.color} text-white`}>
+                    <div className={`glass-icon-btn ${app.color} text-white`}>
                       <Icon className="h-6 w-6" />
                     </div>
-                    <Badge className="badge-modern badge-primary">Admin</Badge>
+                    <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-black group-hover:translate-x-1 transition-all duration-200" />
                   </div>
                   <h3 className="heading-sm mb-2 group-hover:text-primary transition-colors">{app.title}</h3>
                   <p className="body-sm text-gray-600">{app.description}</p>
-                  <div className="mt-4 pt-4 border-t border-gray-200 flex items-center text-primary font-medium body-sm group-hover:gap-2 transition-all duration-200">
-                    <span>Open</span>
-                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                  </div>
                 </Link>
               );
             })}
           </div>
         </div>
-      )}
 
-      {/* Quick Stats Banner */}
-      {stats && (
-        <div className="accent-card">
-          <div className="flex items-center justify-between">
-            <div>
-              <h3 className="heading-sm text-white mb-2">You're doing great!</h3>
-              <p className="body-base text-white/90">
-                {stats.activityCount} actions logged this session. Keep up the momentum!
-              </p>
-            </div>
-            <div className="hidden md:flex items-center gap-8">
-              <div className="text-center">
-                <div className="text-3xl font-bold text-white">{stats.quotesThisMonth}</div>
-                <div className="text-sm text-white/80">Quotes</div>
+        {/* Admin Section */}
+        {isAdmin && (
+          <div className="glass-card p-6">
+            <div className="flex items-center gap-3 mb-6">
+              <div className="glass-icon-btn bg-gradient-to-br from-indigo-500 to-indigo-700 text-white">
+                <Settings className="h-5 w-5" />
               </div>
-              <div className="w-px h-12 bg-white/20"></div>
-              <div className="text-center">
-                <div className="text-3xl font-bold text-white">{stats.totalCustomers}</div>
-                <div className="text-sm text-white/80">Customers</div>
+              <div>
+                <h2 className="heading-md">Admin Tools</h2>
+                <p className="body-base text-gray-600">Manage system settings and data</p>
+              </div>
+            </div>
+
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+              {adminApps.map((app) => {
+                const Icon = app.icon;
+                return (
+                  <Link 
+                    key={app.path} 
+                    href={app.path}
+                    className="group glass-card-solid p-6 hover:shadow-lg cursor-pointer transition-all duration-200 block border-2 border-transparent hover:border-indigo-200"
+                  >
+                    <div className="flex items-start justify-between mb-4">
+                      <div className={`glass-icon-btn ${app.color} text-white`}>
+                        <Icon className="h-6 w-6" />
+                      </div>
+                      <Badge className="glass-badge text-indigo-600">Admin</Badge>
+                    </div>
+                    <h3 className="heading-sm mb-2 group-hover:text-primary transition-colors">{app.title}</h3>
+                    <p className="body-sm text-gray-600">{app.description}</p>
+                    <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center text-primary font-medium body-sm group-hover:gap-2 transition-all duration-200">
+                      <span>Open</span>
+                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          </div>
+        )}
+
+        {/* Quick Stats Banner */}
+        {stats && (
+          <div className="glass-card p-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none">
+            <div className="flex items-center justify-between">
+              <div>
+                <h3 className="heading-sm text-white mb-2">You're doing great!</h3>
+                <p className="body-base text-white/90">
+                  {stats.activityCount} actions logged this session. Keep up the momentum!
+                </p>
+              </div>
+              <div className="hidden md:flex items-center gap-8">
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white">{stats.quotesThisMonth}</div>
+                  <div className="text-sm text-white/80">Quotes</div>
+                </div>
+                <div className="w-px h-12 bg-white/20"></div>
+                <div className="text-center">
+                  <div className="text-3xl font-bold text-white">{stats.totalCustomers}</div>
+                  <div className="text-sm text-white/80">Customers</div>
+                </div>
               </div>
             </div>
           </div>
-        </div>
-      )}
+        )}
+      </div>
     </div>
   );
 }
