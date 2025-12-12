@@ -59,10 +59,18 @@ export default function CompetitorPricing() {
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
   
-  // Bulk edit state
+  // Bulk edit state - now supports multiple fields
   const [showBulkEditModal, setShowBulkEditModal] = useState(false);
-  const [bulkEditField, setBulkEditField] = useState("");
-  const [bulkEditValue, setBulkEditValue] = useState("");
+  const [bulkEditFields, setBulkEditFields] = useState<Record<string, string>>({
+    type: '',
+    thickness: '',
+    productKind: '',
+    surfaceFinish: '',
+    supplierInfo: '',
+    infoReceivedFrom: '',
+    notes: '',
+    source: '',
+  });
   
   // Column visibility state
   const allColumns = [
@@ -331,17 +339,25 @@ export default function CompetitorPricing() {
     }
   };
 
-  // Bulk edit mutation
+  // Bulk edit mutation - supports multiple fields
   const bulkEditMutation = useMutation({
-    mutationFn: async ({ ids, field, value }: { ids: number[]; field: string; value: string }) => {
-      await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", { ids, field, value });
+    mutationFn: async ({ ids, fields }: { ids: number[]; fields: Record<string, string> }) => {
+      await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", { ids, fields });
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
       setSelectedIds(new Set());
       setShowBulkEditModal(false);
-      setBulkEditField("");
-      setBulkEditValue("");
+      setBulkEditFields({
+        type: '',
+        thickness: '',
+        productKind: '',
+        surfaceFinish: '',
+        supplierInfo: '',
+        infoReceivedFrom: '',
+        notes: '',
+        source: '',
+      });
       toast({
         title: "Success",
         description: `${selectedIds.size} entries updated successfully`,
@@ -357,15 +373,19 @@ export default function CompetitorPricing() {
   });
 
   const handleBulkEdit = () => {
-    if (selectedIds.size === 0 || !bulkEditField) return;
+    if (selectedIds.size === 0) return;
+    // Filter out empty fields
+    const fieldsToUpdate = Object.fromEntries(
+      Object.entries(bulkEditFields).filter(([_, value]) => value !== '')
+    );
+    if (Object.keys(fieldsToUpdate).length === 0) return;
     bulkEditMutation.mutate({
       ids: Array.from(selectedIds),
-      field: bulkEditField,
-      value: bulkEditValue
+      fields: fieldsToUpdate
     });
   };
 
-  // Editable fields for bulk edit
+  // Editable fields for bulk edit with their dropdown options getter
   const editableFields = [
     { key: 'type', label: 'Type' },
     { key: 'thickness', label: 'Thickness' },
@@ -378,9 +398,9 @@ export default function CompetitorPricing() {
   ];
 
   // Get filter options using useMemo to prevent recalculation
-  const { suppliers, thicknesses, productKinds, surfaceFinishes, sizes } = useMemo(() => {
+  const { suppliers, thicknesses, productKinds, surfaceFinishes, sizes, types, sources, infoFromOptions } = useMemo(() => {
     if (!competitorData || !Array.isArray(competitorData)) {
-      return { suppliers: [], thicknesses: [], productKinds: [], surfaceFinishes: [], sizes: [] };
+      return { suppliers: [], thicknesses: [], productKinds: [], surfaceFinishes: [], sizes: [], types: [], sources: [], infoFromOptions: [] };
     }
 
     return {
@@ -389,8 +409,25 @@ export default function CompetitorPricing() {
       productKinds: [...new Set(competitorData.map(item => item.productKind).filter(Boolean))].sort(),
       surfaceFinishes: [...new Set(competitorData.map(item => item.surfaceFinish).filter(Boolean))].sort(),
       sizes: [...new Set(competitorData.map(item => item.dimensions).filter(Boolean))].sort(),
+      types: [...new Set(competitorData.map(item => item.type).filter(Boolean))].sort(),
+      sources: [...new Set(competitorData.map(item => item.source).filter(Boolean))].sort(),
+      infoFromOptions: [...new Set(competitorData.map(item => item.infoReceivedFrom).filter(Boolean))].sort(),
     };
   }, [competitorData]);
+
+  // Map field keys to their dropdown options
+  const getFieldOptions = (fieldKey: string): string[] => {
+    switch (fieldKey) {
+      case 'type': return types;
+      case 'thickness': return thicknesses;
+      case 'productKind': return productKinds;
+      case 'surfaceFinish': return surfaceFinishes;
+      case 'supplierInfo': return suppliers;
+      case 'infoReceivedFrom': return infoFromOptions;
+      case 'source': return sources;
+      default: return [];
+    }
+  };
 
   // Filter data using useMemo
   const filteredData = useMemo(() => {
@@ -995,48 +1032,76 @@ export default function CompetitorPricing() {
         </div>
       </div>
 
-      {/* Bulk Edit Modal */}
+      {/* Bulk Edit Modal - All Fields */}
       <Dialog open={showBulkEditModal} onOpenChange={setShowBulkEditModal}>
-        <DialogContent className="glass-card-solid sm:max-w-md border-0">
+        <DialogContent className="glass-card-solid sm:max-w-2xl border-0 max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="text-gray-900">Bulk Edit {selectedIds.size} Entries</DialogTitle>
             <DialogDescription className="text-gray-600">
-              Select a field and enter the new value. This will update all selected entries.
+              Edit any fields below. Only filled fields will be updated. Leave fields empty to keep their current values.
             </DialogDescription>
           </DialogHeader>
-          <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="bulk-edit-field">Field to Update</Label>
-              <Select value={bulkEditField} onValueChange={setBulkEditField}>
-                <SelectTrigger id="bulk-edit-field">
-                  <SelectValue placeholder="Select field..." />
-                </SelectTrigger>
-                <SelectContent>
-                  {editableFields.map(field => (
-                    <SelectItem key={field.key} value={field.key}>
-                      {field.label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="bulk-edit-value">New Value</Label>
-              <Input
-                id="bulk-edit-value"
-                value={bulkEditValue}
-                onChange={(e) => setBulkEditValue(e.target.value)}
-                placeholder="Enter new value..."
-              />
-            </div>
+          <div className="grid grid-cols-2 gap-4 py-4">
+            {editableFields.map(field => {
+              const options = getFieldOptions(field.key);
+              const isTextField = field.key === 'notes';
+              
+              return (
+                <div key={field.key} className="space-y-2">
+                  <Label htmlFor={`bulk-edit-${field.key}`} className="text-sm font-medium text-gray-700">
+                    {field.label}
+                  </Label>
+                  {isTextField ? (
+                    <Input
+                      id={`bulk-edit-${field.key}`}
+                      value={bulkEditFields[field.key] || ''}
+                      onChange={(e) => setBulkEditFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                      className="bg-white"
+                    />
+                  ) : options.length > 0 ? (
+                    <Select 
+                      value={bulkEditFields[field.key] || ''} 
+                      onValueChange={(val) => setBulkEditFields(prev => ({ ...prev, [field.key]: val === '__clear__' ? '' : val }))}
+                    >
+                      <SelectTrigger id={`bulk-edit-${field.key}`} className="bg-white">
+                        <SelectValue placeholder={`Select ${field.label.toLowerCase()}...`} />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__clear__" className="text-gray-400">-- Leave unchanged --</SelectItem>
+                        {options.map(opt => (
+                          <SelectItem key={opt} value={opt}>{opt}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      id={`bulk-edit-${field.key}`}
+                      value={bulkEditFields[field.key] || ''}
+                      onChange={(e) => setBulkEditFields(prev => ({ ...prev, [field.key]: e.target.value }))}
+                      placeholder={`Enter ${field.label.toLowerCase()}...`}
+                      className="bg-white"
+                    />
+                  )}
+                </div>
+              );
+            })}
           </div>
-          <DialogFooter>
+          <DialogFooter className="gap-2">
             <Button
               variant="outline"
               onClick={() => {
                 setShowBulkEditModal(false);
-                setBulkEditField("");
-                setBulkEditValue("");
+                setBulkEditFields({
+                  type: '',
+                  thickness: '',
+                  productKind: '',
+                  surfaceFinish: '',
+                  supplierInfo: '',
+                  infoReceivedFrom: '',
+                  notes: '',
+                  source: '',
+                });
               }}
               className="glass-button-outline"
             >
@@ -1044,7 +1109,7 @@ export default function CompetitorPricing() {
             </Button>
             <Button
               onClick={handleBulkEdit}
-              disabled={!bulkEditField || bulkEditMutation.isPending}
+              disabled={Object.values(bulkEditFields).every(v => !v) || bulkEditMutation.isPending}
               className="glass-button bg-gradient-to-r from-blue-500 to-blue-600 text-white hover:from-blue-600 hover:to-blue-700"
             >
               {bulkEditMutation.isPending ? "Updating..." : "Update All"}

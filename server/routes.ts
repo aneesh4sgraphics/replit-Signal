@@ -2532,17 +2532,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Bulk update competitor pricing entries
+  // Bulk update competitor pricing entries (supports multiple fields)
   app.patch("/api/competitor-pricing/bulk-update", requireAdmin, async (req, res) => {
     try {
-      const { ids, field, value } = req.body;
+      const { ids, field, value, fields } = req.body;
       
       if (!ids || !Array.isArray(ids) || ids.length === 0) {
         return res.status(400).json({ error: "No entries selected" });
-      }
-      
-      if (!field) {
-        return res.status(400).json({ error: "No field specified" });
       }
       
       // Allowed fields for bulk update
@@ -2550,6 +2546,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
         'type', 'thickness', 'productKind', 'surfaceFinish', 
         'supplierInfo', 'infoReceivedFrom', 'notes', 'source'
       ];
+      
+      // Handle multi-field update (new format)
+      if (fields && typeof fields === 'object') {
+        const updateData: any = {};
+        for (const [fieldKey, fieldValue] of Object.entries(fields)) {
+          if (allowedFields.includes(fieldKey) && fieldValue !== undefined && fieldValue !== '') {
+            updateData[fieldKey] = fieldValue;
+          }
+        }
+        
+        if (Object.keys(updateData).length === 0) {
+          return res.status(400).json({ error: "No valid fields provided for update" });
+        }
+        
+        let updatedCount = 0;
+        for (const id of ids) {
+          await storage.updateCompetitorPricing(id, updateData);
+          updatedCount++;
+        }
+        
+        res.json({ 
+          message: `Successfully updated ${updatedCount} entries`,
+          updatedCount,
+          fieldsUpdated: Object.keys(updateData)
+        });
+        return;
+      }
+      
+      // Handle single field update (legacy format)
+      if (!field) {
+        return res.status(400).json({ error: "No field specified" });
+      }
       
       if (!allowedFields.includes(field)) {
         return res.status(400).json({ error: `Field '${field}' is not allowed for bulk update` });
