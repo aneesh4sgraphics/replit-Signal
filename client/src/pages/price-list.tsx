@@ -424,8 +424,9 @@ export default function PriceList() {
   // Generate price list when category or tier changes
   useEffect(() => {
     if (!selectedCategory || !selectedTier || !productData.length) {
-      setPriceListItems([]);
-      setOrderedItems([]); // Reset ordered items when selections change
+      // Use functional update to avoid stale closure issues
+      setPriceListItems(prev => prev.length > 0 ? [] : prev);
+      setOrderedItems(prev => prev.length > 0 ? [] : prev);
       return;
     }
 

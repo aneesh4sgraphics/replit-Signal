@@ -499,10 +499,10 @@ function getCategoryDisplayName(productName: string, productType: string): strin
 export async function generatePriceListHTML(data: any): Promise<string> {
   const { categoryName, tierName, items, customerName, title = "PRICE LIST", quoteNumber } = data;
 
-  // Format dates
+  // Format dates - Issue date is when PDF is generated, validity is 2 months from issue
   const issueDate = new Date();
   const validUntil = new Date(issueDate);
-  validUntil.setMonth(validUntil.getMonth() + 6);
+  validUntil.setMonth(validUntil.getMonth() + 2);
   
   const formatDate = (d: Date) => d.toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' });
   const issueDateStr = formatDate(issueDate);
