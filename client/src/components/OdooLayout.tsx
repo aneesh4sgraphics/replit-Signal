@@ -46,20 +46,20 @@ interface OdooLayoutProps {
 }
 
 const mainItems = [
-  { path: '/', icon: Home, label: 'Dashboard' },
-  { path: '/quick-quotes', icon: FileText, label: 'QuickQuotes' },
-  { path: '/price-list', icon: DollarSign, label: 'Price List' },
-  { path: '/saved-quotes', icon: FileText, label: 'Saved Quotes' },
-  { path: '/clients', icon: Building2, label: 'Client Database' },
-  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator' },
-  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices' },
-  { path: '/shipping-calculator', icon: Truck, label: 'Shipping Calculator' },
+  { path: '/', icon: Home, label: 'Dashboard', color: 'from-blue-400 to-indigo-600' },
+  { path: '/quick-quotes', icon: FileText, label: 'QuickQuotes', color: 'from-emerald-400 to-teal-600' },
+  { path: '/price-list', icon: DollarSign, label: 'Price List', color: 'from-green-400 to-green-600' },
+  { path: '/saved-quotes', icon: FileText, label: 'Saved Quotes', color: 'from-violet-400 to-purple-600' },
+  { path: '/clients', icon: Building2, label: 'Client Database', color: 'from-cyan-400 to-blue-600' },
+  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: 'from-pink-400 to-rose-600' },
+  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: 'from-amber-400 to-orange-600' },
+  { path: '/shipping-calculator', icon: Truck, label: 'Shipping Calculator', color: 'from-sky-400 to-blue-600' },
 ];
 
 const adminItems = [
-  { path: '/admin', icon: Users, label: 'User Management' },
-  { path: '/activity-logs', icon: Activity, label: 'Activity Logs' },
-  { path: '/product-pricing-management', icon: Database, label: 'Product Pricing' },
+  { path: '/admin', icon: Users, label: 'User Management', color: 'from-red-400 to-rose-600' },
+  { path: '/activity-logs', icon: Activity, label: 'Activity Logs', color: 'from-lime-400 to-green-600' },
+  { path: '/product-pricing-management', icon: Database, label: 'Product Pricing', color: 'from-orange-400 to-red-500' },
 ];
 
 function SettingsMenu() {
@@ -169,17 +169,19 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                 <Link 
                   key={item.path} 
                   href={item.path}
-                  className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
+                  className={`group flex items-center ${sidebarOpen ? 'justify-between px-3 py-2' : 'justify-center px-2 py-3'} rounded-xl transition-all duration-200 cursor-pointer ${
                     isActive 
-                      ? 'bg-black text-white shadow-sm'
-                      : 'text-gray-700 hover:bg-gray-200'
+                      ? 'bg-gray-100 shadow-sm'
+                      : 'hover:bg-gray-100'
                   }`}
                 >
                   <div className="flex items-center gap-3">
-                    <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
-                    {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
+                    <div className={`${sidebarOpen ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-md transition-all duration-200`}>
+                      <Icon className={`${sidebarOpen ? 'h-4 w-4' : 'h-5 w-5'} text-white`} />
+                    </div>
+                    {sidebarOpen && <span className={`font-medium body-sm ${isActive ? 'text-black' : 'text-gray-700'}`}>{item.label}</span>}
                   </div>
-                  {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
+                  {sidebarOpen && isActive && <ChevronRight className="h-4 w-4 text-gray-500" />}
                 </Link>
               );
             })}
@@ -199,17 +201,19 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
                   <Link 
                     key={item.path} 
                     href={item.path}
-                    className={`group flex items-center ${sidebarOpen ? 'justify-between px-4 py-3' : 'justify-center px-3 py-4'} rounded-lg transition-all duration-200 cursor-pointer ${
+                    className={`group flex items-center ${sidebarOpen ? 'justify-between px-3 py-2' : 'justify-center px-2 py-3'} rounded-xl transition-all duration-200 cursor-pointer ${
                       isActive 
-                        ? 'bg-primary text-white shadow-sm'
-                        : 'text-gray-700 hover:bg-gray-200'
+                        ? 'bg-gray-100 shadow-sm'
+                        : 'hover:bg-gray-100'
                     }`}
                   >
                     <div className="flex items-center gap-3">
-                      <Icon className={`${sidebarOpen ? 'h-5 w-5' : 'h-6 w-6'} transition-all duration-200 ${isActive ? 'text-white' : 'text-gray-600'}`} />
-                      {sidebarOpen && <span className="font-medium body-sm">{item.label}</span>}
+                      <div className={`${sidebarOpen ? 'w-9 h-9' : 'w-10 h-10'} rounded-xl bg-gradient-to-br ${item.color} flex items-center justify-center shadow-md transition-all duration-200`}>
+                        <Icon className={`${sidebarOpen ? 'h-4 w-4' : 'h-5 w-5'} text-white`} />
+                      </div>
+                      {sidebarOpen && <span className={`font-medium body-sm ${isActive ? 'text-black' : 'text-gray-700'}`}>{item.label}</span>}
                     </div>
-                    {sidebarOpen && isActive && <ChevronRight className="h-4 w-4" />}
+                    {sidebarOpen && isActive && <ChevronRight className="h-4 w-4 text-gray-500" />}
                   </Link>
                 );
               })}
