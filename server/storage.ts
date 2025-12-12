@@ -104,6 +104,7 @@ export interface IStorage {
   getCompetitorPricing(): Promise<CompetitorPricing[]>;
   getCompetitorPricingById(id: number): Promise<CompetitorPricing | undefined>;
   createCompetitorPricing(pricing: InsertCompetitorPricing): Promise<CompetitorPricing>;
+  updateCompetitorPricing(id: number, data: Partial<InsertCompetitorPricing>): Promise<CompetitorPricing | undefined>;
   deleteCompetitorPricing(id: number): Promise<boolean>;
   
   // File Upload Tracking
@@ -367,6 +368,15 @@ export class DatabaseStorage implements IStorage {
       .delete(competitorPricing)
       .where(eq(competitorPricing.id, id));
     return (result.rowCount || 0) > 0;
+  }
+
+  async updateCompetitorPricing(id: number, data: Partial<InsertCompetitorPricing>): Promise<CompetitorPricing | undefined> {
+    const [result] = await db
+      .update(competitorPricing)
+      .set(data)
+      .where(eq(competitorPricing.id, id))
+      .returning();
+    return result;
   }
 
   // All methods now use database operations directly

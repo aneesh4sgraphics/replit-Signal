@@ -2532,6 +2532,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk update competitor pricing entries
+  app.patch("/api/competitor-pricing/bulk-update", requireAdmin, async (req, res) => {
+    try {
+      const { ids, field, value } = req.body;
+      
+      if (!ids || !Array.isArray(ids) || ids.length === 0) {
+        return res.status(400).json({ error: "No entries selected" });
+      }
+      
+      if (!field) {
+        return res.status(400).json({ error: "No field specified" });
+      }
+      
+      // Allowed fields for bulk update
+      const allowedFields = [
+        'type', 'thickness', 'productKind', 'surfaceFinish', 
+        'supplierInfo', 'infoReceivedFrom', 'notes', 'source'
+      ];
+      
+      if (!allowedFields.includes(field)) {
+        return res.status(400).json({ error: `Field '${field}' is not allowed for bulk update` });
+      }
+      
+      let updatedCount = 0;
+      for (const id of ids) {
+        const updateData: any = {};
+        updateData[field] = value || '';
+        await storage.updateCompetitorPricing(id, updateData);
+        updatedCount++;
+      }
+      
+      res.json({ 
+        message: `Successfully updated ${updatedCount} entries`,
+        updatedCount 
+      });
+    } catch (error) {
+      console.error("Error bulk updating competitor pricing:", error);
+      res.status(500).json({ error: "Failed to bulk update competitor pricing" });
+    }
+  });
+
   // Upload competitor pricing data directly from competitor pricing page
   app.post("/api/upload-competitor-pricing", requireAdmin, upload.single('file'), async (req, res) => {
     try {

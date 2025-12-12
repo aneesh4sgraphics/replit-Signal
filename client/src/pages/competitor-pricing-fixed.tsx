@@ -5,10 +5,11 @@ import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
-import { TrendingUp, Filter, Plus, RotateCcw, Sheet, Trash2, Upload, FileText, Search, Download, Settings2 } from "lucide-react";
+import { TrendingUp, Filter, Plus, RotateCcw, Sheet, Trash2, Upload, FileText, Search, Download, Settings2, Edit } from "lucide-react";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogDescription } from "@/components/ui/dialog";
 import { RippleButton } from "@/components/ui/micro-interactions";
 import { useAuth } from "@/hooks/useAuth";
 import { Link } from "wouter";
@@ -57,6 +58,11 @@ export default function CompetitorPricing() {
   
   // Bulk selection state
   const [selectedIds, setSelectedIds] = useState<Set<number>>(new Set());
+  
+  // Bulk edit state
+  const [showBulkEditModal, setShowBulkEditModal] = useState(false);
+  const [bulkEditField, setBulkEditField] = useState("");
+  const [bulkEditValue, setBulkEditValue] = useState("");
   
   // Column visibility state
   const allColumns = [
@@ -324,6 +330,52 @@ export default function CompetitorPricing() {
       bulkDeleteMutation.mutate(Array.from(selectedIds));
     }
   };
+
+  // Bulk edit mutation
+  const bulkEditMutation = useMutation({
+    mutationFn: async ({ ids, field, value }: { ids: number[]; field: string; value: string }) => {
+      await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", { ids, field, value });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setSelectedIds(new Set());
+      setShowBulkEditModal(false);
+      setBulkEditField("");
+      setBulkEditValue("");
+      toast({
+        title: "Success",
+        description: `${selectedIds.size} entries updated successfully`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update entries",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleBulkEdit = () => {
+    if (selectedIds.size === 0 || !bulkEditField) return;
+    bulkEditMutation.mutate({
+      ids: Array.from(selectedIds),
+      field: bulkEditField,
+      value: bulkEditValue
+    });
+  };
+
+  // Editable fields for bulk edit
+  const editableFields = [
+    { key: 'type', label: 'Type' },
+    { key: 'thickness', label: 'Thickness' },
+    { key: 'productKind', label: 'Product Kind' },
+    { key: 'surfaceFinish', label: 'Surface Finish' },
+    { key: 'supplierInfo', label: 'Supplier' },
+    { key: 'infoReceivedFrom', label: 'Info From' },
+    { key: 'notes', label: 'Notes' },
+    { key: 'source', label: 'Source' },
+  ];
 
   // Get filter options using useMemo to prevent recalculation
   const { suppliers, thicknesses, productKinds, surfaceFinishes, sizes } = useMemo(() => {
@@ -673,15 +725,26 @@ export default function CompetitorPricing() {
             </Button>
           )}
           {isAdmin && selectedIds.size > 0 && (
-            <Button
-              onClick={handleBulkDelete}
-              disabled={bulkDeleteMutation.isPending}
-              className="bg-red-600 hover:bg-red-700"
-              data-testid="button-bulk-delete"
-            >
-              <Trash2 className="w-4 h-4 mr-2" />
-              {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
-            </Button>
+            <>
+              <Button
+                onClick={() => setShowBulkEditModal(true)}
+                disabled={bulkEditMutation.isPending}
+                className="bg-blue-600 hover:bg-blue-700"
+                data-testid="button-bulk-edit"
+              >
+                <Edit className="w-4 h-4 mr-2" />
+                {bulkEditMutation.isPending ? "Updating..." : `Edit Selected (${selectedIds.size})`}
+              </Button>
+              <Button
+                onClick={handleBulkDelete}
+                disabled={bulkDeleteMutation.isPending}
+                className="bg-red-600 hover:bg-red-700"
+                data-testid="button-bulk-delete"
+              >
+                <Trash2 className="w-4 h-4 mr-2" />
+                {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
+              </Button>
+            </>
           )}
           <Popover>
             <PopoverTrigger asChild>
@@ -868,6 +931,63 @@ export default function CompetitorPricing() {
           </div>
         </CardContent>
       </Card>
+
+      {/* Bulk Edit Modal */}
+      <Dialog open={showBulkEditModal} onOpenChange={setShowBulkEditModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Bulk Edit {selectedIds.size} Entries</DialogTitle>
+            <DialogDescription>
+              Select a field and enter the new value. This will update all selected entries.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bulk-edit-field">Field to Update</Label>
+              <Select value={bulkEditField} onValueChange={setBulkEditField}>
+                <SelectTrigger id="bulk-edit-field">
+                  <SelectValue placeholder="Select field..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {editableFields.map(field => (
+                    <SelectItem key={field.key} value={field.key}>
+                      {field.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="bulk-edit-value">New Value</Label>
+              <Input
+                id="bulk-edit-value"
+                value={bulkEditValue}
+                onChange={(e) => setBulkEditValue(e.target.value)}
+                placeholder="Enter new value..."
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowBulkEditModal(false);
+                setBulkEditField("");
+                setBulkEditValue("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleBulkEdit}
+              disabled={!bulkEditField || bulkEditMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {bulkEditMutation.isPending ? "Updating..." : "Update All"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
