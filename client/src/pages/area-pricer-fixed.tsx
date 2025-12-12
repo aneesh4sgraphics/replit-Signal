@@ -284,6 +284,7 @@ export default function AreaPricer() {
           headers: {
             'Content-Type': 'application/json',
           },
+          credentials: 'include',
           body: JSON.stringify(entry)
         });
         
