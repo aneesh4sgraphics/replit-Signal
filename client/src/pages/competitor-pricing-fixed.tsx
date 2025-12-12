@@ -695,63 +695,117 @@ export default function CompetitorPricing() {
       {/* Actions */}
       <div className="flex justify-between items-center mb-6">
         <div className="flex gap-2">
-          <Button
-            onClick={exportToCSV}
-            disabled={filteredData.length === 0}
-            className="bg-green-600 hover:bg-green-700"
-          >
-            <Sheet className="w-4 h-4 mr-2" />
-            Export CSV ({filteredData.length} entries)
-          </Button>
-          <Button
-            onClick={findDuplicates}
-            disabled={filteredData.length === 0}
-            variant={showDuplicates ? "default" : "outline"}
-            className={showDuplicates ? "bg-orange-600 hover:bg-orange-700" : ""}
-          >
-            <Search className="w-4 h-4 mr-2" />
-            {showDuplicates ? "Hide Duplicates" : "Find Duplicates"}
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={exportToCSV}
+                  disabled={filteredData.length === 0}
+                  className="bg-green-600 hover:bg-green-700"
+                  size="icon"
+                >
+                  <Sheet className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Export CSV ({filteredData.length} entries)</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={findDuplicates}
+                  disabled={filteredData.length === 0}
+                  variant={showDuplicates ? "default" : "outline"}
+                  className={showDuplicates ? "bg-orange-600 hover:bg-orange-700" : ""}
+                  size="icon"
+                >
+                  <Search className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>{showDuplicates ? "Hide Duplicates" : "Find Duplicates"}</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {showDuplicates && (
-            <Button
-              onClick={() => {
-                setShowDuplicates(false);
-                setDuplicateGroups([]);
-              }}
-              variant="ghost"
-              className="text-gray-600"
-            >
-              Clear Highlighting
-            </Button>
+            <TooltipProvider>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button
+                    onClick={() => {
+                      setShowDuplicates(false);
+                      setDuplicateGroups([]);
+                    }}
+                    variant="ghost"
+                    className="text-gray-600"
+                    size="icon"
+                  >
+                    <RotateCcw className="w-5 h-5" />
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Clear Highlighting</p>
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
           )}
           {isAdmin && selectedIds.size > 0 && (
             <>
-              <Button
-                onClick={() => setShowBulkEditModal(true)}
-                disabled={bulkEditMutation.isPending}
-                className="bg-blue-600 hover:bg-blue-700"
-                data-testid="button-bulk-edit"
-              >
-                <Edit className="w-4 h-4 mr-2" />
-                {bulkEditMutation.isPending ? "Updating..." : `Edit Selected (${selectedIds.size})`}
-              </Button>
-              <Button
-                onClick={handleBulkDelete}
-                disabled={bulkDeleteMutation.isPending}
-                className="bg-red-600 hover:bg-red-700"
-                data-testid="button-bulk-delete"
-              >
-                <Trash2 className="w-4 h-4 mr-2" />
-                {bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={() => setShowBulkEditModal(true)}
+                      disabled={bulkEditMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700"
+                      data-testid="button-bulk-edit"
+                      size="icon"
+                    >
+                      <Edit className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{bulkEditMutation.isPending ? "Updating..." : `Edit Selected (${selectedIds.size})`}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button
+                      onClick={handleBulkDelete}
+                      disabled={bulkDeleteMutation.isPending}
+                      className="bg-red-600 hover:bg-red-700"
+                      data-testid="button-bulk-delete"
+                      size="icon"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>{bulkDeleteMutation.isPending ? "Deleting..." : `Delete Selected (${selectedIds.size})`}</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </>
           )}
           <Popover>
             <PopoverTrigger asChild>
-              <Button variant="outline">
-                <Settings2 className="w-4 h-4 mr-2" />
-                Columns
-              </Button>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button variant="outline" size="icon">
+                      <Settings2 className="w-5 h-5" />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Columns</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
             </PopoverTrigger>
             <PopoverContent className="w-56" align="start">
               <div className="space-y-2">
@@ -774,13 +828,22 @@ export default function CompetitorPricing() {
         </div>
         
         <div className="flex gap-2 items-center">
-          <Button
-            onClick={downloadTemplate}
-            variant="outline"
-          >
-            <Download className="w-4 h-4 mr-2" />
-            CSV Template
-          </Button>
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <Button
+                  onClick={downloadTemplate}
+                  variant="outline"
+                  size="icon"
+                >
+                  <Download className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+              <TooltipContent>
+                <p>Download CSV Template</p>
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
           {isAdmin && (
             <>
               <input
@@ -790,22 +853,40 @@ export default function CompetitorPricing() {
                 className="hidden"
                 id="csv-upload"
               />
-              <label htmlFor="csv-upload">
-                <Button variant="outline" className="cursor-pointer" asChild>
-                  <span>
-                    <Upload className="w-4 h-4 mr-2" />
-                    Choose CSV File
-                  </span>
-                </Button>
-              </label>
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <label htmlFor="csv-upload">
+                      <Button variant="outline" className="cursor-pointer" size="icon" asChild>
+                        <span>
+                          <Upload className="w-5 h-5" />
+                        </span>
+                      </Button>
+                    </label>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    <p>Choose CSV File</p>
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               {uploadFile && (
-                <Button
-                  onClick={handleFileUpload}
-                  disabled={uploadMutation.isPending}
-                  className="bg-blue-600 hover:bg-blue-700"
-                >
-                  {uploadMutation.isPending ? "Uploading..." : "Upload"}
-                </Button>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <Button
+                        onClick={handleFileUpload}
+                        disabled={uploadMutation.isPending}
+                        className="bg-blue-600 hover:bg-blue-700"
+                        size="icon"
+                      >
+                        <FileText className="w-5 h-5" />
+                      </Button>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{uploadMutation.isPending ? "Uploading..." : `Upload ${uploadFile.name}`}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               )}
             </>
           )}
