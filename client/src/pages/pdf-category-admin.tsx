@@ -4,10 +4,11 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import { Label } from "@/components/ui/label";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
-import { Save, FileText, RefreshCw, Loader2, Eye, Plus, Upload, X, Image } from "lucide-react";
+import { Save, FileText, RefreshCw, Loader2, Eye, Plus, Upload, X, Image, ChevronDown } from "lucide-react";
 import type { PdfCategoryDetails } from "@shared/schema";
 
 interface CategoryFormData {
@@ -395,6 +396,7 @@ export default function PdfCategoryAdmin() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [categories, setCategories] = useState<CategoryFormData[]>([]);
+  const [selectedCategoryKey, setSelectedCategoryKey] = useState<string>("all");
 
   const { data: dbCategories, isLoading, refetch } = useQuery<PdfCategoryDetails[]>({
     queryKey: ['/api/pdf-category-details'],
@@ -591,8 +593,29 @@ export default function PdfCategoryAdmin() {
         </div>
       </div>
 
+      <div className="mb-6">
+        <Label htmlFor="category-selector" className="text-sm font-medium mb-2 block">
+          Select Product Category
+        </Label>
+        <Select value={selectedCategoryKey} onValueChange={setSelectedCategoryKey}>
+          <SelectTrigger className="w-full md:w-80" data-testid="select-category">
+            <SelectValue placeholder="Select a category to edit" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Categories</SelectItem>
+            {categories.map((cat) => (
+              <SelectItem key={cat.categoryKey} value={cat.categoryKey}>
+                {cat.displayName || cat.categoryKey}
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      </div>
+
       <div className="space-y-4">
-        {categories.map((category) => (
+        {categories
+          .filter((category) => selectedCategoryKey === "all" || category.categoryKey === selectedCategoryKey)
+          .map((category) => (
           <CategoryEditor
             key={category.categoryKey}
             category={category}
