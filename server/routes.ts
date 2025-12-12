@@ -990,7 +990,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Configure multer for file uploads
+  // Configure multer for CSV/Excel file uploads
   const upload = multer({
     dest: 'uploads/',
     fileFilter: (req, file, cb) => {
@@ -1014,6 +1014,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     },
     limits: {
       fileSize: 10 * 1024 * 1024 // 10MB limit
+    }
+  });
+
+  // Configure multer for image uploads (logos)
+  const imageUpload = multer({
+    dest: 'uploads/',
+    fileFilter: (req, file, cb) => {
+      console.log(`Image upload check: ${file.originalname}, mimetype: ${file.mimetype}`);
+      const isImage = file.mimetype.startsWith('image/') || 
+          file.originalname.toLowerCase().endsWith('.png') ||
+          file.originalname.toLowerCase().endsWith('.jpg') ||
+          file.originalname.toLowerCase().endsWith('.jpeg');
+      
+      if (isImage) {
+        cb(null, true);
+      } else {
+        console.log(`Image rejected: ${file.originalname} with mimetype ${file.mimetype}`);
+        cb(new Error('Only image files (PNG, JPG) are allowed'));
+      }
+    },
+    limits: {
+      fileSize: 2 * 1024 * 1024 // 2MB limit for logos
     }
   });
 
@@ -3913,7 +3935,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.use(chatRouter);
 
   // PDF Category Logo Upload endpoint
-  app.post("/api/pdf-category-logo", isAuthenticated, requireAdmin, upload.single('logo'), async (req: any, res) => {
+  app.post("/api/pdf-category-logo", isAuthenticated, requireAdmin, imageUpload.single('logo'), async (req: any, res) => {
     try {
       if (!req.file) {
         return res.status(400).json({ error: "No file uploaded" });
