@@ -23,6 +23,8 @@ import {
   type InsertActivityLog,
   type ParsedContact,
   type InsertParsedContact,
+  type PdfCategoryDetails,
+  type InsertPdfCategoryDetails,
   users,
   customers,
   sentQuotes,
@@ -36,6 +38,7 @@ import {
   pricingTiers,
   activityLogs,
   parsedContacts,
+  pdfCategoryDetails,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
   type UploadBatch,
@@ -146,6 +149,12 @@ export interface IStorage {
   createParsedContact(contact: InsertParsedContact): Promise<ParsedContact>;
   updateParsedContact(id: number, contact: InsertParsedContact): Promise<ParsedContact>;
   deleteParsedContact(id: number): Promise<void>;
+  
+  // PDF Category Details methods
+  getPdfCategoryDetails(): Promise<PdfCategoryDetails[]>;
+  getPdfCategoryDetailByKey(categoryKey: string): Promise<PdfCategoryDetails | undefined>;
+  upsertPdfCategoryDetail(detail: InsertPdfCategoryDetails): Promise<PdfCategoryDetails>;
+  deletePdfCategoryDetail(id: number): Promise<void>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -1079,6 +1088,49 @@ export class DatabaseStorage implements IStorage {
   
   async deleteParsedContact(id: number): Promise<void> {
     await db.delete(parsedContacts).where(eq(parsedContacts.id, id));
+  }
+  
+  // PDF Category Details implementation
+  async getPdfCategoryDetails(): Promise<PdfCategoryDetails[]> {
+    return await db
+      .select()
+      .from(pdfCategoryDetails)
+      .orderBy(pdfCategoryDetails.sortOrder);
+  }
+  
+  async getPdfCategoryDetailByKey(categoryKey: string): Promise<PdfCategoryDetails | undefined> {
+    const [detail] = await db
+      .select()
+      .from(pdfCategoryDetails)
+      .where(eq(pdfCategoryDetails.categoryKey, categoryKey));
+    return detail;
+  }
+  
+  async upsertPdfCategoryDetail(detail: InsertPdfCategoryDetails): Promise<PdfCategoryDetails> {
+    const [result] = await db
+      .insert(pdfCategoryDetails)
+      .values(detail)
+      .onConflictDoUpdate({
+        target: pdfCategoryDetails.categoryKey,
+        set: {
+          displayName: detail.displayName,
+          logoFile: detail.logoFile,
+          featuresMain: detail.featuresMain,
+          featuresSub: detail.featuresSub,
+          compatibleWith: detail.compatibleWith,
+          matchesPattern: detail.matchesPattern,
+          sortOrder: detail.sortOrder,
+          isActive: detail.isActive,
+          updatedBy: detail.updatedBy,
+          updatedAt: new Date(),
+        }
+      })
+      .returning();
+    return result;
+  }
+  
+  async deletePdfCategoryDetail(id: number): Promise<void> {
+    await db.delete(pdfCategoryDetails).where(eq(pdfCategoryDetails.id, id));
   }
 }
 

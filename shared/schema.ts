@@ -328,3 +328,27 @@ export const insertParsedContactSchema = createInsertSchema(parsedContacts).omit
 });
 export type ParsedContact = typeof parsedContacts.$inferSelect;
 export type InsertParsedContact = z.infer<typeof insertParsedContactSchema>;
+
+// PDF Product Category Details - configurable by admin for Price List PDFs
+export const pdfCategoryDetails = pgTable("pdf_category_details", {
+  id: serial("id").primaryKey(),
+  categoryKey: varchar("category_key", { length: 50 }).notNull().unique(), // e.g., 'graffiti', 'cliq', 'solvit'
+  displayName: varchar("display_name", { length: 255 }).notNull(), // e.g., 'Graffiti POLYESTER PAPER'
+  logoFile: varchar("logo_file", { length: 255 }), // Logo filename in attached_assets
+  featuresMain: text("features_main"), // Bold features: 'Scuff Free / Waterproof / Tear Resistant'
+  featuresSub: text("features_sub"), // Italic sub-features: 'High Rigidity / Excellent Alcohol & Stain Resistance'
+  compatibleWith: text("compatible_with"), // Compatibility text
+  matchesPattern: text("matches_pattern"), // Description of what products match this category
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedBy: varchar("updated_by"),
+});
+
+// PDF Category Details schemas
+export const insertPdfCategoryDetailsSchema = createInsertSchema(pdfCategoryDetails).omit({
+  id: true,
+  updatedAt: true,
+});
+export type PdfCategoryDetails = typeof pdfCategoryDetails.$inferSelect;
+export type InsertPdfCategoryDetails = z.infer<typeof insertPdfCategoryDetailsSchema>;
