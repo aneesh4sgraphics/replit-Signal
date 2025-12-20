@@ -803,7 +803,7 @@ router.patch("/product-pricing/bulk-update", isAuthenticated, requireAdmin, asyn
     
     // SECURITY: Strict whitelist of allowed price fields
     const ALLOWED_PRICE_FIELDS = new Set([
-      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'landedPrice', 'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
       'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price', 
       'tierStage15Price', 'tierStage1Price', 'retailPrice'
     ]);
@@ -869,6 +869,7 @@ router.patch("/product-pricing/bulk-update", isAuthenticated, requireAdmin, asyn
         size: currentRecord.size,
         totalSqm: getExistingPrice(currentRecord.totalSqm),
         minQuantity: currentRecord.minQuantity || 50,
+        landedPrice: sanitizedUpdates.landedPrice !== undefined ? sanitizedUpdates.landedPrice.toString() : getExistingPrice(currentRecord.landedPrice),
         exportPrice: sanitizedUpdates.exportPrice !== undefined ? sanitizedUpdates.exportPrice.toString() : getExistingPrice(currentRecord.exportPrice),
         masterDistributorPrice: sanitizedUpdates.masterDistributorPrice !== undefined ? sanitizedUpdates.masterDistributorPrice.toString() : getExistingPrice(currentRecord.masterDistributorPrice),
         dealerPrice: sanitizedUpdates.dealerPrice !== undefined ? sanitizedUpdates.dealerPrice.toString() : getExistingPrice(currentRecord.dealerPrice),
@@ -917,7 +918,7 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
     
     // SECURITY: Strict whitelist of allowed price fields - reject any non-whitelisted fields
     const ALLOWED_PRICE_FIELDS = new Set([
-      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'landedPrice', 'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
       'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price', 
       'tierStage15Price', 'tierStage1Price', 'retailPrice'
     ]);
@@ -991,6 +992,7 @@ router.patch("/product-pricing/:id", isAuthenticated, requireAdmin, async (req: 
       totalSqm: getExistingPrice(currentRecord.totalSqm),
       minQuantity: currentRecord.minQuantity || 50,
       // For each price field: use update (as number) if provided, otherwise keep existing value
+      landedPrice: sanitizedUpdates.landedPrice !== undefined ? sanitizedUpdates.landedPrice.toString() : getExistingPrice(currentRecord.landedPrice),
       exportPrice: sanitizedUpdates.exportPrice !== undefined ? sanitizedUpdates.exportPrice.toString() : getExistingPrice(currentRecord.exportPrice),
       masterDistributorPrice: sanitizedUpdates.masterDistributorPrice !== undefined ? sanitizedUpdates.masterDistributorPrice.toString() : getExistingPrice(currentRecord.masterDistributorPrice),
       dealerPrice: sanitizedUpdates.dealerPrice !== undefined ? sanitizedUpdates.dealerPrice.toString() : getExistingPrice(currentRecord.dealerPrice),
