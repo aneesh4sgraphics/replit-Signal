@@ -400,6 +400,7 @@ export default function ProductPricingManagementNew() {
     if (!firstItem) return;
     
     setBulkEditValues({
+      landedPrice: (firstItem.landedPrice || 0).toString(),
       exportPrice: firstItem.exportPrice.toString(),
       masterDistributorPrice: firstItem.masterDistributorPrice.toString(),
       dealerPrice: firstItem.dealerPrice.toString(),
@@ -422,7 +423,7 @@ export default function ProductPricingManagementNew() {
     const updates: Record<string, string> = {};
     
     const priceFields = [
-      'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
+      'landedPrice', 'exportPrice', 'masterDistributorPrice', 'dealerPrice', 'dealer2Price',
       'approvalNeededPrice', 'tierStage25Price', 'tierStage2Price',
       'tierStage15Price', 'tierStage1Price', 'retailPrice'
     ];
