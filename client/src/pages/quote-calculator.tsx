@@ -1209,11 +1209,15 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                         const referenceProduct = availableSizes[0];
                         if (!referenceProduct) return null;
                         
-                        price = referenceProduct[tier.key as keyof ProductData] as number;
+                        const rawPrice = referenceProduct[tier.key as keyof ProductData] as number;
+                        if (rawPrice == null) return null; // Skip tiers with no price data
+                        price = rawPrice;
                         totalSqm = parseFloat(customWidth) * parseFloat(customHeight) * 0.00064516;
                         minQty = 1; // Custom sizes have min quantity of 1
                       } else if (selectedProduct) {
-                        price = selectedProduct[tier.key as keyof ProductData] as number;
+                        const rawPrice = selectedProduct[tier.key as keyof ProductData] as number;
+                        if (rawPrice == null) return null; // Skip tiers with no price data
+                        price = rawPrice;
                         totalSqm = parseFloat(String(selectedProduct.totalSqm || 0));
                         minQty = selectedProduct.minQuantity;
                       } else {
