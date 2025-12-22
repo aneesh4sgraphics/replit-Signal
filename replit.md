@@ -7,12 +7,14 @@ This is a full-stack TypeScript application that provides a quote calculator for
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 22, 2025)
-- **Complete Contra Design System Implementation**: Redesigned UI based on Contra Wireframe Kit with clean minimal design, bold typography, black/white color scheme with yellow accent
-  - New CSS utility classes: `contra-card`, `contra-btn-*`, `contra-badge-*`, `contra-nav-item`, `contra-feature-*`, etc.
-  - Full dark mode support for all Contra components using Tailwind's `dark:` class strategy
-  - Updated Dashboard, QuickQuotes, and Price List pages with consistent Contra styling
-  - Redesigned OdooLayout sidebar with collapsible navigation and improved spacing
-  - Typography uses Inter font with bold weights (700-800) and tight letter-spacing
+- **Shiny Glass Design System Implementation**: Redesigned UI with glassmorphism effects featuring frosted glass cards, animated gradient backgrounds, and floating ambient orbs
+  - **Glass card styling**: Subtle frosted glass effect with `backdrop-filter: blur(24px) saturate(120%)`, semi-transparent white backgrounds, and soft shadows
+  - **Animated background**: OdooLayout features animated gradient background (`linear-gradient` with gentle color shift animation) and three floating ambient orbs with smooth animations
+  - **Glass sidebar**: Collapsible navigation with frosted glass effect and subtle borders
+  - **Cool muted color palette**: Blue, purple, and teal accent colors with soft indigo shadows
+  - **Hover effects**: Cards have subtle lift animation (`translateY(-2px)`) on hover
+  - All major pages updated: Dashboard, QuickQuotes, Price List, Client Database, Saved Quotes, Admin, PDF Settings, Activity Logs, Shipping Calculator, Area Pricer, Market Prices
+  - Legacy Contra styles replaced with `glass-card`, `glass-btn`, `glass-btn-primary` utility classes
 
 ## Previous Changes (December 3, 2025)
 - **Codebase Optimization**: Removed unused files and dead code to improve maintainability
