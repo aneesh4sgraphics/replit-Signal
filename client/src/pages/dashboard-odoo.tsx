@@ -13,8 +13,7 @@ import {
   DollarSign,
   Package,
   ClipboardList,
-  ChevronRight,
-  Sparkles
+  ChevronRight
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -133,18 +132,6 @@ export default function Dashboard() {
           <p className="text-[#B7AEA3] font-medium">
             Here's what's happening with your business today
           </p>
-        </div>
-        <div className="hidden md:flex items-center gap-3">
-          <Link href="/quick-quotes">
-            <Button 
-              className="px-6 py-3 rounded-xl font-bold text-[#1A1819] border-[3px] border-[#1A1819] transition-all hover:shadow-[4px_4px_0px_#1A1819] hover:scale-[1.02]" 
-              style={{ backgroundColor: '#FE8505' }}
-              data-testid="button-new-quote"
-            >
-              <Sparkles className="h-4 w-4 mr-2" />
-              New Quote
-            </Button>
-          </Link>
         </div>
       </div>
 
