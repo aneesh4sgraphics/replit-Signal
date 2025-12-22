@@ -2056,6 +2056,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate PDF quote using pdfkit (optimized for speed)
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
+    console.log('=== PDF GENERATION START ===');
+    console.log('User:', req.user?.claims?.email || 'unknown');
+    console.log('Request body keys:', Object.keys(req.body || {}));
+    
     try {
       const { customerName, customerEmail, quoteItems, sentVia } = req.body;
       
@@ -2364,8 +2368,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log('✅ Quote PDF generated successfully:', filename);
     } catch (error) {
-      console.error("Error generating PDF quote:", error);
+      console.error("=== PDF GENERATION ERROR ===");
+      console.error("Error:", error);
       const errorMessage = error instanceof Error ? error.message : 'Unknown error occurred';
+      const errorStack = error instanceof Error ? error.stack : '';
+      console.error("Stack:", errorStack);
       res.status(500).json({ 
         error: "Failed to generate PDF quote", 
         details: errorMessage,

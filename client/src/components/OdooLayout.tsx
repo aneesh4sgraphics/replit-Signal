@@ -146,9 +146,14 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
         <div className="h-16 flex items-center justify-between px-4 border-b border-gray-100">
           {sidebarExpanded ? (
             <>
-              <div>
-                <h1 className="font-bold text-gray-900">4S Graphics</h1>
-                <p className="text-xs text-gray-400">Portal</p>
+              <div className="flex items-center gap-2">
+                <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
+                  <span className="text-white font-bold text-sm">4S</span>
+                </div>
+                <div>
+                  <h1 className="font-bold text-gray-900 text-base leading-tight">Graphics</h1>
+                  <p className="text-[10px] text-gray-400 leading-tight">Portal</p>
+                </div>
               </div>
               <SettingsMenu />
             </>
