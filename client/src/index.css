@@ -5,69 +5,75 @@
 @tailwind utilities;
 
 :root {
-  /* Contra-inspired Minimal Color System */
-  --background: hsl(0, 0%, 100%);
-  --foreground: hsl(0, 0%, 8%);
+  /* Contra Wireframe Kit Official Color System */
+  --background: #FDF9F9;
+  --foreground: #1A1819;
   
-  --muted: hsl(0, 0%, 97%);
-  --muted-foreground: hsl(0, 0%, 45%);
+  --muted: hsl(30, 10%, 94%);
+  --muted-foreground: #B7AEA3;
   
-  --popover: hsl(0, 0%, 100%);
-  --popover-foreground: hsl(0, 0%, 8%);
+  --popover: #FDF9F9;
+  --popover-foreground: #1A1819;
   
-  --card: hsl(0, 0%, 100%);
-  --card-foreground: hsl(0, 0%, 8%);
+  --card: #FFFFFF;
+  --card-foreground: #1A1819;
   
-  --border: hsl(0, 0%, 90%);
-  --input: hsl(0, 0%, 90%);
+  --border: hsl(30, 10%, 85%);
+  --input: hsl(30, 10%, 85%);
   
-  /* Contra uses Black as primary */
-  --primary: hsl(0, 0%, 0%);
-  --primary-foreground: hsl(0, 0%, 100%);
+  /* Contra Orange Primary - Bright vivid orange */
+  --primary: #FE8505;
+  --primary-foreground: #FFFFFF;
   
-  --secondary: hsl(0, 0%, 96%);
-  --secondary-foreground: hsl(0, 0%, 8%);
+  /* Official Contra Wireframe Kit Colors */
+  --contra-orange: #FE8505;
+  --contra-orange-dark: #E37202;
+  --contra-red: #EF1C07;
+  --contra-yellow: #F4B854;
+  --contra-teal: #6A9291;
+  --contra-cream: #FDF9F9;
+  --contra-black: #1A1819;
+  --contra-gray: #B7AEA3;
   
-  --accent: hsl(0, 0%, 96%);
-  --accent-foreground: hsl(0, 0%, 8%);
+  --secondary: hsl(30, 10%, 95%);
+  --secondary-foreground: #1A1819;
   
-  --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(0, 0%, 100%);
+  --accent: hsl(30, 80%, 95%);
+  --accent-foreground: #E37202;
   
-  --success: hsl(142, 76%, 36%);
-  --success-foreground: hsl(0, 0%, 100%);
+  --destructive: #EF1C07;
+  --destructive-foreground: #FFFFFF;
   
-  --warning: hsl(38, 92%, 50%);
-  --warning-foreground: hsl(0, 0%, 100%);
+  --success: #6A9291;
+  --success-foreground: #FFFFFF;
   
-  --ring: hsl(0, 0%, 0%);
-  --radius: 12px;
+  --warning: #F4B854;
+  --warning-foreground: #1A1819;
   
-  /* Contra Yellow Accent */
-  --contra-yellow: hsl(54, 100%, 62%);
-  --contra-yellow-hover: hsl(54, 100%, 55%);
+  --ring: #FE8505;
+  --radius: 16px;
 }
 
 .dark {
-  --background: hsl(0, 0%, 5%);
-  --foreground: hsl(0, 0%, 98%);
-  --muted: hsl(0, 0%, 12%);
-  --muted-foreground: hsl(0, 0%, 60%);
-  --popover: hsl(0, 0%, 8%);
-  --popover-foreground: hsl(0, 0%, 98%);
-  --card: hsl(0, 0%, 8%);
-  --card-foreground: hsl(0, 0%, 98%);
-  --border: hsl(0, 0%, 18%);
-  --input: hsl(0, 0%, 18%);
-  --primary: hsl(0, 0%, 100%);
-  --primary-foreground: hsl(0, 0%, 0%);
-  --secondary: hsl(0, 0%, 15%);
-  --secondary-foreground: hsl(0, 0%, 98%);
-  --accent: hsl(0, 0%, 15%);
-  --accent-foreground: hsl(0, 0%, 98%);
-  --destructive: hsl(0, 84%, 60%);
-  --destructive-foreground: hsl(0, 0%, 98%);
-  --ring: hsl(0, 0%, 100%);
+  --background: #1A1819;
+  --foreground: #FDF9F9;
+  --muted: hsl(20, 8%, 18%);
+  --muted-foreground: #B7AEA3;
+  --popover: #1A1819;
+  --popover-foreground: #FDF9F9;
+  --card: hsl(20, 8%, 12%);
+  --card-foreground: #FDF9F9;
+  --border: hsl(20, 8%, 25%);
+  --input: hsl(20, 8%, 25%);
+  --primary: #FE8505;
+  --primary-foreground: #FFFFFF;
+  --secondary: hsl(20, 8%, 20%);
+  --secondary-foreground: #FDF9F9;
+  --accent: hsl(30, 40%, 20%);
+  --accent-foreground: #F4B854;
+  --destructive: #EF1C07;
+  --destructive-foreground: #FDF9F9;
+  --ring: #FE8505;
 }
 
 @layer base {
@@ -119,26 +125,43 @@
 @layer components {
   /* ===== CONTRA DESIGN SYSTEM ===== */
   
-  /* Contra Card - Clean with subtle shadow */
+  /* Contra Card - Clean with bold border (line art style) */
   .contra-card {
-    @apply bg-white dark:bg-gray-900 rounded-2xl p-6;
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 6px 16px rgba(0, 0, 0, 0.04);
+    @apply bg-white dark:bg-gray-900 rounded-2xl p-6 border-2;
+    border-color: var(--contra-black);
   }
   
   .dark .contra-card {
-    box-shadow: 0 1px 3px rgba(0, 0, 0, 0.2), 0 6px 16px rgba(0, 0, 0, 0.2);
+    border-color: rgba(255, 255, 255, 0.2);
   }
   
   .contra-card-bordered {
-    @apply bg-white dark:bg-gray-900 rounded-2xl p-6 border-2 border-gray-900 dark:border-gray-100;
+    @apply bg-white dark:bg-gray-900 rounded-2xl p-6 border-3;
+    border-color: var(--contra-black);
+  }
+  
+  .dark .contra-card-bordered {
+    border-color: var(--contra-cream);
+  }
+  
+  /* Contra Card with orange accent */
+  .contra-card-orange {
+    @apply bg-white dark:bg-gray-900 rounded-2xl p-6 border-2;
+    border-color: var(--contra-orange);
+  }
+  
+  /* Contra Card with teal accent */
+  .contra-card-teal {
+    @apply bg-white dark:bg-gray-900 rounded-2xl p-6 border-2;
+    border-color: var(--contra-teal);
   }
   
   .contra-card-hover {
-    @apply contra-card transition-all duration-200;
+    @apply contra-card transition-all duration-200 cursor-pointer;
   }
   
   .contra-card-hover:hover {
-    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08), 0 16px 32px rgba(0, 0, 0, 0.08);
+    border-color: var(--contra-orange);
     transform: translateY(-2px);
   }
 
@@ -148,7 +171,12 @@
   }
   
   .contra-btn-primary {
-    @apply contra-btn bg-gray-900 dark:bg-white text-white dark:text-gray-900 hover:bg-gray-800 dark:hover:bg-gray-100 active:scale-[0.98];
+    @apply contra-btn text-white active:scale-[0.98];
+    background-color: var(--contra-orange);
+  }
+  
+  .contra-btn-primary:hover {
+    background-color: var(--contra-orange-dark);
   }
   
   .contra-btn-secondary {
@@ -156,16 +184,33 @@
   }
   
   .contra-btn-outline {
-    @apply contra-btn bg-transparent border-2 border-gray-900 dark:border-gray-100 text-gray-900 dark:text-gray-100 hover:bg-gray-900 dark:hover:bg-gray-100 hover:text-white dark:hover:text-gray-900 active:scale-[0.98];
+    @apply contra-btn bg-transparent border-2 text-gray-900 dark:text-gray-100 active:scale-[0.98];
+    border-color: var(--contra-black);
+  }
+  
+  .contra-btn-outline:hover {
+    background-color: var(--contra-orange);
+    border-color: var(--contra-orange);
+    color: white;
+  }
+  
+  .contra-btn-teal {
+    @apply contra-btn text-white active:scale-[0.98];
+    background-color: var(--contra-teal);
+  }
+  
+  .contra-btn-teal:hover {
+    filter: brightness(1.1);
   }
   
   .contra-btn-yellow {
-    @apply contra-btn text-gray-900;
+    @apply contra-btn active:scale-[0.98];
     background-color: var(--contra-yellow);
+    color: var(--contra-black);
   }
   
   .contra-btn-yellow:hover {
-    background-color: var(--contra-yellow-hover);
+    filter: brightness(0.95);
   }
   
   .contra-btn-ghost {
@@ -274,13 +319,23 @@
 
   /* Contra Nav Item */
   .contra-nav-item {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl text-gray-600 dark:text-gray-400 font-medium transition-all duration-200;
-    @apply hover:bg-gray-100 dark:hover:bg-gray-800 hover:text-gray-900 dark:hover:text-gray-100;
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200;
+    color: var(--contra-gray);
+  }
+  
+  .contra-nav-item:hover {
+    background-color: rgba(254, 133, 5, 0.1);
+    color: var(--contra-orange);
   }
   
   .contra-nav-item-active {
-    @apply flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200;
-    @apply bg-gray-900 dark:bg-white text-white dark:text-gray-900;
+    @apply flex items-center gap-3 px-4 py-3 rounded-xl font-medium transition-all duration-200 text-white;
+    background-color: var(--contra-orange);
+  }
+  
+  .dark .contra-nav-item-active {
+    background-color: var(--contra-orange);
+    color: white;
   }
 
   /* Contra Divider */
@@ -311,15 +366,35 @@
   }
   
   .contra-feature-icon {
-    @apply w-12 h-12 rounded-2xl bg-gray-100 dark:bg-gray-800 flex items-center justify-center mb-4;
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center mb-4;
+    background-color: var(--contra-orange);
+    color: white;
+  }
+  
+  .contra-feature-icon-teal {
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center mb-4;
+    background-color: var(--contra-teal);
+    color: white;
+  }
+  
+  .contra-feature-icon-yellow {
+    @apply w-12 h-12 rounded-2xl flex items-center justify-center mb-4;
+    background-color: var(--contra-yellow);
+    color: var(--contra-black);
   }
   
   .contra-feature-title {
-    @apply text-lg font-bold text-gray-900 dark:text-gray-100 mb-1;
+    @apply text-lg font-bold mb-1;
+    color: var(--contra-black);
+  }
+  
+  .dark .contra-feature-title {
+    color: var(--contra-cream);
   }
   
   .contra-feature-desc {
-    @apply text-sm text-gray-500 dark:text-gray-400;
+    @apply text-sm;
+    color: var(--contra-gray);
   }
 
   /* Contra List Item */
