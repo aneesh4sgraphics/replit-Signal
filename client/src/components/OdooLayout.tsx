@@ -17,6 +17,7 @@ import {
   ChevronLeft,
   ChevronRight
 } from 'lucide-react';
+import logoPath from '@assets/4s_logo_Clean_120x_1764801255491.png';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import type { User } from '@shared/schema';
@@ -222,11 +223,13 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
           {sidebarExpanded ? (
             <>
               <div className="flex items-center gap-2">
-                <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center flex-shrink-0">
-                  <span className="text-white font-bold text-sm">4S</span>
-                </div>
+                <img 
+                  src={logoPath} 
+                  alt="4S Graphics Logo" 
+                  className="w-9 h-9 object-contain flex-shrink-0"
+                />
                 <div>
-                  <h1 className="font-bold text-gray-900 text-base leading-tight">Graphics</h1>
+                  <h1 className="font-bold text-gray-900 text-base leading-tight">4S Graphics</h1>
                   <p className="text-[10px] text-gray-400 leading-tight">Portal</p>
                 </div>
               </div>
@@ -234,9 +237,11 @@ export default function OdooLayout({ children }: OdooLayoutProps) {
             </>
           ) : (
             <div className="w-full flex justify-center">
-              <div className="w-9 h-9 rounded-xl bg-gray-900 flex items-center justify-center">
-                <span className="text-white font-bold text-sm">4S</span>
-              </div>
+              <img 
+                src={logoPath} 
+                alt="4S Graphics Logo" 
+                className="w-9 h-9 object-contain"
+              />
             </div>
           )}
         </div>
