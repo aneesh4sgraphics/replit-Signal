@@ -56,13 +56,16 @@ export const ServiceWorkerUpdater: React.FC = () => {
   }
 
   return (
-    <div className="fixed bottom-4 left-4 z-50">
-      {/* Version info badge */}
+    <>
+      {/* Version info badge - top right */}
       {version && (
-        <div className="mb-2 text-xs text-gray-500 bg-white rounded px-2 py-1 shadow-sm">
+        <div className="fixed top-4 right-4 z-50 text-xs text-gray-500 bg-white rounded px-2 py-1 shadow-sm border border-gray-200">
           Version: {version}
         </div>
       )}
+      
+      {/* Update notifications and dev tools - bottom left */}
+      <div className="fixed bottom-4 left-4 z-50">
       
       {/* Update available notification */}
       {hasUpdate && (
@@ -108,6 +111,7 @@ export const ServiceWorkerUpdater: React.FC = () => {
           </div>
         </div>
       )}
-    </div>
+      </div>
+    </>
   );
 };
