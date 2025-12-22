@@ -883,9 +883,9 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
           </div>
         )}
 
-      <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
         {/* Left Panel - Customer & Product Selection */}
-        <div className="xl:col-span-2 lg:col-span-2">
+        <div className="lg:col-span-1">
           {/* Customer Selection Card */}
           <div className="glass-card mb-6 overflow-visible relative z-30">
             <h3 className="text-sm font-semibold text-gray-800 mb-3 flex items-center gap-2">
