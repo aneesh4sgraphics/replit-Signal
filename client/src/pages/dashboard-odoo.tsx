@@ -168,20 +168,20 @@ export default function Dashboard() {
                 <span className="text-[#1A1819]">+{stats.quotesThisMonth}</span>
               </div>
             </div>
-            <div className="text-4xl font-extrabold mb-1 text-[#1A1819]">{stats.totalQuotes}</div>
-            <div className="text-sm font-semibold text-[#1A1819]/70">Total Quotes</div>
+            <div className="text-4xl font-black mb-1 text-[#1A1819]">{stats.totalQuotes}</div>
+            <div className="text-sm font-bold text-[#1A1819]/70">Total Quotes</div>
           </div>
 
-          <div className="rounded-2xl p-6 border-[3px] border-[#1A1819] group transition-all hover:scale-[1.02]" style={{ backgroundColor: '#9ED0CE' }} data-testid="stat-revenue">
+          <div className="rounded-2xl p-6 border-[3px] border-[#1A1819] group transition-all hover:scale-[1.02]" style={{ backgroundColor: '#6A9291' }} data-testid="stat-revenue">
             <div className="flex items-center justify-between mb-4">
               <div className="w-12 h-12 rounded-2xl bg-white/20 flex items-center justify-center border-2 border-[#1A1819]">
                 <DollarSign className="h-6 w-6 text-[#1A1819]" />
               </div>
             </div>
-            <div className="text-4xl font-extrabold mb-1 text-[#1A1819]">
+            <div className="text-4xl font-black mb-1 text-[#1A1819]">
               ${stats.monthlyRevenue.toLocaleString()}
             </div>
-            <div className="text-sm font-semibold text-[#1A1819]/70">Monthly Revenue</div>
+            <div className="text-sm font-bold text-[#1A1819]/70">Monthly Revenue</div>
           </div>
 
           <div className="rounded-2xl p-6 border-[3px] border-[#1A1819] group transition-all hover:scale-[1.02]" style={{ backgroundColor: '#FF8FAB' }} data-testid="stat-customers">
@@ -190,10 +190,10 @@ export default function Dashboard() {
                 <Users className="h-6 w-6 text-[#1A1819]" />
               </div>
             </div>
-            <div className="text-4xl font-extrabold mb-1 text-[#1A1819]">
+            <div className="text-4xl font-black mb-1 text-[#1A1819]">
               {Number(stats.totalCustomers).toLocaleString()}
             </div>
-            <div className="text-sm font-semibold text-[#1A1819]/70">Customers</div>
+            <div className="text-sm font-bold text-[#1A1819]/70">Customers</div>
           </div>
 
           <div className="rounded-2xl p-6 border-[3px] border-[#1A1819] group transition-all hover:scale-[1.02]" style={{ backgroundColor: '#C4B5E0' }} data-testid="stat-products">
@@ -202,8 +202,8 @@ export default function Dashboard() {
                 <Package className="h-6 w-6 text-[#1A1819]" />
               </div>
             </div>
-            <div className="text-4xl font-extrabold mb-1 text-[#1A1819]">{stats.totalProducts}</div>
-            <div className="text-sm font-semibold text-[#1A1819]/70">Products</div>
+            <div className="text-4xl font-black mb-1 text-[#1A1819]">{stats.totalProducts}</div>
+            <div className="text-sm font-bold text-[#1A1819]/70">Products</div>
           </div>
         </div>
       )}
@@ -249,8 +249,8 @@ export default function Dashboard() {
                   </div>
                   <ChevronRight className="h-5 w-5 text-[#1A1819] group-hover:translate-x-1 transition-all" />
                 </div>
-                <h3 className="font-bold text-lg mb-1 text-[#1A1819]">{app.title}</h3>
-                <p className="text-sm line-clamp-2 font-medium text-[#1A1819]/70">{app.description}</p>
+                <h3 className="font-black text-lg mb-1 text-[#1A1819]">{app.title}</h3>
+                <p className="text-sm line-clamp-2 font-semibold text-[#1A1819]/70">{app.description}</p>
               </Link>
             );
           })}
@@ -289,9 +289,9 @@ export default function Dashboard() {
                     </div>
                     <span className="px-3 py-1 text-xs font-bold rounded-full border-2 border-[#1A1819] bg-white/20 text-[#1A1819]">Admin</span>
                   </div>
-                  <h3 className="font-bold text-lg mb-1 text-[#1A1819]">{app.title}</h3>
-                  <p className="text-sm font-medium text-[#1A1819]/70">{app.description}</p>
-                  <div className="mt-4 pt-4 border-t-2 border-[#1A1819]/30 flex items-center gap-1 text-sm font-bold text-[#1A1819]">
+                  <h3 className="font-black text-lg mb-1 text-[#1A1819]">{app.title}</h3>
+                  <p className="text-sm font-semibold text-[#1A1819]/70">{app.description}</p>
+                  <div className="mt-4 pt-4 border-t-2 border-[#1A1819]/30 flex items-center gap-1 text-sm font-black text-[#1A1819]">
                     <span>Open</span>
                     <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
                   </div>
