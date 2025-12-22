@@ -297,27 +297,6 @@ export default function Dashboard() {
                 {dateString} • Managing your printing operations
               </p>
             </div>
-            <Link href="/quick-quotes">
-              <button style={{
-                background: 'linear-gradient(135deg, rgba(148, 163, 184, 0.3), rgba(203, 213, 225, 0.2))',
-                backdropFilter: 'blur(20px)',
-                border: '1px solid rgba(148, 163, 184, 0.3)',
-                borderRadius: '16px',
-                padding: '16px 32px',
-                color: '#334155',
-                fontSize: '16px',
-                fontWeight: '600',
-                cursor: 'pointer',
-                display: 'flex',
-                alignItems: 'center',
-                gap: '10px',
-                boxShadow: '0 4px 12px rgba(148, 163, 184, 0.15)',
-                transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-              }}>
-                <Sparkles size={20} />
-                New Quote
-              </button>
-            </Link>
           </div>
         </div>
 
