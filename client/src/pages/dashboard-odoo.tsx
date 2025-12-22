@@ -1,6 +1,5 @@
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
-import { Badge } from "@/components/ui/badge";
 import { 
   Calculator, 
   FileText, 
@@ -11,15 +10,12 @@ import {
   Settings,
   AlertCircle,
   ArrowRight,
-  Zap,
-  Activity,
   DollarSign,
   Package,
   ClipboardList,
-  Wallet,
-  UserCheck,
-  Boxes,
-  Mail
+  Mail,
+  ChevronRight,
+  Sparkles
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import { useQuery } from "@tanstack/react-query";
@@ -38,7 +34,6 @@ interface AppItem {
   description: string;
   path: string;
   icon: React.ComponentType<{ className?: string }>;
-  color: string;
   adminOnly?: boolean;
 }
 
@@ -47,29 +42,25 @@ const mainApps: AppItem[] = [
     title: "QuickQuotes",
     description: "Generate instant quotes with pricing calculations",
     path: "/quick-quotes",
-    icon: Calculator,
-    color: "linear-gradient(135deg, #3b82f6, #4f46e5)"
+    icon: Calculator
   },
   {
     title: "Price List",
     description: "View and export comprehensive pricing tables",
     path: "/price-list",
-    icon: FileText,
-    color: "linear-gradient(135deg, #10b981, #059669)"
+    icon: FileText
   },
   {
     title: "Saved Quotes",
     description: "Manage and track all generated quotes",
     path: "/saved-quotes",
-    icon: BarChart3,
-    color: "linear-gradient(135deg, #a855f7, #7c3aed)"
+    icon: BarChart3
   },
   {
     title: "Email",
     description: "Send and receive emails via Gmail",
     path: "/email",
-    icon: Mail,
-    color: "linear-gradient(135deg, #ef4444, #dc2626)"
+    icon: Mail
   }
 ];
 
@@ -79,7 +70,6 @@ const adminApps: AppItem[] = [
     description: "Manage product catalog and pricing data",
     path: "/product-pricing-management",
     icon: Database,
-    color: "linear-gradient(135deg, #f97316, #dc2626)",
     adminOnly: true
   },
   {
@@ -87,7 +77,6 @@ const adminApps: AppItem[] = [
     description: "Customer database management",
     path: "/customers",
     icon: Users,
-    color: "linear-gradient(135deg, #06b6d4, #3b82f6)",
     adminOnly: true
   },
   {
@@ -95,7 +84,6 @@ const adminApps: AppItem[] = [
     description: "System settings and user management",
     path: "/admin",
     icon: Settings,
-    color: "linear-gradient(135deg, #6b7280, #374151)",
     adminOnly: true
   }
 ];
@@ -103,12 +91,17 @@ const adminApps: AppItem[] = [
 export default function Dashboard() {
   const { user, isLoading } = useAuth();
 
+  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
+    queryKey: ["/api/dashboard/stats"],
+    retry: 2,
+  });
+
   if (isLoading) {
     return (
-      <div className="flex items-center justify-center min-h-64">
-        <div className="flex items-center gap-3">
-          <div className="animate-spin rounded-full h-8 w-8 border-2 border-black border-t-transparent"></div>
-          <span className="body-base font-medium">Loading...</span>
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="flex flex-col items-center gap-4">
+          <div className="w-8 h-8 border-2 border-gray-900 border-t-transparent rounded-full animate-spin" />
+          <span className="text-sm text-gray-500">Loading...</span>
         </div>
       </div>
     );
@@ -116,15 +109,15 @@ export default function Dashboard() {
 
   if (!user) {
     return (
-      <div className="modern-card max-w-md mx-auto mt-20">
-        <div className="text-center py-8">
-          <div className="icon-container icon-container-secondary mx-auto mb-4">
-            <AlertCircle className="h-6 w-6" />
+      <div className="flex items-center justify-center min-h-[60vh]">
+        <div className="contra-card max-w-md text-center">
+          <div className="contra-avatar-lg mx-auto mb-4 bg-gray-100">
+            <AlertCircle className="h-6 w-6 text-gray-400" />
           </div>
-          <h3 className="heading-sm mb-2">Authentication Required</h3>
-          <p className="body-base text-gray-600 mb-6">Please log in to access your dashboard</p>
-          <Button onClick={() => window.location.href = "/api/login"} className="primary-button">
-            Login with Replit
+          <h3 className="text-xl font-bold mb-2">Sign in required</h3>
+          <p className="text-gray-500 mb-6">Please sign in to access your dashboard</p>
+          <Button onClick={() => window.location.href = "/api/login"} className="contra-btn-primary">
+            Sign in with Replit
           </Button>
         </div>
       </div>
@@ -136,214 +129,193 @@ export default function Dashboard() {
   
   const isAdmin = (user as any)?.role === 'admin';
 
-  // Fetch dashboard statistics
-  const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
-    queryKey: ["/api/dashboard/stats"],
-    retry: 2,
-  });
-
   return (
-    <div className="glass-container p-6">
-      <div className="space-y-12 relative z-10">
-        {/* Hero Section */}
-        <div className="glass-card p-6 space-y-4">
-          <div className="flex items-center gap-4">
-            <div className="w-14 h-14 rounded-2xl bg-gradient-to-br from-blue-500 to-indigo-600 flex items-center justify-center shadow-lg shadow-blue-500/30">
-              <Zap className="h-7 w-7 text-white" />
+    <div className="max-w-7xl mx-auto space-y-8">
+      {/* Welcome Header */}
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900 mb-1">
+            Welcome back, {firstName}
+          </h1>
+          <p className="text-gray-500">
+            Here's what's happening with your business today
+          </p>
+        </div>
+        <div className="hidden md:flex items-center gap-3">
+          <Link href="/quick-quotes">
+            <Button className="contra-btn-primary" data-testid="button-new-quote">
+              <Sparkles className="h-4 w-4" />
+              New Quote
+            </Button>
+          </Link>
+        </div>
+      </div>
+
+      {/* Stats Grid */}
+      {!statsLoading && stats && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          <div className="contra-card group" data-testid="stat-quotes">
+            <div className="flex items-center justify-between mb-4">
+              <div className="stat-icon-box">
+                <ClipboardList className="h-5 w-5 stat-icon" />
+              </div>
+              <div className="flex items-center gap-1 text-green-600 text-sm font-medium">
+                <TrendingUp className="h-3.5 w-3.5" />
+                <span>+{stats.quotesThisMonth}</span>
+              </div>
             </div>
-            <div>
-              <h1 className="heading-lg">Welcome back, {firstName}</h1>
-              <p className="body-lg text-gray-600">Here's what's happening with your workspace today</p>
+            <div className="text-3xl font-bold text-gray-900 mb-1">{stats.totalQuotes}</div>
+            <div className="text-sm text-gray-500">Total Quotes</div>
+          </div>
+
+          <div className="contra-card group" data-testid="stat-revenue">
+            <div className="flex items-center justify-between mb-4">
+              <div className="stat-icon-box">
+                <DollarSign className="h-5 w-5 stat-icon" />
+              </div>
             </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              ${stats.monthlyRevenue.toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500">Monthly Revenue</div>
+          </div>
+
+          <div className="contra-card group" data-testid="stat-customers">
+            <div className="flex items-center justify-between mb-4">
+              <div className="stat-icon-box">
+                <Users className="h-5 w-5 stat-icon" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">
+              {Number(stats.totalCustomers).toLocaleString()}
+            </div>
+            <div className="text-sm text-gray-500">Customers</div>
+          </div>
+
+          <div className="contra-card group" data-testid="stat-products">
+            <div className="flex items-center justify-between mb-4">
+              <div className="stat-icon-box">
+                <Package className="h-5 w-5 stat-icon" />
+              </div>
+            </div>
+            <div className="text-3xl font-bold text-gray-900 mb-1">{stats.totalProducts}</div>
+            <div className="text-sm text-gray-500">Products</div>
+          </div>
+        </div>
+      )}
+
+      {/* Loading skeleton for stats */}
+      {statsLoading && (
+        <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
+          {[1, 2, 3, 4].map((i) => (
+            <div key={i} className="contra-card">
+              <div className="contra-skeleton h-10 w-10 rounded-xl mb-4" />
+              <div className="contra-skeleton h-8 w-24 mb-2" />
+              <div className="contra-skeleton h-4 w-20" />
+            </div>
+          ))}
+        </div>
+      )}
+
+      {/* Quick Actions */}
+      <div>
+        <div className="flex items-center justify-between mb-6">
+          <div>
+            <h2 className="text-xl font-bold text-gray-900">Quick Actions</h2>
+            <p className="text-sm text-gray-500">Your most-used tools</p>
           </div>
         </div>
 
-        {/* Stats Grid */}
-        {!statsLoading && stats && (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6">
-            <div className="glass-stat p-6 group transition-all duration-200 hover:scale-[1.02]">
-              <div className="flex items-start justify-between mb-4">
-                <div 
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                  style={{ '--hover-bg': 'linear-gradient(135deg, #3b82f6, #4f46e5)' } as React.CSSProperties}
-                >
-                  <ClipboardList className="h-7 w-7 transition-colors duration-300 stat-icon" />
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
+          {mainApps.map((app) => {
+            const Icon = app.icon;
+            return (
+              <Link 
+                key={app.path} 
+                href={app.path}
+                className="contra-card-hover group block"
+                data-testid={`link-${app.title.toLowerCase().replace(/\s/g, '-')}`}
+              >
+                <div className="flex items-start justify-between mb-4">
+                  <div className="stat-icon-box">
+                    <Icon className="h-5 w-5 stat-icon" />
+                  </div>
+                  <ChevronRight className="h-5 w-5 text-gray-300 group-hover:text-gray-900 group-hover:translate-x-1 transition-all" />
                 </div>
-                <div className="flex items-center gap-1 text-green-500 text-sm font-medium">
-                  <TrendingUp className="h-4 w-4" />
-                  <span>+{stats.quotesThisMonth}</span>
-                </div>
-              </div>
-              <div className="stat-value text-black">{stats.totalQuotes}</div>
-              <div className="stat-label">Total Quotes</div>
-              <div className="mt-3 pt-3 border-t border-gray-100/50">
-                <div className="body-sm text-gray-500">{stats.quotesThisMonth} created this month</div>
-              </div>
-            </div>
+                <h3 className="font-semibold text-gray-900 mb-1">{app.title}</h3>
+                <p className="text-sm text-gray-500 line-clamp-2">{app.description}</p>
+              </Link>
+            );
+          })}
+        </div>
+      </div>
 
-            <div className="glass-stat p-6 group transition-all duration-200 hover:scale-[1.02]">
-              <div className="flex items-start justify-between mb-4">
-                <div 
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                  style={{ '--hover-bg': 'linear-gradient(135deg, #10b981, #059669)' } as React.CSSProperties}
-                >
-                  <Wallet className="h-7 w-7 transition-colors duration-300 stat-icon" />
-                </div>
-                <div className="flex items-center gap-1 text-emerald-500 text-sm font-medium">
-                  <DollarSign className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="stat-value text-black">${stats.monthlyRevenue.toLocaleString()}</div>
-              <div className="stat-label">Monthly Revenue</div>
-              <div className="mt-3 pt-3 border-t border-gray-100/50">
-                <div className="body-sm text-gray-500">From {stats.quotesThisMonth} quotes</div>
-              </div>
+      {/* Admin Section */}
+      {isAdmin && (
+        <div>
+          <div className="flex items-center gap-3 mb-6">
+            <div className="w-8 h-8 rounded-lg bg-gray-900 flex items-center justify-center">
+              <Settings className="h-4 w-4 text-white" />
             </div>
-
-            <div className="glass-stat p-6 group transition-all duration-200 hover:scale-[1.02]">
-              <div className="flex items-start justify-between mb-4">
-                <div 
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                  style={{ '--hover-bg': 'linear-gradient(135deg, #a855f7, #7c3aed)' } as React.CSSProperties}
-                >
-                  <UserCheck className="h-7 w-7 transition-colors duration-300 stat-icon" />
-                </div>
-                <div className="flex items-center gap-1 text-purple-500 text-sm font-medium">
-                  <Users className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="stat-value text-black">{Number(stats.totalCustomers).toLocaleString()}</div>
-              <div className="stat-label">Happy Customers</div>
-              <div className="mt-3 pt-3 border-t border-gray-100/50">
-                <div className="body-sm text-gray-500">Growing community</div>
-              </div>
-            </div>
-
-            <div className="glass-stat p-6 group transition-all duration-200 hover:scale-[1.02]">
-              <div className="flex items-start justify-between mb-4">
-                <div 
-                  className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                  style={{ '--hover-bg': 'linear-gradient(135deg, #f97316, #dc2626)' } as React.CSSProperties}
-                >
-                  <Boxes className="h-7 w-7 transition-colors duration-300 stat-icon" />
-                </div>
-                <div className="flex items-center gap-1 text-orange-500 text-sm font-medium">
-                  <Package className="h-4 w-4" />
-                </div>
-              </div>
-              <div className="stat-value text-black">{stats.totalProducts}</div>
-              <div className="stat-label">Products</div>
-              <div className="mt-3 pt-3 border-t border-gray-100/50">
-                <div className="body-sm text-gray-500">In catalog</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {/* Quick Actions */}
-        <div className="glass-card p-6">
-          <div className="flex items-center justify-between mb-6">
             <div>
-              <h2 className="heading-md">Quick Actions</h2>
-              <p className="body-base text-gray-600 mt-1">Your most-used tools and features</p>
+              <h2 className="text-xl font-bold text-gray-900">Admin Tools</h2>
+              <p className="text-sm text-gray-500">Manage system settings</p>
             </div>
           </div>
 
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-            {mainApps.map((app) => {
+          <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            {adminApps.map((app) => {
               const Icon = app.icon;
               return (
                 <Link 
                   key={app.path} 
                   href={app.path}
-                  className="group glass-card-solid p-6 hover:shadow-xl hover:scale-[1.02] cursor-pointer transition-all duration-200 block"
+                  className="contra-card-hover group block border-2 border-transparent hover:border-gray-200"
+                  data-testid={`link-admin-${app.title.toLowerCase().replace(/\s/g, '-')}`}
                 >
                   <div className="flex items-start justify-between mb-4">
-                    <div 
-                      className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                      style={{ '--hover-bg': app.color } as React.CSSProperties}
-                    >
-                      <Icon className="h-7 w-7 transition-colors duration-300 stat-icon" />
+                    <div className="stat-icon-box">
+                      <Icon className="h-5 w-5 stat-icon" />
                     </div>
-                    <ArrowRight className="h-5 w-5 text-gray-400 group-hover:text-black group-hover:translate-x-1 transition-all duration-200" />
+                    <span className="contra-badge-dark">Admin</span>
                   </div>
-                  <h3 className="heading-sm mb-2 group-hover:text-primary transition-colors">{app.title}</h3>
-                  <p className="body-sm text-gray-600">{app.description}</p>
+                  <h3 className="font-semibold text-gray-900 mb-1">{app.title}</h3>
+                  <p className="text-sm text-gray-500">{app.description}</p>
+                  <div className="mt-4 pt-4 border-t border-gray-100 flex items-center gap-1 text-sm font-medium text-gray-900">
+                    <span>Open</span>
+                    <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
+                  </div>
                 </Link>
               );
             })}
           </div>
         </div>
+      )}
 
-        {/* Admin Section */}
-        {isAdmin && (
-          <div className="glass-card p-6">
-            <div className="flex items-center gap-4 mb-6">
-              <div className="w-12 h-12 rounded-2xl bg-gradient-to-br from-indigo-500 to-indigo-700 flex items-center justify-center shadow-lg shadow-indigo-500/30">
-                <Settings className="h-6 w-6 text-white" />
-              </div>
-              <div>
-                <h2 className="heading-md">Admin Tools</h2>
-                <p className="body-base text-gray-600">Manage system settings and data</p>
-              </div>
+      {/* Activity Banner */}
+      {stats && (
+        <div className="contra-card bg-gray-900 text-white">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold text-white mb-1">You're doing great!</h3>
+              <p className="text-gray-400 text-sm">
+                {stats.activityCount} actions logged. Keep up the momentum!
+              </p>
             </div>
-
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-              {adminApps.map((app) => {
-                const Icon = app.icon;
-                return (
-                  <Link 
-                    key={app.path} 
-                    href={app.path}
-                    className="group glass-card-solid p-6 hover:shadow-xl hover:scale-[1.02] cursor-pointer transition-all duration-200 block border-2 border-transparent hover:border-indigo-200"
-                  >
-                    <div className="flex items-start justify-between mb-4">
-                      <div 
-                        className="w-14 h-14 rounded-2xl flex items-center justify-center shadow-sm transition-all duration-300 stat-icon-box"
-                        style={{ '--hover-bg': app.color } as React.CSSProperties}
-                      >
-                        <Icon className="h-7 w-7 transition-colors duration-300 stat-icon" />
-                      </div>
-                      <Badge className="glass-badge text-indigo-600">Admin</Badge>
-                    </div>
-                    <h3 className="heading-sm mb-2 group-hover:text-primary transition-colors">{app.title}</h3>
-                    <p className="body-sm text-gray-600">{app.description}</p>
-                    <div className="mt-4 pt-4 border-t border-gray-200/50 flex items-center text-primary font-medium body-sm group-hover:gap-2 transition-all duration-200">
-                      <span>Open</span>
-                      <ArrowRight className="h-4 w-4 group-hover:translate-x-1 transition-transform" />
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
-          </div>
-        )}
-
-        {/* Quick Stats Banner */}
-        {stats && (
-          <div className="glass-card p-6 bg-gradient-to-r from-indigo-500 to-purple-600 text-white border-none">
-            <div className="flex items-center justify-between">
-              <div>
-                <h3 className="heading-sm text-white mb-2">You're doing great!</h3>
-                <p className="body-base text-white/90">
-                  {stats.activityCount} actions logged this session. Keep up the momentum!
-                </p>
+            <div className="hidden md:flex items-center gap-8">
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">{stats.quotesThisMonth}</div>
+                <div className="text-xs text-gray-400">This Month</div>
               </div>
-              <div className="hidden md:flex items-center gap-8">
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white">{stats.quotesThisMonth}</div>
-                  <div className="text-sm text-white/80">Quotes</div>
-                </div>
-                <div className="w-px h-12 bg-white/20"></div>
-                <div className="text-center">
-                  <div className="text-3xl font-bold text-white">{stats.totalCustomers}</div>
-                  <div className="text-sm text-white/80">Customers</div>
-                </div>
+              <div className="w-px h-10 bg-gray-700" />
+              <div className="text-center">
+                <div className="text-2xl font-bold text-white">{stats.totalCustomers}</div>
+                <div className="text-xs text-gray-400">Customers</div>
               </div>
             </div>
           </div>
-        )}
-      </div>
+        </div>
+      )}
     </div>
   );
 }

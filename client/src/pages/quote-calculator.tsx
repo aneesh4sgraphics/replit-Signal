@@ -790,19 +790,19 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
   }
 
   return (
-    <div className="min-h-screen bg-gradient-to-br from-indigo-50 via-purple-50 to-blue-100">
-      <div className="max-w-full mx-auto px-4 py-4 xl:px-8 xl:py-6">
-        {/* Configure Product Section - Outside main layout */}
+    <div className="space-y-6">
+      <div className="max-w-full mx-auto">
+        {/* Header Section */}
         <div className="mb-8">
-          <div className="flex items-center gap-3 mb-4">
-            <div className="p-3 bg-white/50 backdrop-blur-xl rounded-2xl shadow-lg border border-white/60">
-              <Calculator className="h-7 w-7 text-purple-600" />
-            </div>
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="text-2xl sm:text-3xl font-bold bg-gradient-to-r from-purple-700 via-indigo-600 to-blue-700 bg-clip-text text-transparent">
-                QuickQuotes
-              </h1>
-              <p className="text-sm text-gray-600/80">Configure products and generate professional quotes</p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">QuickQuotes</h1>
+              <p className="text-gray-500">Configure products and generate professional quotes</p>
+            </div>
+            <div className="hidden sm:flex items-center gap-3">
+              <div className="stat-icon-box">
+                <Calculator className="h-5 w-5 stat-icon" />
+              </div>
             </div>
           </div>
         </div>
@@ -833,7 +833,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
       <div className="grid grid-cols-1 xl:grid-cols-5 lg:grid-cols-4 gap-6">
         {/* Left Panel - Product Selection */}
         <div className="xl:col-span-2 lg:col-span-1">
-          <div className="bg-white/60 backdrop-blur-xl border border-white/50 shadow-xl shadow-purple-500/10 rounded-2xl p-6 mb-6">
+          <div className="contra-card mb-6">
             <div className="space-y-6">
               {/* Product Category */}
               <div className="space-y-2">

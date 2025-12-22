@@ -563,28 +563,25 @@ export default function PriceList() {
   }
 
   return (
-    <div className="min-h-screen" style={{ backgroundColor: '#fafafa' }}>
-      <div className="max-w-7xl mx-auto px-6 py-6">
+    <div className="space-y-6">
+      <div className="max-w-full mx-auto">
         {/* Header */}
-        <div className="mb-6 relative">
-          <FloatingElements />
-          <div className="flex justify-between items-start">
+        <div className="mb-8">
+          <div className="flex items-center justify-between">
             <div>
-              <h1 className="heading-primary text-gray-800 mb-2">Price List</h1>
-              <p className="body-small text-gray-500">
-                Generate comprehensive price lists for your products
-              </p>
+              <h1 className="text-3xl font-bold text-gray-900 mb-1">Price List</h1>
+              <p className="text-gray-500">Generate comprehensive price lists for your products</p>
             </div>
             <button
               onClick={() => refetch()}
-              className="bg-purple-600 hover:bg-purple-700 text-white px-4 py-2 rounded-md text-sm font-medium transition-colors flex items-center gap-2"
+              className="contra-btn-primary"
               disabled={isLoading}
+              data-testid="button-refresh"
             >
               <RefreshCw className={`h-4 w-4 ${isLoading ? 'animate-spin' : ''}`} />
-              Refresh Data
+              Refresh
             </button>
           </div>
-          <HeaderDivider />
         </div>
 
         {/* No Results Banner */}
@@ -618,7 +615,7 @@ export default function PriceList() {
         )}
 
         {/* Configuration - Optimized Layout */}
-        <SimpleCardFrame className="p-6 mb-6 bg-white border border-gray-100">
+        <div className="contra-card mb-6">
           <div className="max-w-6xl mx-auto">
             <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
               {/* Product Category */}
@@ -677,11 +674,11 @@ export default function PriceList() {
               </div>
             </div>
           </div>
-        </SimpleCardFrame>
+        </div>
 
       {/* Price List Table */}
       {priceListItems.length > 0 ? (
-        <SimpleCardFrame className="p-6">
+        <div className="contra-card">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-3">
               <h2 className="heading-secondary text-gray-800">Price List - {selectedCategory}</h2>
@@ -823,7 +820,7 @@ export default function PriceList() {
             }}
             maxHeight="500px"
           />
-        </SimpleCardFrame>
+        </div>
       ) : (
         <div className="border border-gray-200 rounded-lg p-6 bg-white text-center">
           <FileText className="h-12 w-12 mx-auto mb-4 text-gray-400" />
