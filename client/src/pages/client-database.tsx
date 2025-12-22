@@ -246,24 +246,35 @@ export default function ClientDatabase() {
     mutationFn: async (customerId: string) => {
       return await apiRequest("DELETE", `/api/customers/${customerId}`);
     },
-    onSuccess: async (_, customerId) => {
+    onMutate: async (customerId: string) => {
+      await queryClient.cancelQueries({ queryKey: ["/api/customers"] });
+      const previousCustomers = queryClient.getQueryData(["/api/customers"]);
       const customer = customers.find(c => c.id === customerId);
+      queryClient.setQueryData(["/api/customers"], (old: Customer[] | undefined) => 
+        old?.filter(c => c.id !== customerId) ?? []
+      );
+      return { previousCustomers, deletedCustomer: customer };
+    },
+    onSuccess: (_, customerId, context) => {
+      const customer = context?.deletedCustomer;
       logUserAction("DELETED CLIENT", `${customer?.firstName} ${customer?.lastName} (${customer?.email})`);
       toast({
         title: "Client deleted",
         description: "Client has been deleted successfully",
       });
-      
-      setTimeout(() => {
-        queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
-      }, 100);
     },
-    onError: (error: any) => {
+    onError: (error: any, _, context) => {
+      if (context?.previousCustomers) {
+        queryClient.setQueryData(["/api/customers"], context.previousCustomers);
+      }
       toast({
         title: "Error deleting client",
         description: error.message || "Failed to delete client",
         variant: "destructive",
       });
+    },
+    onSettled: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
     },
   });
 

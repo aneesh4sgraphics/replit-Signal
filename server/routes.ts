@@ -720,25 +720,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.delete("/api/customers/:id", async (req, res) => {
-    try {
-      const customerId = req.params.id;
-      const success = await storage.deleteCustomer(customerId);
-      
-      if (!success) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-      
-      // Clear cache to ensure fresh data
-      setCachedData("customers", null);
-      
-      res.json({ message: "Customer deleted successfully" });
-    } catch (error) {
-      console.error("Error deleting customer:", error);
-      res.status(500).json({ error: "Failed to delete customer" });
-    }
-  });
-
+  
   // Product management routes
   app.put("/api/product-sizes/:id", isAuthenticated, async (req: any, res) => {
     try {
@@ -974,21 +956,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.delete("/api/customers/:id", isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const customerId = req.params.id;
-      
-      // Check if customer exists
-      const existingCustomer = await storage.getCustomer(customerId);
-      if (!existingCustomer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
 
       const deleteResult = await storage.deleteCustomer(customerId);
       if (!deleteResult) {
-        return res.status(500).json({ error: "Failed to delete customer from database" });
+        return res.status(404).json({ error: "Customer not found" });
       }
 
-      // Clear cache to ensure fresh data on next fetch
       setCachedData("customers", null);
-      
       res.json({ message: "Customer deleted successfully" });
     } catch (error) {
       console.error("Error deleting customer:", error);
