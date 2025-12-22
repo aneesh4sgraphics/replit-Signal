@@ -294,7 +294,7 @@ export default function Dashboard() {
                 margin: 0,
                 fontWeight: '400'
               }}>
-                {dateString} • Managing your printing operations
+                {dateString}
               </p>
             </div>
           </div>
