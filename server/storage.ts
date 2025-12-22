@@ -25,6 +25,17 @@ import {
   type InsertParsedContact,
   type PdfCategoryDetails,
   type InsertPdfCategoryDetails,
+  // Shipment Labeler types
+  type Shipment,
+  type InsertShipment,
+  type ShippingCompany,
+  type InsertShippingCompany,
+  type SavedRecipient,
+  type InsertSavedRecipient,
+  type ProductLabel,
+  type InsertProductLabel,
+  type NotionProduct,
+  type InsertNotionProduct,
   users,
   customers,
   sentQuotes,
@@ -39,6 +50,12 @@ import {
   activityLogs,
   parsedContacts,
   pdfCategoryDetails,
+  // Shipment Labeler tables
+  shipments,
+  shippingCompanies,
+  savedRecipients,
+  productLabels,
+  notionProducts,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
   type UploadBatch,
@@ -46,7 +63,7 @@ import {
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
-import { eq, desc, and, sql } from "drizzle-orm";
+import { eq, desc, and, sql, ilike, or } from "drizzle-orm";
 
 export interface IStorage {
   // User operations for Replit Auth
@@ -155,6 +172,35 @@ export interface IStorage {
   getPdfCategoryDetailByKey(categoryKey: string): Promise<PdfCategoryDetails | undefined>;
   upsertPdfCategoryDetail(detail: InsertPdfCategoryDetails): Promise<PdfCategoryDetails>;
   deletePdfCategoryDetail(id: number): Promise<void>;
+
+  // Shipment Labeler methods
+  // Shipments
+  getShipments(): Promise<Shipment[]>;
+  getShipment(id: number): Promise<Shipment | undefined>;
+  createShipment(data: InsertShipment): Promise<Shipment>;
+  deleteShipment(id: number): Promise<void>;
+
+  // Shipping Companies
+  getShippingCompanies(): Promise<ShippingCompany[]>;
+  createShippingCompany(data: InsertShippingCompany): Promise<ShippingCompany>;
+  deleteShippingCompany(id: number): Promise<void>;
+
+  // Saved Recipients
+  getSavedRecipients(): Promise<SavedRecipient[]>;
+  createSavedRecipient(data: InsertSavedRecipient): Promise<SavedRecipient>;
+  findRecipientByNameAndAddress(companyName: string, address: string): Promise<SavedRecipient | undefined>;
+
+  // Product Labels
+  getProductLabels(): Promise<ProductLabel[]>;
+  getProductLabel(id: number): Promise<ProductLabel | undefined>;
+  createProductLabel(data: InsertProductLabel): Promise<ProductLabel>;
+  updateProductLabel(id: number, data: Partial<InsertProductLabel>): Promise<ProductLabel | undefined>;
+  deleteProductLabel(id: number): Promise<void>;
+
+  // Notion Products
+  getNotionProducts(): Promise<NotionProduct[]>;
+  searchNotionProducts(query: string): Promise<NotionProduct[]>;
+  syncNotionProducts(products: InsertNotionProduct[]): Promise<{ synced: number; created: number; updated: number }>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -1131,6 +1177,129 @@ export class DatabaseStorage implements IStorage {
   
   async deletePdfCategoryDetail(id: number): Promise<void> {
     await db.delete(pdfCategoryDetails).where(eq(pdfCategoryDetails.id, id));
+  }
+
+  // ========================================
+  // Shipment Labeler Implementation
+  // ========================================
+
+  // Shipments
+  async getShipments(): Promise<Shipment[]> {
+    return await db.select().from(shipments).orderBy(desc(shipments.createdAt));
+  }
+
+  async getShipment(id: number): Promise<Shipment | undefined> {
+    const [shipment] = await db.select().from(shipments).where(eq(shipments.id, id));
+    return shipment;
+  }
+
+  async createShipment(data: InsertShipment): Promise<Shipment> {
+    const [shipment] = await db.insert(shipments).values(data).returning();
+    return shipment;
+  }
+
+  async deleteShipment(id: number): Promise<void> {
+    await db.delete(shipments).where(eq(shipments.id, id));
+  }
+
+  // Shipping Companies
+  async getShippingCompanies(): Promise<ShippingCompany[]> {
+    return await db.select().from(shippingCompanies).orderBy(shippingCompanies.name);
+  }
+
+  async createShippingCompany(data: InsertShippingCompany): Promise<ShippingCompany> {
+    const [company] = await db.insert(shippingCompanies).values(data).returning();
+    return company;
+  }
+
+  async deleteShippingCompany(id: number): Promise<void> {
+    await db.delete(shippingCompanies).where(eq(shippingCompanies.id, id));
+  }
+
+  // Saved Recipients
+  async getSavedRecipients(): Promise<SavedRecipient[]> {
+    return await db.select().from(savedRecipients).orderBy(savedRecipients.companyName);
+  }
+
+  async createSavedRecipient(data: InsertSavedRecipient): Promise<SavedRecipient> {
+    const [recipient] = await db.insert(savedRecipients).values(data).returning();
+    return recipient;
+  }
+
+  async findRecipientByNameAndAddress(companyName: string, address: string): Promise<SavedRecipient | undefined> {
+    const [recipient] = await db
+      .select()
+      .from(savedRecipients)
+      .where(and(eq(savedRecipients.companyName, companyName), eq(savedRecipients.address, address)));
+    return recipient;
+  }
+
+  // Product Labels
+  async getProductLabels(): Promise<ProductLabel[]> {
+    return await db.select().from(productLabels).orderBy(desc(productLabels.createdAt));
+  }
+
+  async getProductLabel(id: number): Promise<ProductLabel | undefined> {
+    const [label] = await db.select().from(productLabels).where(eq(productLabels.id, id));
+    return label;
+  }
+
+  async createProductLabel(data: InsertProductLabel): Promise<ProductLabel> {
+    const [label] = await db.insert(productLabels).values(data).returning();
+    return label;
+  }
+
+  async updateProductLabel(id: number, data: Partial<InsertProductLabel>): Promise<ProductLabel | undefined> {
+    const [label] = await db.update(productLabels).set(data).where(eq(productLabels.id, id)).returning();
+    return label;
+  }
+
+  async deleteProductLabel(id: number): Promise<void> {
+    await db.delete(productLabels).where(eq(productLabels.id, id));
+  }
+
+  // Notion Products
+  async getNotionProducts(): Promise<NotionProduct[]> {
+    return await db.select().from(notionProducts).orderBy(notionProducts.productName);
+  }
+
+  async searchNotionProducts(query: string): Promise<NotionProduct[]> {
+    if (!query.trim()) {
+      return this.getNotionProducts();
+    }
+    return await db
+      .select()
+      .from(notionProducts)
+      .where(
+        or(
+          ilike(notionProducts.productName, `%${query}%`),
+          ilike(notionProducts.sku, `%${query}%`),
+          ilike(notionProducts.description, `%${query}%`)
+        )
+      )
+      .orderBy(notionProducts.productName);
+  }
+
+  async syncNotionProducts(products: InsertNotionProduct[]): Promise<{ synced: number; created: number; updated: number }> {
+    let created = 0;
+    let updated = 0;
+
+    for (const product of products) {
+      // Check if product exists by SKU or product name
+      const existing = product.sku
+        ? await db.select().from(notionProducts).where(eq(notionProducts.sku, product.sku)).then(r => r[0])
+        : await db.select().from(notionProducts).where(eq(notionProducts.productName, product.productName)).then(r => r[0]);
+
+      if (existing) {
+        await db.update(notionProducts).set({ ...product, syncedAt: new Date() }).where(eq(notionProducts.id, existing.id));
+        updated++;
+      } else {
+        await db.insert(notionProducts).values(product);
+        created++;
+      }
+    }
+
+    return { synced: products.length, created, updated };
   }
 }
 
