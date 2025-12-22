@@ -1,8 +1,14 @@
 @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+@import url('https://fonts.googleapis.com/css2?family=Lobster&display=swap');
 
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
+
+/* Graffiti brand font styling */
+.font-graffiti {
+  font-family: 'Lobster', cursive !important;
+}
 
 :root {
   /* Contra Wireframe Kit Official Color System */
