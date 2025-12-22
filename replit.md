@@ -7,13 +7,21 @@ This is a full-stack TypeScript application that provides a quote calculator for
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 22, 2025)
+- **Shipment Labeler Integration**: Added two new label generation features
+  - **Shipping Labels** (`/shipping-labels`): Professional shipping label generator with support for multiple formats (4x6 thermal, 4x8 thermal, 8.5x11 laser 2-up, local transport). Features include barcode generation using react-barcode, saved recipients, shipping company management, address validation, Google Maps integration, shipment history, and pallet details per label.
+  - **Product Labels** (`/product-labels`): Product label generator with QR codes (qrcode.react), support for thermal 4x3 and Avery 4-up formats, ink compatibility options (Dry Toner, HP Indigo, UV, etc.), sample pack designation, and saved template management. Includes Notion product search integration.
+  - Database schema: Added `shipments`, `shippingCompanies`, `savedRecipients`, `productLabels`, and `notionProducts` tables
+  - New packages: react-barcode, qrcode.react
+  - API endpoints: Full CRUD for all new entities plus Notion product search
+  - Glass design styling applied to both pages
+
 - **Shiny Glass Design System Implementation**: Redesigned UI with glassmorphism effects featuring frosted glass cards, animated gradient backgrounds, and floating ambient orbs
   - **Glass card styling**: Subtle frosted glass effect with `backdrop-filter: blur(24px) saturate(120%)`, semi-transparent white backgrounds, and soft shadows
   - **Animated background**: OdooLayout features animated gradient background (`linear-gradient` with gentle color shift animation) and three floating ambient orbs with smooth animations
   - **Glass sidebar**: Collapsible navigation with frosted glass effect and subtle borders
   - **Cool muted color palette**: Blue, purple, and teal accent colors with soft indigo shadows
   - **Hover effects**: Cards have subtle lift animation (`translateY(-2px)`) on hover
-  - All major pages updated: Dashboard, QuickQuotes, Price List, Client Database, Saved Quotes, Admin, PDF Settings, Activity Logs, Shipping Calculator, Area Pricer, Market Prices
+  - All major pages updated: Dashboard, QuickQuotes, Price List, Client Database, Saved Quotes, Admin, PDF Settings, Activity Logs, Shipping Calculator, Area Pricer, Market Prices, Shipping Labels, Product Labels
   - Legacy Contra styles replaced with `glass-card`, `glass-btn`, `glass-btn-primary` utility classes
 
 ## Previous Changes (December 3, 2025)

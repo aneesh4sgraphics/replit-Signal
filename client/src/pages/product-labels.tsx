@@ -1,0 +1,574 @@
+import { useState } from "react";
+import { Printer, RotateCcw, Tag, Save, Trash2, RefreshCw } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
+import Barcode from "react-barcode";
+import { QRCodeSVG } from "qrcode.react";
+import type { ProductLabel } from "@shared/schema";
+
+type LabelFormat = "thermal4x3" | "avery6up";
+
+interface ProductLabelData {
+  productName: string;
+  sku: string;
+  description: string;
+  price: string;
+  barcode: string;
+  labelFormat: LabelFormat;
+  copies: number;
+  isSamplePack: boolean;
+  websiteUrl: string;
+  printTypes: string[];
+  variantSize: string;
+}
+
+const PRINT_TYPES = [
+  "Dry Toner",
+  "HP Indigo",
+  "Inkjet UV",
+  "EcoSol",
+  "UV - Wide Format",
+  "Latex Inks",
+  "Aqueous Inks",
+  "Offset"
+];
+
+const defaultLabel: ProductLabelData = {
+  productName: "",
+  sku: "",
+  description: "",
+  price: "",
+  barcode: "",
+  labelFormat: "thermal4x3",
+  copies: 1,
+  isSamplePack: false,
+  websiteUrl: "",
+  printTypes: [],
+  variantSize: ""
+};
+
+const labelFormatConfig: Record<LabelFormat, { width: string; height: string; name: string }> = {
+  "thermal4x3": { width: "4in", height: "3in", name: "4\" x 3\" Thermal" },
+  "avery6up": { width: "4.25in", height: "5.5in", name: "Avery 4-up" }
+};
+
+export default function ProductLabels() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [labelData, setLabelData] = useState<ProductLabelData>(defaultLabel);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const { data: savedLabels = [] } = useQuery<ProductLabel[]>({
+    queryKey: ["/api/product-labels"],
+  });
+
+  const { data: notionProducts = [], isError: notionError } = useQuery<any[]>({
+    queryKey: ["/api/notion-products/search", searchQuery],
+    queryFn: async () => {
+      if (!searchQuery.trim()) return [];
+      const response = await apiRequest("GET", `/api/notion-products/search?q=${encodeURIComponent(searchQuery)}`);
+      return response.json();
+    },
+    enabled: !!searchQuery.trim(),
+  });
+
+  const saveLabelMutation = useMutation({
+    mutationFn: async (data: Partial<ProductLabelData>) => {
+      const response = await apiRequest("POST", "/api/product-labels", {
+        productName: data.productName,
+        sku: data.sku,
+        description: data.description,
+        price: data.price,
+        barcode: data.barcode,
+        websiteUrl: data.websiteUrl,
+        isSamplePack: data.isSamplePack,
+        printTypes: data.printTypes,
+        labelFormat: data.labelFormat,
+      });
+      return response.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/product-labels"] });
+      toast({ title: "Label saved successfully!" });
+    },
+    onError: () => {
+      toast({ title: "Failed to save label", variant: "destructive" });
+    },
+  });
+
+  const deleteLabelMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/product-labels/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/product-labels"] });
+      toast({ title: "Label deleted!" });
+    },
+    onError: () => {
+      toast({ title: "Failed to delete label", variant: "destructive" });
+    },
+  });
+
+  const handleSave = async () => {
+    if (!labelData.productName) {
+      toast({ title: "Product name is required", variant: "destructive" });
+      return false;
+    }
+    try {
+      await saveLabelMutation.mutateAsync(labelData);
+      return true;
+    } catch {
+      return false;
+    }
+  };
+
+  const handlePrint = async () => {
+    const saved = await handleSave();
+    if (!saved) {
+      toast({ title: "Save failed. Print canceled.", variant: "destructive" });
+      return;
+    }
+    window.print();
+  };
+
+  const handlePrintOnly = () => {
+    window.print();
+  };
+
+  const loadFromSaved = (label: ProductLabel) => {
+    setLabelData({
+      productName: label.productName,
+      sku: label.sku || "",
+      description: label.description || "",
+      price: label.price || "",
+      barcode: label.barcode || "",
+      websiteUrl: label.websiteUrl || "",
+      isSamplePack: label.isSamplePack,
+      printTypes: label.printTypes || [],
+      labelFormat: (label.labelFormat as LabelFormat) || "thermal4x3",
+      copies: 1,
+      variantSize: ""
+    });
+  };
+
+  const loadFromNotionProduct = (product: any) => {
+    setLabelData({
+      ...labelData,
+      productName: product.productName,
+      sku: product.sku || "",
+      description: product.description || "",
+      price: product.price || "",
+      barcode: product.barcode || "",
+      websiteUrl: product.websiteUrl || "",
+      printTypes: product.printTypes || [],
+      variantSize: product.variantSize || ""
+    });
+  };
+
+  const togglePrintType = (type: string) => {
+    setLabelData(prev => ({
+      ...prev,
+      printTypes: prev.printTypes.includes(type)
+        ? prev.printTypes.filter(t => t !== type)
+        : [...prev.printTypes, type]
+    }));
+  };
+
+  return (
+    <>
+      <div className="hidden print:block print:w-full print:h-full">
+        <PrintLayout data={labelData} />
+      </div>
+
+      <div className="print:hidden space-y-6">
+        <div className="fixed bottom-0 left-0 right-0 bg-white/80 backdrop-blur-lg border-t shadow-lg p-4 z-50 flex items-center justify-center gap-4">
+          <Button 
+            variant="outline" 
+            onClick={() => setLabelData(defaultLabel)}
+            data-testid="button-reset"
+            size="lg"
+            className="glass-btn"
+          >
+            <RotateCcw className="h-4 w-4 mr-2" />
+            Reset
+          </Button>
+          <Button 
+            variant="secondary"
+            onClick={handleSave}
+            disabled={saveLabelMutation.isPending || !labelData.productName}
+            data-testid="button-save"
+            size="lg"
+            className="glass-btn"
+          >
+            <Save className="h-4 w-4 mr-2" />
+            Save Template
+          </Button>
+          <Button 
+            onClick={handlePrint}
+            disabled={!labelData.productName}
+            data-testid="button-print"
+            size="lg"
+            className="glass-btn-primary"
+          >
+            <Printer className="h-4 w-4 mr-2" />
+            Print Labels
+          </Button>
+        </div>
+
+        <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-24">
+          <div className="lg:col-span-5 space-y-6">
+            <div className="glass-card p-6">
+              <div className="flex items-center gap-2 mb-4">
+                <Tag className="h-5 w-5 text-blue-600" />
+                <h3 className="text-lg font-semibold">Label Details</h3>
+              </div>
+
+              <div className="space-y-4">
+                <div className="space-y-2">
+                  <Label>Search Products</Label>
+                  <Input
+                    placeholder="Search by name, SKU..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    data-testid="input-search"
+                  />
+                  {searchQuery && notionProducts.length > 0 && (
+                    <div className="border rounded-lg max-h-40 overflow-auto">
+                      {notionProducts.slice(0, 5).map((product, i) => (
+                        <div
+                          key={i}
+                          className="p-2 hover:bg-gray-100 cursor-pointer border-b last:border-b-0"
+                          onClick={() => {
+                            loadFromNotionProduct(product);
+                            setSearchQuery("");
+                          }}
+                        >
+                          <div className="font-medium text-sm">{product.productName}</div>
+                          {product.sku && <div className="text-xs text-gray-500">SKU: {product.sku}</div>}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Label Format</Label>
+                  <Select
+                    value={labelData.labelFormat}
+                    onValueChange={(value) => setLabelData({ ...labelData, labelFormat: value as LabelFormat })}
+                  >
+                    <SelectTrigger data-testid="select-format">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="thermal4x3">4" x 3" Thermal</SelectItem>
+                      <SelectItem value="avery6up">Avery 4-up (Letter)</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Product Name *</Label>
+                  <Input
+                    value={labelData.productName}
+                    onChange={(e) => setLabelData({ ...labelData, productName: e.target.value })}
+                    placeholder="Enter product name..."
+                    data-testid="input-product-name"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>SKU</Label>
+                    <Input
+                      value={labelData.sku}
+                      onChange={(e) => setLabelData({ ...labelData, sku: e.target.value })}
+                      placeholder="SKU-12345"
+                      data-testid="input-sku"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Variant Size</Label>
+                    <Input
+                      value={labelData.variantSize}
+                      onChange={(e) => setLabelData({ ...labelData, variantSize: e.target.value })}
+                      placeholder="12x18, Large, etc."
+                      data-testid="input-variant-size"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Description</Label>
+                  <Textarea
+                    value={labelData.description}
+                    onChange={(e) => setLabelData({ ...labelData, description: e.target.value })}
+                    placeholder="Brief product description..."
+                    className="resize-none h-20"
+                    data-testid="textarea-description"
+                  />
+                </div>
+
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="space-y-2">
+                    <Label>Price</Label>
+                    <Input
+                      value={labelData.price}
+                      onChange={(e) => setLabelData({ ...labelData, price: e.target.value })}
+                      placeholder="29.99"
+                      data-testid="input-price"
+                    />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Barcode</Label>
+                    <Input
+                      value={labelData.barcode}
+                      onChange={(e) => setLabelData({ ...labelData, barcode: e.target.value })}
+                      placeholder="123456789012"
+                      data-testid="input-barcode"
+                    />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Website URL (for QR code)</Label>
+                  <Input
+                    value={labelData.websiteUrl}
+                    onChange={(e) => setLabelData({ ...labelData, websiteUrl: e.target.value })}
+                    placeholder="https://example.com/product"
+                    data-testid="input-website-url"
+                  />
+                </div>
+
+                <div className="flex items-center space-x-2">
+                  <Checkbox
+                    id="samplePack"
+                    checked={labelData.isSamplePack}
+                    onCheckedChange={(checked) => setLabelData({ ...labelData, isSamplePack: !!checked })}
+                    data-testid="checkbox-sample-pack"
+                  />
+                  <Label htmlFor="samplePack" className="cursor-pointer">Sample Pack Label</Label>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Ink Compatibility</Label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {PRINT_TYPES.map((type) => (
+                      <div key={type} className="flex items-center space-x-2">
+                        <Checkbox
+                          id={type}
+                          checked={labelData.printTypes.includes(type)}
+                          onCheckedChange={() => togglePrintType(type)}
+                          data-testid={`checkbox-print-type-${type.replace(/\s+/g, '-').toLowerCase()}`}
+                        />
+                        <Label htmlFor={type} className="text-xs cursor-pointer">{type}</Label>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Number of Copies</Label>
+                  <Input
+                    type="number"
+                    min="1"
+                    max="100"
+                    value={labelData.copies}
+                    onChange={(e) => setLabelData({ ...labelData, copies: parseInt(e.target.value) || 1 })}
+                    data-testid="input-copies"
+                  />
+                </div>
+              </div>
+            </div>
+
+            {savedLabels.length > 0 && (
+              <div className="glass-card p-6">
+                <h3 className="text-base font-semibold mb-4 flex items-center gap-2">
+                  <RefreshCw className="h-5 w-5 text-gray-500" />
+                  Saved Templates
+                </h3>
+                <div className="space-y-2 max-h-60 overflow-auto">
+                  {savedLabels.map((label) => (
+                    <div
+                      key={label.id}
+                      className="flex items-center justify-between p-2 rounded-lg border bg-gray-50 hover:bg-white hover:shadow-sm transition-all group"
+                    >
+                      <div
+                        className="flex-1 cursor-pointer"
+                        onClick={() => loadFromSaved(label)}
+                      >
+                        <div className="font-medium text-sm">{label.productName}</div>
+                        {label.sku && <div className="text-xs text-gray-500">SKU: {label.sku}</div>}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7 opacity-0 group-hover:opacity-100 text-red-500 hover:text-red-600"
+                        onClick={() => deleteLabelMutation.mutate(label.id)}
+                        data-testid={`button-delete-${label.id}`}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <div className="lg:col-span-7 space-y-6">
+            <div className="flex items-center justify-between">
+              <h2 className="text-xl font-semibold tracking-tight">Live Preview</h2>
+              <span className="text-sm text-muted-foreground bg-white px-3 py-1 rounded-full border shadow-sm">
+                {labelFormatConfig[labelData.labelFormat].name}
+              </span>
+            </div>
+            
+            <div className="bg-gray-200/50 p-4 rounded-xl border-2 border-dashed border-gray-300 flex items-start justify-center min-h-[400px] overflow-auto">
+              <div className="bg-white shadow-2xl" style={{ transform: labelData.labelFormat === 'avery6up' ? 'scale(0.5)' : 'scale(0.9)', transformOrigin: 'top center' }}>
+                {labelData.labelFormat === 'avery6up' ? (
+                  <AverySheetPreview data={labelData} />
+                ) : (
+                  <ProductLabelPreview data={labelData} />
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+    </>
+  );
+}
+
+function ProductLabelPreview({ data }: { data: ProductLabelData }) {
+  const config = labelFormatConfig[data.labelFormat];
+  const isAvery = data.labelFormat === "avery6up";
+  
+  if (data.isSamplePack) {
+    return (
+      <div 
+        className="bg-white border-2 border-black flex flex-col justify-between"
+        style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
+      >
+        <div className="p-2 flex-1 flex flex-col justify-between">
+          <div>
+            <div className={`font-bold uppercase ${isAvery ? 'text-sm' : 'text-base'}`} style={{ lineHeight: '1.2' }}>
+              {data.productName || "PRODUCT NAME"}
+            </div>
+            {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>SKU: {data.sku}</div>}
+            {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>Size: {data.variantSize}</div>}
+            {data.description && (
+              <div className={`text-gray-500 mt-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>{data.description}</div>
+            )}
+            {data.printTypes.length > 0 && (
+              <div className={`text-gray-600 mt-1 ${isAvery ? 'text-[7px]' : 'text-[8px]'}`}>
+                <span className="font-bold">Ink Compatibility:</span> {data.printTypes.join(", ")}
+              </div>
+            )}
+          </div>
+          <div className="flex items-end justify-between gap-2">
+            <div className="flex flex-col">
+              {data.price && <div className={`font-bold ${isAvery ? 'text-base' : 'text-lg'}`}>${data.price}</div>}
+              {data.price && <div className="text-[6px] text-gray-500">Discount not included</div>}
+              {data.barcode && <Barcode value={data.barcode} width={isAvery ? 0.8 : 1} height={isAvery ? 18 : 22} fontSize={isAvery ? 6 : 7} margin={0} />}
+            </div>
+            {data.websiteUrl && (
+              <div className="flex flex-col items-center">
+                <div className="text-[6px] font-bold text-gray-600 mb-0.5">SCAN TO BUY</div>
+                <QRCodeSVG value={data.websiteUrl} size={isAvery ? 28 : 35} />
+              </div>
+            )}
+          </div>
+        </div>
+        <div className="bg-black text-white flex items-center justify-center" style={{ height: '0.25in', width: '100%' }}>
+          <div className="font-black text-xs tracking-wide">SAMPLE PACK</div>
+        </div>
+      </div>
+    );
+  }
+  
+  return (
+    <div 
+      className="bg-white border-2 border-black p-2 flex flex-col justify-between"
+      style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
+    >
+      <div>
+        <div className={`font-bold uppercase ${isAvery ? 'text-sm' : 'text-base'}`} style={{ lineHeight: '1.2' }}>
+          {data.productName || "PRODUCT NAME"}
+        </div>
+        {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>SKU: {data.sku}</div>}
+        {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>Size: {data.variantSize}</div>}
+        {data.description && (
+          <div className={`text-gray-500 mt-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>{data.description}</div>
+        )}
+        {data.printTypes.length > 0 && (
+          <div className={`text-gray-600 mt-1 ${isAvery ? 'text-[7px]' : 'text-[8px]'}`}>
+            <span className="font-bold">Ink Compatibility:</span> {data.printTypes.join(", ")}
+          </div>
+        )}
+      </div>
+      <div className="flex items-end justify-between gap-2">
+        <div className="flex flex-col">
+          {data.price && <div className={`font-bold ${isAvery ? 'text-base' : 'text-lg'}`}>${data.price}</div>}
+          {data.price && <div className="text-[6px] text-gray-500">Discount not included</div>}
+          {data.barcode ? (
+            <Barcode value={data.barcode} width={isAvery ? 0.8 : 1} height={isAvery ? 20 : 25} fontSize={isAvery ? 6 : 8} margin={0} />
+          ) : (
+            <div className="text-xs text-gray-400">No barcode</div>
+          )}
+        </div>
+        {data.websiteUrl && (
+          <div className="flex flex-col items-center">
+            <div className="text-[6px] font-bold text-gray-600 mb-0.5">SCAN TO BUY</div>
+            <QRCodeSVG value={data.websiteUrl} size={isAvery ? 32 : 40} />
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+function AverySheetPreview({ data }: { data: ProductLabelData }) {
+  return (
+    <div className="bg-white border border-gray-300" style={{ width: '8.5in', height: '11in', boxSizing: 'border-box' }}>
+      <div className="grid grid-cols-2 h-full" style={{ gridTemplateRows: 'repeat(2, 1fr)' }}>
+        {Array.from({ length: 4 }).map((_, i) => (
+          <div key={i} className="flex items-center justify-center">
+            <ProductLabelPreview data={data} />
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function PrintLayout({ data }: { data: ProductLabelData }) {
+  const isAvery = data.labelFormat === 'avery6up';
+  const pageSize = isAvery ? '8.5in 11in' : '4in 3in';
+  
+  return (
+    <>
+      <style>{`
+        @media print {
+          @page { size: ${pageSize}; margin: 0; }
+          body { background: white; }
+          .print-page-break { break-after: page; }
+        }
+      `}</style>
+      
+      {Array.from({ length: data.copies }).map((_, i) => (
+        <div key={i} className="print-page-break">
+          {isAvery ? <AverySheetPreview data={data} /> : <ProductLabelPreview data={data} />}
+        </div>
+      ))}
+    </>
+  );
+}

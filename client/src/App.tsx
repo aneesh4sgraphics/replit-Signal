@@ -25,6 +25,8 @@ import Admin from "@/pages/admin";
 import ActivityLogsPage from "@/pages/activity-logs";
 import PdfCategoryAdmin from "@/pages/pdf-category-admin";
 import Dashboard from "@/pages/dashboard-odoo";
+import ShippingLabels from "@/pages/shipping-labels";
+import ProductLabels from "@/pages/product-labels";
 
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
@@ -148,6 +150,8 @@ function Router() {
         <Route path="/shipping-calculator" component={ShippingCalculator} />
         <Route path="/admin" component={Admin} />
         <Route path="/pdf-settings" component={PdfCategoryAdmin} />
+        <Route path="/shipping-labels" component={ShippingLabels} />
+        <Route path="/product-labels" component={ProductLabels} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     </OdooLayout>

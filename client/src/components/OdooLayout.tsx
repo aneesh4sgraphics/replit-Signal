@@ -15,7 +15,9 @@ import {
   Truck,
   RefreshCw,
   ChevronLeft,
-  ChevronRight
+  ChevronRight,
+  Package,
+  Tag
 } from 'lucide-react';
 import logoPath from '@assets/4s_logo_Clean_120x_1764801255491.png';
 import { Button } from '@/components/ui/button';
@@ -54,6 +56,8 @@ const mainItems = [
   { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator' },
   { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices' },
   { path: '/shipping-calculator', icon: Truck, label: 'Shipping' },
+  { path: '/shipping-labels', icon: Package, label: 'Shipping Labels' },
+  { path: '/product-labels', icon: Tag, label: 'Product Labels' },
 ];
 
 const adminItems = [
