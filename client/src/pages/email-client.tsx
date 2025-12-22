@@ -58,14 +58,27 @@ export default function EmailClient() {
   const [composeSubject, setComposeSubject] = useState("");
   const [composeBody, setComposeBody] = useState("");
 
-  const { data: labels = [], isLoading: labelsLoading } = useQuery<EmailLabel[]>({
+  const { data: labelsData, isLoading: labelsLoading, error: labelsError } = useQuery<EmailLabel[]>({
     queryKey: ["/api/email/labels"],
+    queryFn: async () => {
+      const res = await fetch('/api/email/labels', { credentials: 'include' });
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
   });
+  
+  const labels = Array.isArray(labelsData) ? labelsData : [];
 
-  const { data: messages = [], isLoading: messagesLoading, refetch: refetchMessages } = useQuery<EmailMessage[]>({
+  const { data: messagesData, isLoading: messagesLoading, refetch: refetchMessages, error: messagesError } = useQuery<EmailMessage[]>({
     queryKey: ["/api/email/messages", selectedLabel],
-    queryFn: () => fetch(`/api/email/messages?label=${selectedLabel}&maxResults=30`, { credentials: 'include' }).then(r => r.json())
+    queryFn: async () => {
+      const res = await fetch(`/api/email/messages?label=${selectedLabel}&maxResults=30`, { credentials: 'include' });
+      const data = await res.json();
+      return Array.isArray(data) ? data : [];
+    }
   });
+  
+  const messages = Array.isArray(messagesData) ? messagesData : [];
 
   const { data: fullMessage, isLoading: messageLoading } = useQuery<EmailMessage>({
     queryKey: ["/api/email/messages", selectedMessage?.id],
