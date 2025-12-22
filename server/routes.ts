@@ -16,7 +16,13 @@ import { parseCustomerCSV } from "./customer-parser";
 import { parseOdooExcel } from "./odoo-parser";
 
 import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber, generateQuoteNumber } from "./stub-functions";
-import { insertSentQuoteSchema } from "@shared/schema";
+import { 
+  insertSentQuoteSchema,
+  insertShipmentSchema,
+  insertShippingCompanySchema,
+  insertSavedRecipientSchema,
+  insertProductLabelSchema
+} from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
   logFileOperation, 
@@ -4089,6 +4095,210 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error sending email:", error);
       res.status(500).json({ error: "Failed to send email" });
+    }
+  });
+
+  // ========================================
+  // Shipment Labeler Routes
+  // ========================================
+
+  // Shipments
+  app.get("/api/shipments", isAuthenticated, async (req, res) => {
+    try {
+      const shipments = await storage.getShipments();
+      res.json(shipments);
+    } catch (error) {
+      console.error("Error fetching shipments:", error);
+      res.status(500).json({ error: "Failed to fetch shipments" });
+    }
+  });
+
+  app.get("/api/shipments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const shipment = await storage.getShipment(parseInt(req.params.id));
+      if (!shipment) {
+        return res.status(404).json({ error: "Shipment not found" });
+      }
+      res.json(shipment);
+    } catch (error) {
+      console.error("Error fetching shipment:", error);
+      res.status(500).json({ error: "Failed to fetch shipment" });
+    }
+  });
+
+  app.post("/api/shipments", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertShipmentSchema.parse(req.body);
+      const shipment = await storage.createShipment(validatedData);
+      res.status(201).json(shipment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating shipment:", error);
+      res.status(500).json({ error: "Failed to create shipment" });
+    }
+  });
+
+  app.delete("/api/shipments/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteShipment(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting shipment:", error);
+      res.status(500).json({ error: "Failed to delete shipment" });
+    }
+  });
+
+  // Shipping Companies
+  app.get("/api/shipping-companies", isAuthenticated, async (req, res) => {
+    try {
+      const companies = await storage.getShippingCompanies();
+      res.json(companies);
+    } catch (error) {
+      console.error("Error fetching shipping companies:", error);
+      res.status(500).json({ error: "Failed to fetch shipping companies" });
+    }
+  });
+
+  app.post("/api/shipping-companies", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertShippingCompanySchema.parse(req.body);
+      const company = await storage.createShippingCompany(validatedData);
+      res.status(201).json(company);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating shipping company:", error);
+      res.status(500).json({ error: "Failed to create shipping company" });
+    }
+  });
+
+  app.delete("/api/shipping-companies/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteShippingCompany(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting shipping company:", error);
+      res.status(500).json({ error: "Failed to delete shipping company" });
+    }
+  });
+
+  // Saved Recipients
+  app.get("/api/saved-recipients", isAuthenticated, async (req, res) => {
+    try {
+      const recipients = await storage.getSavedRecipients();
+      res.json(recipients);
+    } catch (error) {
+      console.error("Error fetching saved recipients:", error);
+      res.status(500).json({ error: "Failed to fetch saved recipients" });
+    }
+  });
+
+  app.post("/api/saved-recipients", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSavedRecipientSchema.parse(req.body);
+      // Check if already exists
+      const existing = await storage.findRecipientByNameAndAddress(validatedData.companyName, validatedData.address);
+      if (existing) {
+        return res.json(existing);
+      }
+      const recipient = await storage.createSavedRecipient(validatedData);
+      res.status(201).json(recipient);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating saved recipient:", error);
+      res.status(500).json({ error: "Failed to save recipient" });
+    }
+  });
+
+  // Product Labels
+  app.get("/api/product-labels", isAuthenticated, async (req, res) => {
+    try {
+      const labels = await storage.getProductLabels();
+      res.json(labels);
+    } catch (error) {
+      console.error("Error fetching product labels:", error);
+      res.status(500).json({ error: "Failed to fetch product labels" });
+    }
+  });
+
+  app.get("/api/product-labels/:id", isAuthenticated, async (req, res) => {
+    try {
+      const label = await storage.getProductLabel(parseInt(req.params.id));
+      if (!label) {
+        return res.status(404).json({ error: "Product label not found" });
+      }
+      res.json(label);
+    } catch (error) {
+      console.error("Error fetching product label:", error);
+      res.status(500).json({ error: "Failed to fetch product label" });
+    }
+  });
+
+  app.post("/api/product-labels", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertProductLabelSchema.parse(req.body);
+      const label = await storage.createProductLabel(validatedData);
+      res.status(201).json(label);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating product label:", error);
+      res.status(500).json({ error: "Failed to create product label" });
+    }
+  });
+
+  app.put("/api/product-labels/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertProductLabelSchema.partial().parse(req.body);
+      const label = await storage.updateProductLabel(parseInt(req.params.id), validatedData);
+      if (!label) {
+        return res.status(404).json({ error: "Product label not found" });
+      }
+      res.json(label);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating product label:", error);
+      res.status(500).json({ error: "Failed to update product label" });
+    }
+  });
+
+  app.delete("/api/product-labels/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteProductLabel(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting product label:", error);
+      res.status(500).json({ error: "Failed to delete product label" });
+    }
+  });
+
+  // Notion Products (locally synced)
+  app.get("/api/notion-products", isAuthenticated, async (req, res) => {
+    try {
+      const products = await storage.getNotionProducts();
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching products:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
+  app.get("/api/notion-products/search", isAuthenticated, async (req, res) => {
+    try {
+      const query = req.query.q as string || "";
+      const products = await storage.searchNotionProducts(query);
+      res.json(products);
+    } catch (error) {
+      console.error("Error searching products:", error);
+      res.status(500).json({ error: "Failed to search products" });
     }
   });
 
