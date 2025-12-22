@@ -70,6 +70,8 @@ export default function ClientDatabase() {
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false);
   const [showUploadDialog, setShowUploadDialog] = useState(false);
   const [showOdooUploadDialog, setShowOdooUploadDialog] = useState(false);
+  const [selectedOdooFile, setSelectedOdooFile] = useState<File | null>(null);
+  const odooFileInputRef = useRef<HTMLInputElement>(null);
   const [filters, setFilters] = useState({
     city: "",
     province: "",
@@ -452,8 +454,9 @@ export default function ClientDatabase() {
       });
     } finally {
       setIsUploading(false);
-      if (fileInputRef.current) {
-        fileInputRef.current.value = '';
+      setSelectedOdooFile(null);
+      if (odooFileInputRef.current) {
+        odooFileInputRef.current.value = '';
       }
       setTimeout(() => {
         setUploadProgress(0);
@@ -1311,7 +1314,15 @@ export default function ClientDatabase() {
 
       {/* Odoo Upload Dialog (Admin Only) */}
       {isAdmin && (
-        <Dialog open={showOdooUploadDialog} onOpenChange={setShowOdooUploadDialog}>
+        <Dialog open={showOdooUploadDialog} onOpenChange={(open) => {
+          setShowOdooUploadDialog(open);
+          if (!open) {
+            setSelectedOdooFile(null);
+            if (odooFileInputRef.current) {
+              odooFileInputRef.current.value = '';
+            }
+          }
+        }}>
           <DialogContent className="max-w-2xl">
             <DialogHeader>
               <DialogTitle>Import from Odoo</DialogTitle>
@@ -1344,26 +1355,51 @@ export default function ClientDatabase() {
                 </Alert>
               )}
 
-              <div className="space-y-2">
+              <div className="space-y-3">
                 <Label>Upload Excel File (.xlsx)</Label>
-                <input
-                  type="file"
-                  accept=".xlsx"
-                  onChange={(e) => {
-                    const file = e.target.files?.[0];
-                    if (file) {
-                      handleOdooFileUpload(file);
+                <div className="flex gap-3 items-center">
+                  <input
+                    ref={odooFileInputRef}
+                    type="file"
+                    accept=".xlsx"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        setSelectedOdooFile(file);
+                      }
+                    }}
+                    disabled={isUploading}
+                    className="block w-full text-sm text-gray-600
+                             file:mr-4 file:py-2 file:px-4
+                             file:rounded-lg file:border-0
+                             file:text-sm file:font-semibold
+                             file:bg-primary file:text-white
+                             hover:file:bg-primary/90
+                             file:disabled:opacity-50"
+                    data-testid="input-odoo-file"
+                  />
+                </div>
+                {selectedOdooFile && (
+                  <div className="flex items-center gap-2 p-2 bg-green-50 rounded-lg border border-green-200">
+                    <CheckCircle className="h-4 w-4 text-green-600" />
+                    <span className="text-sm text-green-800">Selected: {selectedOdooFile.name}</span>
+                  </div>
+                )}
+                <Button 
+                  onClick={() => {
+                    if (selectedOdooFile) {
+                      handleOdooFileUpload(selectedOdooFile);
+                    } else {
+                      toast({ title: "Please select a file first", variant: "destructive" });
                     }
                   }}
-                  disabled={isUploading}
-                  className="block w-full text-sm text-gray-600
-                           file:mr-4 file:py-2 file:px-4
-                           file:rounded-lg file:border-0
-                           file:text-sm file:font-semibold
-                           file:bg-primary file:text-white
-                           hover:file:bg-primary/90
-                           file:disabled:opacity-50"
-                />
+                  disabled={isUploading || !selectedOdooFile}
+                  className="w-full"
+                  data-testid="button-upload-odoo-file"
+                >
+                  <Upload className="h-4 w-4 mr-2" />
+                  {isUploading ? "Uploading..." : "Upload and Import Contacts"}
+                </Button>
               </div>
 
               <div className="bg-blue-50 rounded-lg p-4 border border-blue-200">
@@ -1380,7 +1416,13 @@ export default function ClientDatabase() {
             </div>
 
             <DialogFooter>
-              <Button onClick={() => setShowOdooUploadDialog(false)} variant="outline">
+              <Button onClick={() => {
+                  setShowOdooUploadDialog(false);
+                  setSelectedOdooFile(null);
+                  if (odooFileInputRef.current) {
+                    odooFileInputRef.current.value = '';
+                  }
+                }} variant="outline">
                 Close
               </Button>
             </DialogFooter>
