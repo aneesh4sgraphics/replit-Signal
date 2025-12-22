@@ -77,6 +77,12 @@ export default function ClientDatabase() {
     taxExempt: "all",
     emailMarketing: "all",
   });
+  const [missingDataFilters, setMissingDataFilters] = useState({
+    noEmail: false,
+    noPhone: false,
+    noTags: false,
+    noCompany: false,
+  });
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -179,7 +185,13 @@ export default function ClientDatabase() {
       (filters.emailMarketing === "yes" && customer.acceptsEmailMarketing) ||
       (filters.emailMarketing === "no" && !customer.acceptsEmailMarketing);
 
-    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing;
+    // Missing data filters - show only customers missing the selected data
+    const matchesMissingEmail = !missingDataFilters.noEmail || !customer.email || customer.email.trim() === '';
+    const matchesMissingPhone = !missingDataFilters.noPhone || !customer.phone || customer.phone.trim() === '';
+    const matchesMissingTags = !missingDataFilters.noTags || !customer.tags || customer.tags.trim() === '';
+    const matchesMissingCompany = !missingDataFilters.noCompany || !customer.company || customer.company.trim() === '';
+
+    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany;
   });
 
   const updateCustomerMutation = useMutation({
@@ -541,6 +553,12 @@ export default function ClientDatabase() {
       taxExempt: "all",
       emailMarketing: "all",
     });
+    setMissingDataFilters({
+      noEmail: false,
+      noPhone: false,
+      noTags: false,
+      noCompany: false,
+    });
   };
 
   const startEdit = (customer: Customer) => {
@@ -694,54 +712,112 @@ export default function ClientDatabase() {
           </div>
 
           {showFilters && (
-            <div className="mt-4 grid grid-cols-1 md:grid-cols-5 gap-4 p-4 bg-gray-50 rounded-lg">
-              <div>
-                <Label>City</Label>
-                <Input
-                  placeholder="Filter by city"
-                  value={filters.city}
-                  onChange={(e) => setFilters({...filters, city: e.target.value})}
-                />
+            <div className="mt-4 space-y-4 p-4 bg-gray-50/50 rounded-lg">
+              {/* Missing Data Filters - Preset Checkboxes */}
+              <div className="pb-4 border-b border-gray-200">
+                <Label className="text-sm font-semibold text-gray-700 mb-3 block">Find Customers Missing Data</Label>
+                <div className="flex flex-wrap gap-4">
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="no-email"
+                      checked={missingDataFilters.noEmail}
+                      onCheckedChange={(checked) => setMissingDataFilters({...missingDataFilters, noEmail: !!checked})}
+                      data-testid="checkbox-no-email"
+                    />
+                    <label htmlFor="no-email" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      No Email
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="no-phone"
+                      checked={missingDataFilters.noPhone}
+                      onCheckedChange={(checked) => setMissingDataFilters({...missingDataFilters, noPhone: !!checked})}
+                      data-testid="checkbox-no-phone"
+                    />
+                    <label htmlFor="no-phone" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1">
+                      <Phone className="h-4 w-4 text-gray-400" />
+                      No Phone
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="no-tags"
+                      checked={missingDataFilters.noTags}
+                      onCheckedChange={(checked) => setMissingDataFilters({...missingDataFilters, noTags: !!checked})}
+                      data-testid="checkbox-no-tags"
+                    />
+                    <label htmlFor="no-tags" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1">
+                      <FileText className="h-4 w-4 text-gray-400" />
+                      No Tags
+                    </label>
+                  </div>
+                  <div className="flex items-center space-x-2">
+                    <Checkbox
+                      id="no-company"
+                      checked={missingDataFilters.noCompany}
+                      onCheckedChange={(checked) => setMissingDataFilters({...missingDataFilters, noCompany: !!checked})}
+                      data-testid="checkbox-no-company"
+                    />
+                    <label htmlFor="no-company" className="text-sm font-medium text-gray-700 cursor-pointer flex items-center gap-1">
+                      <Building2 className="h-4 w-4 text-gray-400" />
+                      No Company
+                    </label>
+                  </div>
+                </div>
               </div>
-              <div>
-                <Label>Province</Label>
-                <Input
-                  placeholder="Filter by province"
-                  value={filters.province}
-                  onChange={(e) => setFilters({...filters, province: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>Country</Label>
-                <Input
-                  placeholder="Filter by country"
-                  value={filters.country}
-                  onChange={(e) => setFilters({...filters, country: e.target.value})}
-                />
-              </div>
-              <div>
-                <Label>Tax Exempt</Label>
-                <select
-                  value={filters.taxExempt}
-                  onChange={(e) => setFilters({...filters, taxExempt: e.target.value})}
-                  className="w-full h-10 px-3 rounded-md border border-gray-200"
-                >
-                  <option value="all">All</option>
-                  <option value="yes">Yes</option>
-                  <option value="no">No</option>
-                </select>
-              </div>
-              <div>
-                <Label>Email Marketing</Label>
-                <select
-                  value={filters.emailMarketing}
-                  onChange={(e) => setFilters({...filters, emailMarketing: e.target.value})}
-                  className="w-full h-10 px-3 rounded-md border border-gray-200"
-                >
-                  <option value="all">All</option>
-                  <option value="yes">Accepts</option>
-                  <option value="no">Declines</option>
-                </select>
+
+              {/* Location and Other Filters */}
+              <div className="grid grid-cols-1 md:grid-cols-5 gap-4">
+                <div>
+                  <Label>City</Label>
+                  <Input
+                    placeholder="Filter by city"
+                    value={filters.city}
+                    onChange={(e) => setFilters({...filters, city: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Province</Label>
+                  <Input
+                    placeholder="Filter by province"
+                    value={filters.province}
+                    onChange={(e) => setFilters({...filters, province: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Country</Label>
+                  <Input
+                    placeholder="Filter by country"
+                    value={filters.country}
+                    onChange={(e) => setFilters({...filters, country: e.target.value})}
+                  />
+                </div>
+                <div>
+                  <Label>Tax Exempt</Label>
+                  <select
+                    value={filters.taxExempt}
+                    onChange={(e) => setFilters({...filters, taxExempt: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-gray-200"
+                  >
+                    <option value="all">All</option>
+                    <option value="yes">Yes</option>
+                    <option value="no">No</option>
+                  </select>
+                </div>
+                <div>
+                  <Label>Email Marketing</Label>
+                  <select
+                    value={filters.emailMarketing}
+                    onChange={(e) => setFilters({...filters, emailMarketing: e.target.value})}
+                    className="w-full h-10 px-3 rounded-md border border-gray-200"
+                  >
+                    <option value="all">All</option>
+                    <option value="yes">Accepts</option>
+                    <option value="no">Declines</option>
+                  </select>
+                </div>
               </div>
             </div>
           )}
