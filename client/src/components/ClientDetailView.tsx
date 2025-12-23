@@ -40,6 +40,7 @@ import {
   Building2,
   MapPin,
   Trash2,
+  Pencil,
   ChevronRight,
   Check,
   Clock,
@@ -81,10 +82,11 @@ const PRODUCT_LINE_LABELS: Record<string, string> = {
 interface ClientDetailViewProps {
   customer: Customer;
   onBack: () => void;
+  onEdit?: (customer: Customer) => void;
   onDelete?: (customerId: string) => void;
 }
 
-export default function ClientDetailView({ customer, onBack, onDelete }: ClientDetailViewProps) {
+export default function ClientDetailView({ customer, onBack, onEdit, onDelete }: ClientDetailViewProps) {
   const [activeTab, setActiveTab] = useState("press-profiles");
   const [isAddPressProfileOpen, setIsAddPressProfileOpen] = useState(false);
   const [isAddSampleOpen, setIsAddSampleOpen] = useState(false);
@@ -270,11 +272,18 @@ export default function ClientDetailView({ customer, onBack, onDelete }: ClientD
             )}
           </div>
         </div>
-        {onDelete && (
-          <Button variant="outline" size="icon" onClick={() => onDelete(customer.id)} data-testid="btn-delete-client">
-            <Trash2 className="h-4 w-4" />
-          </Button>
-        )}
+        <div className="flex items-center gap-2">
+          {onEdit && (
+            <Button variant="outline" size="icon" onClick={() => onEdit(customer)} data-testid="btn-edit-client">
+              <Pencil className="h-4 w-4" />
+            </Button>
+          )}
+          {onDelete && (
+            <Button variant="outline" size="icon" onClick={() => onDelete(customer.id)} data-testid="btn-delete-client">
+              <Trash2 className="h-4 w-4" />
+            </Button>
+          )}
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

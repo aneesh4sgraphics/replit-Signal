@@ -607,6 +607,9 @@ export default function ClientDatabase() {
       <ClientDetailView
         customer={selectedCustomer}
         onBack={() => setSelectedCustomer(null)}
+        onEdit={(customer) => {
+          handleEditCustomer(customer);
+        }}
         onDelete={(customerId) => {
           deleteCustomerMutation.mutate(customerId);
           setSelectedCustomer(null);
