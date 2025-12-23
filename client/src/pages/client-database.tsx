@@ -604,17 +604,157 @@ export default function ClientDatabase() {
 
   if (selectedCustomer) {
     return (
-      <ClientDetailView
-        customer={selectedCustomer}
-        onBack={() => setSelectedCustomer(null)}
-        onEdit={(customer) => {
-          handleEditCustomer(customer);
-        }}
-        onDelete={(customerId) => {
-          deleteCustomerMutation.mutate(customerId);
-          setSelectedCustomer(null);
-        }}
-      />
+      <>
+        <ClientDetailView
+          customer={selectedCustomer}
+          onBack={() => setSelectedCustomer(null)}
+          onEdit={(customer) => {
+            handleEditCustomer(customer);
+          }}
+          onDelete={(customerId) => {
+            deleteCustomerMutation.mutate(customerId);
+            setSelectedCustomer(null);
+          }}
+        />
+        {/* Edit Dialog - needs to be here so it renders when in detail view */}
+        <Dialog open={isEditDialogOpen} onOpenChange={() => {
+          setIsEditDialogOpen(false);
+          setEditingCustomer(null);
+        }}>
+          <DialogContent className="max-w-4xl max-h-[90vh] overflow-y-auto">
+            <DialogHeader>
+              <DialogTitle>Edit Client</DialogTitle>
+              <DialogDescription>Update the client information below.</DialogDescription>
+            </DialogHeader>
+            
+            {editingCustomer && (
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <Label htmlFor="editCustomerId">Client ID</Label>
+                  <Input id="editCustomerId" value={editingCustomer.id} disabled />
+                </div>
+                <div>
+                  <Label htmlFor="editFirstName">First Name</Label>
+                  <Input
+                    id="editFirstName"
+                    value={editingCustomer.firstName || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, firstName: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editLastName">Last Name</Label>
+                  <Input
+                    id="editLastName"
+                    value={editingCustomer.lastName || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, lastName: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editEmail">Email</Label>
+                  <Input
+                    id="editEmail"
+                    type="email"
+                    value={editingCustomer.email || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, email: e.target.value} : null)}
+                  />
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="editCompany">Company</Label>
+                  <Input
+                    id="editCompany"
+                    value={editingCustomer.company || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, company: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editPhone">Phone</Label>
+                  <Input
+                    id="editPhone"
+                    value={editingCustomer.phone || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, phone: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editCity">City</Label>
+                  <Input
+                    id="editCity"
+                    value={editingCustomer.city || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, city: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editProvince">Province/State</Label>
+                  <Input
+                    id="editProvince"
+                    value={editingCustomer.province || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, province: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editCountry">Country</Label>
+                  <Input
+                    id="editCountry"
+                    value={editingCustomer.country || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, country: e.target.value} : null)}
+                  />
+                </div>
+                <div>
+                  <Label htmlFor="editAddress1">Address</Label>
+                  <Input
+                    id="editAddress1"
+                    value={editingCustomer.address1 || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, address1: e.target.value} : null)}
+                  />
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="editTaxExempt"
+                    checked={editingCustomer.taxExempt || false}
+                    onCheckedChange={(checked) => setEditingCustomer(prev => prev ? {...prev, taxExempt: !!checked} : null)}
+                  />
+                  <Label htmlFor="editTaxExempt">Tax Exempt</Label>
+                </div>
+                <div className="flex items-center gap-2">
+                  <Checkbox
+                    id="editEmailMarketing"
+                    checked={editingCustomer.acceptsEmailMarketing || false}
+                    onCheckedChange={(checked) => setEditingCustomer(prev => prev ? {...prev, acceptsEmailMarketing: !!checked} : null)}
+                  />
+                  <Label htmlFor="editEmailMarketing">Accepts Email Marketing</Label>
+                </div>
+                <div className="md:col-span-2">
+                  <Label htmlFor="editNote">Notes</Label>
+                  <Textarea
+                    id="editNote"
+                    value={editingCustomer.note || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, note: e.target.value} : null)}
+                    rows={3}
+                  />
+                </div>
+              </div>
+            )}
+
+            <DialogFooter>
+              <Button variant="outline" onClick={() => {
+                setIsEditDialogOpen(false);
+                setEditingCustomer(null);
+              }}>
+                Cancel
+              </Button>
+              <Button onClick={() => {
+                if (editingCustomer) {
+                  updateCustomerMutation.mutate(editingCustomer);
+                  setIsEditDialogOpen(false);
+                  // Update the selected customer view with new data
+                  setSelectedCustomer(editingCustomer);
+                }
+              }}>
+                Save Changes
+              </Button>
+            </DialogFooter>
+          </DialogContent>
+        </Dialog>
+      </>
     );
   }
 
