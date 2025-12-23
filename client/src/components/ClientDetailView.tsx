@@ -152,10 +152,39 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
       console.log('createJourneyMutation - sending request with data:', data);
-      const res = await apiRequest('POST', '/api/crm/journeys', data);
-      const result = await res.json();
-      console.log('createJourneyMutation - response:', result);
-      return result;
+      
+      const attemptRequest = async (retries = 2): Promise<any> => {
+        try {
+          const res = await fetch('/api/crm/journeys', {
+            method: 'POST',
+            headers: {
+              'Content-Type': 'application/json',
+            },
+            body: JSON.stringify(data),
+            credentials: 'include',
+          });
+          
+          if (!res.ok) {
+            const errorText = await res.text();
+            console.error('createJourneyMutation - server error:', res.status, errorText);
+            throw new Error(errorText || `Server error: ${res.status}`);
+          }
+          
+          const result = await res.json();
+          console.log('createJourneyMutation - response:', result);
+          return result;
+        } catch (err: any) {
+          console.error('createJourneyMutation - fetch error:', err);
+          if (retries > 0 && (err.message?.includes('fetch') || err.message?.includes('network'))) {
+            console.log(`Retrying... ${retries} attempts left`);
+            await new Promise(r => setTimeout(r, 500));
+            return attemptRequest(retries - 1);
+          }
+          throw err;
+        }
+      };
+      
+      return attemptRequest();
     },
     onSuccess: (data) => {
       console.log('createJourneyMutation - onSuccess:', data);

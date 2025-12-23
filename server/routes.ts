@@ -4347,12 +4347,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/crm/journeys", isAuthenticated, async (req, res) => {
+    console.log("=== POST /api/crm/journeys received ===");
+    console.log("Request body:", req.body);
     try {
       const validatedData = insertCustomerJourneySchema.parse(req.body);
+      console.log("Validated data:", validatedData);
       const journey = await storage.upsertCustomerJourney(validatedData);
+      console.log("Created journey:", journey);
       res.status(201).json(journey);
     } catch (error) {
       if (error instanceof z.ZodError) {
+        console.error("Zod validation error:", error.errors);
         return res.status(400).json({ error: error.errors });
       }
       console.error("Error creating customer journey:", error);
