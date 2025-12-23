@@ -170,15 +170,25 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   const { data: sentQuotes = [] } = useQuery<SentQuote[]>({
     queryKey: ['/api/crm/customer-sent-quotes', customer.email, customer.company],
     queryFn: async () => {
+      console.log('Fetching sent quotes for customer:', { email: customer.email, company: customer.company });
       const params = new URLSearchParams();
       if (customer.email) params.append('email', customer.email);
       if (customer.company) params.append('company', customer.company);
-      const res = await fetch(`/api/crm/customer-sent-quotes?${params.toString()}`);
-      if (!res.ok) return [];
-      return res.json();
+      const url = `/api/crm/customer-sent-quotes?${params.toString()}`;
+      console.log('Sent quotes URL:', url);
+      const res = await fetch(url);
+      if (!res.ok) {
+        console.log('Sent quotes fetch failed:', res.status, res.statusText);
+        return [];
+      }
+      const data = await res.json();
+      console.log('Sent quotes response:', data);
+      return data;
     },
     enabled: !!(customer.email || customer.company),
   });
+  
+  console.log('sentQuotes state:', sentQuotes, 'customer.email:', customer.email, 'customer.company:', customer.company);
 
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
