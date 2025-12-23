@@ -58,7 +58,7 @@ import {
   X,
   ChevronsUpDown,
 } from "lucide-react";
-import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent } from "@shared/schema";
+import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote } from "@shared/schema";
 
 const JOURNEY_STAGE_CONFIG = [
   { id: 'trigger', label: 'Trigger', icon: Target, color: 'bg-red-500', description: 'Price increase detected' },
@@ -165,6 +165,19 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
       if (!res.ok) return [];
       return res.json();
     },
+  });
+
+  const { data: sentQuotes = [] } = useQuery<SentQuote[]>({
+    queryKey: ['/api/crm/customer-sent-quotes', customer.email, customer.company],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (customer.email) params.append('email', customer.email);
+      if (customer.company) params.append('company', customer.company);
+      const res = await fetch(`/api/crm/customer-sent-quotes?${params.toString()}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!(customer.email || customer.company),
   });
 
   const createJourneyMutation = useMutation({
@@ -478,7 +491,7 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
           </TabsTrigger>
           <TabsTrigger value="quotes-prices" className="flex items-center gap-2">
             <FileText className="h-4 w-4" />
-            Quotes & Prices ({quoteEvents.length + priceListEvents.length})
+            Quotes & Prices ({sentQuotes.length + quoteEvents.length + priceListEvents.length})
           </TabsTrigger>
         </TabsList>
 
@@ -595,11 +608,35 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
               <CardTitle className="text-base">Quotes & Price Lists Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              {quoteEvents.length > 0 || priceListEvents.length > 0 ? (
+              {sentQuotes.length > 0 || quoteEvents.length > 0 || priceListEvents.length > 0 ? (
                 <div className="space-y-4">
-                  {quoteEvents.length > 0 && (
+                  {sentQuotes.length > 0 && (
                     <div>
                       <h4 className="font-medium text-sm text-gray-600 mb-2">Quotes from QuickQuotes</h4>
+                      <div className="space-y-2">
+                        {sentQuotes.map(quote => (
+                          <div key={quote.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                            <div>
+                              <p className="font-medium">Quote #{quote.quoteNumber}</p>
+                              <p className="text-sm text-gray-500">
+                                ${parseFloat(quote.totalAmount).toLocaleString()} • via {quote.sentVia}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {quote.createdAt ? new Date(quote.createdAt).toLocaleDateString() : ''}
+                              </p>
+                            </div>
+                            <Badge variant={quote.status === 'accepted' ? 'default' : quote.status === 'viewed' ? 'outline' : 'secondary'}>
+                              {quote.status}
+                            </Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
+                  {quoteEvents.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm text-gray-600 mb-2">Quote Events (CRM Tracked)</h4>
                       <div className="space-y-2">
                         {quoteEvents.map(event => (
                           <div key={event.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">

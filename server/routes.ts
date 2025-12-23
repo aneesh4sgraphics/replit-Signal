@@ -4746,6 +4746,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get sent quotes matching a customer by email or company name
+  app.get("/api/crm/customer-sent-quotes", isAuthenticated, async (req, res) => {
+    try {
+      const email = req.query.email as string | undefined;
+      const company = req.query.company as string | undefined;
+      
+      if (!email && !company) {
+        return res.json([]);
+      }
+      
+      const quotes = await storage.getSentQuotesByCustomerInfo(email, company);
+      res.json(quotes);
+    } catch (error) {
+      console.error("Error fetching customer sent quotes:", error);
+      res.status(500).json({ error: "Failed to fetch customer sent quotes" });
+    }
+  });
+
   app.post("/api/crm/quote-events", isAuthenticated, async (req, res) => {
     try {
       const validatedData = insertQuoteEventSchema.parse(req.body);

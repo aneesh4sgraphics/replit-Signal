@@ -189,6 +189,7 @@ export interface IStorage {
   getSentQuotesCount(): Promise<number>;
   getSentQuotesCountSince(date: Date): Promise<number>;
   getSentQuotesSince(date: Date): Promise<SentQuote[]>;
+  getSentQuotesByCustomerInfo(email?: string, company?: string): Promise<SentQuote[]>;
   getCustomersCount(): Promise<number>;
   getProductsCount(): Promise<number>;
   
@@ -1184,6 +1185,32 @@ export class DatabaseStorage implements IStorage {
       .select()
       .from(sentQuotes)
       .where(sql`created_at >= ${date}`)
+      .orderBy(desc(sentQuotes.createdAt));
+  }
+
+  async getSentQuotesByCustomerInfo(email?: string, company?: string): Promise<SentQuote[]> {
+    const conditions = [];
+    
+    if (email) {
+      conditions.push(sql`LOWER(customer_email) = LOWER(${email})`);
+    }
+    
+    if (company) {
+      conditions.push(sql`LOWER(customer_name) LIKE LOWER(${`%${company}%`})`);
+    }
+    
+    if (conditions.length === 0) {
+      return [];
+    }
+    
+    const whereClause = conditions.length === 1 
+      ? conditions[0] 
+      : sql`(${conditions[0]} OR ${conditions[1]})`;
+    
+    return await db
+      .select()
+      .from(sentQuotes)
+      .where(whereClause)
       .orderBy(desc(sentQuotes.createdAt));
   }
 
