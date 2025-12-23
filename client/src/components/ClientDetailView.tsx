@@ -214,6 +214,7 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
 
   const handleStartJourney = () => {
+    console.log('Starting journey for customer:', customer.id, customerName);
     createJourneyMutation.mutate({
       customerId: customer.id,
       customerName: customerName,
