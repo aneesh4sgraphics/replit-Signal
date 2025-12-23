@@ -36,6 +36,27 @@ import {
   type InsertProductLabel,
   type NotionProduct,
   type InsertNotionProduct,
+  // CRM types
+  type PressProfile,
+  type InsertPressProfile,
+  type SampleRequest,
+  type InsertSampleRequest,
+  type TestOutcome,
+  type InsertTestOutcome,
+  type ValidationEvent,
+  type InsertValidationEvent,
+  type Swatch,
+  type InsertSwatch,
+  type SwatchBookShipment,
+  type InsertSwatchBookShipment,
+  type SwatchSelection,
+  type InsertSwatchSelection,
+  type CustomerJourney,
+  type InsertCustomerJourney,
+  type QuoteEvent,
+  type InsertQuoteEvent,
+  type PriceListEvent,
+  type InsertPriceListEvent,
   users,
   customers,
   sentQuotes,
@@ -56,6 +77,17 @@ import {
   savedRecipients,
   productLabels,
   notionProducts,
+  // CRM tables
+  pressProfiles,
+  sampleRequests,
+  testOutcomes,
+  validationEvents,
+  swatches,
+  swatchBookShipments,
+  swatchSelections,
+  customerJourney,
+  quoteEvents,
+  priceListEvents,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
   type UploadBatch,
@@ -201,6 +233,68 @@ export interface IStorage {
   getNotionProducts(): Promise<NotionProduct[]>;
   searchNotionProducts(query: string): Promise<NotionProduct[]>;
   syncNotionProducts(products: InsertNotionProduct[]): Promise<{ synced: number; created: number; updated: number }>;
+
+  // ========================================
+  // CRM / Paper Distribution Methods
+  // ========================================
+
+  // Press Profiles
+  getPressProfiles(customerId?: string): Promise<PressProfile[]>;
+  getPressProfile(id: number): Promise<PressProfile | undefined>;
+  createPressProfile(data: InsertPressProfile): Promise<PressProfile>;
+  updatePressProfile(id: number, data: Partial<InsertPressProfile>): Promise<PressProfile | undefined>;
+  deletePressProfile(id: number): Promise<void>;
+
+  // Sample Requests
+  getSampleRequests(customerId?: string): Promise<SampleRequest[]>;
+  getSampleRequest(id: number): Promise<SampleRequest | undefined>;
+  createSampleRequest(data: InsertSampleRequest): Promise<SampleRequest>;
+  updateSampleRequest(id: number, data: Partial<InsertSampleRequest>): Promise<SampleRequest | undefined>;
+  deleteSampleRequest(id: number): Promise<void>;
+
+  // Test Outcomes
+  getTestOutcomes(customerId?: string): Promise<TestOutcome[]>;
+  getTestOutcome(id: number): Promise<TestOutcome | undefined>;
+  createTestOutcome(data: InsertTestOutcome): Promise<TestOutcome>;
+  updateTestOutcome(id: number, data: Partial<InsertTestOutcome>): Promise<TestOutcome | undefined>;
+
+  // Validation Events
+  getValidationEvents(customerId?: string): Promise<ValidationEvent[]>;
+  createValidationEvent(data: InsertValidationEvent): Promise<ValidationEvent>;
+
+  // Swatches
+  getSwatches(): Promise<Swatch[]>;
+  getSwatch(id: number): Promise<Swatch | undefined>;
+  createSwatch(data: InsertSwatch): Promise<Swatch>;
+  updateSwatch(id: number, data: Partial<InsertSwatch>): Promise<Swatch | undefined>;
+  deleteSwatch(id: number): Promise<void>;
+
+  // Swatch Book Shipments
+  getSwatchBookShipments(customerId?: string): Promise<SwatchBookShipment[]>;
+  getSwatchBookShipment(id: number): Promise<SwatchBookShipment | undefined>;
+  createSwatchBookShipment(data: InsertSwatchBookShipment): Promise<SwatchBookShipment>;
+  updateSwatchBookShipment(id: number, data: Partial<InsertSwatchBookShipment>): Promise<SwatchBookShipment | undefined>;
+
+  // Swatch Selections
+  getSwatchSelections(customerId?: string): Promise<SwatchSelection[]>;
+  createSwatchSelection(data: InsertSwatchSelection): Promise<SwatchSelection>;
+  updateSwatchSelection(id: number, data: Partial<InsertSwatchSelection>): Promise<SwatchSelection | undefined>;
+
+  // Customer Journey
+  getCustomerJourneys(): Promise<CustomerJourney[]>;
+  getCustomerJourney(customerId: string): Promise<CustomerJourney | undefined>;
+  getCustomerJourneysByStage(stage: string): Promise<CustomerJourney[]>;
+  createCustomerJourney(data: InsertCustomerJourney): Promise<CustomerJourney>;
+  updateCustomerJourney(customerId: string, data: Partial<InsertCustomerJourney>): Promise<CustomerJourney | undefined>;
+  upsertCustomerJourney(data: InsertCustomerJourney): Promise<CustomerJourney>;
+
+  // Quote Events
+  getQuoteEvents(customerId?: string): Promise<QuoteEvent[]>;
+  createQuoteEvent(data: InsertQuoteEvent): Promise<QuoteEvent>;
+
+  // Price List Events
+  getPriceListEvents(customerId?: string): Promise<PriceListEvent[]>;
+  createPriceListEvent(data: InsertPriceListEvent): Promise<PriceListEvent>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -1300,6 +1394,246 @@ export class DatabaseStorage implements IStorage {
     }
 
     return { synced: products.length, created, updated };
+  }
+
+  // ========================================
+  // CRM / Paper Distribution Implementation
+  // ========================================
+
+  // Press Profiles
+  async getPressProfiles(customerId?: string): Promise<PressProfile[]> {
+    if (customerId) {
+      return await db.select().from(pressProfiles).where(eq(pressProfiles.customerId, customerId)).orderBy(desc(pressProfiles.createdAt));
+    }
+    return await db.select().from(pressProfiles).orderBy(desc(pressProfiles.createdAt));
+  }
+
+  async getPressProfile(id: number): Promise<PressProfile | undefined> {
+    const [profile] = await db.select().from(pressProfiles).where(eq(pressProfiles.id, id));
+    return profile;
+  }
+
+  async createPressProfile(data: InsertPressProfile): Promise<PressProfile> {
+    const [profile] = await db.insert(pressProfiles).values(data).returning();
+    return profile;
+  }
+
+  async updatePressProfile(id: number, data: Partial<InsertPressProfile>): Promise<PressProfile | undefined> {
+    const [profile] = await db.update(pressProfiles).set({ ...data, updatedAt: new Date() }).where(eq(pressProfiles.id, id)).returning();
+    return profile;
+  }
+
+  async deletePressProfile(id: number): Promise<void> {
+    await db.delete(pressProfiles).where(eq(pressProfiles.id, id));
+  }
+
+  // Sample Requests
+  async getSampleRequests(customerId?: string): Promise<SampleRequest[]> {
+    if (customerId) {
+      return await db.select().from(sampleRequests).where(eq(sampleRequests.customerId, customerId)).orderBy(desc(sampleRequests.createdAt));
+    }
+    return await db.select().from(sampleRequests).orderBy(desc(sampleRequests.createdAt));
+  }
+
+  async getSampleRequest(id: number): Promise<SampleRequest | undefined> {
+    const [request] = await db.select().from(sampleRequests).where(eq(sampleRequests.id, id));
+    return request;
+  }
+
+  async createSampleRequest(data: InsertSampleRequest): Promise<SampleRequest> {
+    const [request] = await db.insert(sampleRequests).values(data).returning();
+    return request;
+  }
+
+  async updateSampleRequest(id: number, data: Partial<InsertSampleRequest>): Promise<SampleRequest | undefined> {
+    const [request] = await db.update(sampleRequests).set({ ...data, updatedAt: new Date() }).where(eq(sampleRequests.id, id)).returning();
+    return request;
+  }
+
+  async deleteSampleRequest(id: number): Promise<void> {
+    await db.delete(sampleRequests).where(eq(sampleRequests.id, id));
+  }
+
+  // Test Outcomes
+  async getTestOutcomes(customerId?: string): Promise<TestOutcome[]> {
+    if (customerId) {
+      return await db.select().from(testOutcomes).where(eq(testOutcomes.customerId, customerId)).orderBy(desc(testOutcomes.createdAt));
+    }
+    return await db.select().from(testOutcomes).orderBy(desc(testOutcomes.createdAt));
+  }
+
+  async getTestOutcome(id: number): Promise<TestOutcome | undefined> {
+    const [outcome] = await db.select().from(testOutcomes).where(eq(testOutcomes.id, id));
+    return outcome;
+  }
+
+  async createTestOutcome(data: InsertTestOutcome): Promise<TestOutcome> {
+    const [outcome] = await db.insert(testOutcomes).values(data).returning();
+    return outcome;
+  }
+
+  async updateTestOutcome(id: number, data: Partial<InsertTestOutcome>): Promise<TestOutcome | undefined> {
+    const [outcome] = await db.update(testOutcomes).set(data).where(eq(testOutcomes.id, id)).returning();
+    return outcome;
+  }
+
+  // Validation Events
+  async getValidationEvents(customerId?: string): Promise<ValidationEvent[]> {
+    if (customerId) {
+      return await db.select().from(validationEvents).where(eq(validationEvents.customerId, customerId)).orderBy(desc(validationEvents.completedAt));
+    }
+    return await db.select().from(validationEvents).orderBy(desc(validationEvents.completedAt));
+  }
+
+  async createValidationEvent(data: InsertValidationEvent): Promise<ValidationEvent> {
+    const [event] = await db.insert(validationEvents).values(data).returning();
+    return event;
+  }
+
+  // Swatches
+  async getSwatches(): Promise<Swatch[]> {
+    return await db.select().from(swatches).orderBy(swatches.name);
+  }
+
+  async getSwatch(id: number): Promise<Swatch | undefined> {
+    const [swatch] = await db.select().from(swatches).where(eq(swatches.id, id));
+    return swatch;
+  }
+
+  async createSwatch(data: InsertSwatch): Promise<Swatch> {
+    const [swatch] = await db.insert(swatches).values(data).returning();
+    return swatch;
+  }
+
+  async updateSwatch(id: number, data: Partial<InsertSwatch>): Promise<Swatch | undefined> {
+    const [swatch] = await db.update(swatches).set(data).where(eq(swatches.id, id)).returning();
+    return swatch;
+  }
+
+  async deleteSwatch(id: number): Promise<void> {
+    await db.delete(swatches).where(eq(swatches.id, id));
+  }
+
+  // Swatch Book Shipments
+  async getSwatchBookShipments(customerId?: string): Promise<SwatchBookShipment[]> {
+    if (customerId) {
+      return await db.select().from(swatchBookShipments).where(eq(swatchBookShipments.customerId, customerId)).orderBy(desc(swatchBookShipments.createdAt));
+    }
+    return await db.select().from(swatchBookShipments).orderBy(desc(swatchBookShipments.createdAt));
+  }
+
+  async getSwatchBookShipment(id: number): Promise<SwatchBookShipment | undefined> {
+    const [shipment] = await db.select().from(swatchBookShipments).where(eq(swatchBookShipments.id, id));
+    return shipment;
+  }
+
+  async createSwatchBookShipment(data: InsertSwatchBookShipment): Promise<SwatchBookShipment> {
+    const [shipment] = await db.insert(swatchBookShipments).values(data).returning();
+    return shipment;
+  }
+
+  async updateSwatchBookShipment(id: number, data: Partial<InsertSwatchBookShipment>): Promise<SwatchBookShipment | undefined> {
+    const [shipment] = await db.update(swatchBookShipments).set(data).where(eq(swatchBookShipments.id, id)).returning();
+    return shipment;
+  }
+
+  // Swatch Selections
+  async getSwatchSelections(customerId?: string): Promise<SwatchSelection[]> {
+    if (customerId) {
+      return await db.select().from(swatchSelections).where(eq(swatchSelections.customerId, customerId)).orderBy(desc(swatchSelections.createdAt));
+    }
+    return await db.select().from(swatchSelections).orderBy(desc(swatchSelections.createdAt));
+  }
+
+  async createSwatchSelection(data: InsertSwatchSelection): Promise<SwatchSelection> {
+    const [selection] = await db.insert(swatchSelections).values(data).returning();
+    return selection;
+  }
+
+  async updateSwatchSelection(id: number, data: Partial<InsertSwatchSelection>): Promise<SwatchSelection | undefined> {
+    const [selection] = await db.update(swatchSelections).set(data).where(eq(swatchSelections.id, id)).returning();
+    return selection;
+  }
+
+  // Customer Journey
+  async getCustomerJourneys(): Promise<CustomerJourney[]> {
+    return await db.select().from(customerJourney).orderBy(desc(customerJourney.stageUpdatedAt));
+  }
+
+  async getCustomerJourney(customerId: string): Promise<CustomerJourney | undefined> {
+    const [journey] = await db.select().from(customerJourney).where(eq(customerJourney.customerId, customerId));
+    return journey;
+  }
+
+  async getCustomerJourneysByStage(stage: string): Promise<CustomerJourney[]> {
+    return await db.select().from(customerJourney).where(eq(customerJourney.journeyStage, stage)).orderBy(desc(customerJourney.stageUpdatedAt));
+  }
+
+  async createCustomerJourney(data: InsertCustomerJourney): Promise<CustomerJourney> {
+    const [journey] = await db.insert(customerJourney).values(data).returning();
+    return journey;
+  }
+
+  async updateCustomerJourney(customerId: string, data: Partial<InsertCustomerJourney>): Promise<CustomerJourney | undefined> {
+    const updateData = { ...data, updatedAt: new Date() };
+    if (data.journeyStage) {
+      (updateData as any).stageUpdatedAt = new Date();
+    }
+    const [journey] = await db.update(customerJourney).set(updateData).where(eq(customerJourney.customerId, customerId)).returning();
+    return journey;
+  }
+
+  async upsertCustomerJourney(data: InsertCustomerJourney): Promise<CustomerJourney> {
+    const existing = await this.getCustomerJourney(data.customerId);
+    if (existing) {
+      const updated = await this.updateCustomerJourney(data.customerId, data);
+      return updated!;
+    }
+    return await this.createCustomerJourney(data);
+  }
+
+  // Quote Events
+  async getQuoteEvents(customerId?: string): Promise<QuoteEvent[]> {
+    if (customerId) {
+      return await db.select().from(quoteEvents).where(eq(quoteEvents.customerId, customerId)).orderBy(desc(quoteEvents.createdAt));
+    }
+    return await db.select().from(quoteEvents).orderBy(desc(quoteEvents.createdAt));
+  }
+
+  async createQuoteEvent(data: InsertQuoteEvent): Promise<QuoteEvent> {
+    const [event] = await db.insert(quoteEvents).values(data).returning();
+    // Update customer journey quote count
+    const journey = await this.getCustomerJourney(data.customerId);
+    if (journey) {
+      await this.updateCustomerJourney(data.customerId, {
+        quotesReceived: (journey.quotesReceived || 0) + 1,
+        lastQuoteDate: new Date(),
+      });
+    }
+    return event;
+  }
+
+  // Price List Events
+  async getPriceListEvents(customerId?: string): Promise<PriceListEvent[]> {
+    if (customerId) {
+      return await db.select().from(priceListEvents).where(eq(priceListEvents.customerId, customerId)).orderBy(desc(priceListEvents.createdAt));
+    }
+    return await db.select().from(priceListEvents).orderBy(desc(priceListEvents.createdAt));
+  }
+
+  async createPriceListEvent(data: InsertPriceListEvent): Promise<PriceListEvent> {
+    const [event] = await db.insert(priceListEvents).values(data).returning();
+    // Update customer journey price list view count if customer is specified
+    if (data.customerId) {
+      const journey = await this.getCustomerJourney(data.customerId);
+      if (journey) {
+        await this.updateCustomerJourney(data.customerId, {
+          priceListViews: (journey.priceListViews || 0) + 1,
+          lastPriceListView: new Date(),
+        });
+      }
+    }
+    return event;
   }
 }
 

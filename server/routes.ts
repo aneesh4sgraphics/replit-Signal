@@ -21,7 +21,19 @@ import {
   insertShipmentSchema,
   insertShippingCompanySchema,
   insertSavedRecipientSchema,
-  insertProductLabelSchema
+  insertProductLabelSchema,
+  insertPressProfileSchema,
+  insertSampleRequestSchema,
+  insertTestOutcomeSchema,
+  insertValidationEventSchema,
+  insertSwatchSchema,
+  insertSwatchBookShipmentSchema,
+  insertSwatchSelectionSchema,
+  insertCustomerJourneySchema,
+  insertQuoteEventSchema,
+  insertPriceListEventSchema,
+  JOURNEY_STAGES,
+  PRODUCT_LINES
 } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
@@ -4283,6 +4295,477 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.status(500).json({ error: "Failed to search products in Notion" });
+    }
+  });
+
+  // ========================================
+  // CRM / Paper Distribution Routes
+  // ========================================
+
+  // Journey Stages metadata
+  app.get("/api/crm/journey-stages", isAuthenticated, (req, res) => {
+    res.json({ stages: JOURNEY_STAGES, productLines: PRODUCT_LINES });
+  });
+
+  // Customer Journey
+  app.get("/api/crm/journeys", isAuthenticated, async (req, res) => {
+    try {
+      const stage = req.query.stage as string | undefined;
+      const journeys = stage 
+        ? await storage.getCustomerJourneysByStage(stage)
+        : await storage.getCustomerJourneys();
+      res.json(journeys);
+    } catch (error) {
+      console.error("Error fetching customer journeys:", error);
+      res.status(500).json({ error: "Failed to fetch customer journeys" });
+    }
+  });
+
+  app.get("/api/crm/journeys/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const journey = await storage.getCustomerJourney(req.params.customerId);
+      if (!journey) {
+        return res.status(404).json({ error: "Customer journey not found" });
+      }
+      res.json(journey);
+    } catch (error) {
+      console.error("Error fetching customer journey:", error);
+      res.status(500).json({ error: "Failed to fetch customer journey" });
+    }
+  });
+
+  app.post("/api/crm/journeys", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertCustomerJourneySchema.parse(req.body);
+      const journey = await storage.upsertCustomerJourney(validatedData);
+      res.status(201).json(journey);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating customer journey:", error);
+      res.status(500).json({ error: "Failed to create customer journey" });
+    }
+  });
+
+  app.put("/api/crm/journeys/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertCustomerJourneySchema.partial().parse(req.body);
+      const journey = await storage.updateCustomerJourney(req.params.customerId, validatedData);
+      if (!journey) {
+        return res.status(404).json({ error: "Customer journey not found" });
+      }
+      res.json(journey);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating customer journey:", error);
+      res.status(500).json({ error: "Failed to update customer journey" });
+    }
+  });
+
+  // Press Profiles
+  app.get("/api/crm/press-profiles", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const profiles = await storage.getPressProfiles(customerId);
+      res.json(profiles);
+    } catch (error) {
+      console.error("Error fetching press profiles:", error);
+      res.status(500).json({ error: "Failed to fetch press profiles" });
+    }
+  });
+
+  app.get("/api/crm/press-profiles/:id", isAuthenticated, async (req, res) => {
+    try {
+      const profile = await storage.getPressProfile(parseInt(req.params.id));
+      if (!profile) {
+        return res.status(404).json({ error: "Press profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      console.error("Error fetching press profile:", error);
+      res.status(500).json({ error: "Failed to fetch press profile" });
+    }
+  });
+
+  app.post("/api/crm/press-profiles", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertPressProfileSchema.parse(req.body);
+      const profile = await storage.createPressProfile(validatedData);
+      res.status(201).json(profile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating press profile:", error);
+      res.status(500).json({ error: "Failed to create press profile" });
+    }
+  });
+
+  app.put("/api/crm/press-profiles/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertPressProfileSchema.partial().parse(req.body);
+      const profile = await storage.updatePressProfile(parseInt(req.params.id), validatedData);
+      if (!profile) {
+        return res.status(404).json({ error: "Press profile not found" });
+      }
+      res.json(profile);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating press profile:", error);
+      res.status(500).json({ error: "Failed to update press profile" });
+    }
+  });
+
+  app.delete("/api/crm/press-profiles/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deletePressProfile(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting press profile:", error);
+      res.status(500).json({ error: "Failed to delete press profile" });
+    }
+  });
+
+  // Sample Requests
+  app.get("/api/crm/sample-requests", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const requests = await storage.getSampleRequests(customerId);
+      res.json(requests);
+    } catch (error) {
+      console.error("Error fetching sample requests:", error);
+      res.status(500).json({ error: "Failed to fetch sample requests" });
+    }
+  });
+
+  app.get("/api/crm/sample-requests/:id", isAuthenticated, async (req, res) => {
+    try {
+      const request = await storage.getSampleRequest(parseInt(req.params.id));
+      if (!request) {
+        return res.status(404).json({ error: "Sample request not found" });
+      }
+      res.json(request);
+    } catch (error) {
+      console.error("Error fetching sample request:", error);
+      res.status(500).json({ error: "Failed to fetch sample request" });
+    }
+  });
+
+  app.post("/api/crm/sample-requests", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSampleRequestSchema.parse(req.body);
+      const request = await storage.createSampleRequest(validatedData);
+      res.status(201).json(request);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating sample request:", error);
+      res.status(500).json({ error: "Failed to create sample request" });
+    }
+  });
+
+  app.put("/api/crm/sample-requests/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSampleRequestSchema.partial().parse(req.body);
+      const request = await storage.updateSampleRequest(parseInt(req.params.id), validatedData);
+      if (!request) {
+        return res.status(404).json({ error: "Sample request not found" });
+      }
+      res.json(request);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating sample request:", error);
+      res.status(500).json({ error: "Failed to update sample request" });
+    }
+  });
+
+  app.delete("/api/crm/sample-requests/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteSampleRequest(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting sample request:", error);
+      res.status(500).json({ error: "Failed to delete sample request" });
+    }
+  });
+
+  // Test Outcomes
+  app.get("/api/crm/test-outcomes", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const outcomes = await storage.getTestOutcomes(customerId);
+      res.json(outcomes);
+    } catch (error) {
+      console.error("Error fetching test outcomes:", error);
+      res.status(500).json({ error: "Failed to fetch test outcomes" });
+    }
+  });
+
+  app.post("/api/crm/test-outcomes", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertTestOutcomeSchema.parse(req.body);
+      const outcome = await storage.createTestOutcome(validatedData);
+      res.status(201).json(outcome);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating test outcome:", error);
+      res.status(500).json({ error: "Failed to create test outcome" });
+    }
+  });
+
+  app.put("/api/crm/test-outcomes/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertTestOutcomeSchema.partial().parse(req.body);
+      const outcome = await storage.updateTestOutcome(parseInt(req.params.id), validatedData);
+      if (!outcome) {
+        return res.status(404).json({ error: "Test outcome not found" });
+      }
+      res.json(outcome);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating test outcome:", error);
+      res.status(500).json({ error: "Failed to update test outcome" });
+    }
+  });
+
+  // Validation Events
+  app.get("/api/crm/validation-events", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const events = await storage.getValidationEvents(customerId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching validation events:", error);
+      res.status(500).json({ error: "Failed to fetch validation events" });
+    }
+  });
+
+  app.post("/api/crm/validation-events", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertValidationEventSchema.parse(req.body);
+      const event = await storage.createValidationEvent(validatedData);
+      res.status(201).json(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating validation event:", error);
+      res.status(500).json({ error: "Failed to create validation event" });
+    }
+  });
+
+  // Swatches
+  app.get("/api/crm/swatches", isAuthenticated, async (req, res) => {
+    try {
+      const swatches = await storage.getSwatches();
+      res.json(swatches);
+    } catch (error) {
+      console.error("Error fetching swatches:", error);
+      res.status(500).json({ error: "Failed to fetch swatches" });
+    }
+  });
+
+  app.get("/api/crm/swatches/:id", isAuthenticated, async (req, res) => {
+    try {
+      const swatch = await storage.getSwatch(parseInt(req.params.id));
+      if (!swatch) {
+        return res.status(404).json({ error: "Swatch not found" });
+      }
+      res.json(swatch);
+    } catch (error) {
+      console.error("Error fetching swatch:", error);
+      res.status(500).json({ error: "Failed to fetch swatch" });
+    }
+  });
+
+  app.post("/api/crm/swatches", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchSchema.parse(req.body);
+      const swatch = await storage.createSwatch(validatedData);
+      res.status(201).json(swatch);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating swatch:", error);
+      res.status(500).json({ error: "Failed to create swatch" });
+    }
+  });
+
+  app.put("/api/crm/swatches/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchSchema.partial().parse(req.body);
+      const swatch = await storage.updateSwatch(parseInt(req.params.id), validatedData);
+      if (!swatch) {
+        return res.status(404).json({ error: "Swatch not found" });
+      }
+      res.json(swatch);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating swatch:", error);
+      res.status(500).json({ error: "Failed to update swatch" });
+    }
+  });
+
+  app.delete("/api/crm/swatches/:id", isAuthenticated, async (req, res) => {
+    try {
+      await storage.deleteSwatch(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting swatch:", error);
+      res.status(500).json({ error: "Failed to delete swatch" });
+    }
+  });
+
+  // Swatch Book Shipments
+  app.get("/api/crm/swatch-shipments", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const shipments = await storage.getSwatchBookShipments(customerId);
+      res.json(shipments);
+    } catch (error) {
+      console.error("Error fetching swatch book shipments:", error);
+      res.status(500).json({ error: "Failed to fetch swatch book shipments" });
+    }
+  });
+
+  app.post("/api/crm/swatch-shipments", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchBookShipmentSchema.parse(req.body);
+      const shipment = await storage.createSwatchBookShipment(validatedData);
+      res.status(201).json(shipment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating swatch book shipment:", error);
+      res.status(500).json({ error: "Failed to create swatch book shipment" });
+    }
+  });
+
+  app.put("/api/crm/swatch-shipments/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchBookShipmentSchema.partial().parse(req.body);
+      const shipment = await storage.updateSwatchBookShipment(parseInt(req.params.id), validatedData);
+      if (!shipment) {
+        return res.status(404).json({ error: "Swatch book shipment not found" });
+      }
+      res.json(shipment);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating swatch book shipment:", error);
+      res.status(500).json({ error: "Failed to update swatch book shipment" });
+    }
+  });
+
+  // Swatch Selections
+  app.get("/api/crm/swatch-selections", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const selections = await storage.getSwatchSelections(customerId);
+      res.json(selections);
+    } catch (error) {
+      console.error("Error fetching swatch selections:", error);
+      res.status(500).json({ error: "Failed to fetch swatch selections" });
+    }
+  });
+
+  app.post("/api/crm/swatch-selections", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchSelectionSchema.parse(req.body);
+      const selection = await storage.createSwatchSelection(validatedData);
+      res.status(201).json(selection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating swatch selection:", error);
+      res.status(500).json({ error: "Failed to create swatch selection" });
+    }
+  });
+
+  app.put("/api/crm/swatch-selections/:id", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertSwatchSelectionSchema.partial().parse(req.body);
+      const selection = await storage.updateSwatchSelection(parseInt(req.params.id), validatedData);
+      if (!selection) {
+        return res.status(404).json({ error: "Swatch selection not found" });
+      }
+      res.json(selection);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating swatch selection:", error);
+      res.status(500).json({ error: "Failed to update swatch selection" });
+    }
+  });
+
+  // Quote Events (tracking quotes sent to customers)
+  app.get("/api/crm/quote-events", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const events = await storage.getQuoteEvents(customerId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching quote events:", error);
+      res.status(500).json({ error: "Failed to fetch quote events" });
+    }
+  });
+
+  app.post("/api/crm/quote-events", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertQuoteEventSchema.parse(req.body);
+      const event = await storage.createQuoteEvent(validatedData);
+      res.status(201).json(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating quote event:", error);
+      res.status(500).json({ error: "Failed to create quote event" });
+    }
+  });
+
+  // Price List Events (tracking price list views/downloads)
+  app.get("/api/crm/price-list-events", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.query.customerId as string | undefined;
+      const events = await storage.getPriceListEvents(customerId);
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching price list events:", error);
+      res.status(500).json({ error: "Failed to fetch price list events" });
+    }
+  });
+
+  app.post("/api/crm/price-list-events", isAuthenticated, async (req, res) => {
+    try {
+      const validatedData = insertPriceListEventSchema.parse(req.body);
+      const event = await storage.createPriceListEvent(validatedData);
+      res.status(201).json(event);
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating price list event:", error);
+      res.status(500).json({ error: "Failed to create price list event" });
     }
   });
 

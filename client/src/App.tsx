@@ -27,6 +27,9 @@ import PdfCategoryAdmin from "@/pages/pdf-category-admin";
 import Dashboard from "@/pages/dashboard-odoo";
 import ShippingLabels from "@/pages/shipping-labels";
 import ProductLabels from "@/pages/product-labels";
+import CRMJourneyDashboard from "@/pages/crm-journey";
+import CRMSamplesPage from "@/pages/crm-samples";
+import CRMSwatchesPage from "@/pages/crm-swatches";
 
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
@@ -152,6 +155,9 @@ function Router() {
         <Route path="/pdf-settings" component={PdfCategoryAdmin} />
         <Route path="/shipping-labels" component={ShippingLabels} />
         <Route path="/product-labels" component={ProductLabels} />
+        <Route path="/crm-journey" component={CRMJourneyDashboard} />
+        <Route path="/crm-samples" component={CRMSamplesPage} />
+        <Route path="/crm-swatches" component={CRMSwatchesPage} />
         <Route><Redirect to="/" /></Route>
       </Switch>
     </OdooLayout>

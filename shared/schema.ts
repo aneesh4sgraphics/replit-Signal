@@ -477,3 +477,246 @@ export const insertNotionProductSchema = createInsertSchema(notionProducts, {
 });
 export type NotionProduct = typeof notionProducts.$inferSelect;
 export type InsertNotionProduct = z.infer<typeof insertNotionProductSchema>;
+
+// ========================================
+// CRM / Paper Distribution Tables
+// ========================================
+
+// Journey stage enum values
+export const JOURNEY_STAGES = [
+  'trigger',           // 1. Price increase detected from competitor
+  'internal_alarm',    // 2. Customer recognizes margin erosion
+  'supplier_pushback', // 3. Customer challenges current supplier
+  'pilot_alignment',   // 4. Internal approval to trial new supplier
+  'controlled_trial',  // 5. Samples scheduled/in press
+  'validation_proof',  // 6. Test outcomes recorded with gate sign-off
+  'conversion',        // 7. Supplier change committed, expansion tracking
+] as const;
+
+export const PRODUCT_LINES = [
+  'commodity_cut_size',
+  'specialty_coated',
+  'large_format',
+  'label_stocks',
+  'digital_media',
+  'packaging',
+] as const;
+
+// Press Profiles - customer printing equipment
+export const pressProfiles = pgTable("press_profiles", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  pressManufacturer: varchar("press_manufacturer", { length: 255 }),
+  pressModel: varchar("press_model", { length: 255 }),
+  pressType: varchar("press_type", { length: 100 }), // offset, digital, flexo, etc.
+  maxSheetWidth: decimal("max_sheet_width", { precision: 10, scale: 2 }),
+  maxSheetLength: decimal("max_sheet_length", { precision: 10, scale: 2 }),
+  coaterType: varchar("coater_type", { length: 100 }),
+  dryerType: varchar("dryer_type", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPressProfileSchema = createInsertSchema(pressProfiles).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type PressProfile = typeof pressProfiles.$inferSelect;
+export type InsertPressProfile = z.infer<typeof insertPressProfileSchema>;
+
+// Sample Requests - track customer sample requests
+export const sampleRequests = pgTable("sample_requests", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => productPricingMaster.id),
+  productName: varchar("product_name", { length: 255 }),
+  competitorPaper: varchar("competitor_paper", { length: 255 }),
+  jobDescription: text("job_description"),
+  plannedTestDate: timestamp("planned_test_date"),
+  testOwnerName: varchar("test_owner_name", { length: 255 }),
+  testOwnerRole: varchar("test_owner_role", { length: 100 }),
+  quantity: integer("quantity"),
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, shipped, testing, completed, cancelled
+  notes: text("notes"),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertSampleRequestSchema = createInsertSchema(sampleRequests).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type SampleRequest = typeof sampleRequests.$inferSelect;
+export type InsertSampleRequest = z.infer<typeof insertSampleRequestSchema>;
+
+// Test Outcomes - results from sample tests
+export const testOutcomes = pgTable("test_outcomes", {
+  id: serial("id").primaryKey(),
+  sampleRequestId: integer("sample_request_id").notNull().references(() => sampleRequests.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  testDate: timestamp("test_date"),
+  pressman: varchar("pressman", { length: 255 }),
+  overallResult: varchar("overall_result", { length: 50 }), // pass, fail, conditional
+  runScore: integer("run_score"), // 1-10
+  printScore: integer("print_score"), // 1-10
+  finishScore: integer("finish_score"), // 1-10
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertTestOutcomeSchema = createInsertSchema(testOutcomes).omit({
+  id: true,
+  createdAt: true,
+});
+export type TestOutcome = typeof testOutcomes.$inferSelect;
+export type InsertTestOutcome = z.infer<typeof insertTestOutcomeSchema>;
+
+// Validation Events - gate completions in customer journey
+export const validationEvents = pgTable("validation_events", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  stage: varchar("stage", { length: 50 }).notNull(), // matches JOURNEY_STAGES
+  gateId: varchar("gate_id", { length: 100 }), // specific gate within stage
+  completedAt: timestamp("completed_at").defaultNow(),
+  completedBy: varchar("completed_by"),
+  evidence: text("evidence"), // notes or link to supporting evidence
+  metadata: jsonb("metadata"),
+});
+
+export const insertValidationEventSchema = createInsertSchema(validationEvents).omit({
+  id: true,
+});
+export type ValidationEvent = typeof validationEvents.$inferSelect;
+export type InsertValidationEvent = z.infer<typeof insertValidationEventSchema>;
+
+// Swatches - paper samples in catalog
+export const swatches = pgTable("swatches", {
+  id: serial("id").primaryKey(),
+  swatchCode: varchar("swatch_code", { length: 50 }).notNull().unique(),
+  productLine: varchar("product_line", { length: 100 }), // matches PRODUCT_LINES
+  sku: varchar("sku", { length: 100 }),
+  name: varchar("name", { length: 255 }).notNull(),
+  weight: varchar("weight", { length: 50 }), // e.g., "80lb", "100gsm"
+  finish: varchar("finish", { length: 100 }), // matte, gloss, satin, etc.
+  productId: integer("product_id").references(() => productPricingMaster.id),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSwatchSchema = createInsertSchema(swatches).omit({
+  id: true,
+  createdAt: true,
+});
+export type Swatch = typeof swatches.$inferSelect;
+export type InsertSwatch = z.infer<typeof insertSwatchSchema>;
+
+// Swatch Book Shipments - track swatch book sends to customers
+export const swatchBookShipments = pgTable("swatch_book_shipments", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  swatchBookVersion: varchar("swatch_book_version", { length: 50 }),
+  status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, shipped, delivered, returned
+  shippedAt: timestamp("shipped_at"),
+  receivedAt: timestamp("received_at"),
+  trackingNumber: varchar("tracking_number", { length: 100 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSwatchBookShipmentSchema = createInsertSchema(swatchBookShipments).omit({
+  id: true,
+  createdAt: true,
+});
+export type SwatchBookShipment = typeof swatchBookShipments.$inferSelect;
+export type InsertSwatchBookShipment = z.infer<typeof insertSwatchBookShipmentSchema>;
+
+// Swatch Selections - customer picks from swatch book
+export const swatchSelections = pgTable("swatch_selections", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  swatchId: integer("swatch_id").notNull().references(() => swatches.id, { onDelete: "cascade" }),
+  shipmentId: integer("shipment_id").references(() => swatchBookShipments.id),
+  intendedJobName: varchar("intended_job_name", { length: 255 }),
+  intendedTestDate: timestamp("intended_test_date"),
+  testOwner: varchar("test_owner", { length: 255 }),
+  sampleRequested: boolean("sample_requested").default(false),
+  sampleRequestId: integer("sample_request_id").references(() => sampleRequests.id),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertSwatchSelectionSchema = createInsertSchema(swatchSelections).omit({
+  id: true,
+  createdAt: true,
+});
+export type SwatchSelection = typeof swatchSelections.$inferSelect;
+export type InsertSwatchSelection = z.infer<typeof insertSwatchSelectionSchema>;
+
+// Customer Journey Tracking - extends customers with journey data
+export const customerJourney = pgTable("customer_journey", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().unique().references(() => customers.id, { onDelete: "cascade" }),
+  journeyStage: varchar("journey_stage", { length: 50 }).default("trigger"), // matches JOURNEY_STAGES
+  primaryProductLine: varchar("primary_product_line", { length: 100 }), // matches PRODUCT_LINES
+  currentSupplier: varchar("current_supplier", { length: 255 }),
+  estimatedAnnualVolume: decimal("estimated_annual_volume", { precision: 12, scale: 2 }),
+  quotesReceived: integer("quotes_received").default(0),
+  priceListViews: integer("price_list_views").default(0),
+  lastQuoteDate: timestamp("last_quote_date"),
+  lastPriceListView: timestamp("last_price_list_view"),
+  stageUpdatedAt: timestamp("stage_updated_at").defaultNow(),
+  assignedSalesRep: varchar("assigned_sales_rep"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomerJourneySchema = createInsertSchema(customerJourney).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CustomerJourney = typeof customerJourney.$inferSelect;
+export type InsertCustomerJourney = z.infer<typeof insertCustomerJourneySchema>;
+
+// Quote Events - track quotes sent to customers (links to sentQuotes)
+export const quoteEvents = pgTable("quote_events", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  quoteId: integer("quote_id").references(() => sentQuotes.id),
+  quoteNumber: varchar("quote_number", { length: 50 }),
+  eventType: varchar("event_type", { length: 50 }).notNull(), // sent, viewed, accepted, rejected, expired
+  totalAmount: decimal("total_amount", { precision: 10, scale: 2 }),
+  itemCount: integer("item_count"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertQuoteEventSchema = createInsertSchema(quoteEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type QuoteEvent = typeof quoteEvents.$inferSelect;
+export type InsertQuoteEvent = z.infer<typeof insertQuoteEventSchema>;
+
+// Price List Events - track price list views/downloads
+export const priceListEvents = pgTable("price_list_events", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+  eventType: varchar("event_type", { length: 50 }).notNull(), // view, download, email
+  priceTier: varchar("price_tier", { length: 50 }),
+  productTypes: text("product_types").array(), // which product types were included
+  userId: varchar("user_id"),
+  userEmail: varchar("user_email", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertPriceListEventSchema = createInsertSchema(priceListEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type PriceListEvent = typeof priceListEvents.$inferSelect;
+export type InsertPriceListEvent = z.infer<typeof insertPriceListEventSchema>;

@@ -7,6 +7,14 @@ This is a full-stack TypeScript application that provides a quote calculator for
 Preferred communication style: Simple, everyday language.
 
 ## Recent Changes (December 23, 2025)
+- **Paper Distribution CRM Integration**: Complete customer journey tracking system with 7-stage pipeline
+  - **Customer Journey Pipeline** (`/crm-journey`): Kanban-style 7-stage customer conversion pipeline (Trigger → Internal Alarm → Supplier Pushback → Pilot Alignment → Controlled Trial → Validation & Proof → Conversion). Features kanban/list view toggle, stage advancement, customer search/filtering, and stage-based metrics.
+  - **Sample Requests & Testing** (`/crm-samples`): Sample request tracking with status management (pending/shipped/testing/completed/cancelled), test outcome recording with scoring (run/print/finish scores 1-10), pass/fail/conditional results, and analytics with pass rate calculations.
+  - **Swatch Manager** (`/crm-swatches`): Paper swatch catalog with CRUD operations, swatch book shipment tracking (pending/shipped/delivered), customer swatch selections with favorites and interest levels, stock quantity management.
+  - **Database Schema**: Added 10 new CRM tables (pressProfiles, sampleRequests, testOutcomes, validationEvents, swatches, swatchBookShipments, swatchSelections, customerJourney, quoteEvents, priceListEvents)
+  - **API Endpoints**: Full REST API under `/api/crm/*` namespace with proper Zod validation
+  - **Journey Integration**: Quote events and price list events automatically update customer journey counters for timeline tracking
+
 - **Bento Grid App Switcher & Command Palette**: Major UI redesign inspired by Odoo's app switcher
   - **App Switcher Drawer**: Bento grid layout with adaptive tile sizing based on usage frequency. Frequently used apps (3+ uses) display larger 2x1 tiles. Glass design styling with hover effects.
   - **Command Palette**: Global search triggered by '/' or 'Cmd+K'. Search across all apps, view recent apps, quick actions (logout, reset cache). Built with shadcn/ui Command components (cmdk).
