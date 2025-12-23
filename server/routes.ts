@@ -295,6 +295,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // CRM Dashboard statistics endpoint
+  app.get("/api/dashboard/crm", async (req: any, res) => {
+    try {
+      const crmStats = await storage.getCRMDashboardStats();
+      res.json(crmStats);
+    } catch (error) {
+      console.error("CRM Dashboard stats error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch CRM statistics", details: errorMessage });
+    }
+  });
+
   // --- Health check (for debugging connectivity quickly) ---
   app.get('/api/health', (_req, res) => {
     res.json({ 

@@ -30,12 +30,29 @@ interface DashboardStats {
   activityCount: number;
 }
 
+interface CRMStats {
+  stageCounts: { stage: string; count: number }[];
+  totalActiveJourneys: number;
+  totalQuotesSent: number;
+  quotesLast30Days: number;
+  totalCustomers: number;
+  newCustomersLast30Days: number;
+  pendingSamples: number;
+  pendingSwatches: number;
+  activePressProfiles: number;
+}
+
 export default function Dashboard() {
   const [hoveredCard, setHoveredCard] = useState<string | null>(null);
   const { user, isLoading } = useAuth();
 
   const { data: stats, isLoading: statsLoading } = useQuery<DashboardStats>({
     queryKey: ["/api/dashboard/stats"],
+    retry: 2,
+  });
+
+  const { data: crmStats } = useQuery<CRMStats>({
+    queryKey: ["/api/dashboard/crm"],
     retry: 2,
   });
 
@@ -599,6 +616,228 @@ export default function Dashboard() {
             ))}
           </div>
         </div>
+
+        {/* CRM Pipeline Overview */}
+        {crmStats && (
+          <div style={{ marginBottom: '32px' }}>
+            <h2 style={{
+              fontSize: '24px',
+              fontWeight: '700',
+              color: '#1e293b',
+              marginBottom: '24px',
+              letterSpacing: '-0.01em',
+              display: 'flex',
+              alignItems: 'center',
+              gap: '12px'
+            }}>
+              <Users size={24} style={{ color: '#64748b' }} />
+              Customer Journey Pipeline
+            </h2>
+            
+            {/* CRM KPI Cards */}
+            <div style={{
+              display: 'grid',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))',
+              gap: '16px',
+              marginBottom: '24px'
+            }}>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                backdropFilter: 'blur(60px) saturate(150%)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '20px',
+                padding: '24px',
+                textAlign: 'center'
+              }} data-testid="crm-total-customers">
+                <div style={{ fontSize: '32px', fontWeight: '700', color: '#6366f1' }}>
+                  {crmStats.totalCustomers}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+                  Total Customers
+                </div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                backdropFilter: 'blur(60px) saturate(150%)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '20px',
+                padding: '24px',
+                textAlign: 'center'
+              }} data-testid="crm-active-journeys">
+                <div style={{ fontSize: '32px', fontWeight: '700', color: '#8b5cf6' }}>
+                  {crmStats.totalActiveJourneys}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+                  Active Journeys
+                </div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                backdropFilter: 'blur(60px) saturate(150%)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '20px',
+                padding: '24px',
+                textAlign: 'center'
+              }} data-testid="crm-quotes-sent">
+                <div style={{ fontSize: '32px', fontWeight: '700', color: '#10b981' }}>
+                  {crmStats.totalQuotesSent}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+                  Quotes Sent
+                </div>
+              </div>
+              <div style={{
+                background: 'rgba(255, 255, 255, 0.7)',
+                backdropFilter: 'blur(60px) saturate(150%)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '20px',
+                padding: '24px',
+                textAlign: 'center'
+              }} data-testid="crm-new-customers">
+                <div style={{ fontSize: '32px', fontWeight: '700', color: '#f59e0b' }}>
+                  {crmStats.newCustomersLast30Days}
+                </div>
+                <div style={{ fontSize: '13px', fontWeight: '600', color: '#64748b', textTransform: 'uppercase' }}>
+                  New (30 Days)
+                </div>
+              </div>
+            </div>
+
+            {/* Journey Stage Distribution */}
+            <div style={{
+              background: 'rgba(255, 255, 255, 0.7)',
+              backdropFilter: 'blur(60px) saturate(150%)',
+              border: '1px solid rgba(255, 255, 255, 0.8)',
+              borderRadius: '24px',
+              padding: '32px',
+            }}>
+              <h3 style={{
+                fontSize: '16px',
+                fontWeight: '600',
+                color: '#475569',
+                marginBottom: '20px',
+                textTransform: 'uppercase',
+                letterSpacing: '0.5px'
+              }}>
+                Stage Distribution
+              </h3>
+              <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+                {crmStats.stageCounts.map((stage, i) => {
+                  const stageLabels: Record<string, string> = {
+                    trigger: 'Trigger',
+                    internal_alarm: 'Internal Alarm',
+                    supplier_pushback: 'Supplier Pushback',
+                    pilot_alignment: 'Pilot Alignment',
+                    controlled_trial: 'Controlled Trial',
+                    validation_proof: 'Validation & Proof',
+                    conversion: 'Conversion'
+                  };
+                  const stageColors: Record<string, string> = {
+                    trigger: '#ef4444',
+                    internal_alarm: '#f97316',
+                    supplier_pushback: '#eab308',
+                    pilot_alignment: '#22c55e',
+                    controlled_trial: '#06b6d4',
+                    validation_proof: '#3b82f6',
+                    conversion: '#8b5cf6'
+                  };
+                  return (
+                    <Link
+                      key={i}
+                      href="/crm-journey"
+                      style={{
+                        background: `${stageColors[stage.stage]}15`,
+                        border: `1px solid ${stageColors[stage.stage]}40`,
+                        borderRadius: '12px',
+                        padding: '12px 20px',
+                        display: 'flex',
+                        flexDirection: 'column',
+                        alignItems: 'center',
+                        minWidth: '120px',
+                        textDecoration: 'none',
+                        transition: 'transform 0.2s',
+                        cursor: 'pointer'
+                      }}
+                      data-testid={`stage-${stage.stage}`}
+                    >
+                      <div style={{
+                        fontSize: '28px',
+                        fontWeight: '700',
+                        color: stageColors[stage.stage]
+                      }}>
+                        {stage.count}
+                      </div>
+                      <div style={{
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        color: '#64748b',
+                        textAlign: 'center',
+                        lineHeight: '1.3'
+                      }}>
+                        {stageLabels[stage.stage] || stage.stage}
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* CRM Activity Stats */}
+              <div style={{
+                display: 'flex',
+                gap: '24px',
+                marginTop: '24px',
+                paddingTop: '20px',
+                borderTop: '1px solid rgba(148, 163, 184, 0.2)',
+                flexWrap: 'wrap'
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#f59e0b'
+                  }} />
+                  <span style={{ fontSize: '14px', color: '#64748b' }}>
+                    <strong style={{ color: '#1e293b' }}>{crmStats.pendingSamples}</strong> pending samples
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#06b6d4'
+                  }} />
+                  <span style={{ fontSize: '14px', color: '#64748b' }}>
+                    <strong style={{ color: '#1e293b' }}>{crmStats.pendingSwatches}</strong> pending swatches
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#8b5cf6'
+                  }} />
+                  <span style={{ fontSize: '14px', color: '#64748b' }}>
+                    <strong style={{ color: '#1e293b' }}>{crmStats.activePressProfiles}</strong> press profiles
+                  </span>
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <div style={{
+                    width: '8px',
+                    height: '8px',
+                    borderRadius: '50%',
+                    background: '#10b981'
+                  }} />
+                  <span style={{ fontSize: '14px', color: '#64748b' }}>
+                    <strong style={{ color: '#1e293b' }}>{crmStats.quotesLast30Days}</strong> quotes (30 days)
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Admin Tools */}
         {isAdmin && (
