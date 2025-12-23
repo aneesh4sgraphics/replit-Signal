@@ -151,49 +151,14 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
 
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
-      console.log('createJourneyMutation - sending request with data:', data);
-      
-      const attemptRequest = async (retries = 2): Promise<any> => {
-        try {
-          const res = await fetch('/api/crm/journeys', {
-            method: 'POST',
-            headers: {
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify(data),
-            credentials: 'include',
-          });
-          
-          if (!res.ok) {
-            const errorText = await res.text();
-            console.error('createJourneyMutation - server error:', res.status, errorText);
-            throw new Error(errorText || `Server error: ${res.status}`);
-          }
-          
-          const result = await res.json();
-          console.log('createJourneyMutation - response:', result);
-          return result;
-        } catch (err: any) {
-          console.error('createJourneyMutation - fetch error:', err);
-          if (retries > 0 && (err.message?.includes('fetch') || err.message?.includes('network'))) {
-            console.log(`Retrying... ${retries} attempts left`);
-            await new Promise(r => setTimeout(r, 500));
-            return attemptRequest(retries - 1);
-          }
-          throw err;
-        }
-      };
-      
-      return attemptRequest();
+      const res = await apiRequest('POST', '/api/crm/journeys', data);
+      return res.json();
     },
-    onSuccess: (data) => {
-      console.log('createJourneyMutation - onSuccess:', data);
+    onSuccess: () => {
       refetchJourney();
       toast({ title: "Success", description: "Customer journey started" });
-      logActivity('CRM_JOURNEY_CREATE', `Started journey for ${customer.company || customer.firstName}`);
     },
     onError: (error: any) => {
-      console.error('createJourneyMutation - onError:', error);
       toast({ title: "Error", description: error.message || "Failed to create journey", variant: "destructive" });
     },
   });
@@ -252,24 +217,16 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   const currentStageIndex = journey ? JOURNEY_STAGE_CONFIG.findIndex(s => s.id === journey.journeyStage) : -1;
   const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
 
-  const handleStartJourney = async () => {
-    console.log('=== handleStartJourney called ===');
-    console.log('Customer ID:', customer.id, 'Type:', typeof customer.id);
-    console.log('Customer Name:', customerName);
-    
+  const handleStartJourney = () => {
     if (!customer.id) {
-      console.error('No customer ID available');
       toast({ title: "Error", description: "Customer ID is missing", variant: "destructive" });
       return;
     }
     
-    const payload = {
+    createJourneyMutation.mutate({
       customerId: String(customer.id),
       journeyStage: 'trigger',
-    };
-    console.log('Sending payload:', payload);
-    
-    createJourneyMutation.mutate(payload);
+    });
   };
 
   const handleAdvanceStage = () => {
