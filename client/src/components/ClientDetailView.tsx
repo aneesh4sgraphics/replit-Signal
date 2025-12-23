@@ -151,15 +151,20 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
 
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
+      console.log('createJourneyMutation - sending request with data:', data);
       const res = await apiRequest('POST', '/api/crm/journeys', data);
-      return res.json();
+      const result = await res.json();
+      console.log('createJourneyMutation - response:', result);
+      return result;
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
+      console.log('createJourneyMutation - onSuccess:', data);
       queryClient.invalidateQueries({ queryKey: ['/api/crm/journeys', customer.id] });
       toast({ title: "Success", description: "Customer journey started" });
       logActivity('CRM_JOURNEY_CREATE', `Started journey for ${customer.company || customer.firstName}`);
     },
     onError: (error: any) => {
+      console.error('createJourneyMutation - onError:', error);
       toast({ title: "Error", description: error.message || "Failed to create journey", variant: "destructive" });
     },
   });
@@ -213,13 +218,24 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   const currentStageIndex = journey ? JOURNEY_STAGE_CONFIG.findIndex(s => s.id === journey.journeyStage) : -1;
   const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
 
-  const handleStartJourney = () => {
-    console.log('Starting journey for customer:', customer.id, customerName);
-    createJourneyMutation.mutate({
-      customerId: customer.id,
-      customerName: customerName,
+  const handleStartJourney = async () => {
+    console.log('=== handleStartJourney called ===');
+    console.log('Customer ID:', customer.id, 'Type:', typeof customer.id);
+    console.log('Customer Name:', customerName);
+    
+    if (!customer.id) {
+      console.error('No customer ID available');
+      toast({ title: "Error", description: "Customer ID is missing", variant: "destructive" });
+      return;
+    }
+    
+    const payload = {
+      customerId: String(customer.id),
       journeyStage: 'trigger',
-    });
+    };
+    console.log('Sending payload:', payload);
+    
+    createJourneyMutation.mutate(payload);
   };
 
   const handleAdvanceStage = () => {
@@ -371,7 +387,7 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
               </Button>
             )}
             {!journey && (
-              <Button onClick={handleStartJourney} disabled={createJourneyMutation.isPending} data-testid="btn-start-journey">
+              <Button type="button" onClick={handleStartJourney} disabled={createJourneyMutation.isPending} data-testid="btn-start-journey">
                 <Plus className="h-4 w-4 mr-1" />
                 Start Journey
               </Button>
@@ -425,7 +441,7 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
             <div className="text-center py-8">
               <Target className="h-12 w-12 text-gray-300 mx-auto mb-3" />
               <p className="text-gray-500 mb-4">No journey started for this customer</p>
-              <Button onClick={handleStartJourney} disabled={createJourneyMutation.isPending}>
+              <Button type="button" onClick={handleStartJourney} disabled={createJourneyMutation.isPending}>
                 <Plus className="h-4 w-4 mr-1" />
                 Start Journey Tracking
               </Button>
