@@ -88,7 +88,7 @@ export default function ClientDatabase() {
     noCompany: false,
   });
   const [showFilters, setShowFilters] = useState(false);
-  const [viewMode, setViewMode] = useState<'table' | 'cards'>('cards');
+  const [viewMode, setViewMode] = useState<'table' | 'cards' | 'kanban'>('table');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
   const [editingData, setEditingData] = useState<Partial<Customer>>({});
   const [isUploading, setIsUploading] = useState(false);
@@ -153,6 +153,24 @@ export default function ClientDatabase() {
       s.customerId === parseInt(customerId) || s.customerId === customerId
     ).length;
   };
+  
+  // Check if customer has missing details
+  const hasMissingDetails = (customer: Customer): boolean => {
+    return !customer.email || !customer.phone || !customer.company || !customer.city;
+  };
+  
+  // Get Kanban category for a customer
+  const getKanbanCategory = (customer: Customer): string => {
+    const quoteCount = getQuoteCount(customer.email);
+    const sampleCount = getSampleCount(customer.id);
+    
+    if (quoteCount > 0 && sampleCount > 0) return 'both';
+    if (quoteCount > 0) return 'quotes';
+    if (sampleCount > 0) return 'samples';
+    if (hasMissingDetails(customer)) return 'missing';
+    return 'none';
+  };
+  
   
   // Get display name for a customer
   const getDisplayName = (customer: Customer) => {
@@ -1093,11 +1111,46 @@ export default function ClientDatabase() {
                 </span>
               )}
             </CardTitle>
-            {(searchTerm || selectedLetter || Object.values(filters).some(f => f && f !== "all")) && (
-              <Button onClick={() => { clearFilters(); setSelectedLetter(null); }} variant="outline" size="sm">
-                Clear All Filters
-              </Button>
-            )}
+            <div className="flex items-center gap-2">
+              {/* View Toggle Buttons */}
+              <div className="flex bg-gray-100 rounded-lg p-0.5">
+                <button
+                  onClick={() => setViewMode('table')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'table' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  data-testid="button-view-table"
+                >
+                  <List className="h-3.5 w-3.5 inline mr-1" />
+                  Table
+                </button>
+                <button
+                  onClick={() => setViewMode('cards')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'cards' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  data-testid="button-view-cards"
+                >
+                  <Grid3X3 className="h-3.5 w-3.5 inline mr-1" />
+                  Cards
+                </button>
+                <button
+                  onClick={() => setViewMode('kanban')}
+                  className={`px-3 py-1.5 text-xs font-medium rounded-md transition-colors ${
+                    viewMode === 'kanban' ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500 hover:text-gray-700'
+                  }`}
+                  data-testid="button-view-kanban"
+                >
+                  <Users className="h-3.5 w-3.5 inline mr-1" />
+                  Kanban
+                </button>
+              </div>
+              {(searchTerm || selectedLetter || Object.values(filters).some(f => f && f !== "all")) && (
+                <Button onClick={() => { clearFilters(); setSelectedLetter(null); }} variant="outline" size="sm">
+                  Clear All Filters
+                </Button>
+              )}
+            </div>
           </div>
         </CardHeader>
         <CardContent>
@@ -1121,178 +1174,163 @@ export default function ClientDatabase() {
                 </Button>
               )}
             </div>
-          ) : viewMode === 'cards' ? (
-            <div className="divide-y divide-gray-200 border-t border-b border-gray-200">
+          ) : viewMode === 'table' ? (
+            /* TABLE VIEW - Compressed */
+            <div className="divide-y divide-gray-100">
               {filteredCustomers.map((customer) => {
                 const quoteCount = getQuoteCount(customer.email);
                 const sampleCount = getSampleCount(customer.id);
-                
                 return (
                   <div 
                     key={customer.id}
-                    className="flex items-center justify-between py-3 px-2 hover:bg-gray-50/50 transition-colors"
+                    className="flex items-center justify-between py-2 px-1 hover:bg-gray-50/50 text-sm"
                     data-testid={`row-client-${customer.id}`}
                   >
-                    <div className="flex items-center gap-3 flex-1 min-w-0">
-                      {/* Company Name (Primary) with Source badges */}
+                    <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <span className="font-medium text-gray-900 truncate min-w-[180px]">
+                        {getCompanyDisplayName(customer)}
+                      </span>
+                      {customer.sources?.includes('shopify') && <SiShopify className="h-3 w-3 text-green-600" />}
+                      {customer.sources?.includes('odoo') && <SiOdoo className="h-3 w-3 text-purple-600" />}
+                      {quoteCount > 0 && (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-1 rounded">{quoteCount}Q</span>
+                      )}
+                      {sampleCount > 0 && (
+                        <span className="bg-green-100 text-green-700 text-xs px-1 rounded">{sampleCount}S</span>
+                      )}
+                      <span className="text-gray-400 text-xs truncate hidden lg:block">{customer.email}</span>
+                    </div>
+                    <div className="flex items-center gap-0.5">
+                      <Button onClick={() => setSelectedCustomer(customer)} size="sm" variant="ghost" className="h-6 px-2 text-xs">View</Button>
+                      <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-6 w-6 p-0"><Edit className="h-3 w-3" /></Button>
+                      <Button onClick={() => handleDeleteCustomer(customer.id)} size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500"><Trash2 className="h-3 w-3" /></Button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+          ) : viewMode === 'cards' ? (
+            /* CARDS VIEW - Comfortable */
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              {filteredCustomers.map((customer) => {
+                const quoteCount = getQuoteCount(customer.email);
+                const sampleCount = getSampleCount(customer.id);
+                return (
+                  <div 
+                    key={customer.id}
+                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    data-testid={`card-client-${customer.id}`}
+                  >
+                    <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-gray-900 truncate">
-                            {getCompanyDisplayName(customer)}
-                          </span>
-                          {customer.sources?.includes('shopify') && (
-                            <SiShopify className="h-3.5 w-3.5 text-green-600 flex-shrink-0" title="Shopify" />
-                          )}
-                          {customer.sources?.includes('odoo') && (
-                            <SiOdoo className="h-3.5 w-3.5 text-purple-600 flex-shrink-0" title="Odoo" />
-                          )}
-                          {quoteCount > 0 && (
-                            <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Quotes sent">
-                              <FileText className="h-3 w-3" />
-                              {quoteCount}
-                            </span>
-                          )}
-                          {sampleCount > 0 && (
-                            <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Samples sent">
-                              <Package className="h-3 w-3" />
-                              {sampleCount}
-                            </span>
-                          )}
-                        </div>
+                        <h3 className="font-semibold text-gray-900 truncate">{getCompanyDisplayName(customer)}</h3>
                         {customer.company && (customer.firstName || customer.lastName) && (
-                          <p className="text-xs text-gray-500 truncate">
-                            {getDisplayName(customer)}
-                          </p>
+                          <p className="text-sm text-gray-500">{getDisplayName(customer)}</p>
                         )}
                       </div>
-                      
-                      {/* Contact info */}
-                      <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
-                        {customer.email && (
-                          <span className="truncate max-w-[160px]">{customer.email}</span>
-                        )}
-                        {customer.phone && (
-                          <span className="text-gray-400">{customer.phone}</span>
-                        )}
+                      <div className="flex items-center gap-1">
+                        {customer.sources?.includes('shopify') && <SiShopify className="h-4 w-4 text-green-600" />}
+                        {customer.sources?.includes('odoo') && <SiOdoo className="h-4 w-4 text-purple-600" />}
                       </div>
                     </div>
                     
-                    {/* Action buttons - compact */}
-                    <div className="flex items-center gap-0.5 ml-2">
-                      <Button 
-                        onClick={() => setSelectedCustomer(customer)} 
-                        size="sm" 
-                        variant="default"
-                        className="h-7 px-2 text-xs"
-                        data-testid={`button-view-${customer.id}`}
-                      >
-                        View
-                      </Button>
-                      <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-7 w-7 p-0" data-testid={`button-edit-${customer.id}`}>
-                        <Edit className="h-3.5 w-3.5" />
-                      </Button>
-                      <Button
-                        onClick={() => handleDeleteCustomer(customer.id)}
-                        size="sm"
-                        variant="ghost"
-                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                        data-testid={`button-delete-${customer.id}`}
-                      >
-                        <Trash2 className="h-3.5 w-3.5" />
-                      </Button>
+                    <div className="space-y-2 text-sm text-gray-600 mb-3">
+                      {customer.email && (
+                        <div className="flex items-center gap-2">
+                          <Mail className="h-3.5 w-3.5 text-gray-400" />
+                          <span className="truncate">{customer.email}</span>
+                        </div>
+                      )}
+                      {customer.phone && (
+                        <div className="flex items-center gap-2">
+                          <Phone className="h-3.5 w-3.5 text-gray-400" />
+                          <span>{customer.phone}</span>
+                        </div>
+                      )}
+                      {customer.city && (
+                        <div className="flex items-center gap-2">
+                          <MapPin className="h-3.5 w-3.5 text-gray-400" />
+                          <span>{[customer.city, customer.province].filter(Boolean).join(', ')}</span>
+                        </div>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-2 mb-3">
+                      {quoteCount > 0 && (
+                        <span className="bg-blue-100 text-blue-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                          <FileText className="h-3 w-3" /> {quoteCount} Quotes
+                        </span>
+                      )}
+                      {sampleCount > 0 && (
+                        <span className="bg-green-100 text-green-700 text-xs px-2 py-1 rounded-full flex items-center gap-1">
+                          <Package className="h-3 w-3" /> {sampleCount} Samples
+                        </span>
+                      )}
+                    </div>
+                    
+                    <div className="flex items-center gap-1 pt-2 border-t border-gray-100">
+                      <Button onClick={() => setSelectedCustomer(customer)} size="sm" variant="default" className="flex-1 h-8">View</Button>
+                      <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0"><Edit className="h-4 w-4" /></Button>
+                      <Button onClick={() => handleDeleteCustomer(customer.id)} size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500"><Trash2 className="h-4 w-4" /></Button>
                     </div>
                   </div>
                 );
               })}
             </div>
           ) : (
-            <div className="overflow-x-auto">
-              <Table>
-                <TableHeader>
-                  <TableRow>
-                    <TableHead className="body-sm">Name</TableHead>
-                    <TableHead className="body-sm">Email</TableHead>
-                    <TableHead className="body-sm">Company</TableHead>
-                    <TableHead className="body-sm">Location</TableHead>
-                    <TableHead className="body-sm">Phone</TableHead>
-                    <TableHead className="body-sm text-right">Spent</TableHead>
-                    <TableHead className="body-sm text-center">Orders</TableHead>
-                    <TableHead className="body-sm">Status</TableHead>
-                    <TableHead className="body-sm">Tags</TableHead>
-                    <TableHead className="body-sm">Actions</TableHead>
-                  </TableRow>
-                </TableHeader>
-                <TableBody>
-                  {filteredCustomers.map((customer) => (
-                    <TableRow key={customer.id} data-testid={`row-client-${customer.id}`}>
-                      <TableCell className="body-sm font-medium">{getDisplayName(customer)}</TableCell>
-                      <TableCell className="body-sm">{customer.email || '-'}</TableCell>
-                      <TableCell className="body-sm">{customer.company || '-'}</TableCell>
-                      <TableCell className="body-sm">
-                        {[customer.city, customer.province].filter(Boolean).join(', ') || '-'}
-                      </TableCell>
-                      <TableCell className="body-sm">{customer.phone || '-'}</TableCell>
-                      <TableCell className="body-sm text-right font-medium">
-                        ${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}
-                      </TableCell>
-                      <TableCell className="body-sm text-center">{customer.totalOrders}</TableCell>
-                      <TableCell>
-                        <div className="flex gap-1 flex-wrap items-center">
-                          {customer.taxExempt && (
-                            <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
-                          )}
-                          {customer.sources?.includes('shopify') && (
-                            <div className="flex items-center gap-1 text-green-600" title="Imported from Shopify">
-                              <SiShopify className="h-4 w-4" />
+            /* KANBAN VIEW */
+            <div className="flex gap-4 overflow-x-auto pb-4">
+              {(['both', 'quotes', 'samples', 'none', 'missing'] as const).map((category) => {
+                const config = {
+                  both: { title: 'Quote & Sample Sent', color: 'purple', bg: 'bg-purple-50', border: 'border-purple-200', text: 'text-purple-700' },
+                  quotes: { title: 'Quotes Sent', color: 'blue', bg: 'bg-blue-50', border: 'border-blue-200', text: 'text-blue-700' },
+                  samples: { title: 'Samples Sent', color: 'green', bg: 'bg-green-50', border: 'border-green-200', text: 'text-green-700' },
+                  none: { title: 'None', color: 'gray', bg: 'bg-gray-50', border: 'border-gray-200', text: 'text-gray-700' },
+                  missing: { title: 'Missing Details', color: 'orange', bg: 'bg-orange-50', border: 'border-orange-200', text: 'text-orange-700' },
+                }[category];
+                const customers = filteredCustomers.filter(c => getKanbanCategory(c) === category);
+                
+                return (
+                  <div key={category} className="flex-shrink-0 w-72">
+                    <div className={`${config.bg} ${config.border} border rounded-t-lg px-3 py-2`}>
+                      <h3 className={`font-semibold text-sm ${config.text}`}>{config.title}</h3>
+                      <span className="text-xs text-gray-500">{customers.length} clients</span>
+                    </div>
+                    <div className="bg-gray-50/50 border-x border-b border-gray-200 rounded-b-lg p-2 space-y-2 max-h-[500px] overflow-y-auto">
+                      {customers.map((customer) => {
+                        const quoteCount = getQuoteCount(customer.email);
+                        const sampleCount = getSampleCount(customer.id);
+                        return (
+                          <div 
+                            key={customer.id}
+                            className="bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer"
+                            onClick={() => setSelectedCustomer(customer)}
+                          >
+                            <div className="flex items-center gap-1 mb-1">
+                              {customer.sources?.includes('shopify') && <SiShopify className="h-3 w-3 text-green-600" />}
+                              {customer.sources?.includes('odoo') && <SiOdoo className="h-3 w-3 text-purple-600" />}
+                              <span className="font-medium text-sm text-gray-900 truncate">{getCompanyDisplayName(customer)}</span>
                             </div>
-                          )}
-                          {customer.sources?.includes('odoo') && (
-                            <div className="flex items-center gap-1 text-purple-600" title="Imported from Odoo">
-                              <SiOdoo className="h-4 w-4" />
+                            {customer.company && (customer.firstName || customer.lastName) && (
+                              <p className="text-xs text-gray-500 truncate mb-2">{getDisplayName(customer)}</p>
+                            )}
+                            <div className="flex items-center gap-1 flex-wrap">
+                              {quoteCount > 0 && <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded">{quoteCount}Q</span>}
+                              {sampleCount > 0 && <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded">{sampleCount}S</span>}
+                              {hasMissingDetails(customer) && category === 'missing' && (
+                                <span className="bg-orange-100 text-orange-700 text-xs px-1.5 py-0.5 rounded">Incomplete</span>
+                              )}
                             </div>
-                          )}
-                        </div>
-                      </TableCell>
-                      <TableCell className="body-sm">
-                        {customer.tags ? (
-                          <div className="flex gap-1 flex-wrap">
-                            {customer.tags.split(',').map((tag, i) => (
-                              <span key={i} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">
-                                {tag.trim()}
-                              </span>
-                            ))}
                           </div>
-                        ) : (
-                          <span className="text-gray-400">-</span>
-                        )}
-                      </TableCell>
-                      <TableCell>
-                        <div className="flex gap-1">
-                          <Button 
-                            onClick={() => setSelectedCustomer(customer)} 
-                            size="sm" 
-                            variant="default"
-                            data-testid={`button-view-table-${customer.id}`}
-                          >
-                            View
-                          </Button>
-                          <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost">
-                            <Edit className="h-3 w-3" />
-                          </Button>
-                          <Button
-                            onClick={() => handleDeleteCustomer(customer.id)}
-                            size="sm"
-                            variant="ghost"
-                            className="text-red-600 hover:text-red-700 hover:bg-red-50"
-                          >
-                            <Trash2 className="h-3 w-3" />
-                          </Button>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
+                        );
+                      })}
+                      {customers.length === 0 && (
+                        <p className="text-xs text-gray-400 text-center py-4">No clients</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
             </div>
           )}
         </CardContent>
