@@ -155,9 +155,17 @@ export default function ClientDatabase() {
     return customer.email || customer.id;
   };
   
-  // Get first letter of customer name for alphabet filtering
+  // Get company display name (primary identifier)
+  const getCompanyDisplayName = (customer: Customer): string => {
+    if (customer.company && customer.company.trim()) {
+      return customer.company.trim();
+    }
+    return getDisplayName(customer); // Fallback to contact name
+  };
+  
+  // Get first letter of company name for alphabet filtering
   const getFirstLetter = (customer: Customer): string => {
-    const name = getDisplayName(customer);
+    const name = getCompanyDisplayName(customer);
     const firstChar = name.charAt(0).toUpperCase();
     if (/[A-Z]/.test(firstChar)) {
       return firstChar;
@@ -206,6 +214,11 @@ export default function ClientDatabase() {
     const matchesMissingCompany = !missingDataFilters.noCompany || !customer.company || customer.company.trim() === '';
 
     return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany;
+  }).sort((a, b) => {
+    // Sort by company name (case-insensitive)
+    const companyA = getCompanyDisplayName(a).toLowerCase();
+    const companyB = getCompanyDisplayName(b).toLowerCase();
+    return companyA.localeCompare(companyB);
   });
 
   const updateCustomerMutation = useMutation({
@@ -1125,38 +1138,44 @@ export default function ClientDatabase() {
                         {/* Collapsed Card Header - Always visible */}
                         <CollapsibleTrigger asChild>
                           <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 rounded-t-lg">
-                            <div className="flex items-center gap-4 flex-1 min-w-0">
+                            <div className="flex items-center gap-3 flex-1 min-w-0">
                               {/* Expand/Collapse indicator */}
                               <div className="text-gray-400">
-                                {isExpanded ? <ChevronDown className="h-5 w-5" /> : <ChevronRight className="h-5 w-5" />}
+                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
                               </div>
                               
-                              {/* Name and Company */}
+                              {/* Company Name (Primary) with Source badges */}
                               <div className="flex-1 min-w-0">
                                 <div className="flex items-center gap-2">
                                   <h3 className="font-semibold text-gray-900 truncate">
-                                    {getDisplayName(customer)}
+                                    {getCompanyDisplayName(customer)}
                                   </h3>
-                                  {/* Quote count badge */}
+                                  {/* Source badges next to company name */}
+                                  {customer.sources?.includes('shopify') && (
+                                    <SiShopify className="h-4 w-4 text-green-600 flex-shrink-0" title="Shopify" />
+                                  )}
+                                  {customer.sources?.includes('odoo') && (
+                                    <SiOdoo className="h-4 w-4 text-purple-600 flex-shrink-0" title="Odoo" />
+                                  )}
                                   {quoteCount > 0 && (
-                                    <Badge variant="default" className="bg-blue-600 text-white text-xs px-2 py-0.5 flex items-center gap-1">
+                                    <Badge variant="default" className="bg-blue-600 text-white text-xs px-1.5 py-0 flex items-center gap-0.5">
                                       <FileText className="h-3 w-3" />
                                       {quoteCount}
                                     </Badge>
                                   )}
                                 </div>
-                                {customer.company && (
-                                  <p className="text-sm text-gray-500 flex items-center gap-1 truncate">
-                                    <Building2 className="h-3 w-3 flex-shrink-0" />
-                                    {customer.company}
+                                {/* Contact name below company */}
+                                {customer.company && (customer.firstName || customer.lastName) && (
+                                  <p className="text-sm text-gray-500 truncate">
+                                    {getDisplayName(customer)}
                                   </p>
                                 )}
                               </div>
                               
                               {/* Quick contact info */}
-                              <div className="hidden md:flex items-center gap-4 text-sm text-gray-500">
+                              <div className="hidden lg:flex items-center gap-3 text-sm text-gray-500">
                                 {customer.email && (
-                                  <span className="flex items-center gap-1 truncate max-w-[200px]">
+                                  <span className="flex items-center gap-1 truncate max-w-[180px]">
                                     <Mail className="h-3 w-3 flex-shrink-0" />
                                     {customer.email}
                                   </span>
@@ -1168,40 +1187,27 @@ export default function ClientDatabase() {
                                   </span>
                                 )}
                               </div>
-                              
-                              {/* Source badges */}
-                              <div className="flex items-center gap-1">
-                                {customer.sources?.includes('shopify') && (
-                                  <div className="text-green-600" title="Shopify">
-                                    <SiShopify className="h-4 w-4" />
-                                  </div>
-                                )}
-                                {customer.sources?.includes('odoo') && (
-                                  <div className="text-purple-600" title="Odoo">
-                                    <SiOdoo className="h-4 w-4" />
-                                  </div>
-                                )}
-                              </div>
                             </div>
                             
-                            {/* Action buttons */}
-                            <div className="flex gap-1 ml-2" onClick={(e) => e.stopPropagation()}>
+                            {/* Action buttons - compact */}
+                            <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
                               <Button 
                                 onClick={() => setSelectedCustomer(customer)} 
                                 size="sm" 
-                                variant="default" 
+                                variant="default"
+                                className="h-8 px-3"
                                 data-testid={`button-view-${customer.id}`}
                               >
                                 View
                               </Button>
-                              <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" data-testid={`button-edit-${customer.id}`}>
+                              <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0" data-testid={`button-edit-${customer.id}`}>
                                 <Edit className="h-4 w-4" />
                               </Button>
                               <Button
                                 onClick={() => handleDeleteCustomer(customer.id)}
                                 size="sm"
                                 variant="ghost"
-                                className="text-red-600 hover:text-red-700 hover:bg-red-50"
+                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
                                 data-testid={`button-delete-${customer.id}`}
                               >
                                 <Trash2 className="h-4 w-4" />
