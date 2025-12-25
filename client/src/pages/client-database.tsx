@@ -59,6 +59,7 @@ import {
   FileText,
   ChevronDown,
   ChevronRight,
+  Package,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 
@@ -117,6 +118,15 @@ export default function ClientDatabase() {
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],
   });
+  
+  // Fetch total samples sent count
+  const { data: sampleRequests = [] } = useQuery<any[]>({
+    queryKey: ['/api/crm/sample-requests'],
+  });
+  const totalSamplesSent = sampleRequests.filter((s: any) => s.status === 'shipped' || s.status === 'completed').length;
+  
+  // Calculate total quotes sent
+  const totalQuotesSent = Object.values(quoteCounts).reduce((sum, count) => sum + count, 0);
   
   // Toggle card expansion
   const toggleCardExpansion = (customerId: string) => {
@@ -795,16 +805,18 @@ export default function ClientDatabase() {
         </div>
       </div>
 
-      {/* Stats */}
-      <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+      {/* Stats Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
         <Card className="glass-card border-0">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="label-caps text-gray-500">Total Clients</p>
-                <p className="heading-md text-gray-900 mt-1">{customers.length}</p>
+                <p className="text-sm font-medium text-gray-500">Total Clients</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{customers.length}</p>
               </div>
-              <Users className="h-8 w-8 text-primary opacity-50" />
+              <div className="h-12 w-12 rounded-full bg-blue-50 flex items-center justify-center">
+                <Users className="h-6 w-6 text-blue-500" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -812,10 +824,12 @@ export default function ClientDatabase() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="label-caps text-gray-500">Active</p>
-                <p className="heading-md text-gray-900 mt-1">{customers.filter(c => (c.totalOrders || 0) > 0).length}</p>
+                <p className="text-sm font-medium text-gray-500">Samples Sent</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{totalSamplesSent}</p>
               </div>
-              <CheckCircle className="h-8 w-8 text-green-500 opacity-50" />
+              <div className="h-12 w-12 rounded-full bg-green-50 flex items-center justify-center">
+                <Package className="h-6 w-6 text-green-500" />
+              </div>
             </div>
           </CardContent>
         </Card>
@@ -823,65 +837,51 @@ export default function ClientDatabase() {
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
               <div>
-                <p className="label-caps text-gray-500">Email Marketing</p>
-                <p className="heading-md text-gray-900 mt-1">{customers.filter(c => c.acceptsEmailMarketing).length}</p>
+                <p className="text-sm font-medium text-gray-500">Quotes Sent</p>
+                <p className="text-3xl font-bold text-gray-900 mt-1">{totalQuotesSent}</p>
               </div>
-              <Mail className="h-8 w-8 text-blue-500 opacity-50" />
-            </div>
-          </CardContent>
-        </Card>
-        <Card className="glass-card border-0">
-          <CardContent className="pt-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="label-caps text-gray-500">Tax Exempt</p>
-                <p className="heading-md text-gray-900 mt-1">{customers.filter(c => c.taxExempt).length}</p>
+              <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center">
+                <FileText className="h-6 w-6 text-purple-500" />
               </div>
-              <AlertCircle className="h-8 w-8 text-orange-500 opacity-50" />
             </div>
           </CardContent>
         </Card>
       </div>
 
-      {/* Quick Search Bar - Prominent */}
-      <Card className="glass-card border-0">
-        <CardContent className="py-4">
-          <div className="flex flex-col md:flex-row gap-4 items-center">
-            <div className="flex-1 relative w-full">
-              <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-              <Input
-                placeholder="Quick search clients by name, email, company, or ID..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="pl-12 h-12 text-lg border-2 border-gray-200 focus:border-primary rounded-xl shadow-sm"
-                data-testid="input-client-search"
-              />
-              {searchTerm && (
-                <Button 
-                  variant="ghost" 
-                  size="sm"
-                  onClick={() => setSearchTerm("")}
-                  className="absolute right-2 top-1/2 transform -translate-y-1/2 h-8 w-8 p-0"
-                >
-                  <X className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            {searchTerm && (
-              <div className="text-sm text-gray-500 whitespace-nowrap">
-                <span className="font-semibold text-primary">{filteredCustomers.length}</span> results found
-              </div>
-            )}
-            <div className="flex gap-2">
-              <Button onClick={() => setShowFilters(!showFilters)} variant="outline" data-testid="button-filters">
-                <Filter className="h-4 w-4 mr-2" />
-                Filters
-              </Button>
-              <Button onClick={() => refetch()} variant="outline" data-testid="button-refresh">
-                <RefreshCw className="h-4 w-4" />
-              </Button>
-            </div>
+      {/* Clean Search Bar */}
+      <div className="relative">
+        <Search className="absolute left-4 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+        <Input
+          placeholder="Search clients by name, email, company..."
+          value={searchTerm}
+          onChange={(e) => setSearchTerm(e.target.value)}
+          className="pl-12 pr-24 h-12 text-base bg-white/80 backdrop-blur-sm border border-gray-200 focus:border-primary/50 rounded-xl shadow-sm"
+          data-testid="input-client-search"
+        />
+        {searchTerm ? (
+          <Button 
+            variant="ghost" 
+            size="sm"
+            onClick={() => setSearchTerm("")}
+            className="absolute right-3 top-1/2 transform -translate-y-1/2 h-8 px-3 text-gray-500"
+          >
+            <X className="h-4 w-4 mr-1" /> Clear
+          </Button>
+        ) : (
+          <div className="absolute right-3 top-1/2 transform -translate-y-1/2 flex gap-2">
+            <Button onClick={() => setShowFilters(!showFilters)} variant="ghost" size="sm" className="h-8 px-2" data-testid="button-filters">
+              <Filter className="h-4 w-4" />
+            </Button>
+            <Button onClick={() => refetch()} variant="ghost" size="sm" className="h-8 px-2" data-testid="button-refresh">
+              <RefreshCw className="h-4 w-4" />
+            </Button>
           </div>
+        )}
+      </div>
+
+      {/* Filters Panel */}
+      <Card className={`glass-card border-0 ${!showFilters ? 'hidden' : ''}`}>
+        <CardContent className="py-4">
 
           {showFilters && (
             <div className="mt-4 space-y-4 p-4 bg-gray-50/50 rounded-lg">
@@ -996,88 +996,70 @@ export default function ClientDatabase() {
         </CardContent>
       </Card>
 
-      {/* Alphabet Index Tabs */}
-      <Card className="border-0 shadow-none bg-transparent">
-        <CardContent className="p-0">
-          <div className="glass-card flex items-center gap-1 flex-wrap justify-center py-3">
-            {/* All button */}
-            <Button
-              variant={selectedLetter === null || selectedLetter === 'All' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => setSelectedLetter(null)}
-              className={`h-9 min-w-[50px] font-medium ${selectedLetter === null || selectedLetter === 'All' ? 'bg-primary text-white' : 'hover:bg-gray-100'}`}
-              data-testid="button-letter-all"
-            >
-              All
-            </Button>
-            
-            {/* Alphabet letters */}
-            {alphabet.map((letter) => {
-              const count = letterCounts[letter] || 0;
-              const hasClients = count > 0;
-              const isSelected = selectedLetter === letter;
-              
-              return (
-                <Button
-                  key={letter}
-                  variant={isSelected ? 'default' : 'ghost'}
-                  size="sm"
-                  onClick={() => hasClients && setSelectedLetter(letter)}
-                  disabled={!hasClients}
-                  className={`h-9 w-9 p-0 font-semibold transition-all ${
-                    isSelected 
-                      ? 'bg-primary text-white scale-110' 
-                      : hasClients 
-                        ? 'hover:bg-primary/10 hover:text-primary' 
-                        : 'text-gray-300 cursor-not-allowed'
-                  }`}
-                  title={hasClients ? `${count} clients` : 'No clients'}
-                  data-testid={`button-letter-${letter}`}
-                >
-                  {letter}
-                </Button>
-              );
-            })}
-            
-            {/* Special characters button */}
-            <Button
-              variant={selectedLetter === '#' ? 'default' : 'ghost'}
-              size="sm"
-              onClick={() => (letterCounts['#'] || 0) > 0 && setSelectedLetter('#')}
-              disabled={!(letterCounts['#'] || 0)}
-              className={`h-9 w-9 p-0 font-semibold ${
-                selectedLetter === '#' 
-                  ? 'bg-primary text-white' 
-                  : (letterCounts['#'] || 0) > 0 
-                    ? 'hover:bg-primary/10 hover:text-primary' 
+      {/* Alphabet Index - Muted */}
+      <div className="flex items-center gap-0.5 flex-wrap justify-center py-2 px-4 bg-gray-50/50 rounded-lg">
+        <button
+          onClick={() => setSelectedLetter(null)}
+          className={`h-7 px-3 text-xs font-medium rounded transition-colors ${
+            selectedLetter === null || selectedLetter === 'All' 
+              ? 'bg-gray-200 text-gray-700' 
+              : 'text-gray-500 hover:bg-gray-100'
+          }`}
+          data-testid="button-letter-all"
+        >
+          All
+        </button>
+        
+        {alphabet.map((letter) => {
+          const count = letterCounts[letter] || 0;
+          const hasClients = count > 0;
+          const isSelected = selectedLetter === letter;
+          
+          return (
+            <button
+              key={letter}
+              onClick={() => hasClients && setSelectedLetter(letter)}
+              disabled={!hasClients}
+              className={`h-7 w-7 text-xs font-medium rounded transition-colors ${
+                isSelected 
+                  ? 'bg-gray-200 text-gray-700' 
+                  : hasClients 
+                    ? 'text-gray-500 hover:bg-gray-100' 
                     : 'text-gray-300 cursor-not-allowed'
               }`}
-              title={`${letterCounts['#'] || 0} clients starting with numbers/symbols`}
-              data-testid="button-letter-hash"
+              title={hasClients ? `${count} clients` : 'No clients'}
+              data-testid={`button-letter-${letter}`}
             >
-              #
-            </Button>
-          </div>
-          
-          {/* Current selection indicator */}
-          {selectedLetter && selectedLetter !== 'All' && (
-            <div className="flex items-center justify-center gap-2 mt-3 text-sm text-gray-600">
-              <span>Showing clients starting with</span>
-              <Badge variant="secondary" className="text-lg px-3 py-1 font-bold">
-                {selectedLetter}
-              </Badge>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setSelectedLetter(null)}
-                className="text-gray-500 hover:text-gray-700"
-              >
-                <X className="h-4 w-4 mr-1" /> Clear
-              </Button>
-            </div>
-          )}
-        </CardContent>
-      </Card>
+              {letter}
+            </button>
+          );
+        })}
+        
+        <button
+          onClick={() => (letterCounts['#'] || 0) > 0 && setSelectedLetter('#')}
+          disabled={!(letterCounts['#'] || 0)}
+          className={`h-7 w-7 text-xs font-medium rounded transition-colors ${
+            selectedLetter === '#' 
+              ? 'bg-gray-200 text-gray-700' 
+              : (letterCounts['#'] || 0) > 0 
+                ? 'text-gray-500 hover:bg-gray-100' 
+                : 'text-gray-300 cursor-not-allowed'
+          }`}
+          title={`${letterCounts['#'] || 0} clients starting with numbers/symbols`}
+          data-testid="button-letter-hash"
+        >
+          #
+        </button>
+        
+        {selectedLetter && selectedLetter !== 'All' && (
+          <button 
+            onClick={() => setSelectedLetter(null)}
+            className="ml-2 h-7 px-2 text-xs text-gray-500 hover:text-gray-700 flex items-center gap-1"
+          >
+            <X className="h-3 w-3" /> Clear
+          </button>
+        )}
+      </div>
 
       {/* Client List */}
       <Card className="glass-card border-0">
