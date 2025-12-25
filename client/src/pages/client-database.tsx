@@ -1122,199 +1122,86 @@ export default function ClientDatabase() {
               )}
             </div>
           ) : viewMode === 'cards' ? (
-            <div className="space-y-2">
-              {filteredCustomers.map((customer, index) => {
+            <div className="divide-y divide-gray-200 border-t border-b border-gray-200">
+              {filteredCustomers.map((customer) => {
                 const quoteCount = getQuoteCount(customer.email);
                 const sampleCount = getSampleCount(customer.id);
-                const isExpanded = expandedCards.has(customer.id);
                 
                 return (
-                  <Collapsible
+                  <div 
                     key={customer.id}
-                    open={isExpanded}
-                    onOpenChange={() => toggleCardExpansion(customer.id)}
+                    className="flex items-center justify-between py-3 px-2 hover:bg-gray-50/50 transition-colors"
+                    data-testid={`row-client-${customer.id}`}
                   >
-                    <div 
-                      className="relative"
-                      data-testid={`card-client-${customer.id}`}
-                    >
-                      {/* Rolodex stacked effect - shadow cards behind */}
-                      <div className="absolute inset-0 bg-gray-100 rounded-lg transform translate-y-1 translate-x-0.5 -z-10" />
-                      <div className="absolute inset-0 bg-gray-200 rounded-lg transform translate-y-2 translate-x-1 -z-20" />
+                    <div className="flex items-center gap-3 flex-1 min-w-0">
+                      {/* Company Name (Primary) with Source badges */}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium text-gray-900 truncate">
+                            {getCompanyDisplayName(customer)}
+                          </span>
+                          {customer.sources?.includes('shopify') && (
+                            <SiShopify className="h-3.5 w-3.5 text-green-600 flex-shrink-0" title="Shopify" />
+                          )}
+                          {customer.sources?.includes('odoo') && (
+                            <SiOdoo className="h-3.5 w-3.5 text-purple-600 flex-shrink-0" title="Odoo" />
+                          )}
+                          {quoteCount > 0 && (
+                            <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Quotes sent">
+                              <FileText className="h-3 w-3" />
+                              {quoteCount}
+                            </span>
+                          )}
+                          {sampleCount > 0 && (
+                            <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded flex items-center gap-0.5" title="Samples sent">
+                              <Package className="h-3 w-3" />
+                              {sampleCount}
+                            </span>
+                          )}
+                        </div>
+                        {customer.company && (customer.firstName || customer.lastName) && (
+                          <p className="text-xs text-gray-500 truncate">
+                            {getDisplayName(customer)}
+                          </p>
+                        )}
+                      </div>
                       
-                      <Card className={`border border-gray-200 shadow-sm hover:shadow-md transition-all duration-200 ${isExpanded ? 'ring-2 ring-primary/20' : ''}`}>
-                        {/* Collapsed Card Header - Always visible */}
-                        <CollapsibleTrigger asChild>
-                          <div className="flex items-center justify-between p-4 cursor-pointer hover:bg-gray-50/50 rounded-t-lg">
-                            <div className="flex items-center gap-3 flex-1 min-w-0">
-                              {/* Expand/Collapse indicator */}
-                              <div className="text-gray-400">
-                                {isExpanded ? <ChevronDown className="h-4 w-4" /> : <ChevronRight className="h-4 w-4" />}
-                              </div>
-                              
-                              {/* Company Name (Primary) with Source badges */}
-                              <div className="flex-1 min-w-0">
-                                <div className="flex items-center gap-2">
-                                  <h3 className="font-semibold text-gray-900 truncate">
-                                    {getCompanyDisplayName(customer)}
-                                  </h3>
-                                  {/* Source badges next to company name */}
-                                  {customer.sources?.includes('shopify') && (
-                                    <SiShopify className="h-4 w-4 text-green-600 flex-shrink-0" title="Shopify" />
-                                  )}
-                                  {customer.sources?.includes('odoo') && (
-                                    <SiOdoo className="h-4 w-4 text-purple-600 flex-shrink-0" title="Odoo" />
-                                  )}
-                                  {quoteCount > 0 && (
-                                    <Badge variant="secondary" className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0 flex items-center gap-0.5" title="Quotes sent">
-                                      <FileText className="h-3 w-3" />
-                                      {quoteCount}
-                                    </Badge>
-                                  )}
-                                  {sampleCount > 0 && (
-                                    <Badge variant="secondary" className="bg-green-100 text-green-700 text-xs px-1.5 py-0 flex items-center gap-0.5" title="Samples sent">
-                                      <Package className="h-3 w-3" />
-                                      {sampleCount}
-                                    </Badge>
-                                  )}
-                                </div>
-                                {/* Contact name below company */}
-                                {customer.company && (customer.firstName || customer.lastName) && (
-                                  <p className="text-sm text-gray-500 truncate">
-                                    {getDisplayName(customer)}
-                                  </p>
-                                )}
-                              </div>
-                              
-                              {/* Quick contact info */}
-                              <div className="hidden lg:flex items-center gap-3 text-sm text-gray-500">
-                                {customer.email && (
-                                  <span className="flex items-center gap-1 truncate max-w-[180px]">
-                                    <Mail className="h-3 w-3 flex-shrink-0" />
-                                    {customer.email}
-                                  </span>
-                                )}
-                                {customer.phone && (
-                                  <span className="flex items-center gap-1">
-                                    <Phone className="h-3 w-3 flex-shrink-0" />
-                                    {customer.phone}
-                                  </span>
-                                )}
-                              </div>
-                            </div>
-                            
-                            {/* Action buttons - compact */}
-                            <div className="flex items-center gap-0.5 ml-2" onClick={(e) => e.stopPropagation()}>
-                              <Button 
-                                onClick={() => setSelectedCustomer(customer)} 
-                                size="sm" 
-                                variant="default"
-                                className="h-8 px-3"
-                                data-testid={`button-view-${customer.id}`}
-                              >
-                                View
-                              </Button>
-                              <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0" data-testid={`button-edit-${customer.id}`}>
-                                <Edit className="h-4 w-4" />
-                              </Button>
-                              <Button
-                                onClick={() => handleDeleteCustomer(customer.id)}
-                                size="sm"
-                                variant="ghost"
-                                className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                                data-testid={`button-delete-${customer.id}`}
-                              >
-                                <Trash2 className="h-4 w-4" />
-                              </Button>
-                            </div>
-                          </div>
-                        </CollapsibleTrigger>
-                        
-                        {/* Expanded Card Content */}
-                        <CollapsibleContent>
-                          <CardContent className="pt-0 pb-4 px-4 border-t border-gray-100">
-                            <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mt-4">
-                              {/* Contact Information */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Contact</h4>
-                                <div className="space-y-2 text-sm">
-                                  {customer.email && (
-                                    <div className="flex items-center gap-2 text-gray-600">
-                                      <Mail className="h-4 w-4 text-gray-400" />
-                                      <a href={`mailto:${customer.email}`} className="hover:text-primary">{customer.email}</a>
-                                    </div>
-                                  )}
-                                  {customer.phone && (
-                                    <div className="flex items-center gap-2 text-gray-600">
-                                      <Phone className="h-4 w-4 text-gray-400" />
-                                      <a href={`tel:${customer.phone}`} className="hover:text-primary">{customer.phone}</a>
-                                    </div>
-                                  )}
-                                </div>
-                              </div>
-                              
-                              {/* Address */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Address</h4>
-                                <div className="text-sm text-gray-600 space-y-1">
-                                  {customer.address1 && <p>{customer.address1}</p>}
-                                  {customer.address2 && <p>{customer.address2}</p>}
-                                  <p>
-                                    {[customer.city, customer.province, customer.zip]
-                                      .filter(Boolean)
-                                      .join(', ')}
-                                  </p>
-                                  {customer.country && <p>{customer.country}</p>}
-                                </div>
-                              </div>
-                              
-                              {/* Stats & Status */}
-                              <div className="space-y-3">
-                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide">Stats</h4>
-                                <div className="space-y-2">
-                                  {/* Quote count prominently displayed */}
-                                  <div className="flex items-center justify-between p-3 bg-blue-50 rounded-lg border border-blue-100">
-                                    <span className="text-sm font-medium text-blue-800">Quotes Requested</span>
-                                    <span className="text-2xl font-bold text-blue-600">{quoteCount}</span>
-                                  </div>
-                                  
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-500">Orders</span>
-                                    <span className="font-medium">{customer.totalOrders || 0}</span>
-                                  </div>
-                                  <div className="flex items-center justify-between text-sm">
-                                    <span className="text-gray-500">Total Spent</span>
-                                    <span className="font-medium">${(parseFloat(String(customer.totalSpent)) || 0).toFixed(2)}</span>
-                                  </div>
-                                  
-                                  {/* Status badges */}
-                                  <div className="flex flex-wrap gap-1 pt-2">
-                                    {customer.taxExempt && (
-                                      <Badge variant="secondary" className="text-xs">Tax Exempt</Badge>
-                                    )}
-                                    {customer.acceptsEmailMarketing && (
-                                      <Badge variant="outline" className="text-xs">Email Marketing</Badge>
-                                    )}
-                                    {customer.acceptsSmsMarketing && (
-                                      <Badge variant="outline" className="text-xs">SMS Marketing</Badge>
-                                    )}
-                                  </div>
-                                </div>
-                              </div>
-                            </div>
-                            
-                            {/* Notes section if available */}
-                            {customer.note && (
-                              <div className="mt-4 pt-4 border-t border-gray-100">
-                                <h4 className="font-medium text-gray-900 text-sm uppercase tracking-wide mb-2">Notes</h4>
-                                <p className="text-sm text-gray-600 bg-gray-50 p-3 rounded-lg">{customer.note}</p>
-                              </div>
-                            )}
-                          </CardContent>
-                        </CollapsibleContent>
-                      </Card>
+                      {/* Contact info */}
+                      <div className="hidden md:flex items-center gap-3 text-xs text-gray-500">
+                        {customer.email && (
+                          <span className="truncate max-w-[160px]">{customer.email}</span>
+                        )}
+                        {customer.phone && (
+                          <span className="text-gray-400">{customer.phone}</span>
+                        )}
+                      </div>
                     </div>
-                  </Collapsible>
+                    
+                    {/* Action buttons - compact */}
+                    <div className="flex items-center gap-0.5 ml-2">
+                      <Button 
+                        onClick={() => setSelectedCustomer(customer)} 
+                        size="sm" 
+                        variant="default"
+                        className="h-7 px-2 text-xs"
+                        data-testid={`button-view-${customer.id}`}
+                      >
+                        View
+                      </Button>
+                      <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-7 w-7 p-0" data-testid={`button-edit-${customer.id}`}>
+                        <Edit className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        onClick={() => handleDeleteCustomer(customer.id)}
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 w-7 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                        data-testid={`button-delete-${customer.id}`}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                  </div>
                 );
               })}
             </div>
