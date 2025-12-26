@@ -494,46 +494,101 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
                       Add
                     </Button>
                   </div>
-                  <div className="space-y-2">
+                  <div className="space-y-3">
                     {[...journeyInstances]
                       .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
-                      .map(instance => (
-                        <div 
-                          key={instance.id} 
-                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
-                          onClick={() => setIsJourneyPanelOpen(true)}
-                          data-testid={`journey-instance-${instance.id}`}
-                        >
-                          <div className="flex items-center gap-3">
-                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
-                              instance.journeyType === 'press_test' ? 'bg-blue-100 text-blue-600' :
-                              instance.journeyType === 'swatch_book' ? 'bg-purple-100 text-purple-600' :
-                              'bg-green-100 text-green-600'
-                            }`}>
-                              {instance.journeyType === 'press_test' ? <FlaskConical className="h-4 w-4" /> :
-                               instance.journeyType === 'swatch_book' ? <Palette className="h-4 w-4" /> :
-                               <FileText className="h-4 w-4" />}
+                      .map(instance => {
+                        // Define steps for each journey type
+                        const journeySteps = instance.journeyType === 'press_test' 
+                          ? [
+                              { key: 'sample_requested', label: 'Sample Requested' },
+                              { key: 'tracking_added', label: 'Tracking Added' },
+                              { key: 'received', label: 'Received' },
+                              { key: 'result', label: 'Result' },
+                            ]
+                          : instance.journeyType === 'swatch_book'
+                          ? [
+                              { key: 'requested', label: 'Requested' },
+                              { key: 'shipped', label: 'Shipped' },
+                              { key: 'delivered', label: 'Delivered' },
+                            ]
+                          : [
+                              { key: 'quote_created', label: 'Quote Created' },
+                              { key: 'sent', label: 'Sent' },
+                              { key: 'viewed', label: 'Viewed' },
+                              { key: 'responded', label: 'Responded' },
+                            ];
+                        
+                        const currentStepIndex = journeySteps.findIndex(s => s.key === instance.currentStep);
+                        const isCompleted = instance.status === 'completed';
+                        
+                        return (
+                          <div 
+                            key={instance.id} 
+                            className="p-4 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors border border-gray-100"
+                            onClick={() => setIsJourneyPanelOpen(true)}
+                            data-testid={`journey-instance-${instance.id}`}
+                          >
+                            {/* Header */}
+                            <div className="flex items-center justify-between mb-3">
+                              <div className="flex items-center gap-2">
+                                <div className={`w-7 h-7 rounded-full flex items-center justify-center ${
+                                  instance.journeyType === 'press_test' ? 'bg-blue-100 text-blue-600' :
+                                  instance.journeyType === 'swatch_book' ? 'bg-purple-100 text-purple-600' :
+                                  'bg-green-100 text-green-600'
+                                }`}>
+                                  {instance.journeyType === 'press_test' ? <FlaskConical className="h-3.5 w-3.5" /> :
+                                   instance.journeyType === 'swatch_book' ? <Palette className="h-3.5 w-3.5" /> :
+                                   <FileText className="h-3.5 w-3.5" />}
+                                </div>
+                                <span className="font-medium text-sm">
+                                  {instance.journeyType === 'press_test' ? 'Press Test' :
+                                   instance.journeyType === 'swatch_book' ? 'Swatch Book' :
+                                   'Quote Sent'}
+                                </span>
+                                <Badge variant={isCompleted ? 'default' : 'secondary'} className="text-xs ml-1">
+                                  {isCompleted ? 'Completed' : 'In Progress'}
+                                </Badge>
+                              </div>
+                              <ChevronRight className="h-4 w-4 text-gray-400" />
                             </div>
-                            <div>
-                              <p className="font-medium text-sm">
-                                {instance.journeyType === 'press_test' ? 'Press Test' :
-                                 instance.journeyType === 'swatch_book' ? 'Swatch Book' :
-                                 'Quote Sent'}
-                              </p>
-                              <p className="text-xs text-gray-500">
-                                Step: {instance.currentStep?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
-                              </p>
+                            
+                            {/* Steps Progress */}
+                            <div className="flex items-center gap-1">
+                              {journeySteps.map((step, index) => {
+                                const stepCompleted = isCompleted || index < currentStepIndex;
+                                const stepCurrent = !isCompleted && index === currentStepIndex;
+                                
+                                return (
+                                  <div key={step.key} className="flex items-center flex-1">
+                                    <div className="flex flex-col items-center flex-1">
+                                      <div
+                                        className={`w-6 h-6 rounded-full flex items-center justify-center text-xs font-medium transition-all ${
+                                          stepCompleted ? 'bg-green-500 text-white' : 
+                                          stepCurrent ? 'bg-blue-500 text-white' : 
+                                          'bg-gray-200 text-gray-500'
+                                        }`}
+                                      >
+                                        {stepCompleted ? <Check className="h-3 w-3" /> : index + 1}
+                                      </div>
+                                      <span className={`text-[10px] mt-1 text-center truncate max-w-[60px] ${
+                                        stepCurrent ? 'font-medium text-gray-900' : 'text-gray-500'
+                                      }`}>
+                                        {step.label.split(' ')[0]}
+                                      </span>
+                                    </div>
+                                    {index < journeySteps.length - 1 && (
+                                      <div className={`h-0.5 w-full mx-0.5 ${
+                                        stepCompleted ? 'bg-green-500' : 'bg-gray-200'
+                                      }`} />
+                                    )}
+                                  </div>
+                                );
+                              })}
                             </div>
                           </div>
-                          <div className="flex items-center gap-2">
-                            <Badge variant={instance.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
-                              {instance.status === 'in_progress' ? 'In Progress' : 
-                               instance.status === 'completed' ? 'Completed' : instance.status}
-                            </Badge>
-                            <ChevronRight className="h-4 w-4 text-gray-400" />
-                          </div>
-                        </div>
-                      ))}
+                        );
+                      })}
                   </div>
                 </div>
               )}
