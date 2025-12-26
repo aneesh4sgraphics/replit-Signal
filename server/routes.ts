@@ -995,6 +995,77 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Merge customers (Admin only)
+  app.post("/api/customers/merge", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { targetId, sourceId } = req.body;
+      
+      if (!targetId || !sourceId) {
+        return res.status(400).json({ error: "Both targetId and sourceId are required" });
+      }
+      
+      const targetCustomer = await storage.getCustomer(targetId);
+      const sourceCustomer = await storage.getCustomer(sourceId);
+      
+      if (!targetCustomer) {
+        return res.status(404).json({ error: "Target customer not found" });
+      }
+      if (!sourceCustomer) {
+        return res.status(404).json({ error: "Source customer not found" });
+      }
+      
+      // Merge: fill in missing data from source to target
+      const mergedData: any = { ...targetCustomer };
+      
+      // Fill in missing fields from source
+      if (!mergedData.phone && sourceCustomer.phone) mergedData.phone = sourceCustomer.phone;
+      if (!mergedData.email && sourceCustomer.email) mergedData.email = sourceCustomer.email;
+      if (!mergedData.company && sourceCustomer.company) mergedData.company = sourceCustomer.company;
+      if (!mergedData.city && sourceCustomer.city) mergedData.city = sourceCustomer.city;
+      if (!mergedData.province && sourceCustomer.province) mergedData.province = sourceCustomer.province;
+      if (!mergedData.country && sourceCustomer.country) mergedData.country = sourceCustomer.country;
+      if (!mergedData.address1 && sourceCustomer.address1) mergedData.address1 = sourceCustomer.address1;
+      if (!mergedData.address2 && sourceCustomer.address2) mergedData.address2 = sourceCustomer.address2;
+      if (!mergedData.zip && sourceCustomer.zip) mergedData.zip = sourceCustomer.zip;
+      
+      // Merge tags
+      if (sourceCustomer.tags) {
+        const targetTags = mergedData.tags ? mergedData.tags.split(',').map((t: string) => t.trim()) : [];
+        const sourceTags = sourceCustomer.tags.split(',').map((t: string) => t.trim());
+        const allTags = Array.from(new Set([...targetTags, ...sourceTags])).filter(Boolean);
+        mergedData.tags = allTags.join(', ');
+      }
+      
+      // Merge sources
+      const targetSources = mergedData.sources || [];
+      const sourceSources = sourceCustomer.sources || [];
+      mergedData.sources = Array.from(new Set([...targetSources, ...sourceSources]));
+      
+      // Combine totals
+      mergedData.totalOrders = (parseInt(String(mergedData.totalOrders)) || 0) + (parseInt(String(sourceCustomer.totalOrders)) || 0);
+      mergedData.totalSpent = (parseFloat(String(mergedData.totalSpent)) || 0) + (parseFloat(String(sourceCustomer.totalSpent)) || 0);
+      
+      // Merge note
+      if (sourceCustomer.note && sourceCustomer.note !== mergedData.note) {
+        mergedData.note = mergedData.note 
+          ? `${mergedData.note}\n\n--- Merged from ${sourceCustomer.company || sourceCustomer.email} ---\n${sourceCustomer.note}`
+          : sourceCustomer.note;
+      }
+      
+      // Update target customer with merged data
+      await storage.updateCustomer(targetId, mergedData);
+      
+      // Delete source customer
+      await storage.deleteCustomer(sourceId);
+      
+      setCachedData("customers", null);
+      res.json({ message: "Customers merged successfully", mergedCustomer: mergedData });
+    } catch (error) {
+      console.error("Error merging customers:", error);
+      res.status(500).json({ error: "Failed to merge customers" });
+    }
+  });
+
   // Configure multer for CSV/Excel file uploads
   const upload = multer({
     dest: 'uploads/',

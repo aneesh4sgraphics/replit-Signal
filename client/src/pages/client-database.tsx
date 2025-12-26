@@ -97,6 +97,9 @@ export default function ClientDatabase() {
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
+  const [showMergeDialog, setShowMergeDialog] = useState(false);
+  const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
   // Alphabet for tabs
@@ -291,6 +294,56 @@ export default function ClientDatabase() {
       });
     },
   });
+
+  const mergeCustomersMutation = useMutation({
+    mutationFn: async ({ targetId, sourceId }: { targetId: string; sourceId: string }) => {
+      return await apiRequest("POST", `/api/customers/merge`, { targetId, sourceId });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      logUserAction("MERGED CLIENTS", `Merged two customers`);
+      toast({
+        title: "Clients merged",
+        description: "The two clients have been merged successfully",
+      });
+      setShowMergeDialog(false);
+      setSelectedForMerge(new Set());
+      setMergeTarget(null);
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error merging clients",
+        description: error.message || "Failed to merge clients",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleMergeSelection = (customerId: string) => {
+    setSelectedForMerge(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(customerId)) {
+        newSet.delete(customerId);
+      } else if (newSet.size < 2) {
+        newSet.add(customerId);
+      }
+      return newSet;
+    });
+  };
+
+  const getSelectedCustomers = (): Customer[] => {
+    return customers.filter(c => selectedForMerge.has(c.id));
+  };
+
+  const handleMerge = () => {
+    if (selectedForMerge.size === 2 && mergeTarget) {
+      const ids = Array.from(selectedForMerge);
+      const sourceId = ids.find(id => id !== mergeTarget);
+      if (sourceId) {
+        mergeCustomersMutation.mutate({ targetId: mergeTarget, sourceId });
+      }
+    }
+  };
 
   const deleteCustomerMutation = useMutation({
     mutationFn: async (customerId: string) => {
@@ -1145,6 +1198,29 @@ export default function ClientDatabase() {
                   Kanban
                 </button>
               </div>
+              {selectedForMerge.size > 0 && (
+                <div className="flex items-center gap-2 bg-blue-50 px-3 py-1.5 rounded-lg">
+                  <span className="text-xs text-blue-700">{selectedForMerge.size}/2 selected</span>
+                  {selectedForMerge.size === 2 && (
+                    <Button 
+                      onClick={() => setShowMergeDialog(true)} 
+                      size="sm" 
+                      className="h-7 bg-blue-600 hover:bg-blue-700"
+                      data-testid="button-merge-clients"
+                    >
+                      Merge
+                    </Button>
+                  )}
+                  <Button 
+                    onClick={() => setSelectedForMerge(new Set())} 
+                    size="sm" 
+                    variant="ghost" 
+                    className="h-7 text-blue-600"
+                  >
+                    <X className="h-3 w-3" />
+                  </Button>
+                </div>
+              )}
               {(searchTerm || selectedLetter || Object.values(filters).some(f => f && f !== "all")) && (
                 <Button onClick={() => { clearFilters(); setSelectedLetter(null); }} variant="outline" size="sm">
                   Clear All Filters
@@ -1180,13 +1256,21 @@ export default function ClientDatabase() {
               {filteredCustomers.map((customer) => {
                 const quoteCount = getQuoteCount(customer.email);
                 const sampleCount = getSampleCount(customer.id);
+                const isSelected = selectedForMerge.has(customer.id);
                 return (
                   <div 
                     key={customer.id}
-                    className="flex items-center justify-between py-2 px-1 hover:bg-gray-50/50 text-sm"
+                    className={`flex items-center justify-between py-2 px-1 hover:bg-gray-50/50 text-sm ${isSelected ? 'bg-blue-50' : ''}`}
                     data-testid={`row-client-${customer.id}`}
                   >
                     <div className="flex items-center gap-2 flex-1 min-w-0">
+                      <Checkbox 
+                        checked={isSelected}
+                        onCheckedChange={() => toggleMergeSelection(customer.id)}
+                        disabled={!isSelected && selectedForMerge.size >= 2}
+                        className="h-4 w-4"
+                        data-testid={`checkbox-merge-${customer.id}`}
+                      />
                       <span className="font-medium text-gray-900 truncate min-w-[180px]">
                         {getCompanyDisplayName(customer)}
                       </span>
@@ -1215,18 +1299,27 @@ export default function ClientDatabase() {
               {filteredCustomers.map((customer) => {
                 const quoteCount = getQuoteCount(customer.email);
                 const sampleCount = getSampleCount(customer.id);
+                const isSelected = selectedForMerge.has(customer.id);
                 return (
                   <div 
                     key={customer.id}
-                    className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
+                    className={`bg-white border rounded-lg p-4 hover:shadow-md transition-shadow ${isSelected ? 'border-blue-400 bg-blue-50' : 'border-gray-200'}`}
                     data-testid={`card-client-${customer.id}`}
                   >
                     <div className="flex items-start justify-between mb-3">
-                      <div className="flex-1 min-w-0">
-                        <h3 className="font-semibold text-gray-900 truncate">{getCompanyDisplayName(customer)}</h3>
-                        {customer.company && (customer.firstName || customer.lastName) && (
-                          <p className="text-sm text-gray-500">{getDisplayName(customer)}</p>
-                        )}
+                      <div className="flex items-start gap-2 flex-1 min-w-0">
+                        <Checkbox 
+                          checked={isSelected}
+                          onCheckedChange={() => toggleMergeSelection(customer.id)}
+                          disabled={!isSelected && selectedForMerge.size >= 2}
+                          className="h-4 w-4 mt-1"
+                        />
+                        <div className="flex-1 min-w-0">
+                          <h3 className="font-semibold text-gray-900 truncate">{getCompanyDisplayName(customer)}</h3>
+                          {customer.company && (customer.firstName || customer.lastName) && (
+                            <p className="text-sm text-gray-500">{getDisplayName(customer)}</p>
+                          )}
+                        </div>
                       </div>
                       <div className="flex items-center gap-1">
                         {customer.sources?.includes('shopify') && <SiShopify className="h-4 w-4 text-green-600" />}
@@ -1335,6 +1428,62 @@ export default function ClientDatabase() {
           )}
         </CardContent>
       </Card>
+
+      {/* Merge Dialog */}
+      <Dialog open={showMergeDialog} onOpenChange={setShowMergeDialog}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle>Merge Clients</DialogTitle>
+            <DialogDescription>
+              Select which client to keep. The other client's data will be merged into it.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            {getSelectedCustomers().map((customer) => {
+              const isTarget = mergeTarget === customer.id;
+              return (
+                <div 
+                  key={customer.id}
+                  onClick={() => setMergeTarget(customer.id)}
+                  className={`p-4 border rounded-lg cursor-pointer transition-colors ${
+                    isTarget ? 'border-blue-500 bg-blue-50' : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`w-5 h-5 rounded-full border-2 flex items-center justify-center ${
+                      isTarget ? 'border-blue-500 bg-blue-500' : 'border-gray-300'
+                    }`}>
+                      {isTarget && <CheckCircle className="h-3 w-3 text-white" />}
+                    </div>
+                    <div className="flex-1">
+                      <h4 className="font-medium text-gray-900">{getCompanyDisplayName(customer)}</h4>
+                      <p className="text-sm text-gray-500">{customer.email}</p>
+                      <p className="text-xs text-gray-400">
+                        {customer.phone || 'No phone'} • {customer.city || 'No city'}
+                      </p>
+                    </div>
+                    {isTarget && (
+                      <span className="text-xs bg-blue-100 text-blue-700 px-2 py-1 rounded">Keep this one</span>
+                    )}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setShowMergeDialog(false); setMergeTarget(null); }}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleMerge} 
+              disabled={!mergeTarget || mergeCustomersMutation.isPending}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {mergeCustomersMutation.isPending ? 'Merging...' : 'Merge Clients'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Upload Dialog (Admin Only) */}
       {isAdmin && (
