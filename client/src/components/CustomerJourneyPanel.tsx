@@ -115,7 +115,15 @@ export default function CustomerJourneyPanel({ customer, isOpen, onClose }: Cust
 
   // Fetch products for selection
   const { data: products = [] } = useQuery<ProductPricingMaster[]>({
-    queryKey: ['/api/product-pricing-master'],
+    queryKey: ['/api/product-pricing-database'],
+    queryFn: async () => {
+      const response = await fetch('/api/product-pricing-database', {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch pricing data');
+      const result = await response.json();
+      return result.data || [];
+    },
     enabled: isOpen,
   });
 
@@ -399,6 +407,8 @@ function NewPressTestDialog({
   const [selectedType, setSelectedType] = useState('');
   const [selectedSize, setSelectedSize] = useState('');
   const [quantityRequested, setQuantityRequested] = useState('');
+  const [orderNumber, setOrderNumber] = useState('');
+  const [trackingNumber, setTrackingNumber] = useState('');
   const [notes, setNotes] = useState('');
 
   // Get unique categories (productName field in the data)
@@ -442,14 +452,16 @@ function NewPressTestDialog({
     onSubmit({
       customerId,
       journeyType: 'press_test',
-      currentStep: 'sample_requested',
+      currentStep: trackingNumber ? 'tracking_added' : 'sample_requested',
       status: 'in_progress',
-      notes,
+      notes: `Order#: ${orderNumber || 'N/A'}${notes ? '\n' + notes : ''}`,
       pressTestDetails: {
         productId: selectedProduct?.id || null,
         productName: productDisplayName,
         sizeRequested: selectedSize,
         quantityRequested: quantityRequested ? parseInt(quantityRequested) : null,
+        trackingNumber: trackingNumber || null,
+        shippedAt: trackingNumber ? new Date() : null,
       },
     });
     // Reset form
@@ -457,6 +469,8 @@ function NewPressTestDialog({
     setSelectedType('');
     setSelectedSize('');
     setQuantityRequested('');
+    setOrderNumber('');
+    setTrackingNumber('');
     setNotes('');
   };
 
@@ -535,16 +549,40 @@ function NewPressTestDialog({
             </Select>
           </div>
 
-          {/* Quantity */}
+          {/* Quantity and Order Number */}
+          <div className="grid grid-cols-2 gap-4">
+            <div className="space-y-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                placeholder="e.g., 500"
+                value={quantityRequested}
+                onChange={(e) => setQuantityRequested(e.target.value)}
+                data-testid="input-quantity"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="orderNumber">Order #</Label>
+              <Input
+                id="orderNumber"
+                placeholder="e.g., ORD-12345"
+                value={orderNumber}
+                onChange={(e) => setOrderNumber(e.target.value)}
+                data-testid="input-order-number"
+              />
+            </div>
+          </div>
+
+          {/* Tracking Number */}
           <div className="space-y-2">
-            <Label htmlFor="quantity">Quantity</Label>
+            <Label htmlFor="trackingNumber">Tracking Number (Optional)</Label>
             <Input
-              id="quantity"
-              type="number"
-              placeholder="e.g., 500"
-              value={quantityRequested}
-              onChange={(e) => setQuantityRequested(e.target.value)}
-              data-testid="input-quantity"
+              id="trackingNumber"
+              placeholder="Enter if sample has already shipped"
+              value={trackingNumber}
+              onChange={(e) => setTrackingNumber(e.target.value)}
+              data-testid="input-tracking-number"
             />
           </div>
 
