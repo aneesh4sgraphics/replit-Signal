@@ -60,7 +60,7 @@ import {
   ChevronsUpDown,
   Route,
 } from "lucide-react";
-import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote } from "@shared/schema";
+import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote, CustomerJourneyInstance } from "@shared/schema";
 
 const JOURNEY_STAGE_CONFIG = [
   { id: 'trigger', label: 'Trigger', icon: Target, color: 'bg-red-500', description: 'Price increase detected' },
@@ -182,6 +182,16 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
       return res.json();
     },
     enabled: !!(customer.email || customer.company),
+  });
+
+  // Fetch journey instances (Press Test, Swatch Book, Quote Sent journeys)
+  const { data: journeyInstances = [], refetch: refetchJourneyInstances } = useQuery<CustomerJourneyInstance[]>({
+    queryKey: ['/api/crm/journey-instances', customer.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/crm/journey-instances?customerId=${customer.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
   });
 
   const createJourneyMutation = useMutation({
@@ -468,6 +478,82 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
                   />
                 </div>
               </div>
+
+              {/* Active Journey Instances */}
+              {journeyInstances.length > 0 && (
+                <div className="pt-4 border-t mt-4">
+                  <div className="flex items-center justify-between mb-3">
+                    <h4 className="text-sm font-medium text-gray-700">Active Journeys</h4>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setIsJourneyPanelOpen(true)}
+                      data-testid="btn-add-journey"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Add
+                    </Button>
+                  </div>
+                  <div className="space-y-2">
+                    {[...journeyInstances]
+                      .sort((a, b) => new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime())
+                      .map(instance => (
+                        <div 
+                          key={instance.id} 
+                          className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 cursor-pointer transition-colors"
+                          onClick={() => setIsJourneyPanelOpen(true)}
+                          data-testid={`journey-instance-${instance.id}`}
+                        >
+                          <div className="flex items-center gap-3">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center ${
+                              instance.journeyType === 'press_test' ? 'bg-blue-100 text-blue-600' :
+                              instance.journeyType === 'swatch_book' ? 'bg-purple-100 text-purple-600' :
+                              'bg-green-100 text-green-600'
+                            }`}>
+                              {instance.journeyType === 'press_test' ? <FlaskConical className="h-4 w-4" /> :
+                               instance.journeyType === 'swatch_book' ? <Palette className="h-4 w-4" /> :
+                               <FileText className="h-4 w-4" />}
+                            </div>
+                            <div>
+                              <p className="font-medium text-sm">
+                                {instance.journeyType === 'press_test' ? 'Press Test' :
+                                 instance.journeyType === 'swatch_book' ? 'Swatch Book' :
+                                 'Quote Sent'}
+                              </p>
+                              <p className="text-xs text-gray-500">
+                                Step: {instance.currentStep?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+                              </p>
+                            </div>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <Badge variant={instance.status === 'completed' ? 'default' : 'secondary'} className="text-xs">
+                              {instance.status === 'in_progress' ? 'In Progress' : 
+                               instance.status === 'completed' ? 'Completed' : instance.status}
+                            </Badge>
+                            <ChevronRight className="h-4 w-4 text-gray-400" />
+                          </div>
+                        </div>
+                      ))}
+                  </div>
+                </div>
+              )}
+
+              {journeyInstances.length === 0 && (
+                <div className="pt-4 border-t mt-4">
+                  <div className="text-center py-4">
+                    <p className="text-sm text-gray-500 mb-2">No active journeys</p>
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => setIsJourneyPanelOpen(true)}
+                      data-testid="btn-start-first-journey"
+                    >
+                      <Plus className="h-3 w-3 mr-1" />
+                      Start a Journey
+                    </Button>
+                  </div>
+                </div>
+              )}
             </div>
           ) : (
             <div className="text-center py-8">
