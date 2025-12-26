@@ -83,12 +83,13 @@ const PRODUCT_LINE_LABELS: Record<string, string> = {
 
 interface ClientDetailViewProps {
   customer: Customer;
+  companyContacts?: Customer[]; // Other people from the same company
   onBack: () => void;
   onEdit?: (customer: Customer) => void;
   onDelete?: (customerId: string) => void;
 }
 
-export default function ClientDetailView({ customer, onBack, onEdit, onDelete }: ClientDetailViewProps) {
+export default function ClientDetailView({ customer, companyContacts = [], onBack, onEdit, onDelete }: ClientDetailViewProps) {
   const [activeTab, setActiveTab] = useState("press-profiles");
   const [isAddPressProfileOpen, setIsAddPressProfileOpen] = useState(false);
   const [isAddSampleOpen, setIsAddSampleOpen] = useState(false);
@@ -421,29 +422,57 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
             </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {/* Show primary customer info if no contacts exist */}
-            {customerContacts.length === 0 && (customer.firstName || customer.lastName || customer.email) && (
-              <div className="p-2 bg-gray-50 rounded-lg">
-                <div className="flex items-start justify-between">
-                  <div className="flex items-center gap-2">
-                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
-                      <User className="h-4 w-4 text-gray-500" />
+            {/* Show all company contacts (people from the same company) */}
+            {companyContacts.length > 0 ? (
+              <>
+                {companyContacts.map((contact) => (
+                  <div key={contact.id} className="p-2 bg-blue-50 rounded-lg" data-testid={`company-contact-${contact.id}`}>
+                    <div className="flex items-start justify-between">
+                      <div className="flex items-center gap-2">
+                        <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                          <User className="h-4 w-4 text-blue-600" />
+                        </div>
+                        <div>
+                          <p className="text-sm font-medium">
+                            {`${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email || 'Contact'}
+                          </p>
+                          {contact.email && (
+                            <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                          )}
+                          {contact.phone && (
+                            <p className="text-xs text-gray-500">{contact.phone}</p>
+                          )}
+                        </div>
+                      </div>
                     </div>
-                    <div>
-                      <p className="text-sm font-medium">{`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary Contact'}</p>
-                      {customer.email && (
-                        <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
-                      )}
-                      {customer.phone && (
-                        <p className="text-xs text-gray-500">{customer.phone}</p>
-                      )}
+                  </div>
+                ))}
+              </>
+            ) : (
+              /* Show primary customer info if no company contacts */
+              (customer.firstName || customer.lastName || customer.email) && customerContacts.length === 0 && (
+                <div className="p-2 bg-gray-50 rounded-lg">
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-gray-500" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-medium">{`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary Contact'}</p>
+                        {customer.email && (
+                          <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
+                        )}
+                        {customer.phone && (
+                          <p className="text-xs text-gray-500">{customer.phone}</p>
+                        )}
+                      </div>
                     </div>
                   </div>
                 </div>
-              </div>
+              )
             )}
 
-            {/* Contact list */}
+            {/* Additional contacts from contacts table */}
             {customerContacts.map(contact => (
               <div key={contact.id} className="p-2 bg-gray-50 rounded-lg group" data-testid={`contact-${contact.id}`}>
                 {editingContact?.id === contact.id ? (

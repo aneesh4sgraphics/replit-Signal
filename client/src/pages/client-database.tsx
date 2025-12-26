@@ -96,6 +96,7 @@ export default function ClientDatabase() {
   const [uploadResult, setUploadResult] = useState<{ success: boolean; message: string; count?: number } | null>(null);
   const [expandedCards, setExpandedCards] = useState<Set<string>>(new Set());
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [selectedCompanyContacts, setSelectedCompanyContacts] = useState<Customer[]>([]);
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
   const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
   const [showMergeDialog, setShowMergeDialog] = useState(false);
@@ -831,13 +832,15 @@ export default function ClientDatabase() {
       <>
         <ClientDetailView
           customer={selectedCustomer}
-          onBack={() => setSelectedCustomer(null)}
+          companyContacts={selectedCompanyContacts}
+          onBack={() => { setSelectedCustomer(null); setSelectedCompanyContacts([]); }}
           onEdit={(customer) => {
             handleEditCustomer(customer);
           }}
           onDelete={(customerId) => {
             deleteCustomerMutation.mutate(customerId);
             setSelectedCustomer(null);
+            setSelectedCompanyContacts([]);
           }}
         />
         {/* Edit Dialog - needs to be here so it renders when in detail view */}
@@ -1421,7 +1424,7 @@ export default function ClientDatabase() {
                         )}
                       </div>
                       <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                        <Button onClick={() => setSelectedCustomer(primary)} size="sm" variant="ghost" className="h-6 px-2 text-xs">View</Button>
+                        <Button onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }} size="sm" variant="ghost" className="h-6 px-2 text-xs">View</Button>
                         <Button onClick={() => handleEditCustomer(primary)} size="sm" variant="ghost" className="h-6 w-6 p-0"><Edit className="h-3 w-3" /></Button>
                         <Button onClick={() => handleDeleteCustomer(primary.id)} size="sm" variant="ghost" className="h-6 w-6 p-0 text-red-500"><Trash2 className="h-3 w-3" /></Button>
                       </div>
@@ -1451,7 +1454,7 @@ export default function ClientDatabase() {
                               )}
                             </div>
                             <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                              <Button onClick={() => setSelectedCustomer(customer)} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]">View</Button>
+                              <Button onClick={() => { setSelectedCustomer(customer); setSelectedCompanyContacts([]); }} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]">View</Button>
                               <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0"><Edit className="h-2.5 w-2.5" /></Button>
                             </div>
                           </div>
