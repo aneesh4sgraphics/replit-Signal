@@ -395,39 +395,72 @@ function NewPressTestDialog({
   onSubmit: (data: any) => void;
   isPending: boolean;
 }) {
-  const [formData, setFormData] = useState({
-    productId: '',
-    productName: '',
-    sizeRequested: '',
-    quantityRequested: '',
-    notes: '',
-  });
+  const [selectedCategory, setSelectedCategory] = useState('');
+  const [selectedType, setSelectedType] = useState('');
+  const [selectedSize, setSelectedSize] = useState('');
+  const [quantityRequested, setQuantityRequested] = useState('');
+  const [notes, setNotes] = useState('');
 
-  const handleProductChange = (productId: string) => {
-    const product = products.find(p => p.id.toString() === productId);
-    setFormData({
-      ...formData,
-      productId,
-      productName: product ? `${product.productType} - ${product.productName || ''}`.trim() : '',
-    });
+  // Get unique categories (productName field in the data)
+  const categories = Array.from(new Set(products.map(p => p.productName).filter(Boolean))).sort();
+
+  // Get product types filtered by selected category
+  const productTypes = selectedCategory
+    ? Array.from(new Set(products.filter(p => p.productName === selectedCategory).map(p => p.productType))).sort()
+    : [];
+
+  // Get sizes filtered by category and type
+  const availableSizes = selectedCategory && selectedType
+    ? Array.from(new Set(products.filter(p => 
+        p.productName === selectedCategory && 
+        p.productType === selectedType
+      ).map(p => p.size))).sort()
+    : [];
+
+  // Get the selected product
+  const selectedProduct = selectedCategory && selectedType && selectedSize
+    ? products.find(p => 
+        p.productName === selectedCategory && 
+        p.productType === selectedType && 
+        p.size === selectedSize
+      )
+    : null;
+
+  const handleCategoryChange = (value: string) => {
+    setSelectedCategory(value);
+    setSelectedType('');
+    setSelectedSize('');
+  };
+
+  const handleTypeChange = (value: string) => {
+    setSelectedType(value);
+    setSelectedSize('');
   };
 
   const handleSubmit = () => {
+    const productDisplayName = `${selectedCategory} - ${selectedType} (${selectedSize})`;
     onSubmit({
       customerId,
       journeyType: 'press_test',
       currentStep: 'sample_requested',
       status: 'in_progress',
-      notes: formData.notes,
+      notes,
       pressTestDetails: {
-        productId: formData.productId ? parseInt(formData.productId) : null,
-        productName: formData.productName,
-        sizeRequested: formData.sizeRequested,
-        quantityRequested: formData.quantityRequested ? parseInt(formData.quantityRequested) : null,
+        productId: selectedProduct?.id || null,
+        productName: productDisplayName,
+        sizeRequested: selectedSize,
+        quantityRequested: quantityRequested ? parseInt(quantityRequested) : null,
       },
     });
-    setFormData({ productId: '', productName: '', sizeRequested: '', quantityRequested: '', notes: '' });
+    // Reset form
+    setSelectedCategory('');
+    setSelectedType('');
+    setSelectedSize('');
+    setQuantityRequested('');
+    setNotes('');
   };
+
+  const isFormValid = selectedCategory && selectedType && selectedSize;
 
   return (
     <Dialog open={isOpen} onOpenChange={onClose}>
@@ -443,53 +476,86 @@ function NewPressTestDialog({
         </DialogHeader>
 
         <div className="space-y-4 py-4">
+          {/* Product Category */}
           <div className="space-y-2">
-            <Label htmlFor="product">Product</Label>
-            <Select value={formData.productId} onValueChange={handleProductChange}>
-              <SelectTrigger data-testid="select-product">
+            <Label>Product</Label>
+            <Select value={selectedCategory} onValueChange={handleCategoryChange}>
+              <SelectTrigger data-testid="select-category">
                 <SelectValue placeholder="Select a product" />
               </SelectTrigger>
               <SelectContent className="max-h-[300px]">
-                {products.map((product) => (
-                  <SelectItem key={product.id} value={product.id.toString()}>
-                    {product.productType} - {product.productName || product.itemCode}
+                {categories.map((category) => (
+                  <SelectItem key={category} value={category!}>
+                    {category}
                   </SelectItem>
                 ))}
               </SelectContent>
             </Select>
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
-            <div className="space-y-2">
-              <Label htmlFor="size">Size Requested</Label>
-              <Input
-                id="size"
-                placeholder="e.g., 12x18, A4"
-                value={formData.sizeRequested}
-                onChange={(e) => setFormData({ ...formData, sizeRequested: e.target.value })}
-                data-testid="input-size"
-              />
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="quantity">Quantity</Label>
-              <Input
-                id="quantity"
-                type="number"
-                placeholder="e.g., 500"
-                value={formData.quantityRequested}
-                onChange={(e) => setFormData({ ...formData, quantityRequested: e.target.value })}
-                data-testid="input-quantity"
-              />
-            </div>
+          {/* Product Type */}
+          <div className="space-y-2">
+            <Label>Product Type</Label>
+            <Select 
+              value={selectedType} 
+              onValueChange={handleTypeChange}
+              disabled={!selectedCategory}
+            >
+              <SelectTrigger data-testid="select-type">
+                <SelectValue placeholder={selectedCategory ? "Select type" : "Select product first"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {productTypes.map((type) => (
+                  <SelectItem key={type} value={type}>
+                    {type}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
           </div>
 
+          {/* Size */}
+          <div className="space-y-2">
+            <Label>Size</Label>
+            <Select 
+              value={selectedSize} 
+              onValueChange={setSelectedSize}
+              disabled={!selectedType}
+            >
+              <SelectTrigger data-testid="select-size">
+                <SelectValue placeholder={selectedType ? "Select size" : "Select type first"} />
+              </SelectTrigger>
+              <SelectContent className="max-h-[300px]">
+                {availableSizes.map((size) => (
+                  <SelectItem key={size} value={size}>
+                    {size}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Quantity */}
+          <div className="space-y-2">
+            <Label htmlFor="quantity">Quantity</Label>
+            <Input
+              id="quantity"
+              type="number"
+              placeholder="e.g., 500"
+              value={quantityRequested}
+              onChange={(e) => setQuantityRequested(e.target.value)}
+              data-testid="input-quantity"
+            />
+          </div>
+
+          {/* Notes */}
           <div className="space-y-2">
             <Label htmlFor="notes">Notes</Label>
             <Textarea
               id="notes"
               placeholder="Any additional notes about this sample request..."
-              value={formData.notes}
-              onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
+              value={notes}
+              onChange={(e) => setNotes(e.target.value)}
               rows={3}
               data-testid="textarea-notes"
             />
@@ -500,7 +566,7 @@ function NewPressTestDialog({
           <Button variant="outline" onClick={onClose}>Cancel</Button>
           <Button 
             onClick={handleSubmit} 
-            disabled={isPending || !formData.productName}
+            disabled={isPending || !isFormValid}
             data-testid="btn-create-journey"
           >
             {isPending ? "Creating..." : "Create Journey"}
