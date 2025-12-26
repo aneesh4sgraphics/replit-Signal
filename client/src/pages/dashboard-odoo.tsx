@@ -141,46 +141,41 @@ export default function Dashboard() {
   
   const isAdmin = (user as any)?.role === 'admin';
 
+  const totalSamplesSent = (crmStats?.pendingSamples || 0) + (crmStats?.pendingSwatches || 0);
+  
   const statCards = [
     { 
-      label: 'Total Revenue', 
-      value: stats ? `$${stats.monthlyRevenue.toLocaleString()}` : '$0',
-      change: '+12.5%',
-      icon: DollarSign,
+      label: 'Clients', 
+      value: stats ? stats.totalCustomers.toLocaleString() : '0',
+      change: `+${crmStats?.newCustomersLast30Days || 0} this month`,
+      icon: Users,
       gradient: 'linear-gradient(135deg, rgba(134, 239, 172, 0.6), rgba(110, 231, 183, 0.5))',
       glowColor: 'rgba(134, 239, 172, 0.2)',
       textColor: '#065f46',
-      accentColor: '#86efac'
+      accentColor: '#86efac',
+      link: '/clients'
     },
     { 
-      label: 'Active Quotes', 
-      value: stats ? stats.totalQuotes.toString() : '0',
-      change: `+${stats?.quotesThisMonth || 0} today`,
+      label: 'Quotes Sent', 
+      value: crmStats ? crmStats.totalQuotesSent.toString() : (stats ? stats.totalQuotes.toString() : '0'),
+      change: `+${crmStats?.quotesLast30Days || stats?.quotesThisMonth || 0} this month`,
       icon: FileText,
       gradient: 'linear-gradient(135deg, rgba(147, 197, 253, 0.5), rgba(125, 211, 252, 0.5))',
       glowColor: 'rgba(147, 197, 253, 0.2)',
       textColor: '#0c4a6e',
-      accentColor: '#93c5fd'
+      accentColor: '#93c5fd',
+      link: '/saved-quotes'
     },
     { 
-      label: 'Growth Rate', 
-      value: '23%',
-      change: '+5.2% this week',
-      icon: TrendingUp,
-      gradient: 'linear-gradient(135deg, rgba(253, 186, 116, 0.4), rgba(251, 191, 36, 0.4))',
-      glowColor: 'rgba(253, 186, 116, 0.2)',
-      textColor: '#78350f',
-      accentColor: '#fdba74'
-    },
-    { 
-      label: 'Pending Orders', 
-      value: stats ? stats.totalCustomers.toString() : '0',
-      change: `${stats?.totalProducts || 0} products`,
+      label: 'Samples Sent', 
+      value: totalSamplesSent.toString(),
+      change: `${crmStats?.pendingSwatches || 0} swatches, ${crmStats?.pendingSamples || 0} press kits`,
       icon: Package,
       gradient: 'linear-gradient(135deg, rgba(196, 181, 253, 0.5), rgba(167, 139, 250, 0.4))',
       glowColor: 'rgba(196, 181, 253, 0.2)',
       textColor: '#5b21b6',
-      accentColor: '#c4b5fd'
+      accentColor: '#c4b5fd',
+      link: '/crm-samples'
     }
   ];
 
@@ -318,11 +313,13 @@ export default function Dashboard() {
             marginBottom: '32px'
           }}>
             {statCards.map((stat, i) => (
-              <div
+              <Link
                 key={i}
+                href={stat.link}
                 onMouseEnter={() => setHoveredCard(`stat-${i}`)}
                 onMouseLeave={() => setHoveredCard(null)}
                 style={{
+                  textDecoration: 'none',
                   background: hoveredCard === `stat-${i}` 
                     ? 'rgba(255, 255, 255, 0.85)' 
                     : 'rgba(255, 255, 255, 0.7)',
@@ -440,7 +437,7 @@ export default function Dashboard() {
                     {stat.change}
                   </div>
                 </div>
-              </div>
+              </Link>
             ))}
           </div>
         )}
@@ -453,7 +450,7 @@ export default function Dashboard() {
             gap: '20px',
             marginBottom: '32px'
           }}>
-            {[1, 2, 3, 4].map((i) => (
+            {[1, 2, 3].map((i) => (
               <div key={i} style={{
                 background: 'rgba(255, 255, 255, 0.5)',
                 backdropFilter: 'blur(60px)',
