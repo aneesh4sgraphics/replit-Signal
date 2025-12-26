@@ -32,6 +32,7 @@ import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import CustomerJourneyPanel from "./CustomerJourneyPanel";
 import {
   ArrowLeft,
   Mail,
@@ -57,6 +58,7 @@ import {
   Rocket,
   X,
   ChevronsUpDown,
+  Route,
 } from "lucide-react";
 import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote } from "@shared/schema";
 
@@ -99,6 +101,7 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
   });
   const [substratePopoverOpen, setSubstratePopoverOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SentQuote | null>(null);
+  const [isJourneyPanelOpen, setIsJourneyPanelOpen] = useState(false);
   const [newSample, setNewSample] = useState({
     productCategory: '',
     productName: '',
@@ -310,6 +313,15 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
           </div>
         </div>
         <div className="flex items-center gap-2">
+          <Button 
+            variant="outline" 
+            onClick={() => setIsJourneyPanelOpen(true)} 
+            className="gap-2"
+            data-testid="btn-journey-panel"
+          >
+            <Route className="h-4 w-4" />
+            Journeys
+          </Button>
           {onEdit && (
             <Button variant="outline" size="icon" onClick={() => onEdit(customer)} data-testid="btn-edit-client">
               <Pencil className="h-4 w-4" />
@@ -985,6 +997,12 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <CustomerJourneyPanel
+        customer={customer}
+        isOpen={isJourneyPanelOpen}
+        onClose={() => setIsJourneyPanelOpen(false)}
+      />
     </div>
   );
 }

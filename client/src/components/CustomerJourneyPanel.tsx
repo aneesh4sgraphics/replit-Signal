@@ -159,7 +159,7 @@ export default function CustomerJourneyPanel({ customer, isOpen, onClose }: Cust
             Customer Journeys
           </SheetTitle>
           <SheetDescription>
-            Track {customer.companyName || customer.name}'s journey through different processes
+            Track {customer.company || `${customer.firstName} ${customer.lastName}`}'s journey through different processes
           </SheetDescription>
         </SheetHeader>
 
@@ -408,7 +408,7 @@ function NewPressTestDialog({
     setFormData({
       ...formData,
       productId,
-      productName: product ? `${product.category} - ${product.productType} ${product.productName || ''}`.trim() : '',
+      productName: product ? `${product.productType} - ${product.productName || ''}`.trim() : '',
     });
   };
 
@@ -452,7 +452,7 @@ function NewPressTestDialog({
               <SelectContent className="max-h-[300px]">
                 {products.map((product) => (
                   <SelectItem key={product.id} value={product.id.toString()}>
-                    {product.category} - {product.productType} {product.productName || ''}
+                    {product.productType} - {product.productName || product.itemCode}
                   </SelectItem>
                 ))}
               </SelectContent>
