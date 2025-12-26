@@ -1,90 +1,21 @@
 # Replit.md - Quote Calculator Application
 
 ## Overview
-This is a full-stack TypeScript application that provides a quote calculator for product pricing. It features a React frontend, a Node.js/Express backend, a PostgreSQL database with Drizzle ORM, and is styled with Tailwind CSS and shadcn/ui components. The application's UI is redesigned to emulate Odoo ERP's aesthetic, incorporating sidebar navigation, card-based layouts, and muted purple accents. Key capabilities include comprehensive product management, tiered pricing calculations, customer relationship management, and professional PDF generation for quotes and price lists. The project aims to provide an efficient, user-friendly tool for sales staff to generate accurate product quotes and manage pricing data.
+This full-stack TypeScript application provides a quote calculator for product pricing, featuring a React frontend, Node.js/Express backend, PostgreSQL with Drizzle ORM, and styled with Tailwind CSS and shadcn/ui. The UI is inspired by Odoo ERP, incorporating sidebar navigation, card-based layouts, and muted purple accents. Key capabilities include comprehensive product management, tiered pricing calculations, customer relationship management (CRM) with journey tracking, professional PDF generation for quotes and price lists, and advanced label generation. The project aims to provide an efficient, user-friendly tool for sales staff to generate accurate product quotes and manage pricing data, enhancing sales workflows and customer interactions.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
-
-## Recent Changes (December 25, 2025)
-- **Dashboard Odoo App Grid Layout**: Redesigned home page with Odoo-style app grid layout while preserving glassmorphism effects
-  - **App Grid Section**: Replaced large action cards with a compact grid of app tiles (12 main apps) featuring icon-centric design with hover effects, usage indicators, and glass card styling
-  - **Admin Grid Section**: Matching tile grid for admin-only apps with purple accent theme and "Admin" badges
-  - **Glass Container**: Apps displayed within a frosted glass container with blur(60px) backdrop effect
-  - **Hover Animations**: Tiles lift, scale, and show gradient overlays with glass shine sweep effect on hover
-  - **Usage Tracking Integration**: Frequently used apps (3+ uses) display colored dot indicators
-  - **Maintained Components**: Stats cards, CRM Pipeline Overview, and header remain unchanged with original glassmorphism styling
-
-- **Client Edit Dialog Fix**: Fixed edit button not working when viewing client details
-  - Edit dialog now renders inside the ClientDetailView early return block, ensuring it's accessible when in detail view
-
-## Previous Changes (December 23, 2025)
-- **Client Detail View Integration**: Unified customer CRM workspace within Client Database page
-  - **ClientDetailView Component** (`client/src/components/ClientDetailView.tsx`): Integrated customer detail view with journey stepper, risk profile, and tabbed CRM data. Shows when clicking "View" on any customer in the database.
-  - **7-Stage Journey Stepper**: Visual progression display (Trigger → Internal Alarm → Supplier Pushback → Pilot Alignment → Controlled Trial → Validation & Proof → Conversion) with "Advance Stage" action
-  - **Customer Info Cards**: Contact information, risk profile (journey stage, pending tasks, key metrics), and pending task summary
-  - **Tabbed CRM Data**: Swatch Book tab (shipments with status), Press Profiles tab (equipment details with add dialog), Samples tab (sample requests with add dialog)
-  - **State Management**: `selectedCustomer` state in client-database.tsx conditionally renders detail view vs list view
-  - **API Integration**: Fetches customer-scoped data from `/api/crm/journeys/:customerId`, `/api/crm/press-profiles`, `/api/crm/sample-requests`, `/api/crm/swatch-shipments`
-
-- **Paper Distribution CRM Integration**: Complete customer journey tracking system with 7-stage pipeline
-  - **Customer Journey Pipeline** (`/crm-journey`): Kanban-style 7-stage customer conversion pipeline (Trigger → Internal Alarm → Supplier Pushback → Pilot Alignment → Controlled Trial → Validation & Proof → Conversion). Features kanban/list view toggle, stage advancement, customer search/filtering, and stage-based metrics.
-  - **Sample Requests & Testing** (`/crm-samples`): Sample request tracking with status management (pending/shipped/testing/completed/cancelled), test outcome recording with scoring (run/print/finish scores 1-10), pass/fail/conditional results, and analytics with pass rate calculations.
-  - **Swatch Manager** (`/crm-swatches`): Paper swatch catalog with CRUD operations, swatch book shipment tracking (pending/shipped/delivered), customer swatch selections with favorites and interest levels, stock quantity management.
-  - **Database Schema**: Added 10 new CRM tables (pressProfiles, sampleRequests, testOutcomes, validationEvents, swatches, swatchBookShipments, swatchSelections, customerJourney, quoteEvents, priceListEvents)
-  - **API Endpoints**: Full REST API under `/api/crm/*` namespace with proper Zod validation
-  - **Journey Integration**: Quote events and price list events automatically update customer journey counters for timeline tracking
-
-- **Bento Grid App Switcher & Command Palette**: Major UI redesign inspired by Odoo's app switcher
-  - **App Switcher Drawer**: Bento grid layout with adaptive tile sizing based on usage frequency. Frequently used apps (3+ uses) display larger 2x1 tiles. Glass design styling with hover effects.
-  - **Command Palette**: Global search triggered by '/' or 'Cmd+K'. Search across all apps, view recent apps, quick actions (logout, reset cache). Built with shadcn/ui Command components (cmdk).
-  - **Usage Tracking**: App usage persisted in localStorage. Tracks visit count and last used timestamp. Used for adaptive icon sizing and recent apps.
-  - **Mobile Responsiveness**: Sheet-based mobile sidebar for screens below lg breakpoint. Floating menu button on mobile.
-  - New components: `CommandPalette.tsx`, `AppSwitcherDrawer.tsx`
-  - New hooks: `useAppUsage.tsx` (React Context + localStorage), `useCommandPalette` (keyboard shortcut handler)
-  - Shared navigation config: `NAV_ITEMS` exported from CommandPalette for consistent app metadata
-
-## Previous Changes (December 22, 2025)
-- **Shipment Labeler Integration**: Added two new label generation features
-  - **Shipping Labels** (`/shipping-labels`): Professional shipping label generator with support for multiple formats (4x6 thermal, 4x8 thermal, 8.5x11 laser 2-up, local transport). Features include barcode generation using react-barcode, saved recipients, shipping company management, address validation, Google Maps integration, shipment history, and pallet details per label.
-  - **Product Labels** (`/product-labels`): Product label generator with QR codes (qrcode.react), support for thermal 4x3 and Avery 4-up formats, ink compatibility options (Dry Toner, HP Indigo, UV, etc.), sample pack designation, and saved template management. Includes Notion product search integration.
-  - Database schema: Added `shipments`, `shippingCompanies`, `savedRecipients`, `productLabels`, and `notionProducts` tables
-  - New packages: react-barcode, qrcode.react
-  - API endpoints: Full CRUD for all new entities plus Notion product search
-  - Glass design styling applied to both pages
-
-- **Shiny Glass Design System Implementation**: Redesigned UI with glassmorphism effects featuring frosted glass cards, animated gradient backgrounds, and floating ambient orbs
-  - **Glass card styling**: Subtle frosted glass effect with `backdrop-filter: blur(24px) saturate(120%)`, semi-transparent white backgrounds, and soft shadows
-  - **Animated background**: OdooLayout features animated gradient background (`linear-gradient` with gentle color shift animation) and three floating ambient orbs with smooth animations
-  - **Glass sidebar**: Collapsible navigation with frosted glass effect and subtle borders
-  - **Cool muted color palette**: Blue, purple, and teal accent colors with soft indigo shadows
-  - **Hover effects**: Cards have subtle lift animation (`translateY(-2px)`) on hover
-  - All major pages updated: Dashboard, QuickQuotes, Price List, Client Database, Saved Quotes, Admin, PDF Settings, Activity Logs, Shipping Calculator, Area Pricer, Market Prices, Shipping Labels, Product Labels
-  - Legacy Contra styles replaced with `glass-card`, `glass-btn`, `glass-btn-primary` utility classes
-
-## Previous Changes (December 3, 2025)
-- **Codebase Optimization**: Removed unused files and dead code to improve maintainability
-- **Fixed React DOM Warnings**: Resolved nested anchor tag issues in `OdooLayout.tsx` and `dashboard-odoo.tsx`
-- **Bulk Edit Enhancement**: Expanded bulk edit to allow selection of any products via checkboxes
-- **Production Cookie Fix**: Added `sameSite: 'lax'` to production session cookie configuration
-- **Improved Error Messages**: Frontend now displays actual HTTP status codes on API failures
-
-## Previous Changes (November 18, 2025)
-- **Enhanced Production Error Diagnostics**: Added comprehensive error logging to API endpoints with structured console logs (===START/END markers), duration tracking, and specific error suggestions based on error type (database connection, query errors, permissions, etc.)
-- **Secure Error Display**: Frontend now extracts and displays only sanitized error fields from backend (details, suggestion, message, type, timestamp, duration) without exposing raw responses or stack traces
-- **Health Monitoring**: Created `/api/diagnostics` endpoint for system health checks (environment variables, database connection, API endpoint status)
-- **Debugging Documentation**: Added DEBUGGING_GUIDE.md with step-by-step instructions for using browser DevTools Network tab to inspect API failures and diagnose connection problems
 
 ## System Architecture
 
 ### Frontend Architecture
 - **Framework**: React with TypeScript
-- **Routing**: Wouter for client-side routing
-- **State Management**: TanStack Query (React Query) for server state
-- **UI Components**: shadcn/ui component library built on Radix UI
-- **Styling**: Tailwind CSS with CSS custom properties for theming
-- **Build Tool**: Vite for development and production builds
-- **UI/UX Decisions**: Odoo ERP-inspired clean, business-friendly design with sidebar navigation, card-based layouts, and muted purple accent colors. Features include professional favicon implementation, adaptive column resizing, color-coded quantity logic, and responsive design for various screen sizes.
+- **Routing**: Wouter
+- **State Management**: TanStack Query (React Query)
+- **UI Components**: shadcn/ui built on Radix UI
+- **Styling**: Tailwind CSS with custom properties
+- **Build Tool**: Vite
+- **UI/UX Decisions**: Odoo ERP-inspired design with a clean, business-friendly aesthetic, sidebar navigation, card-based layouts, and muted purple accents. Features include professional favicon, adaptive column resizing, color-coded quantity logic, and responsive design. The design system incorporates glassmorphism effects with frosted glass cards, animated gradient backgrounds, and floating ambient orbs.
 
 ### Backend Architecture
 - **Runtime**: Node.js with Express.js
@@ -92,17 +23,17 @@ Preferred communication style: Simple, everyday language.
 - **API Style**: RESTful API endpoints
 - **Database**: PostgreSQL with Drizzle ORM
 - **Session Management**: PostgreSQL session store (connect-pg-simple)
-- **Development**: tsx for TypeScript execution
-- **Technical Implementations**: Server-side PDF generation using html-pdf-node configured for system Chromium, robust authentication system with role-based access control, comprehensive CSV upload and synchronization logic with hash-based change detection, and dynamic logo fetching with fallback mechanisms.
-- **Error Handling & Diagnostics**: Production-ready error logging with timestamped structured logs, performance tracking (request duration), and detailed error responses with actionable suggestions. Frontend displays only sanitized error fields (never raw responses or stack traces). Includes `/api/diagnostics` health check endpoint for system status monitoring.
-- **AI Chatbot**: Hybrid RAG system with automatic fallback - uses OpenAI GPT-4o when available, falls back to local BM25 search over troubleshooting PDFs when quota exceeded. Features context-only answering with similarity scoring (threshold 0.25), retrieves relevant products from database, enforces strict "no guessing" policy, provides source citations from PDFs, and guides users to appropriate app sections when lacking data. Works offline with local search even without OpenAI credits.
+- **Technical Implementations**: Server-side PDF generation (html-pdf-node), robust authentication with role-based access control, comprehensive CSV upload/synchronization with hash-based change detection, and dynamic logo fetching.
+- **Error Handling & Diagnostics**: Production-ready error logging, performance tracking, and detailed error responses with actionable suggestions, exposing only sanitized error fields to the frontend. Includes a `/api/diagnostics` health check endpoint.
+- **AI Chatbot**: Hybrid RAG system using OpenAI GPT-4o (with fallback to local BM25 search over troubleshooting PDFs). Features context-only answering, product retrieval from the database, strict "no guessing" policy, source citations, and guidance to appropriate app sections. Works offline with local search.
+- **CRM Integration**: Comprehensive customer journey tracking system, including customer journey instances, press test journeys, sample requests, test outcomes, and swatch management.
 
 ### Database Architecture
 - **ORM**: Drizzle ORM with PostgreSQL dialect
-- **Migration**: Drizzle Kit for schema migrations
+- **Migration**: Drizzle Kit
 - **Connection**: Neon Database serverless connection
-- **Schema Location**: `/shared/schema.ts` for shared types between frontend and backend
-- **System Design Choices**: Implemented comprehensive foreign key constraints with cascade delete for data integrity across product categories, types, sizes, and pricing. Utilizes a unified `productPricingMaster` table. Data parsing includes robust NaN validation and boolean parsing enhancements.
+- **Schema Location**: `/shared/schema.ts` for shared types.
+- **System Design Choices**: Comprehensive foreign key constraints with cascade delete for data integrity across product categories, types, sizes, and pricing. Utilizes a unified `productPricingMaster` table. Includes robust NaN validation and boolean parsing enhancements.
 
 ## External Dependencies
 
@@ -111,16 +42,16 @@ Preferred communication style: Simple, everyday language.
 - **UI Libraries**: Radix UI primitives, Lucide React icons, shadcn/ui
 - **Styling**: Tailwind CSS, class-variance-authority
 - **Forms**: React Hook Form with Zod validation
-- **Utilities**: clsx, tailwind-merge, date-fns, file-saver, react-beautiful-dnd
+- **Utilities**: clsx, tailwind-merge, date-fns, file-saver, react-beautiful-dnd, react-barcode, qrcode.react
 
 ### Backend Dependencies
 - **Core**: Express.js, Node.js types
-- **Database**: Drizzle ORM, Neon Database serverless client, pg
-- **Session**: connect-pg-simple
+- **Database**: Drizzle ORM, Neon Database client, pg, connect-pg-simple
 - **Validation**: Zod
 - **File Handling**: Multer
 - **PDF Generation**: html-pdf-node
 - **Development**: tsx, cross-env
+- **AI/NLP**: OpenAI (for GPT-4o integration)
 
 ### Development Tools
 - **Build**: Vite, esbuild
@@ -128,4 +59,3 @@ Preferred communication style: Simple, everyday language.
 - **Linting**: ESLint
 - **Database**: Drizzle Kit
 - **Other**: axios, csv-parse, pdf-lib, pug, puppeteer, zod-validation-error
-```
