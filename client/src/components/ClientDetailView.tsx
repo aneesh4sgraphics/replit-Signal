@@ -60,7 +60,7 @@ import {
   ChevronsUpDown,
   Route,
 } from "lucide-react";
-import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote, CustomerJourneyInstance } from "@shared/schema";
+import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote, CustomerJourneyInstance, CustomerContact } from "@shared/schema";
 
 const JOURNEY_STAGE_CONFIG = [
   { id: 'trigger', label: 'Trigger', icon: Target, color: 'bg-red-500', description: 'Price increase detected' },
@@ -109,6 +109,9 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
     pressProfileId: '',
     notes: '',
   });
+  const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
+  const [isAddingContact, setIsAddingContact] = useState(false);
+  const [newContact, setNewContact] = useState({ name: '', email: '', phone: '', role: '' });
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
 
@@ -191,6 +194,60 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
       const res = await fetch(`/api/crm/journey-instances?customerId=${customer.id}`);
       if (!res.ok) return [];
       return res.json();
+    },
+  });
+
+  // Fetch customer contacts (people at the company)
+  const { data: customerContacts = [], refetch: refetchContacts } = useQuery<CustomerContact[]>({
+    queryKey: ['/api/crm/customer-contacts', customer.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/crm/customer-contacts?customerId=${customer.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+  });
+
+  const createContactMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/crm/customer-contacts', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchContacts();
+      setIsAddingContact(false);
+      setNewContact({ name: '', email: '', phone: '', role: '' });
+      toast({ title: "Success", description: "Contact added" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to add contact", variant: "destructive" });
+    },
+  });
+
+  const updateContactMutation = useMutation({
+    mutationFn: async ({ id, data }: { id: number; data: any }) => {
+      const res = await apiRequest('PUT', `/api/crm/customer-contacts/${id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchContacts();
+      setEditingContact(null);
+      toast({ title: "Success", description: "Contact updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update contact", variant: "destructive" });
+    },
+  });
+
+  const deleteContactMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/crm/customer-contacts/${id}`);
+    },
+    onSuccess: () => {
+      refetchContacts();
+      toast({ title: "Success", description: "Contact removed" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to remove contact", variant: "destructive" });
     },
   });
 
@@ -346,66 +403,279 @@ export default function ClientDetailView({ customer, onBack, onEdit, onDelete }:
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        {/* People Card */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Contact Info</CardTitle>
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-sm font-medium text-gray-600">People</CardTitle>
+              <Button 
+                variant="ghost" 
+                size="sm" 
+                onClick={() => setIsAddingContact(true)}
+                className="h-7 px-2"
+                data-testid="btn-add-contact"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                Add
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-2">
-            {customer.email && (
-              <div className="flex items-center gap-2 text-sm">
-                <Mail className="h-4 w-4 text-gray-400" />
-                <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">{customer.email}</a>
+            {/* Show primary customer info if no contacts exist */}
+            {customerContacts.length === 0 && (customer.firstName || customer.lastName || customer.email) && (
+              <div className="p-2 bg-gray-50 rounded-lg">
+                <div className="flex items-start justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-8 h-8 bg-gray-200 rounded-full flex items-center justify-center">
+                      <User className="h-4 w-4 text-gray-500" />
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium">{`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary Contact'}</p>
+                      {customer.email && (
+                        <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
+                      )}
+                      {customer.phone && (
+                        <p className="text-xs text-gray-500">{customer.phone}</p>
+                      )}
+                    </div>
+                  </div>
+                </div>
               </div>
             )}
-            {customer.phone && (
-              <div className="flex items-center gap-2 text-sm">
-                <Phone className="h-4 w-4 text-gray-400" />
-                <span>{customer.phone}</span>
+
+            {/* Contact list */}
+            {customerContacts.map(contact => (
+              <div key={contact.id} className="p-2 bg-gray-50 rounded-lg group" data-testid={`contact-${contact.id}`}>
+                {editingContact?.id === contact.id ? (
+                  <div className="space-y-2">
+                    <Input
+                      placeholder="Name"
+                      value={editingContact.name}
+                      onChange={(e) => setEditingContact({ ...editingContact, name: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-edit-contact-name"
+                    />
+                    <Input
+                      placeholder="Email"
+                      value={editingContact.email || ''}
+                      onChange={(e) => setEditingContact({ ...editingContact, email: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-edit-contact-email"
+                    />
+                    <Input
+                      placeholder="Phone"
+                      value={editingContact.phone || ''}
+                      onChange={(e) => setEditingContact({ ...editingContact, phone: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-edit-contact-phone"
+                    />
+                    <Input
+                      placeholder="Role (e.g., Buyer, Manager)"
+                      value={editingContact.role || ''}
+                      onChange={(e) => setEditingContact({ ...editingContact, role: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-edit-contact-role"
+                    />
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={() => updateContactMutation.mutate({ id: contact.id, data: editingContact })}
+                        disabled={updateContactMutation.isPending}
+                        data-testid="btn-save-contact"
+                      >
+                        Save
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={() => setEditingContact(null)}
+                        data-testid="btn-cancel-edit-contact"
+                      >
+                        Cancel
+                      </Button>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="flex items-start justify-between">
+                    <div className="flex items-center gap-2">
+                      <div className="w-8 h-8 bg-blue-100 rounded-full flex items-center justify-center">
+                        <User className="h-4 w-4 text-blue-600" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium">{contact.name}</p>
+                          {contact.role && <Badge variant="secondary" className="text-[10px] py-0">{contact.role}</Badge>}
+                        </div>
+                        {contact.email && (
+                          <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                        )}
+                        {contact.phone && (
+                          <p className="text-xs text-gray-500">{contact.phone}</p>
+                        )}
+                      </div>
+                    </div>
+                    <div className="flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6"
+                        onClick={() => setEditingContact(contact)}
+                        data-testid={`btn-edit-contact-${contact.id}`}
+                      >
+                        <Pencil className="h-3 w-3" />
+                      </Button>
+                      <Button 
+                        variant="ghost" 
+                        size="icon" 
+                        className="h-6 w-6 text-red-500 hover:text-red-600"
+                        onClick={() => deleteContactMutation.mutate(contact.id)}
+                        data-testid={`btn-delete-contact-${contact.id}`}
+                      >
+                        <Trash2 className="h-3 w-3" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </div>
+            ))}
+
+            {/* Add new contact form */}
+            {isAddingContact && (
+              <div className="p-2 border border-dashed border-gray-300 rounded-lg space-y-2">
+                <Input
+                  placeholder="Name *"
+                  value={newContact.name}
+                  onChange={(e) => setNewContact({ ...newContact, name: e.target.value })}
+                  className="h-8 text-sm"
+                  data-testid="input-new-contact-name"
+                />
+                <Input
+                  placeholder="Email"
+                  value={newContact.email}
+                  onChange={(e) => setNewContact({ ...newContact, email: e.target.value })}
+                  className="h-8 text-sm"
+                  data-testid="input-new-contact-email"
+                />
+                <Input
+                  placeholder="Phone"
+                  value={newContact.phone}
+                  onChange={(e) => setNewContact({ ...newContact, phone: e.target.value })}
+                  className="h-8 text-sm"
+                  data-testid="input-new-contact-phone"
+                />
+                <Input
+                  placeholder="Role (e.g., Buyer, Manager)"
+                  value={newContact.role}
+                  onChange={(e) => setNewContact({ ...newContact, role: e.target.value })}
+                  className="h-8 text-sm"
+                  data-testid="input-new-contact-role"
+                />
+                <div className="flex gap-2">
+                  <Button 
+                    size="sm" 
+                    onClick={() => createContactMutation.mutate({ customerId: customer.id, ...newContact })}
+                    disabled={!newContact.name || createContactMutation.isPending}
+                    data-testid="btn-create-contact"
+                  >
+                    Add Contact
+                  </Button>
+                  <Button 
+                    size="sm" 
+                    variant="outline" 
+                    onClick={() => { setIsAddingContact(false); setNewContact({ name: '', email: '', phone: '', role: '' }); }}
+                    data-testid="btn-cancel-add-contact"
+                  >
+                    Cancel
+                  </Button>
+                </div>
               </div>
             )}
-            {(customer.city || customer.province) && (
-              <div className="flex items-center gap-2 text-sm">
-                <MapPin className="h-4 w-4 text-gray-400" />
-                <span>{[customer.city, customer.province].filter(Boolean).join(', ')}</span>
-              </div>
-            )}
-            {!customer.email && !customer.phone && (
-              <p className="text-sm text-gray-400">No contact info</p>
+
+            {customerContacts.length === 0 && !customer.email && !customer.phone && !isAddingContact && (
+              <p className="text-sm text-gray-400 text-center py-2">No contacts added</p>
             )}
           </CardContent>
         </Card>
 
+        {/* Risk Profile Card */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-600">Risk Profile</CardTitle>
           </CardHeader>
           <CardContent className="space-y-2">
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Margin Pressure</span>
-              <Badge variant="secondary">Medium</Badge>
+              <span className="text-gray-500">Total Spent</span>
+              <span className="font-medium">${parseFloat(customer.totalSpent || '0').toLocaleString()}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Risk Sensitivity</span>
-              <Badge variant="secondary">Medium</Badge>
+              <span className="text-gray-500">Total Orders</span>
+              <span className="font-medium">{customer.totalOrders || 0}</span>
             </div>
             <div className="flex items-center justify-between text-sm">
               <span className="text-gray-500">Engagement</span>
-              <Badge variant="outline" className="bg-gray-100">
+              <Badge variant="outline" className={journey ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100'}>
                 {journey ? 'Active' : 'New'}
               </Badge>
             </div>
+            <div className="flex items-center justify-between text-sm">
+              <span className="text-gray-500">Journey Stage</span>
+              <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-400'} text-white text-xs`}>
+                {journey?.journeyStage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'None'}
+              </Badge>
+            </div>
+            {(customer.city || customer.province) && (
+              <div className="flex items-center gap-2 text-sm pt-2 border-t">
+                <MapPin className="h-4 w-4 text-gray-400" />
+                <span className="text-gray-600">{[customer.city, customer.province].filter(Boolean).join(', ')}</span>
+              </div>
+            )}
           </CardContent>
         </Card>
 
+        {/* Activity Summary Card */}
         <Card className="glass-card">
           <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">Pending Tasks</CardTitle>
-              <Badge variant="secondary">0</Badge>
-            </div>
+            <CardTitle className="text-sm font-medium text-gray-600">Activity Summary</CardTitle>
           </CardHeader>
-          <CardContent>
-            <p className="text-sm text-gray-400">No pending tasks</p>
+          <CardContent className="space-y-3">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
+                  <FileText className="h-4 w-4 text-blue-600" />
+                </div>
+                <span className="text-gray-600">Quotes Sent</span>
+              </div>
+              <Badge variant="secondary" className="text-base px-3">{sentQuotes.length}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
+                  <Package className="h-4 w-4 text-purple-600" />
+                </div>
+                <span className="text-gray-600">Sample Kits Sent</span>
+              </div>
+              <Badge variant="secondary" className="text-base px-3">{sampleRequests.filter(s => s.status === 'shipped' || s.status === 'delivered').length}</Badge>
+            </div>
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2 text-sm">
+                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
+                  <Clock className="h-4 w-4 text-orange-600" />
+                </div>
+                <span className="text-gray-600">Follow-up Tasks</span>
+              </div>
+              <Badge variant="secondary" className="text-base px-3">{journeyInstances.filter(j => j.status === 'in_progress').length}</Badge>
+            </div>
+            {journeyInstances.filter(j => j.status === 'in_progress').length > 0 && (
+              <div className="pt-2 border-t">
+                <p className="text-xs text-gray-500 mb-1">Active Journeys:</p>
+                {journeyInstances.filter(j => j.status === 'in_progress').slice(0, 2).map(j => (
+                  <div key={j.id} className="text-xs text-gray-600 flex items-center gap-1">
+                    <ChevronRight className="h-3 w-3" />
+                    {j.journeyType === 'press_test' ? 'Press Test' : j.journeyType === 'swatch_book' ? 'Swatch Book' : 'Quote'} - {j.currentStep?.replace(/_/g, ' ')}
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       </div>
