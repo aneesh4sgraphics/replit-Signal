@@ -748,6 +748,7 @@ export const customerJourneyInstances = pgTable("customer_journey_instances", {
 
 export const insertCustomerJourneyInstanceSchema = createInsertSchema(customerJourneyInstances).omit({
   id: true,
+  startedAt: true,
   createdAt: true,
   updatedAt: true,
 });
