@@ -722,3 +722,80 @@ export const insertPriceListEventSchema = createInsertSchema(priceListEvents).om
 });
 export type PriceListEvent = typeof priceListEvents.$inferSelect;
 export type InsertPriceListEvent = z.infer<typeof insertPriceListEventSchema>;
+
+// Journey Types enum
+export const JOURNEY_TYPES = ['press_test', 'swatch_book', 'quote_sent'] as const;
+export type JourneyType = typeof JOURNEY_TYPES[number];
+
+// Press Test Journey Steps
+export const PRESS_TEST_STEPS = ['sample_requested', 'tracking_added', 'received', 'result'] as const;
+export type PressTestStep = typeof PRESS_TEST_STEPS[number];
+
+// Customer Journey Instances - unified tracking of all journey types
+export const customerJourneyInstances = pgTable("customer_journey_instances", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  journeyType: varchar("journey_type", { length: 50 }).notNull(), // press_test, swatch_book, quote_sent
+  currentStep: varchar("current_step", { length: 50 }).notNull(),
+  status: varchar("status", { length: 50 }).notNull().default("in_progress"), // in_progress, completed, cancelled
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  createdBy: varchar("created_by"),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomerJourneyInstanceSchema = createInsertSchema(customerJourneyInstances).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CustomerJourneyInstance = typeof customerJourneyInstances.$inferSelect;
+export type InsertCustomerJourneyInstance = z.infer<typeof insertCustomerJourneyInstanceSchema>;
+
+// Customer Journey Steps - step-by-step tracking within each journey
+export const customerJourneySteps = pgTable("customer_journey_steps", {
+  id: serial("id").primaryKey(),
+  instanceId: integer("instance_id").notNull().references(() => customerJourneyInstances.id, { onDelete: "cascade" }),
+  stepKey: varchar("step_key", { length: 50 }).notNull(),
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by"),
+  payload: jsonb("payload"), // flexible data storage for step-specific info
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertCustomerJourneyStepSchema = createInsertSchema(customerJourneySteps).omit({
+  id: true,
+  createdAt: true,
+});
+export type CustomerJourneyStep = typeof customerJourneySteps.$inferSelect;
+export type InsertCustomerJourneyStep = z.infer<typeof insertCustomerJourneyStepSchema>;
+
+// Press Test Journey Details - specific to press test journeys
+export const pressTestJourneyDetails = pgTable("press_test_journey_details", {
+  id: serial("id").primaryKey(),
+  instanceId: integer("instance_id").notNull().unique().references(() => customerJourneyInstances.id, { onDelete: "cascade" }),
+  productId: integer("product_id").references(() => productPricingMaster.id),
+  productName: varchar("product_name", { length: 255 }),
+  sizeRequested: varchar("size_requested", { length: 100 }),
+  quantityRequested: integer("quantity_requested"),
+  trackingNumber: varchar("tracking_number", { length: 100 }),
+  shippedAt: timestamp("shipped_at"),
+  receivedAt: timestamp("received_at"),
+  result: varchar("result", { length: 50 }), // good, bad, neutral
+  resultFeedback: text("result_feedback"),
+  sampleRequestId: integer("sample_request_id").references(() => sampleRequests.id),
+  testOutcomeId: integer("test_outcome_id").references(() => testOutcomes.id),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertPressTestJourneyDetailSchema = createInsertSchema(pressTestJourneyDetails).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type PressTestJourneyDetail = typeof pressTestJourneyDetails.$inferSelect;
+export type InsertPressTestJourneyDetail = z.infer<typeof insertPressTestJourneyDetailSchema>;
