@@ -26,7 +26,8 @@ import {
   Grid3X3,
   Plus,
   Clock,
-  History
+  History,
+  Mail
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
@@ -87,6 +88,7 @@ const appCategories = [
       { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#6366f1', bgGradient: 'linear-gradient(135deg, rgba(165, 180, 252, 0.4), rgba(129, 140, 248, 0.3))' },
       { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#14b8a6', bgGradient: 'linear-gradient(135deg, rgba(94, 234, 212, 0.4), rgba(45, 212, 191, 0.3))' },
       { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#a855f7', bgGradient: 'linear-gradient(135deg, rgba(216, 180, 254, 0.4), rgba(192, 132, 252, 0.3))' },
+      { path: '/email-app', icon: Mail, label: 'Email Studio', color: '#ec4899', bgGradient: 'linear-gradient(135deg, rgba(249, 168, 212, 0.4), rgba(236, 72, 153, 0.3))' },
     ]
   }
 ];
