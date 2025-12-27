@@ -23,7 +23,10 @@ import {
   FlaskConical,
   Palette,
   Activity,
-  Grid3X3
+  Grid3X3,
+  Plus,
+  Clock,
+  History
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
@@ -54,20 +57,42 @@ interface CRMStats {
   swatchesWithTracking: number;
 }
 
-const appTiles = [
-  { path: '/quick-quotes', icon: FileText, label: 'QuickQuotes', color: '#f59e0b', bgGradient: 'linear-gradient(135deg, rgba(253, 224, 71, 0.4), rgba(250, 204, 21, 0.3))' },
-  { path: '/price-list', icon: DollarSign, label: 'Price List', color: '#8b5cf6', bgGradient: 'linear-gradient(135deg, rgba(167, 139, 250, 0.4), rgba(139, 92, 246, 0.3))' },
-  { path: '/saved-quotes', icon: BarChart3, label: 'Saved Quotes', color: '#06b6d4', bgGradient: 'linear-gradient(135deg, rgba(103, 232, 249, 0.4), rgba(6, 182, 212, 0.3))' },
-  { path: '/clients', icon: Users, label: 'Clients', color: '#10b981', bgGradient: 'linear-gradient(135deg, rgba(134, 239, 172, 0.4), rgba(110, 231, 183, 0.3))' },
-  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: '#3b82f6', bgGradient: 'linear-gradient(135deg, rgba(147, 197, 253, 0.4), rgba(96, 165, 250, 0.3))' },
-  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: '#ef4444', bgGradient: 'linear-gradient(135deg, rgba(252, 165, 165, 0.4), rgba(248, 113, 113, 0.3))' },
-  { path: '/shipping-calculator', icon: Truck, label: 'Shipping', color: '#64748b', bgGradient: 'linear-gradient(135deg, rgba(148, 163, 184, 0.4), rgba(100, 116, 139, 0.3))' },
-  { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', color: '#0ea5e9', bgGradient: 'linear-gradient(135deg, rgba(125, 211, 252, 0.4), rgba(56, 189, 248, 0.3))' },
-  { path: '/product-labels', icon: Tag, label: 'Product Labels', color: '#ec4899', bgGradient: 'linear-gradient(135deg, rgba(249, 168, 212, 0.4), rgba(244, 114, 182, 0.3))' },
-  { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#6366f1', bgGradient: 'linear-gradient(135deg, rgba(165, 180, 252, 0.4), rgba(129, 140, 248, 0.3))' },
-  { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#14b8a6', bgGradient: 'linear-gradient(135deg, rgba(94, 234, 212, 0.4), rgba(45, 212, 191, 0.3))' },
-  { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#a855f7', bgGradient: 'linear-gradient(135deg, rgba(216, 180, 254, 0.4), rgba(192, 132, 252, 0.3))' },
+// Grouped app tiles by category
+const appCategories = [
+  {
+    name: 'Sales Tools',
+    icon: DollarSign,
+    apps: [
+      { path: '/quick-quotes', icon: FileText, label: 'QuickQuotes', color: '#f59e0b', bgGradient: 'linear-gradient(135deg, rgba(253, 224, 71, 0.4), rgba(250, 204, 21, 0.3))' },
+      { path: '/price-list', icon: DollarSign, label: 'Price List', color: '#8b5cf6', bgGradient: 'linear-gradient(135deg, rgba(167, 139, 250, 0.4), rgba(139, 92, 246, 0.3))' },
+      { path: '/saved-quotes', icon: BarChart3, label: 'Saved Quotes', color: '#06b6d4', bgGradient: 'linear-gradient(135deg, rgba(103, 232, 249, 0.4), rgba(6, 182, 212, 0.3))' },
+      { path: '/clients', icon: Users, label: 'Clients', color: '#10b981', bgGradient: 'linear-gradient(135deg, rgba(134, 239, 172, 0.4), rgba(110, 231, 183, 0.3))' },
+      { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: '#3b82f6', bgGradient: 'linear-gradient(135deg, rgba(147, 197, 253, 0.4), rgba(96, 165, 250, 0.3))' },
+      { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: '#ef4444', bgGradient: 'linear-gradient(135deg, rgba(252, 165, 165, 0.4), rgba(248, 113, 113, 0.3))' },
+    ]
+  },
+  {
+    name: 'Logistics',
+    icon: Truck,
+    apps: [
+      { path: '/shipping-calculator', icon: Truck, label: 'Shipping', color: '#64748b', bgGradient: 'linear-gradient(135deg, rgba(148, 163, 184, 0.4), rgba(100, 116, 139, 0.3))' },
+      { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', color: '#0ea5e9', bgGradient: 'linear-gradient(135deg, rgba(125, 211, 252, 0.4), rgba(56, 189, 248, 0.3))' },
+      { path: '/product-labels', icon: Tag, label: 'Product Labels', color: '#ec4899', bgGradient: 'linear-gradient(135deg, rgba(249, 168, 212, 0.4), rgba(244, 114, 182, 0.3))' },
+    ]
+  },
+  {
+    name: 'CRM & Samples',
+    icon: Target,
+    apps: [
+      { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#6366f1', bgGradient: 'linear-gradient(135deg, rgba(165, 180, 252, 0.4), rgba(129, 140, 248, 0.3))' },
+      { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#14b8a6', bgGradient: 'linear-gradient(135deg, rgba(94, 234, 212, 0.4), rgba(45, 212, 191, 0.3))' },
+      { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#a855f7', bgGradient: 'linear-gradient(135deg, rgba(216, 180, 254, 0.4), rgba(192, 132, 252, 0.3))' },
+    ]
+  }
 ];
+
+// Flat list for backward compatibility
+const appTiles = appCategories.flatMap(cat => cat.apps);
 
 const adminTiles = [
   { path: '/admin', icon: Users, label: 'Users', color: '#475569', bgGradient: 'linear-gradient(135deg, rgba(100, 116, 139, 0.4), rgba(71, 85, 105, 0.3))' },
@@ -157,7 +182,8 @@ export default function Dashboard() {
       glowColor: 'rgba(134, 239, 172, 0.2)',
       textColor: '#065f46',
       accentColor: '#86efac',
-      link: '/clients'
+      link: '/clients',
+      quickAction: { label: 'Add Client', path: '/clients?action=new' }
     },
     { 
       label: 'Quotes Sent', 
@@ -168,7 +194,8 @@ export default function Dashboard() {
       glowColor: 'rgba(147, 197, 253, 0.2)',
       textColor: '#0c4a6e',
       accentColor: '#93c5fd',
-      link: '/saved-quotes'
+      link: '/saved-quotes',
+      quickAction: { label: 'New Quote', path: '/quick-quotes' }
     },
     { 
       label: 'Samples Sent', 
@@ -179,7 +206,8 @@ export default function Dashboard() {
       glowColor: 'rgba(196, 181, 253, 0.2)',
       textColor: '#5b21b6',
       accentColor: '#c4b5fd',
-      link: '/crm-samples'
+      link: '/crm-samples',
+      quickAction: { label: 'New Sample', path: '/crm-samples?action=new' }
     }
   ];
 
@@ -436,10 +464,36 @@ export default function Dashboard() {
                     color: '#475569',
                     display: 'flex',
                     alignItems: 'center',
-                    gap: '6px'
+                    gap: '6px',
+                    marginBottom: '12px'
                   }}>
                     {stat.change}
                   </div>
+                  {/* Quick Action Button */}
+                  {stat.quickAction && (
+                    <Link
+                      href={stat.quickAction.path}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '4px',
+                        padding: '6px 12px',
+                        fontSize: '12px',
+                        fontWeight: '600',
+                        color: stat.textColor,
+                        background: `${stat.accentColor}30`,
+                        border: `1px solid ${stat.accentColor}50`,
+                        borderRadius: '8px',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s ease',
+                        opacity: hoveredCard === `stat-${i}` ? 1 : 0.7
+                      }}
+                    >
+                      <Plus size={14} />
+                      {stat.quickAction.label}
+                    </Link>
+                  )}
                 </div>
               </Link>
             ))}
@@ -475,7 +529,7 @@ export default function Dashboard() {
           </div>
         )}
 
-        {/* App Grid - Odoo Style */}
+        {/* App Grid - Categorized */}
         <div style={{ marginBottom: '32px' }}>
           <h2 style={{
             fontSize: '24px',
@@ -490,130 +544,126 @@ export default function Dashboard() {
             <Grid3X3 size={24} style={{ color: '#64748b' }} />
             Apps
           </h2>
-          <div style={{
-            background: 'rgba(255, 255, 255, 0.6)',
-            backdropFilter: 'blur(60px) saturate(150%)',
-            WebkitBackdropFilter: 'blur(60px) saturate(150%)',
-            border: '1px solid rgba(255, 255, 255, 0.8)',
-            borderRadius: '28px',
-            padding: '32px',
-            boxShadow: '0 8px 32px rgba(148, 163, 184, 0.1)',
-          }}>
-            <div style={{
-              display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fill, minmax(120px, 1fr))',
-              gap: '16px'
-            }}>
-              {appTiles.map((app, i) => {
-                const Icon = app.icon;
-                const usageCount = usageData[app.path]?.count || 0;
-                const isHovered = hoveredCard === `app-${i}`;
-                
-                return (
-                  <Link
-                    key={app.path}
-                    href={app.path}
-                    onClick={() => trackUsage(app.path)}
-                    onMouseEnter={() => setHoveredCard(`app-${i}`)}
-                    onMouseLeave={() => setHoveredCard(null)}
-                    style={{
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      justifyContent: 'center',
-                      padding: '24px 16px',
-                      borderRadius: '20px',
-                      background: isHovered ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.5)',
-                      backdropFilter: 'blur(20px)',
-                      border: isHovered ? `2px solid ${app.color}40` : '1px solid rgba(255, 255, 255, 0.6)',
-                      cursor: 'pointer',
-                      textDecoration: 'none',
-                      transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
-                      transform: isHovered ? 'translateY(-4px) scale(1.02)' : 'translateY(0) scale(1)',
-                      boxShadow: isHovered 
-                        ? `0 12px 32px ${app.color}25, 0 0 0 1px ${app.color}20`
-                        : '0 2px 8px rgba(148, 163, 184, 0.08)',
-                      position: 'relative',
-                      overflow: 'hidden'
-                    }}
-                    data-testid={`tile-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  >
-                    {/* Gradient overlay on hover */}
-                    <div style={{
-                      position: 'absolute',
-                      inset: 0,
-                      background: app.bgGradient,
-                      opacity: isHovered ? 0.6 : 0,
-                      transition: 'opacity 0.3s ease',
-                      borderRadius: '20px',
-                      pointerEvents: 'none'
-                    }} />
-                    
-                    {/* Usage indicator */}
-                    {usageCount >= 3 && (
-                      <div style={{
-                        position: 'absolute',
-                        top: '8px',
-                        right: '8px',
-                        width: '8px',
-                        height: '8px',
-                        borderRadius: '50%',
-                        background: app.color,
-                        boxShadow: `0 0 8px ${app.color}80`
-                      }} />
-                    )}
-
-                    {/* Glass shine effect */}
-                    <div style={{
-                      position: 'absolute',
-                      top: '-50%',
-                      left: '-50%',
-                      width: '200%',
-                      height: '200%',
-                      background: 'linear-gradient(45deg, transparent 30%, rgba(255, 255, 255, 0.6) 50%, transparent 70%)',
-                      transform: isHovered ? 'translateX(100%)' : 'translateX(-100%)',
-                      transition: 'transform 0.6s ease',
-                      pointerEvents: 'none'
-                    }} />
-
-                    <div style={{
-                      position: 'relative',
-                      zIndex: 1,
-                      display: 'flex',
-                      flexDirection: 'column',
-                      alignItems: 'center',
-                      gap: '12px'
+          
+          {/* Categorized App Sections */}
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '20px' }}>
+            {appCategories.map((category, catIndex) => {
+              const CategoryIcon = category.icon;
+              return (
+                <div 
+                  key={category.name}
+                  style={{
+                    background: 'rgba(255, 255, 255, 0.6)',
+                    backdropFilter: 'blur(60px) saturate(150%)',
+                    WebkitBackdropFilter: 'blur(60px) saturate(150%)',
+                    border: '1px solid rgba(255, 255, 255, 0.8)',
+                    borderRadius: '24px',
+                    padding: '24px',
+                    boxShadow: '0 8px 32px rgba(148, 163, 184, 0.1)',
+                  }}
+                >
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '8px',
+                    marginBottom: '16px',
+                    paddingBottom: '12px',
+                    borderBottom: '1px solid rgba(148, 163, 184, 0.15)'
+                  }}>
+                    <CategoryIcon size={18} style={{ color: '#64748b' }} />
+                    <span style={{
+                      fontSize: '14px',
+                      fontWeight: '600',
+                      color: '#64748b',
+                      letterSpacing: '0.3px',
+                      textTransform: 'uppercase'
                     }}>
-                      <div style={{
-                        width: '52px',
-                        height: '52px',
-                        borderRadius: '16px',
-                        background: app.bgGradient,
-                        display: 'flex',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        boxShadow: `0 4px 16px ${app.color}20`,
-                        border: '1px solid rgba(255, 255, 255, 0.6)',
-                        transition: 'transform 0.3s ease',
-                        transform: isHovered ? 'scale(1.1)' : 'scale(1)'
-                      }}>
-                        <Icon size={26} style={{ color: app.color }} />
-                      </div>
-                      <span style={{
-                        fontSize: '13px',
-                        fontWeight: '600',
-                        color: isHovered ? app.color : '#475569',
-                        textAlign: 'center',
-                        lineHeight: '1.3',
-                        transition: 'color 0.3s ease'
-                      }}>
-                        {app.label}
-                      </span>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+                      {category.name}
+                    </span>
+                  </div>
+                  <div style={{
+                    display: 'grid',
+                    gridTemplateColumns: 'repeat(auto-fill, minmax(100px, 1fr))',
+                    gap: '12px'
+                  }}>
+                    {category.apps.map((app, i) => {
+                      const Icon = app.icon;
+                      const usageCount = usageData[app.path]?.count || 0;
+                      const appKey = `${catIndex}-${i}`;
+                      const isHovered = hoveredCard === `app-${appKey}`;
+                      
+                      return (
+                        <Link
+                          key={app.path}
+                          href={app.path}
+                          onClick={() => trackUsage(app.path)}
+                          onMouseEnter={() => setHoveredCard(`app-${appKey}`)}
+                          onMouseLeave={() => setHoveredCard(null)}
+                          style={{
+                            display: 'flex',
+                            flexDirection: 'column',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            padding: '16px 12px',
+                            borderRadius: '16px',
+                            background: isHovered ? 'rgba(255, 255, 255, 0.9)' : 'rgba(255, 255, 255, 0.4)',
+                            backdropFilter: 'blur(20px)',
+                            border: isHovered ? `2px solid ${app.color}40` : '1px solid rgba(255, 255, 255, 0.5)',
+                            cursor: 'pointer',
+                            textDecoration: 'none',
+                            transition: 'all 0.3s cubic-bezier(0.4, 0, 0.2, 1)',
+                            transform: isHovered ? 'translateY(-2px) scale(1.02)' : 'translateY(0) scale(1)',
+                            boxShadow: isHovered 
+                              ? `0 8px 24px ${app.color}20`
+                              : '0 2px 8px rgba(148, 163, 184, 0.06)',
+                            position: 'relative',
+                            overflow: 'hidden'
+                          }}
+                          data-testid={`tile-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
+                        >
+                          {usageCount >= 3 && (
+                            <div style={{
+                              position: 'absolute',
+                              top: '6px',
+                              right: '6px',
+                              width: '6px',
+                              height: '6px',
+                              borderRadius: '50%',
+                              background: app.color,
+                              boxShadow: `0 0 6px ${app.color}80`
+                            }} />
+                          )}
+                          <div style={{
+                            width: '40px',
+                            height: '40px',
+                            borderRadius: '12px',
+                            background: app.bgGradient,
+                            display: 'flex',
+                            alignItems: 'center',
+                            justifyContent: 'center',
+                            marginBottom: '8px',
+                            transition: 'transform 0.3s ease',
+                            transform: isHovered ? 'scale(1.1)' : 'scale(1)'
+                          }}>
+                            <Icon size={20} style={{ color: app.color }} />
+                          </div>
+                          <span style={{
+                            fontSize: '11px',
+                            fontWeight: '600',
+                            color: isHovered ? app.color : '#475569',
+                            textAlign: 'center',
+                            lineHeight: '1.2',
+                            transition: 'color 0.3s ease'
+                          }}>
+                            {app.label}
+                          </span>
+                        </Link>
+                      );
+                    })}
+                  </div>
+                </div>
+              );
+            })}
           </div>
         </div>
 
