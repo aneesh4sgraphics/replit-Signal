@@ -191,6 +191,7 @@ export interface IStorage {
   getSentQuoteByNumber(quoteNumber: string): Promise<SentQuote | undefined>;
   createSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
   upsertSentQuote(quote: InsertSentQuote): Promise<SentQuote>;
+  updateSentQuote(id: number, data: Partial<InsertSentQuote>): Promise<SentQuote | undefined>;
   deleteSentQuote(id: number): Promise<boolean>;
   getQuoteCountsByCustomerEmail(): Promise<Record<string, number>>;
   
@@ -879,6 +880,20 @@ export class DatabaseStorage implements IStorage {
     } else {
       // Create new quote
       return this.createSentQuote(quote);
+    }
+  }
+
+  async updateSentQuote(id: number, data: Partial<InsertSentQuote>): Promise<SentQuote | undefined> {
+    try {
+      const [updated] = await db
+        .update(sentQuotes)
+        .set(data)
+        .where(eq(sentQuotes.id, id))
+        .returning();
+      return updated || undefined;
+    } catch (error) {
+      console.error('Error updating sent quote:', error);
+      return undefined;
     }
   }
 

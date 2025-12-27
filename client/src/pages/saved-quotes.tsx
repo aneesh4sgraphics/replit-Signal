@@ -6,7 +6,12 @@ import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { FileText, Mail, Download, ArrowLeft, Calendar, User, DollarSign, Trash2, Search, Eye, FileDown, Sheet } from "lucide-react";
+import { FileText, Mail, Download, ArrowLeft, Calendar, User, DollarSign, Trash2, Search, Eye, FileDown, Sheet, ChevronLeft, ChevronRight, Pencil, Check, X } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Calendar as CalendarComponent } from "@/components/ui/calendar";
+import { format } from "date-fns";
 import { Link } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { useToast } from "@/hooks/use-toast";
@@ -43,6 +48,12 @@ export default function SavedQuotes() {
   const [statusFilter, setStatusFilter] = useState("all");
   const [viewDialogOpen, setViewDialogOpen] = useState(false);
   const [selectedQuote, setSelectedQuote] = useState<SentQuote | null>(null);
+  const [currentPage, setCurrentPage] = useState(1);
+  const [selectedQuotes, setSelectedQuotes] = useState<Set<number>>(new Set());
+  const [dateRange, setDateRange] = useState<{ from: Date | undefined; to: Date | undefined }>({ from: undefined, to: undefined });
+  const [editingEmail, setEditingEmail] = useState<number | null>(null);
+  const [editEmailValue, setEditEmailValue] = useState("");
+  const ITEMS_PER_PAGE = 25;
   
   const { data: sentQuotes, isLoading: quotesLoading, error: quotesError } = useQuery({
     queryKey: ["/api/sent-quotes", (user as any)?.id],
@@ -107,7 +118,7 @@ export default function SavedQuotes() {
     }
   };
 
-  // Filter quotes based on search and status
+  // Filter quotes based on search, status, and date range
   const filteredQuotes = useMemo(() => {
     if (!sentQuotes || !Array.isArray(sentQuotes)) return [];
     
@@ -117,19 +128,98 @@ export default function SavedQuotes() {
         quote.quoteNumber.toLowerCase().includes(searchTerm.toLowerCase()) ||
         (quote.customerEmail && quote.customerEmail.toLowerCase().includes(searchTerm.toLowerCase()));
       
-      const matchesStatus = statusFilter === "all" || quote.status === statusFilter;
+      const matchesStatus = statusFilter === "all" || quote.status.toLowerCase() === statusFilter.toLowerCase();
       
-      return matchesSearch && matchesStatus;
+      let matchesDateRange = true;
+      if (dateRange.from || dateRange.to) {
+        const quoteDate = new Date(quote.createdAt);
+        if (dateRange.from && quoteDate < dateRange.from) matchesDateRange = false;
+        if (dateRange.to) {
+          const endOfDay = new Date(dateRange.to);
+          endOfDay.setHours(23, 59, 59, 999);
+          if (quoteDate > endOfDay) matchesDateRange = false;
+        }
+      }
+      
+      return matchesSearch && matchesStatus && matchesDateRange;
     });
-  }, [sentQuotes, searchTerm, statusFilter]);
+  }, [sentQuotes, searchTerm, statusFilter, dateRange]);
 
-  // Get badge variant for status
-  const getStatusVariant = (status: string) => {
+  // Paginated quotes
+  const paginatedQuotes = useMemo(() => {
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    return filteredQuotes.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  }, [filteredQuotes, currentPage]);
+
+  const totalPages = Math.ceil(filteredQuotes.length / ITEMS_PER_PAGE);
+
+  // Reset page when filters change
+  useMemo(() => {
+    setCurrentPage(1);
+  }, [searchTerm, statusFilter, dateRange]);
+
+  // Selection handlers
+  const toggleSelectAll = () => {
+    if (selectedQuotes.size === paginatedQuotes.length) {
+      setSelectedQuotes(new Set());
+    } else {
+      setSelectedQuotes(new Set(paginatedQuotes.map((q: SentQuote) => q.id)));
+    }
+  };
+
+  const toggleSelectQuote = (id: number) => {
+    const newSelected = new Set(selectedQuotes);
+    if (newSelected.has(id)) {
+      newSelected.delete(id);
+    } else {
+      newSelected.add(id);
+    }
+    setSelectedQuotes(newSelected);
+  };
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      await Promise.all(ids.map(id => apiRequest("DELETE", `/api/sent-quotes/${id}`)));
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes", (user as any)?.id] });
+      toast({ title: "Success", description: `${selectedQuotes.size} quotes deleted` });
+      setSelectedQuotes(new Set());
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to delete some quotes", variant: "destructive" });
+    },
+  });
+
+  // Update email mutation
+  const updateEmailMutation = useMutation({
+    mutationFn: async ({ id, email }: { id: number; email: string }) => {
+      return apiRequest("PATCH", `/api/sent-quotes/${id}`, { customerEmail: email });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes", (user as any)?.id] });
+      toast({ title: "Success", description: "Email updated successfully" });
+      setEditingEmail(null);
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to update email", variant: "destructive" });
+    },
+  });
+
+  // Get badge styling for status with distinct colors
+  const getStatusStyle = (status: string) => {
     switch (status.toLowerCase()) {
-      case 'sent': return 'default' as const;
-      case 'pending': return 'secondary' as const;
-      case 'failed': return 'destructive' as const;
-      default: return 'outline' as const;
+      case 'sent': 
+        return { variant: 'default' as const, className: 'bg-green-100 text-green-800 hover:bg-green-100 border-green-200' };
+      case 'draft':
+      case 'pending': 
+        return { variant: 'secondary' as const, className: 'bg-yellow-100 text-yellow-800 hover:bg-yellow-100 border-yellow-200' };
+      case 'failed':
+      case 'expired': 
+        return { variant: 'destructive' as const, className: 'bg-red-100 text-red-800 hover:bg-red-100 border-red-200' };
+      default: 
+        return { variant: 'outline' as const, className: '' };
     }
   };
 
@@ -321,20 +411,112 @@ export default function SavedQuotes() {
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
                   className="pl-10"
+                  data-testid="input-search-quotes"
                 />
               </div>
               <Select value={statusFilter} onValueChange={setStatusFilter}>
-                <SelectTrigger className="w-[180px]">
+                <SelectTrigger className="w-[140px]" data-testid="select-status-filter">
                   <SelectValue placeholder="Filter by status" />
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="all">All Status</SelectItem>
                   <SelectItem value="sent">Sent</SelectItem>
                   <SelectItem value="pending">Pending</SelectItem>
+                  <SelectItem value="draft">Draft</SelectItem>
                   <SelectItem value="failed">Failed</SelectItem>
                 </SelectContent>
               </Select>
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="outline" className="w-[220px] justify-start text-left font-normal" data-testid="btn-date-range">
+                    <Calendar className="mr-2 h-4 w-4" />
+                    {dateRange.from ? (
+                      dateRange.to ? (
+                        <>
+                          {format(dateRange.from, "MMM d")} - {format(dateRange.to, "MMM d, yyyy")}
+                        </>
+                      ) : (
+                        format(dateRange.from, "MMM d, yyyy")
+                      )
+                    ) : (
+                      <span>Pick a date range</span>
+                    )}
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-auto p-0" align="start">
+                  <CalendarComponent
+                    mode="range"
+                    selected={{ from: dateRange.from, to: dateRange.to }}
+                    onSelect={(range) => setDateRange({ from: range?.from, to: range?.to })}
+                    numberOfMonths={2}
+                  />
+                  {(dateRange.from || dateRange.to) && (
+                    <div className="p-2 border-t">
+                      <Button 
+                        variant="ghost" 
+                        size="sm" 
+                        onClick={() => setDateRange({ from: undefined, to: undefined })}
+                        className="w-full"
+                      >
+                        Clear dates
+                      </Button>
+                    </div>
+                  )}
+                </PopoverContent>
+              </Popover>
             </div>
+            {/* Bulk Actions Toolbar */}
+            {selectedQuotes.size > 0 && (
+              <div className="flex items-center gap-4 mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
+                <span className="text-sm font-medium text-blue-800">
+                  {selectedQuotes.size} quote{selectedQuotes.size > 1 ? 's' : ''} selected
+                </span>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const selectedData = filteredQuotes.filter((q: SentQuote) => selectedQuotes.has(q.id));
+                    const csvContent = [
+                      ['Quote Number', 'Customer Name', 'Email', 'Total Amount', 'Date', 'Status'].join(','),
+                      ...selectedData.map((q: SentQuote) => [
+                        q.quoteNumber,
+                        q.customerName,
+                        q.customerEmail || 'N/A',
+                        q.totalAmount ? `$${parseFloat(q.totalAmount).toFixed(2)}` : '$0.00',
+                        formatDate(q.createdAt),
+                        q.status
+                      ].join(','))
+                    ].join('\n');
+                    const blob = new Blob([csvContent], { type: 'text/csv' });
+                    saveAs(blob, `selected-quotes-${new Date().toISOString().split('T')[0]}.csv`);
+                    toast({ title: "Exported", description: `${selectedQuotes.size} quotes exported` });
+                  }}
+                  data-testid="btn-export-selected"
+                >
+                  <Download className="h-4 w-4 mr-1" />
+                  Export Selected
+                </Button>
+                {(user as any)?.role === 'admin' && (
+                  <Button
+                    variant="destructive"
+                    size="sm"
+                    onClick={() => {
+                      if (confirm(`Delete ${selectedQuotes.size} selected quotes?`)) {
+                        bulkDeleteMutation.mutate(Array.from(selectedQuotes));
+                      }
+                    }}
+                    disabled={bulkDeleteMutation.isPending}
+                    data-testid="btn-delete-selected"
+                  >
+                    <Trash2 className="h-4 w-4 mr-1" />
+                    Delete Selected
+                  </Button>
+                )}
+                <Button variant="ghost" size="sm" onClick={() => setSelectedQuotes(new Set())}>
+                  Clear selection
+                </Button>
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -366,127 +548,268 @@ export default function SavedQuotes() {
                 </p>
               </div>
             ) : filteredQuotes.length > 0 ? (
-              <div className="overflow-x-auto">
-                <Table>
-                  <TableHeader>
-                    <TableRow>
-                      <TableHead className="w-[120px]">Quote #</TableHead>
-                      <TableHead className="w-[200px]">Customer</TableHead>
-                      <TableHead className="w-[200px]">Email</TableHead>
-                      <TableHead className="w-[120px]">Actions</TableHead>
-                      {(user as any)?.role === 'admin' && <TableHead className="w-[80px]">Delete</TableHead>}
-                      <TableHead className="w-[120px]">Total Amount</TableHead>
-                      <TableHead className="w-[120px]">Date</TableHead>
-                      <TableHead className="w-[100px]">Method</TableHead>
-                      <TableHead className="w-[100px]">Status</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {filteredQuotes.map((quote: SentQuote) => (
-                      <TableRow key={quote.id}>
-                        <TableCell className="font-medium">{quote.quoteNumber}</TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <User className="h-4 w-4 text-gray-400" />
-                            {quote.customerName}
-                          </div>
-                        </TableCell>
-                        <TableCell className="text-sm text-gray-600">
-                          {quote.customerEmail || 'N/A'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-1">
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleViewQuote(quote)}
-                              className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
-                              title="View Details"
-                            >
-                              <Eye className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleReDownload(quote, 'pdf')}
-                              className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
-                              title="Download PDF"
-                            >
-                              <FileDown className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleReDownload(quote, 'csv')}
-                              className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
-                              title="Download CSV"
-                            >
-                              <Download className="h-4 w-4" />
-                            </Button>
-                          </div>
-                        </TableCell>
-                        {(user as any)?.role === 'admin' && (
+              <TooltipProvider>
+                <div className="overflow-x-auto">
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead className="w-[40px]">
+                          <Checkbox
+                            checked={selectedQuotes.size === paginatedQuotes.length && paginatedQuotes.length > 0}
+                            onCheckedChange={toggleSelectAll}
+                            data-testid="checkbox-select-all"
+                          />
+                        </TableHead>
+                        <TableHead className="w-[120px]">Quote #</TableHead>
+                        <TableHead className="w-[180px]">Customer</TableHead>
+                        <TableHead className="w-[200px]">Email</TableHead>
+                        <TableHead className="w-[120px]">Actions</TableHead>
+                        <TableHead className="w-[120px] text-right">Total Amount</TableHead>
+                        <TableHead className="w-[120px]">Date</TableHead>
+                        <TableHead className="w-[100px]">Method</TableHead>
+                        <TableHead className="w-[100px]">Status</TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {paginatedQuotes.map((quote: SentQuote) => (
+                        <TableRow key={quote.id} className="hover:bg-gray-50">
                           <TableCell>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDeleteQuote(quote.id)}
-                              disabled={deleteQuoteMutation.isPending}
-                              className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
-                              title="Delete Quote"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
+                            <Checkbox
+                              checked={selectedQuotes.has(quote.id)}
+                              onCheckedChange={() => toggleSelectQuote(quote.id)}
+                              data-testid={`checkbox-quote-${quote.id}`}
+                            />
                           </TableCell>
-                        )}
-                        <TableCell>
-                          ${quote.totalAmount && typeof quote.totalAmount === 'string' ? parseFloat(quote.totalAmount).toFixed(2) : '0.00'}
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            <Calendar className="h-4 w-4 text-gray-400" />
-                            {formatDate(quote.createdAt)}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex gap-1 flex-wrap">
-                            {typeof quote.sentVia === 'string' && quote.sentVia.trim()
-                              ? quote.sentVia.split(',').map((method, index) => {
-                                  const trimmed = method.trim().toLowerCase();
-                                  if (trimmed === 'not known') {
+                          <TableCell className="font-medium font-mono">{quote.quoteNumber}</TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2">
+                              <User className="h-4 w-4 text-gray-400" />
+                              <span className="truncate max-w-[140px]">{quote.customerName}</span>
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-sm">
+                            {editingEmail === quote.id ? (
+                              <div className="flex items-center gap-1">
+                                <Input
+                                  type="email"
+                                  value={editEmailValue}
+                                  onChange={(e) => setEditEmailValue(e.target.value)}
+                                  className="h-7 w-[140px] text-sm"
+                                  placeholder="Enter email"
+                                  data-testid={`input-edit-email-${quote.id}`}
+                                />
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-green-600"
+                                  onClick={() => updateEmailMutation.mutate({ id: quote.id, email: editEmailValue })}
+                                  disabled={updateEmailMutation.isPending}
+                                >
+                                  <Check className="h-4 w-4" />
+                                </Button>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 w-7 p-0 text-gray-500"
+                                  onClick={() => setEditingEmail(null)}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            ) : (
+                              <div className="flex items-center gap-1">
+                                <span className={quote.customerEmail ? 'text-gray-700' : 'text-gray-400 italic'}>
+                                  {quote.customerEmail || 'N/A'}
+                                </span>
+                                {!quote.customerEmail && (
+                                  <Tooltip>
+                                    <TooltipTrigger asChild>
+                                      <Button
+                                        variant="ghost"
+                                        size="sm"
+                                        className="h-6 w-6 p-0 text-gray-400 hover:text-blue-600"
+                                        onClick={() => {
+                                          setEditingEmail(quote.id);
+                                          setEditEmailValue(quote.customerEmail || '');
+                                        }}
+                                        data-testid={`btn-edit-email-${quote.id}`}
+                                      >
+                                        <Pencil className="h-3 w-3" />
+                                      </Button>
+                                    </TooltipTrigger>
+                                    <TooltipContent>Add email address</TooltipContent>
+                                  </Tooltip>
+                                )}
+                              </div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-1">
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleViewQuote(quote)}
+                                    className="h-8 w-8 p-0 text-blue-600 hover:text-blue-700 hover:bg-blue-50"
+                                    data-testid={`btn-view-quote-${quote.id}`}
+                                  >
+                                    <Eye className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>View quote details</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleReDownload(quote, 'pdf')}
+                                    className="h-8 w-8 p-0 text-green-600 hover:text-green-700 hover:bg-green-50"
+                                    data-testid={`btn-download-pdf-${quote.id}`}
+                                  >
+                                    <FileDown className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download as PDF</TooltipContent>
+                              </Tooltip>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button
+                                    variant="ghost"
+                                    size="sm"
+                                    onClick={() => handleReDownload(quote, 'csv')}
+                                    className="h-8 w-8 p-0 text-orange-600 hover:text-orange-700 hover:bg-orange-50"
+                                    data-testid={`btn-download-csv-${quote.id}`}
+                                  >
+                                    <Download className="h-4 w-4" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Download as CSV</TooltipContent>
+                              </Tooltip>
+                              {(user as any)?.role === 'admin' && (
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button
+                                      variant="ghost"
+                                      size="sm"
+                                      onClick={() => handleDeleteQuote(quote.id)}
+                                      disabled={deleteQuoteMutation.isPending}
+                                      className="h-8 w-8 p-0 text-red-600 hover:text-red-700 hover:bg-red-50"
+                                      data-testid={`btn-delete-quote-${quote.id}`}
+                                    >
+                                      <Trash2 className="h-4 w-4" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent>Delete quote</TooltipContent>
+                                </Tooltip>
+                              )}
+                            </div>
+                          </TableCell>
+                          <TableCell className="text-right font-mono">
+                            ${quote.totalAmount && typeof quote.totalAmount === 'string' ? parseFloat(quote.totalAmount).toLocaleString('en-US', { minimumFractionDigits: 2, maximumFractionDigits: 2 }) : '0.00'}
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex items-center gap-2 text-sm text-gray-600">
+                              <Calendar className="h-4 w-4 text-gray-400" />
+                              {formatDate(quote.createdAt)}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <div className="flex gap-1 flex-wrap">
+                              {typeof quote.sentVia === 'string' && quote.sentVia.trim()
+                                ? quote.sentVia.split(',').map((method, index) => {
+                                    const trimmed = method.trim().toLowerCase();
+                                    if (trimmed === 'not known') {
+                                      return (
+                                        <Badge key={index} variant="outline" className="text-xs">
+                                          <FileText className="h-3 w-3 mr-1" />Not Known
+                                        </Badge>
+                                      );
+                                    }
                                     return (
-                                      <Badge key={index} variant="outline">
-                                        <FileText className="h-3 w-3 mr-1" />Not Known
+                                      <Badge key={index} variant={trimmed === 'email' ? 'default' : 'secondary'} className="text-xs">
+                                        {trimmed === 'email' ? (
+                                          <><Mail className="h-3 w-3 mr-1" />Email</>
+                                        ) : (
+                                          <><Download className="h-3 w-3 mr-1" />PDF</>
+                                        )}
                                       </Badge>
                                     );
-                                  }
-                                  return (
-                                    <Badge key={index} variant={trimmed === 'email' ? 'default' : 'secondary'}>
-                                      {trimmed === 'email' ? (
-                                        <><Mail className="h-3 w-3 mr-1" />Email</>
-                                      ) : (
-                                        <><Download className="h-3 w-3 mr-1" />PDF</>
-                                      )}
-                                    </Badge>
-                                  );
-                                })
-                              : (
-                                <Badge variant="outline">
-                                  <FileText className="h-3 w-3 mr-1" />Not Known
-                                </Badge>
-                              )}
-                          </div>
-                        </TableCell>
-                        <TableCell>
-                          <Badge variant={getStatusVariant(quote.status)}>
-                            {quote.status}
-                          </Badge>
-                        </TableCell>
-                      </TableRow>
-                    ))}
-                  </TableBody>
-                </Table>
-              </div>
+                                  })
+                                : (
+                                  <Badge variant="outline" className="text-xs">
+                                    <FileText className="h-3 w-3 mr-1" />Not Known
+                                  </Badge>
+                                )}
+                            </div>
+                          </TableCell>
+                          <TableCell>
+                            <Badge className={getStatusStyle(quote.status).className}>
+                              {quote.status}
+                            </Badge>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                    </TableBody>
+                  </Table>
+                </div>
+                {/* Pagination Controls */}
+                {totalPages > 1 && (
+                  <div className="flex items-center justify-between mt-4 pt-4 border-t">
+                    <p className="text-sm text-gray-600">
+                      Showing {((currentPage - 1) * ITEMS_PER_PAGE) + 1} to {Math.min(currentPage * ITEMS_PER_PAGE, filteredQuotes.length)} of {filteredQuotes.length} quotes
+                    </p>
+                    <div className="flex items-center gap-2">
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.max(1, p - 1))}
+                        disabled={currentPage === 1}
+                        data-testid="btn-prev-page"
+                      >
+                        <ChevronLeft className="h-4 w-4 mr-1" />
+                        Previous
+                      </Button>
+                      <div className="flex items-center gap-1">
+                        {Array.from({ length: Math.min(5, totalPages) }, (_, i) => {
+                          let pageNum;
+                          if (totalPages <= 5) {
+                            pageNum = i + 1;
+                          } else if (currentPage <= 3) {
+                            pageNum = i + 1;
+                          } else if (currentPage >= totalPages - 2) {
+                            pageNum = totalPages - 4 + i;
+                          } else {
+                            pageNum = currentPage - 2 + i;
+                          }
+                          return (
+                            <Button
+                              key={pageNum}
+                              variant={currentPage === pageNum ? "default" : "outline"}
+                              size="sm"
+                              className="w-8 h-8 p-0"
+                              onClick={() => setCurrentPage(pageNum)}
+                            >
+                              {pageNum}
+                            </Button>
+                          );
+                        })}
+                      </div>
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => setCurrentPage(p => Math.min(totalPages, p + 1))}
+                        disabled={currentPage === totalPages}
+                        data-testid="btn-next-page"
+                      >
+                        Next
+                        <ChevronRight className="h-4 w-4 ml-1" />
+                      </Button>
+                    </div>
+                  </div>
+                )}
+              </TooltipProvider>
             ) : (
               <div className="text-center py-12 text-gray-500">
                 <FileText className="h-16 w-16 mx-auto mb-4 opacity-50" />
