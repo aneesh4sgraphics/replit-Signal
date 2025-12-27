@@ -66,6 +66,10 @@ export default function StartYourDayDashboard() {
     queryKey: ["/api/customers"],
   });
 
+  const { data: dashboardStats } = useQuery<DashboardStats>({
+    queryKey: ["/api/customer-activity/dashboard-stats"],
+  });
+
   const completeTaskMutation = useMutation({
     mutationFn: async (taskId: number) => {
       return apiRequest("POST", `/api/customer-activity/follow-ups/${taskId}/complete`, {
@@ -119,7 +123,7 @@ export default function StartYourDayDashboard() {
     isToday(new Date(t.completedAt))
   ) || [];
 
-  const stats: DashboardStats = {
+  const stats: DashboardStats = dashboardStats || {
     todayTasks: todayTasks?.length || 0,
     overdueTasks: overdueTasks?.length || 0,
     pendingTasks: pendingTasks.length,

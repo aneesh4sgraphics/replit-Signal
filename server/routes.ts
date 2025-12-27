@@ -5596,6 +5596,135 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get idle accounts (no activity in 30+ days)
+  app.get("/api/customer-activity/idle-accounts", isAuthenticated, async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      const idleAccounts = [];
+      for (const customer of customers) {
+        const events = await storage.getActivityEventsByCustomer(customer.id);
+        const lastEvent = events[0];
+        
+        if (!lastEvent) {
+          idleAccounts.push({
+            customer,
+            lastActivity: null,
+            daysSinceActivity: null,
+          });
+        } else {
+          const lastActivityDate = lastEvent.eventDate 
+            ? new Date(lastEvent.eventDate) 
+            : (lastEvent.createdAt ? new Date(lastEvent.createdAt) : null);
+          
+          if (!lastActivityDate || lastActivityDate < thirtyDaysAgo) {
+            const daysSinceActivity = lastActivityDate 
+              ? Math.floor((Date.now() - lastActivityDate.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+            idleAccounts.push({
+              customer,
+              lastActivity: lastActivityDate?.toISOString() || null,
+              daysSinceActivity,
+            });
+          }
+        }
+      }
+      
+      res.json(idleAccounts);
+    } catch (error) {
+      console.error("Error fetching idle accounts:", error);
+      res.status(500).json({ error: "Failed to fetch idle accounts" });
+    }
+  });
+
+  // Get pending samples (samples shipped but not followed up)
+  app.get("/api/customer-activity/pending-samples", isAuthenticated, async (req, res) => {
+    try {
+      const [sampleRequests, allFollowUpTasks] = await Promise.all([
+        storage.getSampleRequests(),
+        storage.getPendingFollowUpTasks(),
+      ]);
+      
+      const sampleFollowUpIds = new Set(
+        allFollowUpTasks
+          .filter(t => (t.taskType?.includes('sample') || t.sourceType === 'sample') && t.sourceId)
+          .map(t => String(t.sourceId))
+      );
+      
+      const pendingSamples = sampleRequests.filter(sample => {
+        const isActive = sample.status === 'shipped' || sample.status === 'pending';
+        const hasNoFollowUp = !sampleFollowUpIds.has(String(sample.id));
+        return isActive && hasNoFollowUp;
+      });
+      
+      res.json(pendingSamples);
+    } catch (error) {
+      console.error("Error fetching pending samples:", error);
+      res.status(500).json({ error: "Failed to fetch pending samples" });
+    }
+  });
+
+  // Get dashboard stats summary
+  app.get("/api/customer-activity/dashboard-stats", isAuthenticated, async (req, res) => {
+    try {
+      const [todayTasks, overdueTasks, pendingTasks, recentEvents, customers, sampleRequests, allFollowUpTasks] = await Promise.all([
+        storage.getTodayFollowUpTasks(),
+        storage.getOverdueFollowUpTasks(),
+        storage.getPendingFollowUpTasks(),
+        storage.getRecentActivityEvents(50),
+        storage.getCustomers(),
+        storage.getSampleRequests(),
+        storage.getPendingFollowUpTasks(),
+      ]);
+
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      let idleAccountsCount = 0;
+      for (const customer of customers) {
+        const events = await storage.getActivityEventsByCustomer(customer.id);
+        const lastEvent = events[0];
+        if (!lastEvent) {
+          idleAccountsCount++;
+        } else {
+          const lastActivityDate = lastEvent.eventDate 
+            ? new Date(lastEvent.eventDate) 
+            : (lastEvent.createdAt ? new Date(lastEvent.createdAt) : null);
+          
+          if (!lastActivityDate || lastActivityDate < thirtyDaysAgo) {
+            idleAccountsCount++;
+          }
+        }
+      }
+      
+      const sampleFollowUpIds = new Set(
+        allFollowUpTasks
+          .filter(t => (t.taskType?.includes('sample') || t.sourceType === 'sample') && t.sourceId)
+          .map(t => String(t.sourceId))
+      );
+      
+      const pendingSamplesCount = sampleRequests.filter(s => {
+        const isActive = s.status === 'shipped' || s.status === 'pending';
+        const hasNoFollowUp = !sampleFollowUpIds.has(String(s.id));
+        return isActive && hasNoFollowUp;
+      }).length;
+
+      res.json({
+        todayTasks: todayTasks.length,
+        overdueTasks: overdueTasks.length,
+        pendingTasks: pendingTasks.length,
+        idleAccounts: idleAccountsCount,
+        pendingSamples: pendingSamplesCount,
+        recentActivity: recentEvents.length,
+      });
+    } catch (error) {
+      console.error("Error fetching dashboard stats:", error);
+      res.status(500).json({ error: "Failed to fetch dashboard stats" });
+    }
+  });
+
   // Catch-all for unmatched API routes - return JSON 404 instead of HTML
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.path}` });
