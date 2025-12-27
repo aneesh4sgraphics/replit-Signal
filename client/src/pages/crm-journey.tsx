@@ -39,11 +39,18 @@ import {
   CommandItem,
   CommandList,
 } from "@/components/ui/command";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { Check, ChevronsUpDown } from "lucide-react";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import JourneyCreatorModal from "@/components/JourneyCreatorModal";
 import {
   Users,
   Search,
@@ -65,6 +72,10 @@ import {
   Rocket,
   LayoutGrid,
   List,
+  Settings,
+  Pencil,
+  Trash2,
+  MoreHorizontal,
 } from "lucide-react";
 import type { Customer, CustomerJourney } from "@shared/schema";
 
@@ -107,8 +118,29 @@ export default function CRMJourneyDashboard() {
     assignedSalesRep: '',
     notes: '',
   });
+  const [isJourneyCreatorOpen, setIsJourneyCreatorOpen] = useState(false);
+  const [editingTemplate, setEditingTemplate] = useState<any>(null);
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
+
+  // Fetch journey templates
+  const { data: journeyTemplates = [] } = useQuery<any[]>({
+    queryKey: ['/api/crm/journey-templates'],
+  });
+
+  // Delete template mutation
+  const deleteTemplateMutation = useMutation({
+    mutationFn: async (templateId: number) => {
+      await apiRequest('DELETE', `/api/crm/journey-templates/${templateId}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/journey-templates'] });
+      toast({ title: "Deleted", description: "Pipeline template deleted" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to delete template", variant: "destructive" });
+    },
+  });
 
   // Fetch journeys and customers
   const { data: journeys = [], isLoading: journeysLoading } = useQuery<CustomerJourney[]>({
@@ -308,6 +340,17 @@ export default function CRMJourneyDashboard() {
             <Plus className="h-4 w-4 mr-1" />
             Add to Pipeline
           </Button>
+          <Button 
+            variant="outline" 
+            onClick={() => {
+              setEditingTemplate(null);
+              setIsJourneyCreatorOpen(true);
+            }}
+            data-testid="btn-create-pipeline"
+          >
+            <Settings className="h-4 w-4 mr-1" />
+            Create Pipeline
+          </Button>
         </div>
       </div>
 
@@ -338,6 +381,109 @@ export default function CRMJourneyDashboard() {
           </Card>
         ))}
       </div>
+
+      {/* Pipeline Templates Section */}
+      {journeyTemplates.length > 0 && (
+        <Card className="glass-card">
+          <CardHeader className="pb-3">
+            <div className="flex items-center justify-between">
+              <CardTitle className="text-base font-semibold flex items-center gap-2">
+                <Settings className="h-4 w-4" />
+                Your Pipeline Templates
+              </CardTitle>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => {
+                  setEditingTemplate(null);
+                  setIsJourneyCreatorOpen(true);
+                }}
+                data-testid="btn-create-new-template"
+              >
+                <Plus className="h-3 w-3 mr-1" />
+                New Template
+              </Button>
+            </div>
+          </CardHeader>
+          <CardContent className="pt-0">
+            <div className="grid gap-3 md:grid-cols-2 lg:grid-cols-3">
+              {journeyTemplates.map((template: any) => (
+                <div
+                  key={template.id}
+                  data-testid={`template-card-${template.id}`}
+                  className="border rounded-lg p-3 bg-white dark:bg-gray-800 hover:shadow-md transition-shadow"
+                >
+                  <div className="flex items-start justify-between mb-2">
+                    <div>
+                      <h4 className="font-medium text-sm">{template.name}</h4>
+                      {template.description && (
+                        <p className="text-xs text-gray-500 mt-0.5">{template.description}</p>
+                      )}
+                    </div>
+                    <DropdownMenu>
+                      <DropdownMenuTrigger asChild>
+                        <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                          <MoreHorizontal className="h-4 w-4" />
+                        </Button>
+                      </DropdownMenuTrigger>
+                      <DropdownMenuContent align="end">
+                        <DropdownMenuItem
+                          onClick={() => {
+                            setEditingTemplate(template);
+                            setIsJourneyCreatorOpen(true);
+                          }}
+                        >
+                          <Pencil className="h-3 w-3 mr-2" />
+                          Edit
+                        </DropdownMenuItem>
+                        {!template.isSystemDefault && (
+                          <DropdownMenuItem
+                            className="text-red-600"
+                            onClick={() => {
+                              if (confirm('Delete this pipeline template?')) {
+                                deleteTemplateMutation.mutate(template.id);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        )}
+                      </DropdownMenuContent>
+                    </DropdownMenu>
+                  </div>
+                  <div className="flex items-center gap-1 overflow-x-auto pb-1">
+                    {(template.stages || []).slice(0, 5).map((stage: any, i: number) => (
+                      <div key={i} className="flex items-center flex-shrink-0">
+                        <div
+                          className="px-2 py-0.5 rounded text-[10px] font-medium text-white"
+                          style={{ backgroundColor: stage.color || '#3b82f6' }}
+                        >
+                          {stage.name}
+                        </div>
+                        {i < Math.min((template.stages || []).length, 5) - 1 && (
+                          <ChevronRight className="h-3 w-3 text-gray-300 mx-0.5" />
+                        )}
+                      </div>
+                    ))}
+                    {(template.stages || []).length > 5 && (
+                      <span className="text-[10px] text-gray-400 ml-1">
+                        +{(template.stages || []).length - 5} more
+                      </span>
+                    )}
+                  </div>
+                  <div className="text-[10px] text-gray-400 mt-1">
+                    {(template.stages || []).length} stages
+                    {template.isSystemDefault && (
+                      <Badge variant="secondary" className="ml-2 text-[9px] py-0">Default</Badge>
+                    )}
+                  </div>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
 
       {/* Search with Customer Suggestions */}
       <div className="relative max-w-lg">
@@ -760,6 +906,13 @@ export default function CRMJourneyDashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+      {/* Journey Creator Modal */}
+      <JourneyCreatorModal
+        open={isJourneyCreatorOpen}
+        onOpenChange={setIsJourneyCreatorOpen}
+        editTemplate={editingTemplate}
+      />
     </div>
   );
 }

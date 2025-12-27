@@ -64,6 +64,11 @@ import {
   type InsertCustomerJourneyStep,
   type PressTestJourneyDetail,
   type InsertPressTestJourneyDetail,
+  // Journey Template types
+  type JourneyTemplate,
+  type InsertJourneyTemplate,
+  type JourneyTemplateStage,
+  type InsertJourneyTemplateStage,
   users,
   customers,
   sentQuotes,
@@ -102,6 +107,9 @@ import {
   customerJourneyInstances,
   customerJourneySteps,
   pressTestJourneyDetails,
+  // Journey Template tables
+  journeyTemplates,
+  journeyTemplateStages,
   type ProductPricingMaster,
   type InsertProductPricingMaster,
   type UploadBatch,
@@ -334,6 +342,21 @@ export interface IStorage {
   getPressTestDetails(instanceId: number): Promise<PressTestJourneyDetail | undefined>;
   createPressTestDetails(data: InsertPressTestJourneyDetail): Promise<PressTestJourneyDetail>;
   updatePressTestDetails(instanceId: number, data: Partial<InsertPressTestJourneyDetail>): Promise<PressTestJourneyDetail | undefined>;
+
+  // Journey Templates
+  getJourneyTemplates(): Promise<JourneyTemplate[]>;
+  getJourneyTemplate(id: number): Promise<JourneyTemplate | undefined>;
+  getJourneyTemplateByKey(key: string): Promise<JourneyTemplate | undefined>;
+  createJourneyTemplate(data: InsertJourneyTemplate): Promise<JourneyTemplate>;
+  updateJourneyTemplate(id: number, data: Partial<InsertJourneyTemplate>): Promise<JourneyTemplate | undefined>;
+  deleteJourneyTemplate(id: number): Promise<void>;
+
+  // Journey Template Stages
+  getTemplateStages(templateId: number): Promise<JourneyTemplateStage[]>;
+  createTemplateStage(data: InsertJourneyTemplateStage): Promise<JourneyTemplateStage>;
+  updateTemplateStage(id: number, data: Partial<InsertJourneyTemplateStage>): Promise<JourneyTemplateStage | undefined>;
+  deleteTemplateStage(id: number): Promise<void>;
+  deleteAllTemplateStages(templateId: number): Promise<void>;
 
   // CRM Dashboard Stats
   getCRMDashboardStats(): Promise<{
@@ -1787,6 +1810,70 @@ export class DatabaseStorage implements IStorage {
       .where(eq(pressTestJourneyDetails.instanceId, instanceId))
       .returning();
     return details;
+  }
+
+  // Journey Templates
+  async getJourneyTemplates(): Promise<JourneyTemplate[]> {
+    return await db.select().from(journeyTemplates)
+      .where(eq(journeyTemplates.isActive, true))
+      .orderBy(desc(journeyTemplates.createdAt));
+  }
+
+  async getJourneyTemplate(id: number): Promise<JourneyTemplate | undefined> {
+    const [template] = await db.select().from(journeyTemplates).where(eq(journeyTemplates.id, id));
+    return template;
+  }
+
+  async getJourneyTemplateByKey(key: string): Promise<JourneyTemplate | undefined> {
+    const [template] = await db.select().from(journeyTemplates).where(eq(journeyTemplates.key, key));
+    return template;
+  }
+
+  async createJourneyTemplate(data: InsertJourneyTemplate): Promise<JourneyTemplate> {
+    const [template] = await db.insert(journeyTemplates).values(data).returning();
+    return template;
+  }
+
+  async updateJourneyTemplate(id: number, data: Partial<InsertJourneyTemplate>): Promise<JourneyTemplate | undefined> {
+    const [template] = await db.update(journeyTemplates)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(journeyTemplates.id, id))
+      .returning();
+    return template;
+  }
+
+  async deleteJourneyTemplate(id: number): Promise<void> {
+    await db.update(journeyTemplates)
+      .set({ isActive: false, updatedAt: new Date() })
+      .where(eq(journeyTemplates.id, id));
+  }
+
+  // Journey Template Stages
+  async getTemplateStages(templateId: number): Promise<JourneyTemplateStage[]> {
+    return await db.select().from(journeyTemplateStages)
+      .where(eq(journeyTemplateStages.templateId, templateId))
+      .orderBy(journeyTemplateStages.position);
+  }
+
+  async createTemplateStage(data: InsertJourneyTemplateStage): Promise<JourneyTemplateStage> {
+    const [stage] = await db.insert(journeyTemplateStages).values(data).returning();
+    return stage;
+  }
+
+  async updateTemplateStage(id: number, data: Partial<InsertJourneyTemplateStage>): Promise<JourneyTemplateStage | undefined> {
+    const [stage] = await db.update(journeyTemplateStages)
+      .set(data)
+      .where(eq(journeyTemplateStages.id, id))
+      .returning();
+    return stage;
+  }
+
+  async deleteTemplateStage(id: number): Promise<void> {
+    await db.delete(journeyTemplateStages).where(eq(journeyTemplateStages.id, id));
+  }
+
+  async deleteAllTemplateStages(templateId: number): Promise<void> {
+    await db.delete(journeyTemplateStages).where(eq(journeyTemplateStages.templateId, templateId));
   }
 
   // CRM Dashboard Stats

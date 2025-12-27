@@ -35,6 +35,8 @@ import {
   insertCustomerJourneyInstanceSchema,
   insertCustomerJourneyStepSchema,
   insertPressTestJourneyDetailSchema,
+  insertJourneyTemplateSchema,
+  insertJourneyTemplateStageSchema,
   JOURNEY_STAGES,
   JOURNEY_TYPES,
   PRESS_TEST_STEPS,
@@ -4481,6 +4483,185 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error updating customer journey:", error);
       res.status(500).json({ error: "Failed to update customer journey" });
+    }
+  });
+
+  // Journey Templates (Custom Pipelines)
+  app.get("/api/crm/journey-templates", isAuthenticated, async (req, res) => {
+    try {
+      const templates = await storage.getJourneyTemplates();
+      // Fetch stages for each template
+      const templatesWithStages = await Promise.all(
+        templates.map(async (template) => {
+          const stages = await storage.getTemplateStages(template.id);
+          return { ...template, stages };
+        })
+      );
+      res.json(templatesWithStages);
+    } catch (error) {
+      console.error("Error fetching journey templates:", error);
+      res.status(500).json({ error: "Failed to fetch journey templates" });
+    }
+  });
+
+  app.get("/api/crm/journey-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const template = await storage.getJourneyTemplate(parseInt(req.params.id));
+      if (!template) {
+        return res.status(404).json({ error: "Journey template not found" });
+      }
+      const stages = await storage.getTemplateStages(template.id);
+      res.json({ ...template, stages });
+    } catch (error) {
+      console.error("Error fetching journey template:", error);
+      res.status(500).json({ error: "Failed to fetch journey template" });
+    }
+  });
+
+  app.post("/api/crm/journey-templates", isAuthenticated, async (req, res) => {
+    try {
+      const { stages, ...templateData } = req.body;
+      const user = req.user as any;
+      
+      // Create a unique key from the name
+      const key = templateData.name
+        .toLowerCase()
+        .replace(/[^a-z0-9]+/g, '_')
+        .replace(/^_|_$/g, '') + '_' + Date.now();
+      
+      const validatedTemplate = insertJourneyTemplateSchema.parse({
+        ...templateData,
+        key,
+        createdBy: user?.id
+      });
+      
+      const template = await storage.createJourneyTemplate(validatedTemplate);
+      
+      // Create stages if provided
+      if (stages && Array.isArray(stages)) {
+        for (let i = 0; i < stages.length; i++) {
+          const stageData = {
+            templateId: template.id,
+            position: i + 1,
+            name: stages[i].name,
+            guidance: stages[i].guidance || null,
+            color: stages[i].color || null,
+            confidenceLevel: stages[i].confidenceLevel || null,
+            overdueDays: stages[i].overdueDays || null,
+            autoCloseDays: stages[i].autoCloseDays || null
+          };
+          await storage.createTemplateStage(stageData);
+        }
+      }
+      
+      // Return template with stages
+      const createdStages = await storage.getTemplateStages(template.id);
+      res.status(201).json({ ...template, stages: createdStages });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error creating journey template:", error);
+      res.status(500).json({ error: "Failed to create journey template" });
+    }
+  });
+
+  app.put("/api/crm/journey-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const { stages, ...templateData } = req.body;
+      const templateId = parseInt(req.params.id);
+      
+      const validatedTemplate = insertJourneyTemplateSchema.partial().parse(templateData);
+      const template = await storage.updateJourneyTemplate(templateId, validatedTemplate);
+      
+      if (!template) {
+        return res.status(404).json({ error: "Journey template not found" });
+      }
+      
+      // Update stages if provided - delete all and recreate
+      if (stages && Array.isArray(stages)) {
+        await storage.deleteAllTemplateStages(templateId);
+        for (let i = 0; i < stages.length; i++) {
+          const stageData = {
+            templateId,
+            position: i + 1,
+            name: stages[i].name,
+            guidance: stages[i].guidance || null,
+            color: stages[i].color || null,
+            confidenceLevel: stages[i].confidenceLevel || null,
+            overdueDays: stages[i].overdueDays || null,
+            autoCloseDays: stages[i].autoCloseDays || null
+          };
+          await storage.createTemplateStage(stageData);
+        }
+      }
+      
+      const updatedStages = await storage.getTemplateStages(templateId);
+      res.json({ ...template, stages: updatedStages });
+    } catch (error) {
+      if (error instanceof z.ZodError) {
+        return res.status(400).json({ error: error.errors });
+      }
+      console.error("Error updating journey template:", error);
+      res.status(500).json({ error: "Failed to update journey template" });
+    }
+  });
+
+  app.delete("/api/crm/journey-templates/:id", isAuthenticated, async (req, res) => {
+    try {
+      const template = await storage.getJourneyTemplate(parseInt(req.params.id));
+      if (template?.isSystemDefault) {
+        return res.status(400).json({ error: "Cannot delete system default templates" });
+      }
+      await storage.deleteJourneyTemplate(parseInt(req.params.id));
+      res.status(204).send();
+    } catch (error) {
+      console.error("Error deleting journey template:", error);
+      res.status(500).json({ error: "Failed to delete journey template" });
+    }
+  });
+
+  // Duplicate a template
+  app.post("/api/crm/journey-templates/:id/duplicate", isAuthenticated, async (req, res) => {
+    try {
+      const sourceTemplate = await storage.getJourneyTemplate(parseInt(req.params.id));
+      if (!sourceTemplate) {
+        return res.status(404).json({ error: "Source template not found" });
+      }
+      
+      const user = req.user as any;
+      const newName = req.body.name || `${sourceTemplate.name} (Copy)`;
+      const key = newName.toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '') + '_' + Date.now();
+      
+      const newTemplate = await storage.createJourneyTemplate({
+        key,
+        name: newName,
+        description: sourceTemplate.description,
+        isSystemDefault: false,
+        isActive: true,
+        createdBy: user?.id
+      });
+      
+      // Copy stages
+      const sourceStages = await storage.getTemplateStages(sourceTemplate.id);
+      for (const stage of sourceStages) {
+        await storage.createTemplateStage({
+          templateId: newTemplate.id,
+          position: stage.position,
+          name: stage.name,
+          guidance: stage.guidance,
+          color: stage.color,
+          confidenceLevel: stage.confidenceLevel,
+          overdueDays: stage.overdueDays,
+          autoCloseDays: stage.autoCloseDays
+        });
+      }
+      
+      const newStages = await storage.getTemplateStages(newTemplate.id);
+      res.status(201).json({ ...newTemplate, stages: newStages });
+    } catch (error) {
+      console.error("Error duplicating journey template:", error);
+      res.status(500).json({ error: "Failed to duplicate journey template" });
     }
   });
 

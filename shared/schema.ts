@@ -750,6 +750,52 @@ export type InsertPriceListEvent = z.infer<typeof insertPriceListEventSchema>;
 export const JOURNEY_TYPES = ['press_test', 'swatch_book', 'quote_sent'] as const;
 export type JourneyType = typeof JOURNEY_TYPES[number];
 
+// ========================================
+// Journey Templates (Custom Pipelines)
+// ========================================
+
+// Journey Templates - reusable pipeline definitions
+export const journeyTemplates = pgTable("journey_templates", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(), // unique identifier like 'press_test_pipeline'
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isSystemDefault: boolean("is_system_default").default(false), // true for built-in templates
+  isActive: boolean("is_active").default(true),
+  createdBy: varchar("created_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertJourneyTemplateSchema = createInsertSchema(journeyTemplates).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type JourneyTemplate = typeof journeyTemplates.$inferSelect;
+export type InsertJourneyTemplate = z.infer<typeof insertJourneyTemplateSchema>;
+
+// Journey Template Stages - stages within a template
+export const journeyTemplateStages = pgTable("journey_template_stages", {
+  id: serial("id").primaryKey(),
+  templateId: integer("template_id").notNull().references(() => journeyTemplates.id, { onDelete: "cascade" }),
+  position: integer("position").notNull(), // order of stages (1, 2, 3, etc.)
+  name: varchar("name", { length: 255 }).notNull(),
+  guidance: text("guidance"), // stage guidance/description
+  color: varchar("color", { length: 20 }), // visual color for the stage
+  confidenceLevel: integer("confidence_level"), // optional confidence % when entering this stage
+  overdueDays: integer("overdue_days"), // mark leads overdue if in stage longer than X days
+  autoCloseDays: integer("auto_close_days"), // auto-close leads if in stage longer than X days
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertJourneyTemplateStageSchema = createInsertSchema(journeyTemplateStages).omit({
+  id: true,
+  createdAt: true,
+});
+export type JourneyTemplateStage = typeof journeyTemplateStages.$inferSelect;
+export type InsertJourneyTemplateStage = z.infer<typeof insertJourneyTemplateStageSchema>;
+
 // Press Test Journey Steps
 export const PRESS_TEST_STEPS = ['sample_requested', 'tracking_added', 'received', 'result'] as const;
 export type PressTestStep = typeof PRESS_TEST_STEPS[number];
