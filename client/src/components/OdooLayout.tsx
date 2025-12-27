@@ -324,35 +324,8 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
 
         <div className="px-3 py-4">
           <button
-            onClick={() => setAppSwitcherOpen(true)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 bg-gradient-to-r from-blue-50 to-purple-50 hover:from-blue-100 hover:to-purple-100 text-gray-700 hover:shadow-md`}
-            title={!sidebarExpanded ? 'All Apps' : undefined}
-            data-testid="button-app-switcher"
-          >
-            <div className="w-8 h-8 rounded-lg bg-gradient-to-br from-blue-500 to-purple-500 flex items-center justify-center">
-              <Grid3X3 className="h-4 w-4 text-white" />
-            </div>
-            {sidebarExpanded && <span className="text-sm font-medium">All Apps</span>}
-          </button>
-          
-          <button
-            onClick={() => setCommandOpen(true)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl transition-all duration-200 text-gray-600 hover:bg-gray-100 hover:text-gray-900`}
-            title={!sidebarExpanded ? 'Search (⌘K)' : undefined}
-            data-testid="button-command-palette"
-          >
-            <Command className="h-5 w-5 flex-shrink-0" />
-            {sidebarExpanded && (
-              <>
-                <span className="text-sm font-medium flex-1 text-left">Search...</span>
-                <kbd className="text-[10px] bg-gray-100 px-1.5 py-0.5 rounded text-gray-500">⌘K</kbd>
-              </>
-            )}
-          </button>
-
-          <button
             onClick={() => setTutorialOpen(true)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 mt-2 rounded-xl transition-all duration-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700`}
+            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700`}
             title={!sidebarExpanded ? 'Learning Center' : undefined}
             data-testid="button-tutorials"
           >
