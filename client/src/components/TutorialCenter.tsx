@@ -55,21 +55,32 @@ export default function TutorialCenter({ open, onOpenChange }: TutorialCenterPro
       const tutorial = getTutorialById(tutorialId);
       if (!tutorial) throw new Error("Tutorial not found");
       
-      return apiRequest("POST", "/api/tutorials/progress", {
+      const response = await apiRequest("POST", "/api/tutorials/progress", {
         tutorialId,
         status: "in_progress",
         currentStep: 0,
         totalSteps: tutorial.steps.length,
         startedAt: new Date().toISOString(),
       });
+      return { response, tutorialId };
     },
-    onSuccess: (_, tutorialId) => {
+    onSuccess: (data) => {
       queryClient.invalidateQueries({ queryKey: ["/api/tutorials/progress"] });
-      const tutorial = getTutorialById(tutorialId);
+      const tutorial = getTutorialById(data.tutorialId);
       if (tutorial) {
-        setActiveTutorial(tutorial);
         onOpenChange(false);
+        setTimeout(() => {
+          setActiveTutorial(tutorial);
+        }, 100);
       }
+    },
+    onError: (error) => {
+      console.error("Failed to start tutorial:", error);
+      toast({
+        title: "Failed to start tutorial",
+        description: "Please try again.",
+        variant: "destructive",
+      });
     },
   });
 
