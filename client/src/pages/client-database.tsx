@@ -66,6 +66,7 @@ import {
   Send,
   TrendingUp,
   Calendar,
+  AlertTriangle,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import {
@@ -150,6 +151,7 @@ export default function ClientDatabase() {
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [bulkSelected, setBulkSelected] = useState<Set<string>>(new Set()); // For bulk actions
   const [showSamplesFilter, setShowSamplesFilter] = useState(false); // Filter for samples sent card
+  const [showDataCleanupFilter, setShowDataCleanupFilter] = useState(false); // Filter for incomplete data
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     const saved = localStorage.getItem('clientDatabaseRecentSearches');
     return saved ? JSON.parse(saved) : [];
@@ -216,6 +218,18 @@ export default function ClientDatabase() {
   // Check if customer has missing details
   const hasMissingDetails = (customer: Customer): boolean => {
     return !customer.email || !customer.phone || !customer.company || !customer.city;
+  };
+  
+  // Check if email is incomplete or invalid (for data cleanup highlighting)
+  const hasIncompleteEmail = (email: string | null | undefined): boolean => {
+    if (!email) return true;
+    const normalized = email.trim().toLowerCase();
+    return normalized === '' || 
+           normalized === 'n/a' || 
+           normalized === 'na' ||
+           normalized === 'none' ||
+           normalized === '-' ||
+           !normalized.includes('@');
   };
   
   // Get Kanban category for a customer
@@ -434,9 +448,15 @@ export default function ClientDatabase() {
       if (missingDataFilters.noTags && !group.customers.some(c => !c.tags || c.tags.trim() === '')) return false;
       if (missingDataFilters.noCompany && !group.customers.some(c => !c.company || c.company.trim() === '')) return false;
       
+      // Data cleanup filter (from clickable card) - show only companies with incomplete emails
+      if (showDataCleanupFilter) {
+        const hasIncompleteData = group.customers.some(c => hasIncompleteEmail(c.email));
+        if (!hasIncompleteData) return false;
+      }
+      
       return true;
     });
-  }, [groupedByCompany, selectedLetter, searchTerm, filters, missingDataFilters, showSamplesFilter, quoteCounts, sampleRequests]);
+  }, [groupedByCompany, selectedLetter, searchTerm, filters, missingDataFilters, showSamplesFilter, showDataCleanupFilter, quoteCounts, sampleRequests]);
   
   // Helper to get unique quote count for a company (dedupe by email)
   const getCompanyQuoteCount = (group: CompanyGroup): number => {
@@ -878,6 +898,7 @@ export default function ClientDatabase() {
       noCompany: false,
     });
     setShowSamplesFilter(false);
+    setShowDataCleanupFilter(false);
     setBulkSelected(new Set());
   };
 
@@ -1175,7 +1196,7 @@ export default function ClientDatabase() {
       </div>
 
       {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         <Card className="glass-card border-0">
           <CardContent className="pt-6">
             <div className="flex items-center justify-between">
@@ -1218,6 +1239,28 @@ export default function ClientDatabase() {
               </div>
               <div className="h-12 w-12 rounded-full bg-purple-50 flex items-center justify-center">
                 <FileText className="h-6 w-6 text-purple-500" />
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card 
+          className={`glass-card border-0 cursor-pointer transition-all hover:shadow-md ${showDataCleanupFilter ? 'ring-2 ring-amber-500' : ''}`}
+          onClick={() => setShowDataCleanupFilter(!showDataCleanupFilter)}
+          data-testid="card-data-cleanup"
+        >
+          <CardContent className="pt-6">
+            <div className="flex items-center justify-between">
+              <div>
+                <p className="text-sm font-medium text-gray-500">Needs Cleanup</p>
+                <p className="text-3xl font-bold text-amber-600 mt-1">
+                  {groupedByCompany.filter(g => g.customers.some(c => hasIncompleteEmail(c.email))).length}
+                </p>
+                <p className="text-xs text-amber-600 mt-1">
+                  {showDataCleanupFilter ? 'Click to show all' : 'Missing/invalid emails'}
+                </p>
+              </div>
+              <div className="h-12 w-12 rounded-full bg-amber-50 flex items-center justify-center">
+                <AlertTriangle className="h-6 w-6 text-amber-500" />
               </div>
             </div>
           </CardContent>
@@ -1625,7 +1668,7 @@ export default function ClientDatabase() {
                   </Button>
                 </div>
               )}
-              {(searchTerm || selectedLetter || showSamplesFilter || Object.values(filters).some(f => f && f !== "all")) && (
+              {(searchTerm || selectedLetter || showSamplesFilter || showDataCleanupFilter || Object.values(filters).some(f => f && f !== "all")) && (
                 <Button onClick={() => { clearFilters(); setSelectedLetter(null); }} variant="outline" size="sm">
                   Clear All Filters
                 </Button>
@@ -1682,6 +1725,7 @@ export default function ClientDatabase() {
                   const totalSamples = group.customers.reduce((sum, c) => sum + getSampleCount(c.id), 0);
                   const isBulkSelected = bulkSelected.has(primary.id);
                   const isInlineEditing = editingRowId === primary.id;
+                  const needsDataCleanup = hasIncompleteEmail(primary.email);
                   
                   return (
                     <div key={group.groupKey} data-testid={`company-group-${primary.id}`}>
@@ -1690,6 +1734,7 @@ export default function ClientDatabase() {
                         className={`group flex items-center justify-between py-2.5 px-2 text-sm cursor-pointer transition-colors
                           ${isBulkSelected ? 'bg-blue-50 border-l-2 border-blue-400' : ''}
                           ${selectedForMerge.has(primary.id) ? 'bg-purple-50' : ''}
+                          ${needsDataCleanup ? 'bg-amber-50/50 border-l-2 border-amber-400' : ''}
                           hover:bg-gray-50`}
                         onClick={() => hasMultiplePeople && toggleCompanyExpansion(group.groupKey)}
                       >
