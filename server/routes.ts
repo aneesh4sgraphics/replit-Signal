@@ -5912,6 +5912,193 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // ========================================
+  // Email Templates API
+  // ========================================
+
+  // Get all email templates
+  app.get("/api/email/templates", isAuthenticated, async (req: any, res) => {
+    try {
+      const templates = await storage.getEmailTemplates();
+      res.json(templates);
+    } catch (error) {
+      console.error("Error fetching email templates:", error);
+      res.status(500).json({ error: "Failed to fetch email templates" });
+    }
+  });
+
+  // Get single email template
+  app.get("/api/email/templates/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const template = await storage.getEmailTemplate(id);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      res.json(template);
+    } catch (error) {
+      console.error("Error fetching email template:", error);
+      res.status(500).json({ error: "Failed to fetch email template" });
+    }
+  });
+
+  // Create email template (admin only)
+  app.post("/api/email/templates", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { name, description, subject, body, category, variables, isActive } = req.body;
+      
+      if (!name || !subject || !body) {
+        return res.status(400).json({ error: "Name, subject, and body are required" });
+      }
+      
+      const template = await storage.createEmailTemplate({
+        name,
+        description,
+        subject,
+        body,
+        category: category || "general",
+        variables: variables || [],
+        isActive: isActive !== false,
+        createdBy: req.user?.email,
+      });
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error creating email template:", error);
+      res.status(500).json({ error: "Failed to create email template" });
+    }
+  });
+
+  // Update email template (admin only)
+  app.patch("/api/email/templates/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { name, description, subject, body, category, variables, isActive } = req.body;
+      
+      const updateData: any = {};
+      if (name !== undefined) updateData.name = name;
+      if (description !== undefined) updateData.description = description;
+      if (subject !== undefined) updateData.subject = subject;
+      if (body !== undefined) updateData.body = body;
+      if (category !== undefined) updateData.category = category;
+      if (variables !== undefined) updateData.variables = variables;
+      if (isActive !== undefined) updateData.isActive = isActive;
+      
+      const template = await storage.updateEmailTemplate(id, updateData);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      res.json(template);
+    } catch (error) {
+      console.error("Error updating email template:", error);
+      res.status(500).json({ error: "Failed to update email template" });
+    }
+  });
+
+  // Delete email template (admin only)
+  app.delete("/api/email/templates/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.deleteEmailTemplate(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting email template:", error);
+      res.status(500).json({ error: "Failed to delete email template" });
+    }
+  });
+
+  // Render email template with variables
+  app.post("/api/email/render", isAuthenticated, async (req: any, res) => {
+    try {
+      const { templateId, variables } = req.body;
+      
+      const template = await storage.getEmailTemplate(templateId);
+      if (!template) {
+        return res.status(404).json({ error: "Template not found" });
+      }
+      
+      // Replace variables in subject and body
+      let renderedSubject = template.subject;
+      let renderedBody = template.body;
+      
+      if (variables && typeof variables === 'object') {
+        for (const [key, value] of Object.entries(variables)) {
+          const pattern = new RegExp(`{{${key}}}`, 'g');
+          renderedSubject = renderedSubject.replace(pattern, String(value || ''));
+          renderedBody = renderedBody.replace(pattern, String(value || ''));
+        }
+      }
+      
+      res.json({
+        subject: renderedSubject,
+        body: renderedBody,
+        templateName: template.name,
+      });
+    } catch (error) {
+      console.error("Error rendering email template:", error);
+      res.status(500).json({ error: "Failed to render email template" });
+    }
+  });
+
+  // Get email sends history
+  app.get("/api/email/sends", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.query;
+      const sends = await storage.getEmailSends(customerId as string | undefined);
+      res.json(sends);
+    } catch (error) {
+      console.error("Error fetching email sends:", error);
+      res.status(500).json({ error: "Failed to fetch email sends" });
+    }
+  });
+
+  // Log email send (for tracking - actual sending would need email integration)
+  app.post("/api/email/send", isAuthenticated, async (req: any, res) => {
+    try {
+      const { templateId, recipientEmail, recipientName, customerId, subject, body, variableData } = req.body;
+      
+      if (!recipientEmail || !subject || !body) {
+        return res.status(400).json({ error: "Recipient email, subject, and body are required" });
+      }
+      
+      const emailSend = await storage.createEmailSend({
+        templateId,
+        recipientEmail,
+        recipientName,
+        customerId,
+        subject,
+        body,
+        variableData: variableData || {},
+        status: "sent",
+        sentBy: req.user?.email,
+      });
+      
+      // Log as customer activity if customerId is provided
+      if (customerId) {
+        try {
+          await storage.createActivityEvent({
+            customerId,
+            eventType: 'email_sent',
+            eventData: {
+              templateId,
+              subject,
+              recipientEmail,
+            },
+            createdBy: req.user?.email,
+          });
+        } catch (activityError) {
+          console.error("Error logging email activity:", activityError);
+        }
+      }
+      
+      res.json({ success: true, emailSend });
+    } catch (error) {
+      console.error("Error sending email:", error);
+      res.status(500).json({ error: "Failed to send email" });
+    }
+  });
+
   // Catch-all for unmatched API routes - return JSON 404 instead of HTML
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.path}` });
