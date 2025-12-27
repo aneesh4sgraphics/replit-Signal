@@ -6,6 +6,8 @@ import { Badge } from "@/components/ui/badge";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import StartYourDayDashboard from "@/components/StartYourDayDashboard";
 import {
   Select,
   SelectContent,
@@ -76,6 +78,8 @@ import {
   Pencil,
   Trash2,
   MoreHorizontal,
+  Sun,
+  GitBranch,
 } from "lucide-react";
 import type { Customer, CustomerJourney } from "@shared/schema";
 
@@ -311,48 +315,65 @@ export default function CRMJourneyDashboard() {
 
   return (
     <div className="space-y-6" data-testid="crm-journey-page">
-      {/* Header */}
-      <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
-        <div>
-          <h1 className="text-2xl font-bold text-gray-900" data-testid="page-title">Customer Journey Pipeline</h1>
-          <p className="text-gray-500">Track customers through the 7-stage conversion process</p>
+      <Tabs defaultValue="daily" className="w-full">
+        <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4">
+          <div>
+            <h1 className="text-2xl font-bold text-gray-900" data-testid="page-title">Customer Activity Hub</h1>
+            <p className="text-gray-500">Track engagement, follow-ups, and customer journeys</p>
+          </div>
+          <TabsList className="grid w-full max-w-md grid-cols-2">
+            <TabsTrigger value="daily" className="flex items-center gap-2" data-testid="tab-daily">
+              <Sun className="h-4 w-4" />
+              Start Your Day
+            </TabsTrigger>
+            <TabsTrigger value="pipeline" className="flex items-center gap-2" data-testid="tab-pipeline">
+              <GitBranch className="h-4 w-4" />
+              Journey Pipeline
+            </TabsTrigger>
+          </TabsList>
         </div>
-        <div className="flex items-center gap-3">
-          <Button
-            variant={viewMode === 'kanban' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('kanban')}
-            data-testid="btn-kanban-view"
-          >
-            <LayoutGrid className="h-4 w-4 mr-1" />
-            Kanban
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-            data-testid="btn-list-view"
-          >
-            <List className="h-4 w-4 mr-1" />
-            List
-          </Button>
-          <Button onClick={() => setIsAddDialogOpen(true)} data-testid="btn-add-to-pipeline">
-            <Plus className="h-4 w-4 mr-1" />
-            Add to Pipeline
-          </Button>
-          <Button 
-            variant="outline" 
-            onClick={() => {
-              setEditingTemplate(null);
-              setIsJourneyCreatorOpen(true);
-            }}
-            data-testid="btn-create-pipeline"
-          >
-            <Settings className="h-4 w-4 mr-1" />
-            Create Pipeline
-          </Button>
-        </div>
-      </div>
+
+        <TabsContent value="daily" className="mt-6">
+          <StartYourDayDashboard />
+        </TabsContent>
+
+        <TabsContent value="pipeline" className="mt-6 space-y-6">
+          {/* Pipeline Controls */}
+          <div className="flex items-center gap-3 justify-end">
+            <Button
+              variant={viewMode === 'kanban' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('kanban')}
+              data-testid="btn-kanban-view"
+            >
+              <LayoutGrid className="h-4 w-4 mr-1" />
+              Kanban
+            </Button>
+            <Button
+              variant={viewMode === 'list' ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => setViewMode('list')}
+              data-testid="btn-list-view"
+            >
+              <List className="h-4 w-4 mr-1" />
+              List
+            </Button>
+            <Button onClick={() => setIsAddDialogOpen(true)} data-testid="btn-add-to-pipeline">
+              <Plus className="h-4 w-4 mr-1" />
+              Add to Pipeline
+            </Button>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setEditingTemplate(null);
+                setIsJourneyCreatorOpen(true);
+              }}
+              data-testid="btn-create-pipeline"
+            >
+              <Settings className="h-4 w-4 mr-1" />
+              Create Pipeline
+            </Button>
+          </div>
 
       {/* Stats Cards */}
       <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-8 gap-3">
@@ -906,6 +927,9 @@ export default function CRMJourneyDashboard() {
           )}
         </DialogContent>
       </Dialog>
+
+        </TabsContent>
+      </Tabs>
 
       {/* Journey Creator Modal */}
       <JourneyCreatorModal
