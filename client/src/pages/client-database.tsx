@@ -1822,7 +1822,11 @@ export default function ClientDatabase() {
                             <div className="w-5" />
                           )}
                           <Building2 className="h-4 w-4 text-gray-400" />
-                          <span className="font-medium text-gray-900 truncate min-w-[180px]">
+                          <span 
+                            className="font-medium text-gray-900 truncate min-w-[180px] hover:text-blue-600 hover:underline cursor-pointer"
+                            onClick={(e) => { e.stopPropagation(); setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}
+                            data-testid={`link-client-${primary.id}`}
+                          >
                             {group.companyName}
                           </span>
                           {hasMultiplePeople && (
@@ -2001,7 +2005,13 @@ export default function ClientDatabase() {
                           className="h-4 w-4 mt-1"
                         />
                         <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-gray-900 truncate">{getCompanyDisplayName(customer)}</h3>
+                          <h3 
+                            className="font-semibold text-gray-900 truncate hover:text-blue-600 hover:underline cursor-pointer"
+                            onClick={() => setSelectedCustomer(customer)}
+                            data-testid={`link-client-card-${customer.id}`}
+                          >
+                            {getCompanyDisplayName(customer)}
+                          </h3>
                           {customer.company && (customer.firstName || customer.lastName) && (
                             <p className="text-sm text-gray-500">{getDisplayName(customer)}</p>
                           )}
@@ -2105,7 +2115,7 @@ export default function ClientDatabase() {
                                         </div>
                                         {customer.sources?.includes('shopify') && <SiShopify className="h-3 w-3 text-green-600" />}
                                         {customer.sources?.includes('odoo') && <SiOdoo className="h-3 w-3 text-purple-600" />}
-                                        <span className="font-medium text-sm text-gray-900 truncate">{getCompanyDisplayName(customer)}</span>
+                                        <span className="font-medium text-sm text-gray-900 truncate hover:text-blue-600 hover:underline">{getCompanyDisplayName(customer)}</span>
                                       </div>
                                       {customer.company && (customer.firstName || customer.lastName) && (
                                         <p className="text-xs text-gray-500 truncate mb-2">{getDisplayName(customer)}</p>
