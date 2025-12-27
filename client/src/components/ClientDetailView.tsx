@@ -59,7 +59,9 @@ import {
   X,
   ChevronsUpDown,
   Route,
+  Copy,
 } from "lucide-react";
+import { Link } from "wouter";
 import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote, CustomerJourneyInstance, CustomerContact } from "@shared/schema";
 
 const JOURNEY_STAGE_CONFIG = [
@@ -124,6 +126,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   });
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
+
+  const copyToClipboard = (text: string, label: string) => {
+    navigator.clipboard.writeText(text).then(() => {
+      toast({ title: "Copied!", description: `${label} copied to clipboard` });
+    }).catch(() => {
+      toast({ title: "Failed to copy", variant: "destructive" });
+    });
+  };
 
   const { data: journey, refetch: refetchJourney } = useQuery<CustomerJourney | null>({
     queryKey: ['/api/crm/journeys', customer.id],
@@ -385,6 +395,15 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
 
   return (
     <div className="space-y-6" data-testid="client-detail-view">
+      {/* Breadcrumb Navigation */}
+      <nav className="flex items-center gap-2 text-sm text-gray-500" data-testid="breadcrumb-nav">
+        <Link href="/customers" className="hover:text-blue-600 transition-colors">
+          Clients
+        </Link>
+        <ChevronRight className="h-4 w-4" />
+        <span className="text-gray-900 font-medium">{customerName}</span>
+      </nav>
+
       <div className="flex items-start justify-between">
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={onBack} data-testid="btn-back">
@@ -461,10 +480,32 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                             {`${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.email || 'Contact'}
                           </p>
                           {contact.email && (
-                            <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                            <div className="flex items-center gap-1">
+                              <Mail className="h-3 w-3 text-gray-400" />
+                              <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                              <button 
+                                onClick={() => copyToClipboard(contact.email!, 'Email')}
+                                className="p-0.5 hover:bg-blue-100 rounded transition-colors"
+                                title="Copy email"
+                                data-testid={`copy-email-${contact.id}`}
+                              >
+                                <Copy className="h-3 w-3 text-gray-400 hover:text-blue-600" />
+                              </button>
+                            </div>
                           )}
                           {contact.phone && (
-                            <p className="text-xs text-gray-500">{contact.phone}</p>
+                            <div className="flex items-center gap-1">
+                              <Phone className="h-3 w-3 text-gray-400" />
+                              <a href={`tel:${contact.phone}`} className="text-xs text-gray-600 hover:text-blue-600">{contact.phone}</a>
+                              <button 
+                                onClick={() => copyToClipboard(contact.phone!, 'Phone')}
+                                className="p-0.5 hover:bg-blue-100 rounded transition-colors"
+                                title="Copy phone"
+                                data-testid={`copy-phone-${contact.id}`}
+                              >
+                                <Copy className="h-3 w-3 text-gray-400 hover:text-blue-600" />
+                              </button>
+                            </div>
                           )}
                         </div>
                       </div>
@@ -484,10 +525,32 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                       <div>
                         <p className="text-sm font-medium">{`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary Contact'}</p>
                         {customer.email && (
-                          <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
+                          <div className="flex items-center gap-1">
+                            <Mail className="h-3 w-3 text-gray-400" />
+                            <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
+                            <button 
+                              onClick={() => copyToClipboard(customer.email!, 'Email')}
+                              className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy email"
+                              data-testid="copy-primary-email"
+                            >
+                              <Copy className="h-3 w-3 text-gray-400 hover:text-blue-600" />
+                            </button>
+                          </div>
                         )}
                         {customer.phone && (
-                          <p className="text-xs text-gray-500">{customer.phone}</p>
+                          <div className="flex items-center gap-1">
+                            <Phone className="h-3 w-3 text-gray-400" />
+                            <a href={`tel:${customer.phone}`} className="text-xs text-gray-600 hover:text-blue-600">{customer.phone}</a>
+                            <button 
+                              onClick={() => copyToClipboard(customer.phone!, 'Phone')}
+                              className="p-0.5 hover:bg-gray-200 rounded transition-colors"
+                              title="Copy phone"
+                              data-testid="copy-primary-phone"
+                            >
+                              <Copy className="h-3 w-3 text-gray-400 hover:text-blue-600" />
+                            </button>
+                          </div>
                         )}
                       </div>
                     </div>
@@ -1061,22 +1124,44 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl">
-          <TabsTrigger value="swatch-book" className="flex items-center gap-2">
+        <TabsList className="grid w-full grid-cols-4 max-w-2xl bg-gray-100 p-1 rounded-lg">
+          <TabsTrigger 
+            value="swatch-book" 
+            className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-purple-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
+            data-testid="tab-swatch-book"
+          >
             <Palette className="h-4 w-4" />
-            Swatch Book
+            <span className="hidden sm:inline">Swatch Book</span>
+            <span className="sm:hidden">Swatch</span>
           </TabsTrigger>
-          <TabsTrigger value="press-profiles" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="press-profiles" 
+            className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-blue-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
+            data-testid="tab-press-profiles"
+          >
             <Building2 className="h-4 w-4" />
-            Press Profiles ({pressProfiles.length})
+            <span className="hidden sm:inline">Press Profiles</span>
+            <span className="sm:hidden">Press</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{pressProfiles.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="samples" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="samples" 
+            className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
+            data-testid="tab-samples"
+          >
             <FlaskConical className="h-4 w-4" />
-            Samples ({sampleRequests.length})
+            <span>Samples</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{sampleRequests.length}</Badge>
           </TabsTrigger>
-          <TabsTrigger value="quotes-prices" className="flex items-center gap-2">
+          <TabsTrigger 
+            value="quotes-prices" 
+            className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
+            data-testid="tab-quotes-prices"
+          >
             <FileText className="h-4 w-4" />
-            Quotes & Prices ({sentQuotes.length + quoteEvents.length + priceListEvents.length})
+            <span className="hidden sm:inline">Quotes & Prices</span>
+            <span className="sm:hidden">Quotes</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{sentQuotes.length + quoteEvents.length + priceListEvents.length}</Badge>
           </TabsTrigger>
         </TabsList>
 
