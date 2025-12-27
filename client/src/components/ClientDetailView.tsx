@@ -113,6 +113,15 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   const [editingContact, setEditingContact] = useState<CustomerContact | null>(null);
   const [isAddingContact, setIsAddingContact] = useState(false);
   const [newContact, setNewContact] = useState({ name: '', email: '', phone: '', role: '' });
+  const [isEditingAddress, setIsEditingAddress] = useState(false);
+  const [editAddress, setEditAddress] = useState({
+    address1: customer.address1 || '',
+    address2: customer.address2 || '',
+    city: customer.city || '',
+    province: customer.province || '',
+    country: customer.country || '',
+    zip: customer.zip || '',
+  });
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
 
@@ -249,6 +258,21 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to remove contact", variant: "destructive" });
+    },
+  });
+
+  const updateAddressMutation = useMutation({
+    mutationFn: async (data: typeof editAddress) => {
+      const res = await apiRequest('PATCH', `/api/customers/${customer.id}`, data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      setIsEditingAddress(false);
+      toast({ title: "Success", description: "Address updated" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update address", variant: "destructive" });
     },
   });
 
@@ -623,6 +647,120 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
             {customerContacts.length === 0 && !customer.email && !customer.phone && !isAddingContact && (
               <p className="text-sm text-gray-400 text-center py-2">No contacts added</p>
             )}
+
+            {/* Company Address Section */}
+            <div className="pt-3 mt-3 border-t">
+              <div className="flex items-center justify-between mb-2">
+                <span className="text-sm font-medium text-gray-600 flex items-center gap-1">
+                  <MapPin className="h-3 w-3" />
+                  Company Address
+                </span>
+                {!isEditingAddress && (
+                  <Button 
+                    variant="ghost" 
+                    size="sm" 
+                    onClick={() => {
+                      setEditAddress({
+                        address1: customer.address1 || '',
+                        address2: customer.address2 || '',
+                        city: customer.city || '',
+                        province: customer.province || '',
+                        country: customer.country || '',
+                        zip: customer.zip || '',
+                      });
+                      setIsEditingAddress(true);
+                    }}
+                    className="h-6 px-2 text-xs"
+                    data-testid="btn-edit-address"
+                  >
+                    <Pencil className="h-3 w-3 mr-1" />
+                    {(customer.address1 || customer.city) ? 'Edit' : 'Add'}
+                  </Button>
+                )}
+              </div>
+              
+              {isEditingAddress ? (
+                <div className="space-y-2">
+                  <Input
+                    placeholder="Street Address"
+                    value={editAddress.address1}
+                    onChange={(e) => setEditAddress({ ...editAddress, address1: e.target.value })}
+                    className="h-8 text-sm"
+                    data-testid="input-address1"
+                  />
+                  <Input
+                    placeholder="Address Line 2"
+                    value={editAddress.address2}
+                    onChange={(e) => setEditAddress({ ...editAddress, address2: e.target.value })}
+                    className="h-8 text-sm"
+                    data-testid="input-address2"
+                  />
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="City"
+                      value={editAddress.city}
+                      onChange={(e) => setEditAddress({ ...editAddress, city: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-city"
+                    />
+                    <Input
+                      placeholder="Province/State"
+                      value={editAddress.province}
+                      onChange={(e) => setEditAddress({ ...editAddress, province: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-province"
+                    />
+                  </div>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Input
+                      placeholder="Postal Code"
+                      value={editAddress.zip}
+                      onChange={(e) => setEditAddress({ ...editAddress, zip: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-zip"
+                    />
+                    <Input
+                      placeholder="Country"
+                      value={editAddress.country}
+                      onChange={(e) => setEditAddress({ ...editAddress, country: e.target.value })}
+                      className="h-8 text-sm"
+                      data-testid="input-country"
+                    />
+                  </div>
+                  <div className="flex gap-2">
+                    <Button 
+                      size="sm" 
+                      onClick={() => updateAddressMutation.mutate(editAddress)}
+                      disabled={updateAddressMutation.isPending}
+                      data-testid="btn-save-address"
+                    >
+                      Save
+                    </Button>
+                    <Button 
+                      size="sm" 
+                      variant="outline" 
+                      onClick={() => setIsEditingAddress(false)}
+                      data-testid="btn-cancel-address"
+                    >
+                      Cancel
+                    </Button>
+                  </div>
+                </div>
+              ) : (
+                (customer.address1 || customer.city) ? (
+                  <div className="text-sm text-gray-600 space-y-0.5">
+                    {customer.address1 && <p>{customer.address1}</p>}
+                    {customer.address2 && <p>{customer.address2}</p>}
+                    <p>
+                      {[customer.city, customer.province, customer.zip].filter(Boolean).join(', ')}
+                    </p>
+                    {customer.country && <p>{customer.country}</p>}
+                  </div>
+                ) : (
+                  <p className="text-sm text-gray-400 italic">No address on file</p>
+                )
+              )}
+            </div>
           </CardContent>
         </Card>
 
