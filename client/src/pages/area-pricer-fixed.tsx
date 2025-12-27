@@ -3,11 +3,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/com
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Button } from "@/components/ui/button";
-import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Calculator, Plus, Sheet, Trash2 } from "lucide-react";
+import { Calculator, Plus, Sheet, Trash2, RotateCcw } from "lucide-react";
 import { toast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
 
@@ -405,25 +404,45 @@ export default function AreaPricer() {
               <CardDescription className="text-gray-600">Enter dimensions and pricing information</CardDescription>
             </CardHeader>
           <CardContent className="space-y-4 sm:space-y-6">
-            {/* Calculation Type */}
+            {/* Calculation Type Toggle */}
             <div>
-              <Label className="text-sm sm:text-base font-medium">Calculation Type</Label>
-              <RadioGroup
-                value={calculationType}
-                onValueChange={(value) => setCalculationType(value as "sheets" | "roll")}
-                className="flex flex-col sm:flex-row gap-2 sm:gap-4 mt-2"
-              >
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="sheets" id="sheets" />
-                  <Label htmlFor="sheets" className="text-sm sm:text-base">Sheets <span className="text-xs font-normal text-gray-500">(inches)</span></Label>
-                </div>
-                <div className="flex items-center space-x-2">
-                  <RadioGroupItem value="roll" id="roll" />
-                  <Label htmlFor="roll" className="text-sm sm:text-base">Roll <span className="text-xs font-normal text-gray-500">(width: inches, length: feet)</span></Label>
-                </div>
-              </RadioGroup>
+              <Label className="text-sm sm:text-base font-medium mb-2 block">Calculation Type</Label>
+              <div className="flex rounded-xl bg-gray-100 p-1 gap-1">
+                <button
+                  type="button"
+                  onClick={() => setCalculationType("sheets")}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    calculationType === "sheets"
+                      ? "bg-white text-purple-700 shadow-md"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                  data-testid="toggle-sheets"
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <Sheet className="h-5 w-5" />
+                    <span>Sheets</span>
+                    <span className="text-xs font-normal opacity-70">W × H in inches</span>
+                  </div>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => setCalculationType("roll")}
+                  className={`flex-1 py-3 px-4 rounded-lg text-sm font-medium transition-all duration-200 ${
+                    calculationType === "roll"
+                      ? "bg-white text-blue-700 shadow-md"
+                      : "text-gray-600 hover:text-gray-800"
+                  }`}
+                  data-testid="toggle-roll"
+                >
+                  <div className="flex flex-col items-center gap-1">
+                    <RotateCcw className="h-5 w-5" />
+                    <span>Roll</span>
+                    <span className="text-xs font-normal opacity-70">Width: in, Length: ft</span>
+                  </div>
+                </button>
+              </div>
               {calculationType === "roll" && (
-                <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                <div className="mt-3 p-2 bg-blue-50 rounded-lg border border-blue-200">
                   <p className="text-xs text-blue-700">
                     <strong>Formula:</strong> Width<sub>in</sub> ÷ 12 × Length<sub>ft</sub> × Qty = Total Sq Ft
                   </p>
