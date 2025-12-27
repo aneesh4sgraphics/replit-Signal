@@ -67,6 +67,7 @@ import {
   TrendingUp,
   Calendar,
   AlertTriangle,
+  GitMerge,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import {
@@ -1188,6 +1189,23 @@ export default function ClientDatabase() {
               </Button>
             </>
           )}
+          <Button 
+            onClick={() => {
+              if (selectedForMerge.size > 0) {
+                setSelectedForMerge(new Set());
+              } else {
+                toast({
+                  title: "Merge Mode",
+                  description: "Select 2 clients from the list to merge them together",
+                });
+              }
+            }} 
+            variant={selectedForMerge.size > 0 ? "secondary" : "outline"}
+            data-testid="button-merge-mode"
+          >
+            <GitMerge className="h-4 w-4 mr-2" />
+            {selectedForMerge.size > 0 ? `Merging (${selectedForMerge.size}/2)` : 'Merge Clients'}
+          </Button>
           <Button onClick={handleCreateCustomer} data-testid="button-create-client">
             <Plus className="h-4 w-4 mr-2" />
             Add Client
