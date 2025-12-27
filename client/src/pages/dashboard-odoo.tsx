@@ -49,6 +49,8 @@ interface CRMStats {
   pendingSwatches: number;
   activePressProfiles: number;
   pendingFeedback: number;
+  samplesWithTracking: number;
+  swatchesWithTracking: number;
 }
 
 const appTiles = [
@@ -142,7 +144,7 @@ export default function Dashboard() {
   
   const isAdmin = (user as any)?.role === 'admin';
 
-  const totalSamplesSent = (crmStats?.pendingSamples || 0) + (crmStats?.pendingSwatches || 0);
+  const totalSamplesSent = (crmStats?.samplesWithTracking || 0) + (crmStats?.swatchesWithTracking || 0);
   
   const statCards = [
     { 
@@ -170,7 +172,7 @@ export default function Dashboard() {
     { 
       label: 'Samples Sent', 
       value: totalSamplesSent.toString(),
-      change: `${crmStats?.pendingSwatches || 0} swatches, ${crmStats?.pendingSamples || 0} press kits`,
+      change: `${crmStats?.swatchesWithTracking || 0} swatches, ${crmStats?.samplesWithTracking || 0} press kits`,
       icon: Package,
       gradient: 'linear-gradient(135deg, rgba(196, 181, 253, 0.5), rgba(167, 139, 250, 0.4))',
       glowColor: 'rgba(196, 181, 253, 0.2)',

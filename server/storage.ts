@@ -347,6 +347,8 @@ export interface IStorage {
     pendingSwatches: number;
     activePressProfiles: number;
     pendingFeedback: number;
+    samplesWithTracking: number;
+    swatchesWithTracking: number;
   }>;
 }
 
@@ -1799,6 +1801,8 @@ export class DatabaseStorage implements IStorage {
     pendingSwatches: number;
     activePressProfiles: number;
     pendingFeedback: number;
+    samplesWithTracking: number;
+    swatchesWithTracking: number;
   }> {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
@@ -1847,6 +1851,20 @@ export class DatabaseStorage implements IStorage {
     const allPressProfiles = await db.select({ id: pressProfiles.id }).from(pressProfiles);
     const activePressProfiles = allPressProfiles.length;
 
+    // Samples with tracking: Press test journeys that have a tracking number added
+    const samplesWithTrackingList = await db
+      .select({ id: pressTestJourneyDetails.id })
+      .from(pressTestJourneyDetails)
+      .where(isNotNull(pressTestJourneyDetails.trackingNumber));
+    const samplesWithTracking = samplesWithTrackingList.length;
+
+    // Swatches with tracking: Swatch shipments that have a tracking number
+    const swatchesWithTrackingList = await db
+      .select({ id: swatchBookShipments.id })
+      .from(swatchBookShipments)
+      .where(isNotNull(swatchBookShipments.trackingNumber));
+    const swatchesWithTracking = swatchesWithTrackingList.length;
+
     // Pending feedback: Press test journeys with tracking/received but no result
     const pendingFeedbackList = await db
       .select({ id: pressTestJourneyDetails.id })
@@ -1876,6 +1894,8 @@ export class DatabaseStorage implements IStorage {
       pendingSwatches,
       activePressProfiles,
       pendingFeedback,
+      samplesWithTracking,
+      swatchesWithTracking,
     };
   }
 }
