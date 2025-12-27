@@ -58,6 +58,7 @@ import { addPricingRoutes } from "./routes-pricing";
 import pricingDatabaseRoutes from "./routes-pricing-database";
 import { APP_CONFIG, isAdminEmail, getUserRoleFromEmail, getAccessibleTiers, debugLog } from "./config";
 import { searchNotionProducts } from "./notion";
+import { autoTrackQuoteSent, autoTrackPriceListSent, autoTrackSampleShipped, findCustomerIdByEmail, findCustomerIdByName } from "./activity-tracker";
 
 // Simple in-memory cache for frequently accessed data
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -165,6 +166,14 @@ async function saveProductDataToFile() {
 }
 
 export async function registerRoutes(app: Express): Promise<Server> {
+  // Initialize default follow-up configurations on startup
+  try {
+    await storage.initDefaultFollowUpConfig();
+    console.log("✅ Default follow-up configs initialized");
+  } catch (err) {
+    console.error("Failed to initialize follow-up configs:", err);
+  }
+  
   // Register public/debug routes BEFORE auth middleware
   // Test database connection (no auth required for debugging)
   app.get("/api/test-db", async (req: any, res) => {
@@ -2462,7 +2471,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Send email quote
   app.post("/api/send-email-quote", isAuthenticated, async (req: any, res) => {
     try {
-      const { customerName, customerEmail, quoteItems } = req.body;
+      const { customerName, customerEmail, quoteItems, customerId } = req.body;
       
       if (!customerName || !customerEmail || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
         return res.status(400).json({ error: "Customer name, email, and quote items are required" });
@@ -2475,7 +2484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
       
       // Save quote to database
-      await storage.createSentQuote({
+      const savedQuote = await storage.createSentQuote({
         quoteNumber,
         customerName,
         customerEmail,
@@ -2484,6 +2493,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         sentVia: 'email',
         status: 'sent'
       });
+      
+      // Auto-track customer activity (non-blocking)
+      const resolvedCustomerId = customerId || await findCustomerIdByEmail(customerEmail) || await findCustomerIdByName(customerName);
+      if (resolvedCustomerId) {
+        autoTrackQuoteSent({
+          customerId: resolvedCustomerId,
+          quoteNumber,
+          quoteId: savedQuote.id,
+          totalAmount: totalAmount.toString(),
+          itemCount: quoteItems.length,
+          quoteItems,
+          sentVia: 'email',
+          userId: req.user?.id,
+          userName: req.user?.firstName || req.user?.email,
+        }).catch(err => console.error('Auto-track error:', err));
+      }
       
       // TODO: Implement actual email sending
       // For now, just return success
@@ -3517,6 +3542,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
         
         console.log('✅ Price list saved to Saved Quotes with number:', quoteNumber);
+        
+        // Auto-track price list activity (non-blocking) - use customerId from request if provided
+        const { customerId } = req.body;
+        const resolvedCustomerId = customerId || (customerName ? await findCustomerIdByName(customerName) : null);
+        if (resolvedCustomerId) {
+          autoTrackPriceListSent({
+            customerId: resolvedCustomerId,
+            quoteNumber,
+            category: selectedCategory,
+            tier: selectedTier,
+            itemCount: priceListItems.length,
+            priceListItems,
+            userId: (req as any).user?.id,
+            userName: (req as any).user?.firstName || (req as any).user?.email,
+          }).catch(err => console.error('Auto-track price list error:', err));
+        }
       } catch (saveError) {
         console.error('❌ Error saving price list to Saved Quotes:', saveError);
         // Don't fail the PDF generation if saving fails
@@ -4756,10 +4797,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/crm/sample-requests", isAuthenticated, async (req, res) => {
+  app.post("/api/crm/sample-requests", isAuthenticated, async (req: any, res) => {
     try {
       const validatedData = insertSampleRequestSchema.parse(req.body);
       const request = await storage.createSampleRequest(validatedData);
+      
+      // Auto-track sample request (non-blocking)
+      if (request.customerId) {
+        autoTrackSampleShipped({
+          customerId: request.customerId,
+          sampleRequestId: request.id,
+          productId: request.productId || undefined,
+          productName: request.productName || undefined,
+          status: request.status,
+          userId: req.user?.id,
+          userName: req.user?.firstName || req.user?.email,
+        }).catch(err => console.error('Auto-track sample error:', err));
+      }
+      
       res.status(201).json(request);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -4770,13 +4825,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.put("/api/crm/sample-requests/:id", isAuthenticated, async (req, res) => {
+  app.put("/api/crm/sample-requests/:id", isAuthenticated, async (req: any, res) => {
     try {
       const validatedData = insertSampleRequestSchema.partial().parse(req.body);
       const request = await storage.updateSampleRequest(parseInt(req.params.id), validatedData);
       if (!request) {
         return res.status(404).json({ error: "Sample request not found" });
       }
+      
+      // Auto-track sample status change if status was updated (non-blocking)
+      if (validatedData.status && request.customerId) {
+        autoTrackSampleShipped({
+          customerId: request.customerId,
+          sampleRequestId: request.id,
+          productId: request.productId || undefined,
+          productName: request.productName || undefined,
+          status: request.status,
+          trackingNumber: request.trackingNumber || undefined,
+          userId: req.user?.id,
+          userName: req.user?.firstName || req.user?.email,
+        }).catch(err => console.error('Auto-track sample update error:', err));
+      }
+      
       res.json(request);
     } catch (error) {
       if (error instanceof z.ZodError) {

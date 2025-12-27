@@ -564,6 +564,8 @@ export const sampleRequests = pgTable("sample_requests", {
   testOwnerRole: varchar("test_owner_role", { length: 100 }),
   quantity: integer("quantity"),
   status: varchar("status", { length: 50 }).notNull().default("pending"), // pending, shipped, testing, completed, cancelled
+  trackingNumber: varchar("tracking_number", { length: 100 }), // Shipping tracking number
+  shippedAt: timestamp("shipped_at"), // When sample was shipped
   notes: text("notes"),
   createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
