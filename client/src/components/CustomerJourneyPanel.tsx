@@ -46,7 +46,49 @@ import {
   ChevronRight,
   Trash2,
   AlertCircle,
+  ExternalLink,
 } from "lucide-react";
+
+// Helper function to detect carrier and get tracking URL
+function getTrackingUrl(trackingNumber: string): { carrier: string; url: string } | null {
+  if (!trackingNumber) return null;
+  
+  const cleanNumber = trackingNumber.replace(/\s+/g, '').toUpperCase();
+  
+  // UPS: Starts with 1Z, or is 9-22 digits
+  if (cleanNumber.startsWith('1Z') || /^[0-9]{9,22}$/.test(cleanNumber)) {
+    if (cleanNumber.startsWith('1Z') || (cleanNumber.length >= 18 && cleanNumber.length <= 22)) {
+      return {
+        carrier: 'UPS',
+        url: `https://www.ups.com/track?tracknum=${encodeURIComponent(trackingNumber)}`
+      };
+    }
+  }
+  
+  // FedEx: 12, 15, 20, or 22 digits
+  if (/^[0-9]{12}$|^[0-9]{15}$|^[0-9]{20}$|^[0-9]{22}$/.test(cleanNumber)) {
+    return {
+      carrier: 'FedEx',
+      url: `https://www.fedex.com/fedextrack/?trknbr=${encodeURIComponent(trackingNumber)}`
+    };
+  }
+  
+  // USPS: 20-22 digits, or starts with specific prefixes
+  if (/^[0-9]{20,22}$/.test(cleanNumber) || 
+      /^(94|93|92|91|90|13|14|23|24)[0-9]+$/.test(cleanNumber) ||
+      cleanNumber.startsWith('EC') || cleanNumber.startsWith('CP')) {
+    return {
+      carrier: 'USPS',
+      url: `https://tools.usps.com/go/TrackConfirmAction?tLabels=${encodeURIComponent(trackingNumber)}`
+    };
+  }
+  
+  // Default to a multi-carrier tracking site if we can't identify
+  return {
+    carrier: 'Package',
+    url: `https://www.google.com/search?q=track+package+${encodeURIComponent(trackingNumber)}`
+  };
+}
 import type { 
   Customer, 
   CustomerJourneyInstance, 
@@ -742,9 +784,29 @@ function JourneyDetailDialog({
                 <span>{journey.details?.quantityRequested || 'Not specified'}</span>
               </div>
               {journey.details?.trackingNumber && (
-                <div className="flex justify-between">
+                <div className="flex justify-between items-center">
                   <span className="text-muted-foreground">Tracking:</span>
-                  <span className="font-mono text-xs">{journey.details.trackingNumber}</span>
+                  <div className="flex items-center gap-2">
+                    <span className="font-mono text-xs">{journey.details.trackingNumber}</span>
+                    {(() => {
+                      const trackingInfo = getTrackingUrl(journey.details.trackingNumber);
+                      if (trackingInfo) {
+                        return (
+                          <Button
+                            variant="outline"
+                            size="sm"
+                            className="h-6 px-2 text-xs"
+                            onClick={() => window.open(trackingInfo.url, '_blank')}
+                            data-testid="btn-track-package"
+                          >
+                            <ExternalLink className="w-3 h-3 mr-1" />
+                            Track
+                          </Button>
+                        );
+                      }
+                      return null;
+                    })()}
+                  </div>
                 </div>
               )}
             </CardContent>
@@ -777,7 +839,24 @@ function JourneyDetailDialog({
 
           {journey.instance.currentStep === 'tracking_added' && (
             <Card className="border-blue-200 bg-blue-50/50">
-              <CardContent className="pt-4">
+              <CardContent className="pt-4 space-y-3">
+                {journey.details?.trackingNumber && (() => {
+                  const trackingInfo = getTrackingUrl(journey.details.trackingNumber);
+                  if (trackingInfo) {
+                    return (
+                      <Button
+                        variant="outline"
+                        className="w-full"
+                        onClick={() => window.open(trackingInfo.url, '_blank')}
+                        data-testid="btn-track-package-step"
+                      >
+                        <ExternalLink className="w-4 h-4 mr-2" />
+                        Track Package ({trackingInfo.carrier})
+                      </Button>
+                    );
+                  }
+                  return null;
+                })()}
                 <Button 
                   onClick={() => handleAdvance('received')}
                   disabled={advanceJourneyMutation.isPending}
