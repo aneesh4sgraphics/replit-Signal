@@ -311,9 +311,10 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
                      process.env.NODE_ENV === 'development';
 
   if (isTrueLocalDev || isReplitDev) {
-    // Create a mock user for development
+    // Create a mock user for development with email at both levels for compatibility
     req.user = {
       id: 'dev-user-123',
+      email: 'test@4sgraphics.com',
       role: 'admin',
       claims: {
         sub: 'dev-user-123',
@@ -367,8 +368,11 @@ export const requireApproval: RequestHandler = async (req, res, next) => {
                      process.env.NODE_ENV === 'development';
 
   if (isTrueLocalDev || isReplitDev) {
-    // Create a mock user for development
+    // Create a mock user for development with email at both levels for compatibility
     req.user = {
+      id: 'dev-user-123',
+      email: 'aneesh@4sgraphics.com',
+      role: 'admin',
       claims: {
         sub: 'dev-user-123',
         email: 'aneesh@4sgraphics.com',
