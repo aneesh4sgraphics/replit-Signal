@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useState, useMemo } from "react";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -60,6 +60,53 @@ export default function AreaPricer() {
   // Loading states
   const [isCalculating, setIsCalculating] = useState(false);
   const [isAddingToCompInfo, setIsAddingToCompInfo] = useState(false);
+
+  // Live calculation - updates as user types
+  const livePreview = useMemo(() => {
+    const w = parseFloat(width);
+    const h = parseFloat(height);
+    const qty = parseFloat(sheetsPerPack);
+    const price = parseFloat(pricePerPack);
+
+    if (isNaN(w) || isNaN(h) || isNaN(qty) || isNaN(price) || 
+        w <= 0 || h <= 0 || qty <= 0 || price <= 0) {
+      return null;
+    }
+
+    let totalSqIn: number;
+    let totalSqFt: number;
+    let totalSqMeter: number;
+    let pricePerSqIn: number;
+    let pricePerSqFt: number;
+    let pricePerSqMeter: number;
+
+    if (calculationType === "sheets") {
+      totalSqIn = w * h * qty;
+      totalSqFt = totalSqIn / 144;
+      totalSqMeter = totalSqFt / 10.7639;
+      pricePerSqIn = price / totalSqIn;
+      pricePerSqFt = pricePerSqIn * 144;
+      pricePerSqMeter = pricePerSqFt * 10.7639;
+    } else {
+      const widthInFeet = w / 12;
+      const lengthInFeet = h;
+      totalSqFt = widthInFeet * lengthInFeet * qty;
+      totalSqIn = totalSqFt * 144;
+      totalSqMeter = totalSqFt / 10.7639;
+      pricePerSqFt = price / totalSqFt;
+      pricePerSqIn = pricePerSqFt / 144;
+      pricePerSqMeter = pricePerSqFt * 10.7639;
+    }
+
+    return {
+      pricePerSqIn,
+      pricePerSqFt,
+      pricePerSqMeter,
+      totalSqIn,
+      totalSqFt,
+      totalSqMeter
+    };
+  }, [width, height, sheetsPerPack, pricePerPack, calculationType]);
 
   const calculate = () => {
     setIsCalculating(true);
@@ -375,6 +422,13 @@ export default function AreaPricer() {
                   <Label htmlFor="roll" className="text-sm sm:text-base">Roll <span className="text-xs font-normal text-gray-500">(width: inches, length: feet)</span></Label>
                 </div>
               </RadioGroup>
+              {calculationType === "roll" && (
+                <div className="mt-2 p-2 bg-blue-50 rounded-lg border border-blue-200">
+                  <p className="text-xs text-blue-700">
+                    <strong>Formula:</strong> Width<sub>in</sub> ÷ 12 × Length<sub>ft</sub> × Qty = Total Sq Ft
+                  </p>
+                </div>
+              )}
             </div>
 
             {/* Dimensions */}
@@ -545,16 +599,6 @@ export default function AreaPricer() {
                   </div>
                 )}
               </div>
-              <div>
-                <Label htmlFor="supplierInfo" className="text-sm sm:text-base font-medium">Supplier Info</Label>
-                <Input
-                  id="supplierInfo"
-                  value={supplierInfo}
-                  onChange={(e) => setSupplierInfo(e.target.value)}
-                  placeholder="Supplier Name"
-                  className="mt-1"
-                />
-              </div>
             </div>
 
             <div>
@@ -647,10 +691,41 @@ export default function AreaPricer() {
                   Add to Sheet
                 </Button>
               </div>
+            ) : livePreview ? (
+              <div className="space-y-4">
+                <div className="flex items-center gap-2 mb-2">
+                  <div className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></div>
+                  <span className="text-xs text-green-600 font-medium">Live Preview</span>
+                </div>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                  <div className="p-3 sm:p-4 bg-gradient-to-br from-blue-100/60 to-blue-50/40 backdrop-blur-sm rounded-xl border border-blue-200/30 shadow-sm">
+                    <h4 className="font-semibold text-blue-900/70 text-sm sm:text-base">Price per Square Inch</h4>
+                    <p className="text-lg sm:text-2xl font-bold text-blue-600">${livePreview.pricePerSqIn.toFixed(4)}</p>
+                  </div>
+                  <div className="p-3 sm:p-4 bg-gradient-to-br from-green-100/60 to-green-50/40 backdrop-blur-sm rounded-xl border border-green-200/30 shadow-sm">
+                    <h4 className="font-semibold text-green-900/70 text-sm sm:text-base">Price per Square Foot</h4>
+                    <p className="text-lg sm:text-2xl font-bold text-green-600">${livePreview.pricePerSqFt.toFixed(4)}</p>
+                  </div>
+                  <div className="p-3 sm:p-4 bg-gradient-to-br from-purple-100/60 to-purple-50/40 backdrop-blur-sm rounded-xl border border-purple-200/30 shadow-sm">
+                    <h4 className="font-semibold text-purple-900/70 text-sm sm:text-base">Price per Square Meter</h4>
+                    <p className="text-lg sm:text-2xl font-bold text-purple-600">${livePreview.pricePerSqMeter.toFixed(4)}</p>
+                  </div>
+                  <div className="p-3 sm:p-4 bg-gradient-to-br from-orange-100/60 to-orange-50/40 backdrop-blur-sm rounded-xl border border-orange-200/30 shadow-sm">
+                    <h4 className="font-semibold text-orange-900/70 text-sm sm:text-base">Total Area</h4>
+                    <p className="text-lg sm:text-2xl font-bold text-orange-600">
+                      {calculationType === "sheets" 
+                        ? `${livePreview.totalSqIn.toFixed(2)} in²`
+                        : `${livePreview.totalSqFt.toFixed(2)} ft²`
+                      }
+                    </p>
+                  </div>
+                </div>
+                <p className="text-xs text-gray-500 text-center">Click "Calculate" to save and add to sheet</p>
+              </div>
             ) : (
               <div className="text-center py-8">
                 <Calculator className="h-12 w-12 text-gray-400 mx-auto mb-4" />
-                <p className="text-gray-500">Enter dimensions and click Calculate to see results</p>
+                <p className="text-gray-500">Enter dimensions to see live pricing</p>
               </div>
             )}
           </CardContent>
