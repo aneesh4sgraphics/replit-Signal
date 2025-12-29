@@ -492,7 +492,15 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
       logActivity("PRINTED LABEL", `SwatchBook label for ${recipientDesc}`);
     } else if (printLabelType === 'presskit') {
-      createPressKitShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
+      // Create a sample request for Press Kit so it shows in Samples tab
+      createSampleMutation.mutate({
+        customerId: String(customer.id),
+        productCategory: 'press_kit',
+        productName: 'Press Kit',
+        quantity: '1',
+        status: 'shipped',
+        notes: `Addressed to: ${selectedPrintPerson?.name || 'N/A'}${printLabelNotes ? ` - ${printLabelNotes}` : ''}`,
+      });
       logActivity("PRINTED LABEL", `Press Kit label for ${recipientDesc}`);
     } else if (printLabelType === 'mailer') {
       logActivity("PRINTED LABEL", `Mailer label for ${recipientDesc}${printLabelNotes ? ` - Mailer: ${printLabelNotes}` : ''}`);
