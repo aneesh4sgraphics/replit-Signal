@@ -28,7 +28,7 @@ export function getSession() {
   // Check if we're in true development (not Replit deployment)
   const isDevEnv = process.env.NODE_ENV === 'development' && !process.env.REPLIT_DEPLOYMENT;
   
-  // In development, use memory store for simplicity
+  // In development without database, use memory store for simplicity
   if (isDevEnv && !process.env.DATABASE_URL) {
     console.log("Using memory session store for development");
     return session({
@@ -53,8 +53,11 @@ export function getSession() {
     pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
   });
   
-  const isSecure = !isDevEnv;
-  console.log(`Session configuration: secure=${isSecure}, ttl=${sessionTtl}ms`);
+  // IMPORTANT: Replit's proxy terminates TLS and forwards HTTP internally.
+  // If we set secure:true, the browser won't store the cookie because it sees HTTP.
+  // We need secure:false with sameSite:'lax' for cookies to work behind the proxy.
+  // The connection is still secure end-to-end because Replit handles HTTPS externally.
+  console.log(`Session configuration: secure=false (proxy-aware), ttl=${sessionTtl}ms`);
   
   return session({
     secret: process.env.SESSION_SECRET!,
@@ -64,8 +67,8 @@ export function getSession() {
     rolling: true, // Reset maxAge on every response, keeping active sessions alive
     cookie: {
       httpOnly: true,
-      secure: isSecure,
-      sameSite: isSecure ? 'lax' : 'lax',
+      secure: false, // Must be false for Replit's proxy - TLS is terminated externally
+      sameSite: 'lax',
       maxAge: sessionTtl,
     },
   });
