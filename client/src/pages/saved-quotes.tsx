@@ -54,6 +54,23 @@ export default function SavedQuotes() {
   const [editingEmail, setEditingEmail] = useState<number | null>(null);
   const [editEmailValue, setEditEmailValue] = useState("");
   const ITEMS_PER_PAGE = 25;
+
+  const getStatusVariant = (status: string): "default" | "secondary" | "destructive" | "outline" => {
+    switch (status?.toLowerCase()) {
+      case 'sent':
+        return 'default';
+      case 'viewed':
+        return 'secondary';
+      case 'accepted':
+        return 'default';
+      case 'rejected':
+        return 'destructive';
+      case 'expired':
+        return 'outline';
+      default:
+        return 'outline';
+    }
+  };
   
   const { data: sentQuotes, isLoading: quotesLoading, error: quotesError } = useQuery({
     queryKey: ["/api/sent-quotes", (user as any)?.id],
