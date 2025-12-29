@@ -6526,6 +6526,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // AUTO-SYNC CATEGORY TRUST FROM EXISTING DATA
+  // ========================================
+
+  // Sync category trust from sample requests and test outcomes
+  app.post("/api/crm/category-trust/:customerId/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get sample requests for this customer
+      const samples = await storage.getSampleRequestsByCustomerId(customerId);
+      
+      // Get test outcomes
+      const outcomes = await db.select().from(testOutcomes).where(eq(testOutcomes.customerId, customerId));
+      
+      // Get existing category trusts
+      const existingTrusts = await db.select().from(categoryTrust).where(eq(categoryTrust.customerId, customerId));
+      const existingMap = new Map(existingTrusts.map(t => [t.categoryName, t]));
+      
+      const synced: any[] = [];
+      
+      // Process sample requests - extract category from product name
+      for (const sample of samples) {
+        if (!sample.productName) continue;
+        
+        // Try to extract category from product name (e.g., "Endurance C1S 12pt" → "C1S")
+        const categoryMatch = sample.productName.match(/\b(C1S|C2S|SBS|CCK|CCNB|FBB|FOLDING_CARTON|TAG|LABELS|TEXTWEIGHT|COVER|BOND|BRISTOL|INDEX|VELLUM|OFFSET)\b/i);
+        if (!categoryMatch) continue;
+        
+        const categoryName = categoryMatch[1].toUpperCase();
+        const existing = existingMap.get(categoryName);
+        
+        // Determine trust level based on sample status
+        let trustLevel = 'introduced';
+        if (sample.status === 'testing' || sample.status === 'shipped') {
+          trustLevel = 'evaluated';
+        } else if (sample.status === 'completed') {
+          // Check if there's a passing test outcome
+          const outcome = outcomes.find(o => o.sampleRequestId === sample.id);
+          if (outcome?.overallResult === 'pass') {
+            trustLevel = 'adopted';
+          } else if (outcome) {
+            trustLevel = 'evaluated';
+          }
+        }
+        
+        // Only update if new level is higher
+        const trustLevelOrder = { 'not_introduced': 0, 'introduced': 1, 'evaluated': 2, 'adopted': 3, 'habitual': 4 };
+        const currentLevel = existing?.trustLevel || 'not_introduced';
+        
+        if ((trustLevelOrder as any)[trustLevel] > (trustLevelOrder as any)[currentLevel]) {
+          if (existing) {
+            await db.update(categoryTrust)
+              .set({ 
+                trustLevel,
+                updatedBy: req.user?.email || 'auto-sync',
+                updatedAt: new Date(),
+                lastOrderDate: sample.createdAt,
+              })
+              .where(eq(categoryTrust.id, existing.id));
+            synced.push({ categoryName, trustLevel, action: 'updated' });
+          } else {
+            await db.insert(categoryTrust).values({
+              customerId,
+              categoryName,
+              trustLevel,
+              updatedBy: req.user?.email || 'auto-sync',
+              lastOrderDate: sample.createdAt,
+            });
+            synced.push({ categoryName, trustLevel, action: 'created' });
+          }
+        }
+      }
+      
+      res.json({ success: true, synced, message: `Synced ${synced.length} category trusts from existing data` });
+    } catch (error) {
+      console.error("Error syncing category trust:", error);
+      res.status(500).json({ error: "Failed to sync category trust" });
+    }
+  });
+
+  // ========================================
   // MACHINE PROFILE APIs
   // ========================================
 

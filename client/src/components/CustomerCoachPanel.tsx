@@ -214,6 +214,24 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
     },
   });
 
+  const syncFromDataMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/crm/category-trust/${customer.id}/sync`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      refetchTrusts();
+      if (data.synced?.length > 0) {
+        toast({ title: "Synced", description: `Updated ${data.synced.length} categories from samples` });
+      } else {
+        toast({ title: "Up to date", description: "No new data to sync" });
+      }
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to sync data", variant: "destructive" });
+    },
+  });
+
   const confirmedMachines = machineProfiles.filter(p => p.status === 'confirmed').map(p => p.machineFamily);
   const inferredMachines = machineProfiles.filter(p => p.status === 'inferred').map(p => p.machineFamily);
   const allMachines = [...confirmedMachines, ...inferredMachines];
@@ -422,6 +440,23 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
               Category Trust
             </CardTitle>
             <div className="flex items-center gap-2">
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      className="h-6 w-6 p-0"
+                      onClick={() => syncFromDataMutation.mutate()}
+                      disabled={syncFromDataMutation.isPending}
+                      data-testid="sync-category-trust"
+                    >
+                      <RefreshCw className={`h-3 w-3 ${syncFromDataMutation.isPending ? 'animate-spin' : ''}`} />
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Sync from samples</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
               <span className="text-xs text-gray-500">{adoptedCount}/{compatibleCategories.length}</span>
               <Progress value={trustProgress} className="w-20 h-2" />
             </div>
