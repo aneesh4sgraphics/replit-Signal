@@ -65,7 +65,12 @@ import {
   quoteEvents, 
   priceListEvents, 
   pressProfiles, 
-  testOutcomes 
+  testOutcomes,
+  categoryTrust,
+  customerCoachState,
+  CUSTOMER_STATES,
+  TRUST_LEVELS,
+  COACH_NUDGE_ACTIONS
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -6251,6 +6256,259 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error sending email:", error);
       res.status(500).json({ error: "Failed to send email" });
     }
+  });
+
+  // ========================================
+  // COACH-STYLE B2B CUSTOMER JOURNEY APIs
+  // ========================================
+
+  // Get category trust for a customer
+  app.get("/api/crm/category-trust/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      const trusts = await db.select().from(categoryTrust).where(eq(categoryTrust.customerId, customerId));
+      res.json(trusts);
+    } catch (error) {
+      console.error("Error fetching category trust:", error);
+      res.status(500).json({ error: "Failed to fetch category trust" });
+    }
+  });
+
+  // Create or update category trust (click-based progression)
+  app.post("/api/crm/category-trust", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId, categoryName, machineType, trustLevel, notes } = req.body;
+      
+      if (!customerId || !categoryName) {
+        return res.status(400).json({ error: "customerId and categoryName are required" });
+      }
+
+      // Check if trust record exists
+      const existing = await db.select().from(categoryTrust)
+        .where(sql`${categoryTrust.customerId} = ${customerId} AND ${categoryTrust.categoryName} = ${categoryName} AND COALESCE(${categoryTrust.machineType}, '') = COALESCE(${machineType || ''}, '')`);
+
+      let result;
+      if (existing.length > 0) {
+        // Update existing
+        result = await db.update(categoryTrust)
+          .set({ 
+            trustLevel: trustLevel || existing[0].trustLevel,
+            notes: notes !== undefined ? notes : existing[0].notes,
+            updatedBy: req.user?.email,
+            updatedAt: new Date()
+          })
+          .where(eq(categoryTrust.id, existing[0].id))
+          .returning();
+      } else {
+        // Create new
+        result = await db.insert(categoryTrust).values({
+          customerId,
+          categoryName,
+          machineType: machineType || null,
+          trustLevel: trustLevel || 'unknown',
+          notes,
+          updatedBy: req.user?.email,
+        }).returning();
+      }
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error creating/updating category trust:", error);
+      res.status(500).json({ error: "Failed to update category trust" });
+    }
+  });
+
+  // Advance trust level (single click progression)
+  app.post("/api/crm/category-trust/:id/advance", isAuthenticated, async (req: any, res) => {
+    try {
+      const { id } = req.params;
+      
+      const existing = await db.select().from(categoryTrust).where(eq(categoryTrust.id, parseInt(id)));
+      if (existing.length === 0) {
+        return res.status(404).json({ error: "Category trust not found" });
+      }
+
+      const current = existing[0];
+      const currentIndex = TRUST_LEVELS.indexOf(current.trustLevel as any);
+      const nextIndex = Math.min(currentIndex + 1, TRUST_LEVELS.length - 1);
+      const nextLevel = TRUST_LEVELS[nextIndex];
+
+      const result = await db.update(categoryTrust)
+        .set({ 
+          trustLevel: nextLevel,
+          updatedBy: req.user?.email,
+          updatedAt: new Date()
+        })
+        .where(eq(categoryTrust.id, parseInt(id)))
+        .returning();
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error advancing trust level:", error);
+      res.status(500).json({ error: "Failed to advance trust level" });
+    }
+  });
+
+  // Get coach state for a customer
+  app.get("/api/crm/coach-state/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      const state = await db.select().from(customerCoachState).where(eq(customerCoachState.customerId, customerId));
+      
+      if (state.length === 0) {
+        // Return calculated state based on customer data
+        const customer = await storage.getCustomer(customerId);
+        if (!customer) {
+          return res.status(404).json({ error: "Customer not found" });
+        }
+
+        // Calculate state from existing data
+        const samples = await storage.getSampleRequestsByCustomerId(customerId);
+        const quotes = await db.select().from(quoteEvents).where(eq(quoteEvents.customerId, customerId));
+        
+        let currentState: string = 'prospect';
+        let nudgeAction: string | null = null;
+        let nudgeReason: string | null = null;
+
+        const totalOrders = parseInt(customer.totalOrders || '0');
+        const hasSamples = samples.length > 0;
+        const hasQuotes = quotes.length > 0;
+
+        if (totalOrders >= 5) {
+          currentState = 'loyal';
+          nudgeAction = 'celebrate_milestone';
+          nudgeReason = `${totalOrders} orders placed - maintain relationship`;
+        } else if (totalOrders >= 2) {
+          currentState = 'repeat';
+          nudgeAction = 'check_reorder';
+          nudgeReason = 'Check if reorder is due';
+        } else if (totalOrders >= 1) {
+          currentState = 'ordered';
+          nudgeAction = 'follow_up_quote';
+          nudgeReason = 'Follow up on first order experience';
+        } else if (hasSamples) {
+          currentState = 'sampled';
+          nudgeAction = 'follow_up_sample';
+          nudgeReason = 'Follow up on sample feedback';
+        } else if (hasQuotes) {
+          currentState = 'engaged';
+          nudgeAction = 'send_sample';
+          nudgeReason = 'Quote sent - offer samples to test';
+        } else {
+          currentState = 'prospect';
+          nudgeAction = 'send_swatchbook';
+          nudgeReason = 'New contact - introduce with SwatchBook';
+        }
+
+        return res.json({
+          customerId,
+          currentState,
+          stateConfidence: 80,
+          totalOrders,
+          nextNudgeAction: nudgeAction,
+          nextNudgeReason: nudgeReason,
+          nextNudgePriority: 'normal',
+          isCalculated: true, // Flag that this is computed, not stored
+        });
+      }
+
+      res.json(state[0]);
+    } catch (error) {
+      console.error("Error fetching coach state:", error);
+      res.status(500).json({ error: "Failed to fetch coach state" });
+    }
+  });
+
+  // Update coach state (after rep takes action)
+  app.post("/api/crm/coach-state/:customerId/action", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { action, notes } = req.body;
+
+      // Log the action taken
+      await storage.createActivityEvent({
+        customerId,
+        eventType: action,
+        title: `Coach Action: ${COACH_NUDGE_ACTIONS[action as keyof typeof COACH_NUDGE_ACTIONS]?.label || action}`,
+        description: notes,
+        createdBy: req.user?.email,
+      });
+
+      // Recalculate and update state
+      const customer = await storage.getCustomer(customerId);
+      const samples = await storage.getSampleRequestsByCustomerId(customerId);
+      const quotes = await db.select().from(quoteEvents).where(eq(quoteEvents.customerId, customerId));
+      
+      const totalOrders = parseInt(customer?.totalOrders || '0');
+      const hasSamples = samples.length > 0;
+      const hasQuotes = quotes.length > 0;
+
+      let currentState = 'prospect';
+      let nudgeAction: string | null = null;
+      let nudgeReason: string | null = null;
+
+      if (totalOrders >= 5) {
+        currentState = 'loyal';
+      } else if (totalOrders >= 2) {
+        currentState = 'repeat';
+        nudgeAction = 'check_reorder';
+        nudgeReason = 'Monitor reorder timing';
+      } else if (totalOrders >= 1) {
+        currentState = 'ordered';
+        nudgeAction = 'send_quote';
+        nudgeReason = 'Encourage repeat order';
+      } else if (hasSamples) {
+        currentState = 'sampled';
+        nudgeAction = 'follow_up_sample';
+        nudgeReason = 'Get sample feedback';
+      } else if (hasQuotes || action === 'send_quote') {
+        currentState = 'engaged';
+        nudgeAction = 'send_sample';
+        nudgeReason = 'Offer samples to test';
+      } else if (action === 'send_swatchbook') {
+        currentState = 'engaged';
+        nudgeAction = 'send_quote';
+        nudgeReason = 'SwatchBook sent - follow up with quote';
+      }
+
+      // Upsert coach state
+      const existing = await db.select().from(customerCoachState).where(eq(customerCoachState.customerId, customerId));
+      
+      if (existing.length > 0) {
+        await db.update(customerCoachState)
+          .set({
+            currentState,
+            nextNudgeAction: nudgeAction,
+            nextNudgeReason: nudgeReason,
+            daysSinceLastContact: 0,
+            lastCalculated: new Date(),
+            updatedAt: new Date(),
+          })
+          .where(eq(customerCoachState.customerId, customerId));
+      } else {
+        await db.insert(customerCoachState).values({
+          customerId,
+          currentState,
+          nextNudgeAction: nudgeAction,
+          nextNudgeReason: nudgeReason,
+          totalOrders,
+        });
+      }
+
+      res.json({ success: true, currentState, nextNudgeAction: nudgeAction });
+    } catch (error) {
+      console.error("Error recording coach action:", error);
+      res.status(500).json({ error: "Failed to record action" });
+    }
+  });
+
+  // Get constants for UI
+  app.get("/api/crm/coach-constants", isAuthenticated, (req, res) => {
+    res.json({
+      customerStates: CUSTOMER_STATES,
+      trustLevels: TRUST_LEVELS,
+      nudgeActions: COACH_NUDGE_ACTIONS,
+    });
   });
 
   // Catch-all for unmatched API routes - return JSON 404 instead of HTML

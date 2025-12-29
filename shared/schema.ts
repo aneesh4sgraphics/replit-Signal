@@ -1213,3 +1213,95 @@ export const EMAIL_TEMPLATE_VARIABLES = {
 } as const;
 
 export type EmailTemplateVariableKey = keyof typeof EMAIL_TEMPLATE_VARIABLES;
+
+// ========================================
+// COACH-STYLE B2B CUSTOMER JOURNEY
+// ========================================
+
+// Customer States - auto-derived from orders/quotes/samples
+export const CUSTOMER_STATES = ['prospect', 'engaged', 'sampled', 'ordered', 'repeat', 'loyal', 'at_risk', 'churned'] as const;
+export type CustomerState = typeof CUSTOMER_STATES[number];
+
+// Trust Levels - click-based progression per category
+export const TRUST_LEVELS = ['unknown', 'aware', 'interested', 'testing', 'approved', 'preferred'] as const;
+export type TrustLevel = typeof TRUST_LEVELS[number];
+
+// Category Trust - tracks trust level per customer per product category + machine type
+export const categoryTrust = pgTable("category_trust", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  categoryName: varchar("category_name", { length: 100 }).notNull(), // product category (e.g., "Commodity Cut-Size", "Specialty Coated")
+  machineType: varchar("machine_type", { length: 100 }), // press type (offset, digital, flexo, etc.)
+  trustLevel: varchar("trust_level", { length: 50 }).notNull().default("unknown"), // matches TRUST_LEVELS
+  samplesSent: integer("samples_sent").default(0),
+  samplesApproved: integer("samples_approved").default(0),
+  quotesSent: integer("quotes_sent").default(0),
+  ordersPlaced: integer("orders_placed").default(0),
+  lastSampleDate: timestamp("last_sample_date"),
+  lastOrderDate: timestamp("last_order_date"),
+  firstOrderDate: timestamp("first_order_date"),
+  totalOrderValue: decimal("total_order_value", { precision: 12, scale: 2 }).default("0"),
+  avgOrderFrequencyDays: integer("avg_order_frequency_days"), // average days between orders
+  nextReorderDue: timestamp("next_reorder_due"), // predicted reorder date
+  reorderStatus: varchar("reorder_status", { length: 50 }), // on_track, due_soon, overdue, at_risk
+  notes: text("notes"),
+  updatedBy: varchar("updated_by"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCategoryTrustSchema = createInsertSchema(categoryTrust).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CategoryTrust = typeof categoryTrust.$inferSelect;
+export type InsertCategoryTrust = z.infer<typeof insertCategoryTrustSchema>;
+
+// Customer Coach State - aggregated customer state with single nudge
+export const customerCoachState = pgTable("customer_coach_state", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().unique().references(() => customers.id, { onDelete: "cascade" }),
+  currentState: varchar("current_state", { length: 50 }).notNull().default("prospect"), // matches CUSTOMER_STATES
+  stateConfidence: integer("state_confidence").default(0), // 0-100% confidence in state
+  primaryCategory: varchar("primary_category", { length: 100 }), // main product category for this customer
+  totalLifetimeValue: decimal("total_lifetime_value", { precision: 12, scale: 2 }).default("0"),
+  totalOrders: integer("total_orders").default(0),
+  avgOrderValue: decimal("avg_order_value", { precision: 10, scale: 2 }),
+  daysSinceLastOrder: integer("days_since_last_order"),
+  daysSinceLastContact: integer("days_since_last_contact"),
+  nextNudgeAction: varchar("next_nudge_action", { length: 100 }), // single coach action
+  nextNudgeReason: text("next_nudge_reason"), // why this action
+  nextNudgePriority: varchar("next_nudge_priority", { length: 20 }).default("normal"), // low, normal, high, urgent
+  nextNudgeDueDate: timestamp("next_nudge_due_date"),
+  stuckCategory: varchar("stuck_category", { length: 100 }), // category where progress stalled
+  stuckDays: integer("stuck_days"), // days stuck in current state
+  lastStateChange: timestamp("last_state_change"),
+  lastCalculated: timestamp("last_calculated").defaultNow(),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertCustomerCoachStateSchema = createInsertSchema(customerCoachState).omit({
+  id: true,
+  lastCalculated: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CustomerCoachState = typeof customerCoachState.$inferSelect;
+export type InsertCustomerCoachState = z.infer<typeof insertCustomerCoachStateSchema>;
+
+// Coach Nudge Actions - predefined actions with click tracking
+export const COACH_NUDGE_ACTIONS = {
+  send_swatchbook: { label: 'Send SwatchBook', icon: 'palette', priority: 'normal' },
+  send_sample: { label: 'Send Sample', icon: 'package', priority: 'normal' },
+  follow_up_sample: { label: 'Follow Up on Sample', icon: 'phone', priority: 'high' },
+  send_quote: { label: 'Send Quote', icon: 'file-text', priority: 'normal' },
+  follow_up_quote: { label: 'Follow Up Quote', icon: 'phone', priority: 'high' },
+  check_reorder: { label: 'Check Reorder Status', icon: 'refresh-cw', priority: 'high' },
+  win_back: { label: 'Win Back Customer', icon: 'heart', priority: 'urgent' },
+  schedule_call: { label: 'Schedule Call', icon: 'calendar', priority: 'normal' },
+  celebrate_milestone: { label: 'Celebrate Milestone', icon: 'trophy', priority: 'low' },
+} as const;
+
+export type CoachNudgeAction = keyof typeof COACH_NUDGE_ACTIONS;
