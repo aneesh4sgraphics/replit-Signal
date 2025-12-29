@@ -214,6 +214,56 @@ export default function CompetitorPricing() {
       });
     },
   });
+
+  // ALL useMemo HOOKS MUST ALSO BE CALLED BEFORE EARLY RETURNS
+  // Get filter options using useMemo to prevent recalculation
+  const { suppliers, thicknesses, productKinds, surfaceFinishes, sizes, types, sources, infoFromOptions } = useMemo(() => {
+    if (!competitorData || !Array.isArray(competitorData)) {
+      return { suppliers: [], thicknesses: [], productKinds: [], surfaceFinishes: [], sizes: [], types: [], sources: [], infoFromOptions: [] };
+    }
+
+    return {
+      suppliers: [...new Set(competitorData.map(item => item.supplierInfo).filter(Boolean))].sort(),
+      thicknesses: [...new Set(competitorData.map(item => item.thickness).filter(Boolean))].sort(),
+      productKinds: [...new Set(competitorData.map(item => item.productKind).filter(Boolean))].sort(),
+      surfaceFinishes: [...new Set(competitorData.map(item => item.surfaceFinish).filter(Boolean))].sort(),
+      sizes: [...new Set(competitorData.map(item => item.dimensions).filter(Boolean))].sort(),
+      types: [...new Set(competitorData.map(item => item.type).filter(Boolean))].sort(),
+      sources: [...new Set(competitorData.map(item => item.source).filter(Boolean))].sort(),
+      infoFromOptions: [...new Set(competitorData.map(item => item.infoReceivedFrom).filter(Boolean))].sort(),
+    };
+  }, [competitorData]);
+
+  // Filter data using useMemo
+  const filteredData = useMemo(() => {
+    if (!competitorData || !Array.isArray(competitorData)) {
+      return [];
+    }
+    
+    let filtered = [...competitorData];
+    
+    if (supplierFilter && supplierFilter !== "all") {
+      filtered = filtered.filter(item => item.supplierInfo === supplierFilter);
+    }
+    
+    if (thicknessFilter && thicknessFilter !== "all") {
+      filtered = filtered.filter(item => item.thickness === thicknessFilter);
+    }
+    
+    if (productKindFilter && productKindFilter !== "all") {
+      filtered = filtered.filter(item => item.productKind === productKindFilter);
+    }
+    
+    if (surfaceFinishFilter && surfaceFinishFilter !== "all") {
+      filtered = filtered.filter(item => item.surfaceFinish === surfaceFinishFilter);
+    }
+    
+    if (sizeFilter && sizeFilter !== "all") {
+      filtered = filtered.filter(item => item.dimensions === sizeFilter);
+    }
+    
+    return filtered;
+  }, [competitorData, supplierFilter, thicknessFilter, productKindFilter, surfaceFinishFilter, sizeFilter]);
   
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => {
@@ -398,24 +448,6 @@ export default function CompetitorPricing() {
     { key: 'source', label: 'Source' },
   ];
 
-  // Get filter options using useMemo to prevent recalculation
-  const { suppliers, thicknesses, productKinds, surfaceFinishes, sizes, types, sources, infoFromOptions } = useMemo(() => {
-    if (!competitorData || !Array.isArray(competitorData)) {
-      return { suppliers: [], thicknesses: [], productKinds: [], surfaceFinishes: [], sizes: [], types: [], sources: [], infoFromOptions: [] };
-    }
-
-    return {
-      suppliers: [...new Set(competitorData.map(item => item.supplierInfo).filter(Boolean))].sort(),
-      thicknesses: [...new Set(competitorData.map(item => item.thickness).filter(Boolean))].sort(),
-      productKinds: [...new Set(competitorData.map(item => item.productKind).filter(Boolean))].sort(),
-      surfaceFinishes: [...new Set(competitorData.map(item => item.surfaceFinish).filter(Boolean))].sort(),
-      sizes: [...new Set(competitorData.map(item => item.dimensions).filter(Boolean))].sort(),
-      types: [...new Set(competitorData.map(item => item.type).filter(Boolean))].sort(),
-      sources: [...new Set(competitorData.map(item => item.source).filter(Boolean))].sort(),
-      infoFromOptions: [...new Set(competitorData.map(item => item.infoReceivedFrom).filter(Boolean))].sort(),
-    };
-  }, [competitorData]);
-
   // Map field keys to their dropdown options
   const getFieldOptions = (fieldKey: string): string[] => {
     switch (fieldKey) {
@@ -429,37 +461,6 @@ export default function CompetitorPricing() {
       default: return [];
     }
   };
-
-  // Filter data using useMemo
-  const filteredData = useMemo(() => {
-    if (!competitorData || !Array.isArray(competitorData)) {
-      return [];
-    }
-    
-    let filtered = [...competitorData];
-    
-    if (supplierFilter && supplierFilter !== "all") {
-      filtered = filtered.filter(item => item.supplierInfo === supplierFilter);
-    }
-    
-    if (thicknessFilter && thicknessFilter !== "all") {
-      filtered = filtered.filter(item => item.thickness === thicknessFilter);
-    }
-    
-    if (productKindFilter && productKindFilter !== "all") {
-      filtered = filtered.filter(item => item.productKind === productKindFilter);
-    }
-    
-    if (surfaceFinishFilter && surfaceFinishFilter !== "all") {
-      filtered = filtered.filter(item => item.surfaceFinish === surfaceFinishFilter);
-    }
-    
-    if (sizeFilter && sizeFilter !== "all") {
-      filtered = filtered.filter(item => item.dimensions === sizeFilter);
-    }
-    
-    return filtered;
-  }, [competitorData, supplierFilter, thicknessFilter, productKindFilter, surfaceFinishFilter, sizeFilter]);
 
   // Reset filters
   const resetFilters = () => {
