@@ -489,7 +489,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       : customer.company || customer.firstName || customer.email;
     
     if (printLabelType === 'swatchbook') {
-      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
+      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
       logActivity("PRINTED LABEL", `SwatchBook label for ${recipientDesc}`);
     } else if (printLabelType === 'presskit') {
       // Create a sample request for Press Kit so it shows in Samples tab
@@ -499,12 +499,16 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
         productName: 'Press Kit',
         quantity: '1',
         status: 'shipped',
-        notes: `Addressed to: ${selectedPrintPerson?.name || 'N/A'}${printLabelNotes ? ` - ${printLabelNotes}` : ''}`,
+        notes: `Addressed to: ${selectedPrintPerson?.name || 'N/A'}`,
       });
       logActivity("PRINTED LABEL", `Press Kit label for ${recipientDesc}`);
     } else if (printLabelType === 'mailer') {
+      // Record Mailer in Swatch Book tab
+      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: `Mailer: ${printLabelNotes || 'Promotional Mailer'} - Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
       logActivity("PRINTED LABEL", `Mailer label for ${recipientDesc}${printLabelNotes ? ` - Mailer: ${printLabelNotes}` : ''}`);
     } else {
+      // Record Others in Swatch Book tab
+      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: `Other: ${printLabelNotes || 'Miscellaneous'} - Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
       logActivity("PRINTED LABEL", `Address label for ${recipientDesc}${printLabelNotes ? ` - ${printLabelNotes}` : ''}`);
     }
     
