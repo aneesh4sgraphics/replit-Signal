@@ -25,38 +25,55 @@ const getOidcConfig = memoize(
 export function getSession() {
   const sessionTtl = 7 * 24 * 60 * 60 * 1000; // 1 week
   
+  // Check if we're in true development (not Replit deployment)
+  const isDevEnv = process.env.NODE_ENV === 'development' && !process.env.REPLIT_DEPLOYMENT;
+  
   // In development, use memory store for simplicity
-  if (process.env.NODE_ENV === 'development') {
+  if (isDevEnv && !process.env.DATABASE_URL) {
+    console.log("Using memory session store for development");
     return session({
-      secret: process.env.SESSION_SECRET!,
+      secret: process.env.SESSION_SECRET || 'dev-secret-key',
       resave: false,
       saveUninitialized: false,
       cookie: {
         httpOnly: true,
-        secure: false, // Set to false for development
+        secure: false,
         maxAge: sessionTtl,
       },
     });
   }
   
-  // In production, use PostgreSQL store
+  // Use PostgreSQL store for production and Replit environments
   const pgStore = connectPg(session);
   const sessionStore = new pgStore({
     conString: process.env.DATABASE_URL,
-    createTableIfMissing: true, // Create table if missing
-    ttl: sessionTtl,
+    createTableIfMissing: true,
+    ttl: sessionTtl / 1000, // ttl is in seconds for pg-store
     tableName: "sessions",
+    pruneSessionInterval: 60 * 15, // Prune expired sessions every 15 minutes
+    errorLog: (err: Error) => {
+      console.error("Session store error:", err);
+    },
   });
+  
+  // Handle session store connection errors gracefully
+  sessionStore.on('error', (error: Error) => {
+    console.error('Session store connection error:', error);
+  });
+  
+  const isSecure = !isDevEnv;
+  console.log(`Session configuration: secure=${isSecure}, ttl=${sessionTtl}ms`);
   
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
+    rolling: true, // Reset maxAge on every response, keeping active sessions alive
     cookie: {
       httpOnly: true,
-      secure: true,
-      sameSite: 'lax', // Required for same-site cookies with secure flag
+      secure: isSecure,
+      sameSite: isSecure ? 'lax' : 'lax',
       maxAge: sessionTtl,
     },
   });
@@ -330,28 +347,45 @@ export const isAuthenticated: RequestHandler = async (req, res, next) => {
 
   const user = req.user as any;
 
-  if (!req.isAuthenticated() || !user.expires_at) {
+  // Check if user is authenticated (has a session)
+  if (!req.isAuthenticated()) {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
+  // If no expires_at, check if user has valid claims (session-based auth)
+  if (!user.expires_at && user.claims?.sub) {
+    // User has a valid session with claims, allow through
+    return next();
+  }
+
+  // If no expires_at and no claims, unauthorized
+  if (!user.expires_at) {
+    return res.status(401).json({ message: "Session expired" });
+  }
+
   const now = Math.floor(Date.now() / 1000);
-  if (now <= user.expires_at) {
+  // Add 60 second buffer to prevent edge cases
+  if (now <= user.expires_at + 60) {
     return next();
   }
 
   const refreshToken = user.refresh_token;
   if (!refreshToken) {
-    res.status(401).json({ message: "Unauthorized" });
+    console.log("No refresh token available, session expired");
+    res.status(401).json({ message: "Session expired, please log in again" });
     return;
   }
 
   try {
+    console.log("Attempting to refresh access token...");
     const config = await getOidcConfig();
     const tokenResponse = await client.refreshTokenGrant(config, refreshToken);
     updateUserSession(user, tokenResponse);
+    console.log("Access token refreshed successfully");
     return next();
   } catch (error) {
-    res.status(401).json({ message: "Unauthorized" });
+    console.error("Token refresh failed:", error);
+    res.status(401).json({ message: "Session expired, please log in again" });
     return;
   }
 };
