@@ -206,16 +206,25 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     setPrintLabelNotes('');
     setSelectedPrintPerson(null);
     
-    // Get all available people for this company
+    // Get all available people for this company (primary customer + contacts table + other company members)
     const primaryPerson = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
     const allPeople = [
       primaryPerson ? { name: primaryPerson, company: customer.company || '' } : null,
-      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '' }))
+      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '' })),
+      ...companyContacts.map(c => ({ 
+        name: [c.firstName, c.lastName].filter(Boolean).join(' ').trim(), 
+        company: customer.company || '' 
+      }))
     ].filter((p): p is { name: string; company: string } => !!p?.name);
     
-    if (allPeople.length <= 1) {
+    // Remove duplicates by name
+    const uniquePeople = allPeople.filter((person, index, self) => 
+      index === self.findIndex(p => p.name === person.name)
+    );
+    
+    if (uniquePeople.length <= 1) {
       // Only one person or no contacts, skip to type selection
-      setSelectedPrintPerson(allPeople[0] || { name: '', company: customer.company || '' });
+      setSelectedPrintPerson(uniquePeople[0] || { name: '', company: customer.company || '' });
       setPrintDialogStep('select-type');
     } else {
       setPrintDialogStep('select-person');
@@ -498,10 +507,20 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   // Get all people for this company (for print dialog)
   const getAllPeopleForPrint = () => {
     const primaryPerson = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
-    return [
+    const allPeople = [
       primaryPerson ? { name: primaryPerson, company: customer.company || '', isPrimary: true } : null,
-      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '', isPrimary: false }))
+      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '', isPrimary: false })),
+      ...companyContacts.map(c => ({ 
+        name: [c.firstName, c.lastName].filter(Boolean).join(' ').trim(), 
+        company: customer.company || '', 
+        isPrimary: false 
+      }))
     ].filter((p): p is { name: string; company: string; isPrimary: boolean } => !!p?.name);
+    
+    // Remove duplicates by name
+    return allPeople.filter((person, index, self) => 
+      index === self.findIndex(p => p.name === person.name)
+    );
   };
 
   const currentStageIndex = journey ? JOURNEY_STAGE_CONFIG.findIndex(s => s.id === journey.journeyStage) : -1;
