@@ -148,6 +148,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     });
   };
 
+  // Has some address data - can print a label
+  const hasAnyAddress = !!(customer.address1?.trim() || customer.city?.trim());
   // Full address requires all 5 fields: address1, city, province/state, zip, and country
   const hasCompleteAddress = !!(
     customer.address1?.trim() && 
@@ -978,7 +980,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                   Company Address
                 </span>
                 <div className="flex items-center gap-1">
-                  {!isEditingAddress && hasCompleteAddress && (
+                  {!isEditingAddress && hasAnyAddress && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
