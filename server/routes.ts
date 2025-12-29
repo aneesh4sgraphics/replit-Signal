@@ -54,6 +54,20 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
+import { eq } from "drizzle-orm";
+import { 
+  customerContacts, 
+  customerJourney, 
+  customerJourneyInstances, 
+  sampleRequests, 
+  swatchBookShipments, 
+  pressKitShipments, 
+  quoteEvents, 
+  priceListEvents, 
+  pressProfiles, 
+  testOutcomes, 
+  swatches 
+} from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
 import pricingDatabaseRoutes from "./routes-pricing-database";
@@ -1126,7 +1140,78 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Update target customer with merged data
       await storage.updateCustomer(targetId, mergedData);
       
-      // Delete source customer
+      // Transfer all related records from source to target before deleting
+      console.log("Transferring related records from source to target...");
+      
+      // Transfer customer contacts
+      await db.update(customerContacts)
+        .set({ customerId: targetId })
+        .where(eq(customerContacts.customerId, sourceId));
+      console.log("✓ Transferred customer contacts");
+      
+      // Transfer customer journeys
+      await db.update(customerJourney)
+        .set({ customerId: targetId })
+        .where(eq(customerJourney.customerId, sourceId));
+      console.log("✓ Transferred customer journeys");
+      
+      // Transfer journey instances
+      await db.update(customerJourneyInstances)
+        .set({ customerId: targetId })
+        .where(eq(customerJourneyInstances.customerId, sourceId));
+      console.log("✓ Transferred journey instances");
+      
+      // Transfer sample requests
+      await db.update(sampleRequests)
+        .set({ customerId: targetId })
+        .where(eq(sampleRequests.customerId, sourceId));
+      console.log("✓ Transferred sample requests");
+      
+      // Transfer swatch shipments
+      await db.update(swatchBookShipments)
+        .set({ customerId: targetId })
+        .where(eq(swatchBookShipments.customerId, sourceId));
+      console.log("✓ Transferred swatch shipments");
+      
+      // Transfer press kit shipments
+      await db.update(pressKitShipments)
+        .set({ customerId: targetId })
+        .where(eq(pressKitShipments.customerId, sourceId));
+      console.log("✓ Transferred press kit shipments");
+      
+      // Transfer quote events
+      await db.update(quoteEvents)
+        .set({ customerId: targetId })
+        .where(eq(quoteEvents.customerId, sourceId));
+      console.log("✓ Transferred quote events");
+      
+      // Transfer price list events
+      await db.update(priceListEvents)
+        .set({ customerId: targetId })
+        .where(eq(priceListEvents.customerId, sourceId));
+      console.log("✓ Transferred price list events");
+      
+      // Transfer press profiles
+      await db.update(pressProfiles)
+        .set({ customerId: targetId })
+        .where(eq(pressProfiles.customerId, sourceId));
+      console.log("✓ Transferred press profiles");
+      
+      // Transfer test outcomes
+      await db.update(testOutcomes)
+        .set({ customerId: targetId })
+        .where(eq(testOutcomes.customerId, sourceId));
+      console.log("✓ Transferred test outcomes");
+      
+      // Transfer swatches
+      await db.update(swatches)
+        .set({ customerId: targetId })
+        .where(eq(swatches.customerId, sourceId));
+      console.log("✓ Transferred swatches");
+      
+      console.log("All related records transferred successfully!");
+      
+      // Delete source customer (now safe since all records are transferred)
       await storage.deleteCustomer(sourceId);
       
       setCachedData("customers", null);
