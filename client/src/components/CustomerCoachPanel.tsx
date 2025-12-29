@@ -84,8 +84,12 @@ const MACHINE_FAMILIES = [
   { id: 'wide_format_flatbed', label: 'Wide Format - Flat Bed' },
   { id: 'wide_format_roll', label: 'Wide Format - Roll to Roll' },
   { id: 'aqueous_photo', label: 'Aqueous Photo Printers' },
-  { id: 'other', label: 'Other' },
+  { id: 'distributor', label: 'Distributor', requiresNote: true },
+  { id: 'dealer', label: 'Dealer', requiresNote: true },
+  { id: 'other', label: 'Other', requiresNote: true },
 ];
+
+const REQUIRES_NOTE_MACHINES = ['distributor', 'dealer', 'other'];
 
 const CATEGORY_MACHINE_COMPATIBILITY: Record<string, string[]> = {
   offset: ['Commodity Cut-Size', 'Specialty Coated', 'Cover Stock', 'Text Weight', 'Opaque Offset', 'Bond', 'Bristol', 'Index'],
@@ -97,6 +101,8 @@ const CATEGORY_MACHINE_COMPATIBILITY: Record<string, string[]> = {
   wide_format_flatbed: ['Large Format', 'Rigid Substrates', 'PVC', 'Foam Board', 'Acrylic'],
   wide_format_roll: ['Large Format', 'Banner Material', 'Vinyl', 'Canvas', 'Backlit Film', 'Wallpaper'],
   aqueous_photo: ['Photo Paper', 'Fine Art', 'Proofing', 'Canvas'],
+  distributor: ['All Categories'],
+  dealer: ['All Categories'],
   other: ['Custom Substrates', 'Specialty Products'],
 };
 
@@ -116,7 +122,7 @@ interface CustomerCoachPanelProps {
 
 export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps) {
   const [objectionDialog, setObjectionDialog] = useState<{ open: boolean; categoryName: string; trustId?: number }>({ open: false, categoryName: '' });
-  const [otherMachineDialog, setOtherMachineDialog] = useState<{ open: boolean; details: string }>({ open: false, details: '' });
+  const [machineNoteDialog, setMachineNoteDialog] = useState<{ open: boolean; machineId: string; machineLabel: string; details: string }>({ open: false, machineId: '', machineLabel: '', details: '' });
   const { toast } = useToast();
 
   const { data: machineProfiles = [], refetch: refetchMachines } = useQuery<CustomerMachineProfile[]>({
@@ -167,7 +173,7 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
     onSuccess: () => {
       refetchMachines();
       queryClient.invalidateQueries({ queryKey: ['/api/crm/machine-profiles', customer.id] });
-      setOtherMachineDialog({ open: false, details: '' });
+      setMachineNoteDialog({ open: false, machineId: '', machineLabel: '', details: '' });
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to update machine", variant: "destructive" });
@@ -400,8 +406,8 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
                       : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
                   }`}
                   onClick={() => {
-                    if (isOther && !isEnabled) {
-                      setOtherMachineDialog({ open: true, details: '' });
+                    if (REQUIRES_NOTE_MACHINES.includes(machine.id) && !isEnabled) {
+                      setMachineNoteDialog({ open: true, machineId: machine.id, machineLabel: machine.label, details: '' });
                     } else {
                       toggleMachineMutation.mutate({ machineFamily: machine.id, currentlyEnabled: isEnabled });
                     }
@@ -420,7 +426,7 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
                           <span className="text-green-600 flex items-center gap-1">
                             <CheckCircle2 className="h-3 w-3" /> Confirmed
                           </span>
-                        ) : isOther && profile?.otherDetails ? (
+                        ) : REQUIRES_NOTE_MACHINES.includes(machine.id) && profile?.otherDetails ? (
                           <span className="text-blue-600 truncate">{profile.otherDetails}</span>
                         ) : (
                           <span className="text-blue-600">Inferred</span>
@@ -621,42 +627,48 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
         </Card>
       )}
 
-      <Dialog open={otherMachineDialog.open} onOpenChange={(open) => setOtherMachineDialog({ ...otherMachineDialog, open })}>
+      <Dialog open={machineNoteDialog.open} onOpenChange={(open) => setMachineNoteDialog({ ...machineNoteDialog, open })}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Other Machine Type</DialogTitle>
+            <DialogTitle>{machineNoteDialog.machineLabel}</DialogTitle>
             <DialogDescription>
-              Please describe the machine type this customer uses.
+              {machineNoteDialog.machineId === 'other' 
+                ? 'Please describe the machine type this customer uses.'
+                : `Please add a note for this ${machineNoteDialog.machineLabel.toLowerCase()}.`}
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
             <div className="space-y-2">
-              <Label htmlFor="other-details">Machine Details</Label>
+              <Label htmlFor="machine-note">
+                {machineNoteDialog.machineId === 'other' ? 'Machine Details' : 'Note'}
+              </Label>
               <Input
-                id="other-details"
-                placeholder="e.g., Letterpress, Gravure, etc."
-                value={otherMachineDialog.details}
-                onChange={(e) => setOtherMachineDialog({ ...otherMachineDialog, details: e.target.value })}
-                data-testid="input-other-machine-details"
+                id="machine-note"
+                placeholder={machineNoteDialog.machineId === 'other' 
+                  ? 'e.g., Letterpress, Gravure, etc.' 
+                  : 'e.g., Company name, contact info...'}
+                value={machineNoteDialog.details}
+                onChange={(e) => setMachineNoteDialog({ ...machineNoteDialog, details: e.target.value })}
+                data-testid="input-machine-note"
               />
             </div>
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setOtherMachineDialog({ open: false, details: '' })}>
+            <Button variant="outline" onClick={() => setMachineNoteDialog({ open: false, machineId: '', machineLabel: '', details: '' })}>
               Cancel
             </Button>
             <Button
               onClick={() => {
-                if (otherMachineDialog.details.trim()) {
+                if (machineNoteDialog.details.trim()) {
                   toggleMachineMutation.mutate({ 
-                    machineFamily: 'other', 
+                    machineFamily: machineNoteDialog.machineId, 
                     currentlyEnabled: false, 
-                    otherDetails: otherMachineDialog.details.trim() 
+                    otherDetails: machineNoteDialog.details.trim() 
                   });
                 }
               }}
-              disabled={!otherMachineDialog.details.trim() || toggleMachineMutation.isPending}
-              data-testid="btn-save-other-machine"
+              disabled={!machineNoteDialog.details.trim() || toggleMachineMutation.isPending}
+              data-testid="btn-save-machine-note"
             >
               Save
             </Button>
