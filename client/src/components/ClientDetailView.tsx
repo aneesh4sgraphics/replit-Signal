@@ -411,6 +411,58 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   const currentStageIndex = journey ? JOURNEY_STAGE_CONFIG.findIndex(s => s.id === journey.journeyStage) : -1;
   const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
 
+  const getCountryFlag = (country: string | null | undefined): string | null => {
+    if (!country) return null;
+    const countryMap: Record<string, string> = {
+      'usa': '🇺🇸', 'united states': '🇺🇸', 'us': '🇺🇸', 'america': '🇺🇸',
+      'canada': '🇨🇦', 'ca': '🇨🇦',
+      'mexico': '🇲🇽', 'mx': '🇲🇽',
+      'uk': '🇬🇧', 'united kingdom': '🇬🇧', 'great britain': '🇬🇧', 'england': '🇬🇧', 'gb': '🇬🇧',
+      'germany': '🇩🇪', 'de': '🇩🇪',
+      'france': '🇫🇷', 'fr': '🇫🇷',
+      'italy': '🇮🇹', 'it': '🇮🇹',
+      'spain': '🇪🇸', 'es': '🇪🇸',
+      'china': '🇨🇳', 'cn': '🇨🇳',
+      'japan': '🇯🇵', 'jp': '🇯🇵',
+      'india': '🇮🇳', 'in': '🇮🇳',
+      'brazil': '🇧🇷', 'br': '🇧🇷',
+      'australia': '🇦🇺', 'au': '🇦🇺',
+      'south korea': '🇰🇷', 'korea': '🇰🇷', 'kr': '🇰🇷',
+      'netherlands': '🇳🇱', 'nl': '🇳🇱',
+      'switzerland': '🇨🇭', 'ch': '🇨🇭',
+      'sweden': '🇸🇪', 'se': '🇸🇪',
+      'poland': '🇵🇱', 'pl': '🇵🇱',
+      'belgium': '🇧🇪', 'be': '🇧🇪',
+      'austria': '🇦🇹', 'at': '🇦🇹',
+      'ireland': '🇮🇪', 'ie': '🇮🇪',
+      'portugal': '🇵🇹', 'pt': '🇵🇹',
+      'argentina': '🇦🇷', 'ar': '🇦🇷',
+      'chile': '🇨🇱', 'cl': '🇨🇱',
+      'colombia': '🇨🇴', 'co': '🇨🇴',
+      'peru': '🇵🇪', 'pe': '🇵🇪',
+      'russia': '🇷🇺', 'ru': '🇷🇺',
+      'turkey': '🇹🇷', 'tr': '🇹🇷',
+      'israel': '🇮🇱', 'il': '🇮🇱',
+      'singapore': '🇸🇬', 'sg': '🇸🇬',
+      'hong kong': '🇭🇰', 'hk': '🇭🇰',
+      'taiwan': '🇹🇼', 'tw': '🇹🇼',
+      'indonesia': '🇮🇩', 'id': '🇮🇩',
+      'thailand': '🇹🇭', 'th': '🇹🇭',
+      'vietnam': '🇻🇳', 'vn': '🇻🇳',
+      'philippines': '🇵🇭', 'ph': '🇵🇭',
+      'malaysia': '🇲🇾', 'my': '🇲🇾',
+      'new zealand': '🇳🇿', 'nz': '🇳🇿',
+      'south africa': '🇿🇦', 'za': '🇿🇦',
+      'nigeria': '🇳🇬', 'ng': '🇳🇬',
+      'egypt': '🇪🇬', 'eg': '🇪🇬',
+      'saudi arabia': '🇸🇦', 'sa': '🇸🇦',
+      'uae': '🇦🇪', 'united arab emirates': '🇦🇪', 'ae': '🇦🇪',
+    };
+    return countryMap[country.toLowerCase().trim()] || null;
+  };
+
+  const countryFlag = getCountryFlag(customer.country);
+
   const handleStartJourney = () => {
     if (!customer.id) {
       toast({ title: "Error", description: "Customer ID is missing", variant: "destructive" });
@@ -473,6 +525,16 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
           <div>
             <div className="flex items-center gap-3">
               <h1 className="text-2xl font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
+              {countryFlag && (
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <span className="text-2xl cursor-default" data-testid="country-flag">{countryFlag}</span>
+                    </TooltipTrigger>
+                    <TooltipContent>{customer.country}</TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
+              )}
               {journey && (
                 <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white`}>
                   {journey.journeyStage}
