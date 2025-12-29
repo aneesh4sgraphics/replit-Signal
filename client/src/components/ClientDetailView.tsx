@@ -133,6 +133,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     zip: customer.zip || '',
   });
   const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printDialogStep, setPrintDialogStep] = useState<'select-person' | 'select-type'>('select-person');
+  const [selectedPrintPerson, setSelectedPrintPerson] = useState<{ name: string; company: string } | null>(null);
   const [printLabelType, setPrintLabelType] = useState<'swatchbook' | 'presskit' | 'other' | null>(null);
   const [printLabelNotes, setPrintLabelNotes] = useState('');
   const { toast } = useToast();
@@ -153,11 +155,11 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     window.open(`https://www.google.com/maps/search/${searchQuery}`, '_blank');
   };
 
-  const printAddressLabel = () => {
+  const printAddressLabel = (personName?: string) => {
     const lines: string[] = [];
-    const personName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
-    if (personName) lines.push(personName);
-    if (customer.company && customer.company.trim() !== personName) lines.push(customer.company.trim());
+    const nameToUse = personName || [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    if (nameToUse) lines.push(nameToUse);
+    if (customer.company && customer.company.trim() !== nameToUse) lines.push(customer.company.trim());
     if (customer.address1?.trim()) lines.push(customer.address1.trim());
     if (customer.address2?.trim()) lines.push(customer.address2.trim());
     const cityStateZip = [customer.city?.trim(), customer.province?.trim(), customer.zip?.trim()]
@@ -202,6 +204,22 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     setIsPrintDialogOpen(true);
     setPrintLabelType(null);
     setPrintLabelNotes('');
+    setSelectedPrintPerson(null);
+    
+    // Get all available people for this company
+    const primaryPerson = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    const allPeople = [
+      primaryPerson ? { name: primaryPerson, company: customer.company || '' } : null,
+      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '' }))
+    ].filter((p): p is { name: string; company: string } => !!p?.name);
+    
+    if (allPeople.length <= 1) {
+      // Only one person or no contacts, skip to type selection
+      setSelectedPrintPerson(allPeople[0] || { name: '', company: customer.company || '' });
+      setPrintDialogStep('select-type');
+    } else {
+      setPrintDialogStep('select-person');
+    }
   };
 
   const { data: journey, refetch: refetchJourney } = useQuery<CustomerJourney | null>({
@@ -455,21 +473,35 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   });
 
   const confirmPrintLabel = () => {
-    printAddressLabel();
+    printAddressLabel(selectedPrintPerson?.name);
+    
+    const recipientDesc = selectedPrintPerson?.name 
+      ? `${selectedPrintPerson.name} at ${customer.company || 'company'}`
+      : customer.company || customer.firstName || customer.email;
     
     if (printLabelType === 'swatchbook') {
-      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || undefined });
-      logActivity("PRINTED LABEL", `SwatchBook label for ${customer.company || customer.firstName || customer.email}`);
+      createSwatchShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
+      logActivity("PRINTED LABEL", `SwatchBook label for ${recipientDesc}`);
     } else if (printLabelType === 'presskit') {
-      createPressKitShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || undefined });
-      logActivity("PRINTED LABEL", `Press Kit label for ${customer.company || customer.firstName || customer.email}`);
+      createPressKitShipmentMutation.mutate({ customerId: String(customer.id), notes: printLabelNotes || `Addressed to: ${selectedPrintPerson?.name || 'N/A'}` });
+      logActivity("PRINTED LABEL", `Press Kit label for ${recipientDesc}`);
     } else {
-      logActivity("PRINTED LABEL", `Address label for ${customer.company || customer.firstName || customer.email}${printLabelNotes ? ` - ${printLabelNotes}` : ''}`);
+      logActivity("PRINTED LABEL", `Address label for ${recipientDesc}${printLabelNotes ? ` - ${printLabelNotes}` : ''}`);
     }
     
     setIsPrintDialogOpen(false);
     setPrintLabelType(null);
     setPrintLabelNotes('');
+    setSelectedPrintPerson(null);
+  };
+
+  // Get all people for this company (for print dialog)
+  const getAllPeopleForPrint = () => {
+    const primaryPerson = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    return [
+      primaryPerson ? { name: primaryPerson, company: customer.company || '', isPrimary: true } : null,
+      ...customerContacts.map(c => ({ name: c.name, company: customer.company || '', isPrimary: false }))
+    ].filter((p): p is { name: string; company: string; isPrimary: boolean } => !!p?.name);
   };
 
   const currentStageIndex = journey ? JOURNEY_STAGE_CONFIG.findIndex(s => s.id === journey.journeyStage) : -1;
@@ -1896,80 +1928,121 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
         <DialogContent className="max-w-md">
           <DialogHeader>
-            <DialogTitle>Print Address Label</DialogTitle>
+            <DialogTitle>
+              {printDialogStep === 'select-person' ? 'Who should this be addressed to?' : 'Print Address Label'}
+            </DialogTitle>
             <DialogDescription>
-              What is this label for?
+              {printDialogStep === 'select-person' 
+                ? 'Select the person whose name will appear on the label'
+                : `Label for: ${selectedPrintPerson?.name || 'Company'}`
+              }
             </DialogDescription>
           </DialogHeader>
           
           <div className="space-y-4 py-4">
-            <div className="flex flex-col gap-3">
-              <Button
-                variant={printLabelType === 'swatchbook' ? 'default' : 'outline'}
-                className="justify-start h-auto py-3"
-                onClick={() => setPrintLabelType('swatchbook')}
-                data-testid="btn-label-swatchbook"
-              >
-                <Palette className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium">SwatchBook</p>
-                  <p className="text-xs text-muted-foreground">Record shipment in customer's SwatchBook tab</p>
-                </div>
-              </Button>
-              
-              <Button
-                variant={printLabelType === 'presskit' ? 'default' : 'outline'}
-                className="justify-start h-auto py-3"
-                onClick={() => setPrintLabelType('presskit')}
-                data-testid="btn-label-presskit"
-              >
-                <Package className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium">Press Kit</p>
-                  <p className="text-xs text-muted-foreground">Record shipment in customer's Press Kit tab</p>
-                </div>
-              </Button>
-              
-              <Button
-                variant={printLabelType === 'other' ? 'default' : 'outline'}
-                className="justify-start h-auto py-3"
-                onClick={() => setPrintLabelType('other')}
-                data-testid="btn-label-other"
-              >
-                <FileText className="h-5 w-5 mr-3" />
-                <div className="text-left">
-                  <p className="font-medium">Something Else</p>
-                  <p className="text-xs text-muted-foreground">Just print the label without recording</p>
-                </div>
-              </Button>
-            </div>
-            
-            {printLabelType === 'other' && (
-              <div className="space-y-2">
-                <Label>Notes (optional)</Label>
-                <Textarea
-                  placeholder="What are you sending?"
-                  value={printLabelNotes}
-                  onChange={(e) => setPrintLabelNotes(e.target.value)}
-                  className="h-20"
-                  data-testid="input-label-notes"
-                />
+            {printDialogStep === 'select-person' ? (
+              <div className="flex flex-col gap-2">
+                {getAllPeopleForPrint().map((person, idx) => (
+                  <Button
+                    key={idx}
+                    variant="outline"
+                    className="justify-start h-auto py-3"
+                    onClick={() => {
+                      setSelectedPrintPerson(person);
+                      setPrintDialogStep('select-type');
+                    }}
+                    data-testid={`btn-select-person-${idx}`}
+                  >
+                    <User className="h-5 w-5 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium">{person.name}</p>
+                      {person.isPrimary && <p className="text-xs text-muted-foreground">Primary contact</p>}
+                    </div>
+                  </Button>
+                ))}
               </div>
+            ) : (
+              <>
+                <div className="flex flex-col gap-3">
+                  <Button
+                    variant={printLabelType === 'swatchbook' ? 'default' : 'outline'}
+                    className="justify-start h-auto py-3"
+                    onClick={() => setPrintLabelType('swatchbook')}
+                    data-testid="btn-label-swatchbook"
+                  >
+                    <Palette className="h-5 w-5 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium">SwatchBook</p>
+                      <p className="text-xs text-muted-foreground">Record shipment in customer's SwatchBook tab</p>
+                    </div>
+                  </Button>
+                  
+                  <Button
+                    variant={printLabelType === 'presskit' ? 'default' : 'outline'}
+                    className="justify-start h-auto py-3"
+                    onClick={() => setPrintLabelType('presskit')}
+                    data-testid="btn-label-presskit"
+                  >
+                    <Package className="h-5 w-5 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium">Press Kit</p>
+                      <p className="text-xs text-muted-foreground">Record shipment in customer's Press Kit tab</p>
+                    </div>
+                  </Button>
+                  
+                  <Button
+                    variant={printLabelType === 'other' ? 'default' : 'outline'}
+                    className="justify-start h-auto py-3"
+                    onClick={() => setPrintLabelType('other')}
+                    data-testid="btn-label-other"
+                  >
+                    <FileText className="h-5 w-5 mr-3" />
+                    <div className="text-left">
+                      <p className="font-medium">Something Else</p>
+                      <p className="text-xs text-muted-foreground">Just print the label without recording</p>
+                    </div>
+                  </Button>
+                </div>
+                
+                {printLabelType === 'other' && (
+                  <div className="space-y-2">
+                    <Label>Notes (optional)</Label>
+                    <Textarea
+                      placeholder="What are you sending?"
+                      value={printLabelNotes}
+                      onChange={(e) => setPrintLabelNotes(e.target.value)}
+                      className="h-20"
+                      data-testid="input-label-notes"
+                    />
+                  </div>
+                )}
+              </>
             )}
           </div>
 
           <DialogFooter>
+            {printDialogStep === 'select-type' && getAllPeopleForPrint().length > 1 && (
+              <Button 
+                variant="ghost" 
+                onClick={() => setPrintDialogStep('select-person')}
+                className="mr-auto"
+              >
+                Back
+              </Button>
+            )}
             <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>
               Cancel
             </Button>
-            <Button 
-              onClick={confirmPrintLabel}
-              disabled={!printLabelType || createSwatchShipmentMutation.isPending || createPressKitShipmentMutation.isPending}
-              data-testid="btn-confirm-print"
-            >
-              <Printer className="h-4 w-4 mr-2" />
-              Print Label
-            </Button>
+            {printDialogStep === 'select-type' && (
+              <Button 
+                onClick={confirmPrintLabel}
+                disabled={!printLabelType || createSwatchShipmentMutation.isPending || createPressKitShipmentMutation.isPending}
+                data-testid="btn-confirm-print"
+              >
+                <Printer className="h-4 w-4 mr-2" />
+                Print Label
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
