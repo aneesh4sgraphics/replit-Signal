@@ -60,7 +60,14 @@ import {
   ChevronsUpDown,
   Route,
   Copy,
+  Printer,
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 import { Link } from "wouter";
 import type { Customer, CustomerJourney, PressProfile, SampleRequest, TestOutcome, SwatchBookShipment, SwatchSelection, ProductCategory, QuoteEvent, PriceListEvent, SentQuote, CustomerJourneyInstance, CustomerContact } from "@shared/schema";
 
@@ -133,6 +140,54 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     }).catch(() => {
       toast({ title: "Failed to copy", variant: "destructive" });
     });
+  };
+
+  const hasAddress = !!(customer.address1 || customer.city || customer.province || customer.zip);
+
+  const printAddressLabel = () => {
+    const lines: string[] = [];
+    const personName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    if (personName) lines.push(personName);
+    if (customer.company && customer.company.trim() !== personName) lines.push(customer.company.trim());
+    if (customer.address1?.trim()) lines.push(customer.address1.trim());
+    if (customer.address2?.trim()) lines.push(customer.address2.trim());
+    const cityStateZip = [customer.city?.trim(), customer.province?.trim(), customer.zip?.trim()]
+      .filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' $1');
+    if (cityStateZip) lines.push(cityStateZip);
+
+    if (lines.length === 0) {
+      toast({ title: "No address available", description: "This contact doesn't have address information to print.", variant: "destructive" });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=400,height=250');
+    if (!printWindow) {
+      toast({ title: "Popup blocked", description: "Please allow popups to print labels.", variant: "destructive" });
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Address Label</title>
+        <style>
+          @page { size: 4in 2in; margin: 0; }
+          * { margin: 0; padding: 0; box-sizing: border-box; }
+          body { width: 4in; height: 2in; padding: 0.15in 0.2in; font-family: Arial, Helvetica, sans-serif; display: flex; flex-direction: column; justify-content: center; }
+          .label-line { font-size: 11pt; line-height: 1.4; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+          .label-line.name { font-weight: bold; font-size: 12pt; }
+          .label-line.company { font-weight: 600; }
+        </style>
+      </head>
+      <body>
+        ${lines.map((line, i) => `<div class="label-line ${i === 0 ? 'name' : i === 1 && lines.length > 2 ? 'company' : ''}">${line}</div>`).join('')}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    setTimeout(() => { printWindow.print(); printWindow.close(); }, 250);
+    logActivity("PRINTED LABEL", `Address label for ${customer.company || customer.firstName || customer.email}`);
   };
 
   const { data: journey, refetch: refetchJourney } = useQuery<CustomerJourney | null>({
@@ -718,28 +773,48 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                   <MapPin className="h-3 w-3" />
                   Company Address
                 </span>
-                {!isEditingAddress && (
-                  <Button 
-                    variant="ghost" 
-                    size="sm" 
-                    onClick={() => {
-                      setEditAddress({
-                        address1: customer.address1 || '',
-                        address2: customer.address2 || '',
-                        city: customer.city || '',
-                        province: customer.province || '',
-                        country: customer.country || '',
-                        zip: customer.zip || '',
-                      });
-                      setIsEditingAddress(true);
-                    }}
-                    className="h-6 px-2 text-xs"
-                    data-testid="btn-edit-address"
-                  >
-                    <Pencil className="h-3 w-3 mr-1" />
-                    {(customer.address1 || customer.city) ? 'Edit' : 'Add'}
-                  </Button>
-                )}
+                <div className="flex items-center gap-1">
+                  {hasAddress && !isEditingAddress && (
+                    <TooltipProvider>
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <Button 
+                            variant="outline" 
+                            size="sm" 
+                            onClick={printAddressLabel}
+                            className="h-6 w-6 p-0 border-blue-200"
+                            data-testid="btn-print-address-label"
+                          >
+                            <Printer className="h-3 w-3 text-blue-500" />
+                          </Button>
+                        </TooltipTrigger>
+                        <TooltipContent>Print Address Label (4x2")</TooltipContent>
+                      </Tooltip>
+                    </TooltipProvider>
+                  )}
+                  {!isEditingAddress && (
+                    <Button 
+                      variant="ghost" 
+                      size="sm" 
+                      onClick={() => {
+                        setEditAddress({
+                          address1: customer.address1 || '',
+                          address2: customer.address2 || '',
+                          city: customer.city || '',
+                          province: customer.province || '',
+                          country: customer.country || '',
+                          zip: customer.zip || '',
+                        });
+                        setIsEditingAddress(true);
+                      }}
+                      className="h-6 px-2 text-xs"
+                      data-testid="btn-edit-address"
+                    >
+                      <Pencil className="h-3 w-3 mr-1" />
+                      {(customer.address1 || customer.city) ? 'Edit' : 'Add'}
+                    </Button>
+                  )}
+                </div>
               </div>
               
               {isEditingAddress ? (
