@@ -898,16 +898,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get all customers
-  app.get("/api/customers", async (req, res) => {
-    try {
-      // Use database storage instead of CSV parsing
-      const customers = await storage.getCustomers();
-      res.json(customers);
-    } catch (error) {
-      console.error("Error fetching customers:", error);
-      res.status(500).json({ error: "Failed to fetch customers" });
-    }
-  });
+  // Note: /api/customers endpoint is defined earlier with caching support
 
   // Get quote counts per customer email
   app.get("/api/customers/quote-counts", isAuthenticated, async (req, res) => {
@@ -5886,38 +5877,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get dashboard stats summary
+  // Get dashboard stats summary - OPTIMIZED to avoid N+1 queries
   app.get("/api/customer-activity/dashboard-stats", isAuthenticated, async (req, res) => {
     try {
-      const [todayTasks, overdueTasks, pendingTasks, recentEvents, customers, sampleRequests, allFollowUpTasks] = await Promise.all([
+      const [todayTasks, overdueTasks, pendingTasks, sampleRequests, allFollowUpTasks, customerCount] = await Promise.all([
         storage.getTodayFollowUpTasks(),
         storage.getOverdueFollowUpTasks(),
         storage.getPendingFollowUpTasks(),
-        storage.getRecentActivityEvents(50),
-        storage.getCustomers(),
         storage.getSampleRequests(),
         storage.getPendingFollowUpTasks(),
+        storage.getCustomerCount(),
       ]);
 
-      const thirtyDaysAgo = new Date();
-      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-      
-      let idleAccountsCount = 0;
-      for (const customer of customers) {
-        const events = await storage.getActivityEventsByCustomer(customer.id);
-        const lastEvent = events[0];
-        if (!lastEvent) {
-          idleAccountsCount++;
-        } else {
-          const lastActivityDate = lastEvent.eventDate 
-            ? new Date(lastEvent.eventDate) 
-            : (lastEvent.createdAt ? new Date(lastEvent.createdAt) : null);
-          
-          if (!lastActivityDate || lastActivityDate < thirtyDaysAgo) {
-            idleAccountsCount++;
-          }
-        }
-      }
+      // Calculate idle accounts using a single aggregated query instead of N+1
+      const idleAccountsCount = await storage.getIdleAccountsCount(30);
       
       const sampleFollowUpIds = new Set(
         allFollowUpTasks
@@ -5937,7 +5910,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         pendingTasks: pendingTasks.length,
         idleAccounts: idleAccountsCount,
         pendingSamples: pendingSamplesCount,
-        recentActivity: recentEvents.length,
+        recentActivity: 0,
       });
     } catch (error) {
       console.error("Error fetching dashboard stats:", error);

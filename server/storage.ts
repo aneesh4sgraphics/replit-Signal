@@ -188,6 +188,8 @@ export interface IStorage {
   getCustomers(): Promise<Customer[]>;
   getAllCustomers(): Promise<Customer[]>; // Alias for getCustomers for clarity
   getCustomer(id: string): Promise<Customer | undefined>;
+  getCustomerCount(): Promise<number>;
+  getIdleAccountsCount(daysThreshold: number): Promise<number>;
   createCustomer(customer: InsertCustomer): Promise<Customer>;
   createCustomersBatch(customers: InsertCustomer[]): Promise<Customer[]>;
   updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
@@ -792,6 +794,26 @@ export class DatabaseStorage implements IStorage {
       .from(customers)
       .where(eq(customers.id, id));
     return customer || undefined;
+  }
+
+  async getCustomerCount(): Promise<number> {
+    const result = await db.execute(sql`SELECT COUNT(*) as count FROM customers`);
+    return parseInt(result.rows[0]?.count as string) || 0;
+  }
+
+  async getIdleAccountsCount(daysThreshold: number): Promise<number> {
+    // Optimized single query: count customers with no activity events 
+    // OR whose last activity is older than threshold days
+    const result = await db.execute(sql`
+      SELECT COUNT(*) as count FROM customers c
+      WHERE NOT EXISTS (
+        SELECT 1 FROM customer_activity_events ae 
+        WHERE ae.customer_id = c.id 
+        AND (ae.event_date > NOW() - INTERVAL '${sql.raw(String(daysThreshold))} days'
+             OR ae.created_at > NOW() - INTERVAL '${sql.raw(String(daysThreshold))} days')
+      )
+    `);
+    return parseInt(result.rows[0]?.count as string) || 0;
   }
 
   async createCustomer(customer: InsertCustomer): Promise<Customer> {
