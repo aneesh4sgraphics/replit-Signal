@@ -184,6 +184,16 @@ export default function ClientDatabase() {
 
   const { data: customers = [], isLoading, error, refetch } = useCustomers();
   
+  // Sync selectedCustomer with updated customer data from refetch
+  useEffect(() => {
+    if (selectedCustomer && customers.length > 0) {
+      const updatedCustomer = customers.find(c => c.id === selectedCustomer.id);
+      if (updatedCustomer && JSON.stringify(updatedCustomer) !== JSON.stringify(selectedCustomer)) {
+        setSelectedCustomer(updatedCustomer);
+      }
+    }
+  }, [customers, selectedCustomer]);
+  
   // Fetch quote counts per customer
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],
