@@ -27,6 +27,14 @@ Preferred communication style: Simple, everyday language.
 - **Error Handling & Diagnostics**: Production-ready error logging, performance tracking, and detailed error responses with actionable suggestions, exposing only sanitized error fields to the frontend. Includes a `/api/diagnostics` health check endpoint.
 - **AI Chatbot**: Hybrid RAG system using OpenAI GPT-4o (with fallback to local BM25 search over troubleshooting PDFs). Features context-only answering, product retrieval from the database, strict "no guessing" policy, source citations, and guidance to appropriate app sections. Works offline with local search.
 - **CRM Integration**: Comprehensive customer journey tracking system, including customer journey instances, press test journeys, sample requests, test outcomes, and swatch management.
+- **Customer Coach Panel**: Coach-style B2B Customer Journey system for repeat buyers with minimal typing. Features:
+  - Account State badges (Prospect→FirstTrust→ExpansionPossible→ExpansionInProgress→MultiCategory→Embedded)
+  - Machine Profile tracking (6 machine families: Offset, Digital Dry Toner, HP Indigo, Inkjet, Flexo, Wide Format)
+  - Category Trust Grid (48 product categories with 5-state progression: NotIntroduced→Introduced→Evaluated→Adopted→Habitual)
+  - Reorder Intelligence with status alerts (Upcoming/Due/Overdue/AtRisk)
+  - "Next Best Move" single actionable coach nudge based on customer state
+  - One-click trust advancement and objection logging
+  - Auto-sync capability from sample requests and test outcomes
 - **Email Studio**: Pre-composed email templates with dynamic variables ({{client.name}}, {{product.type}}, {{price.dealer}}, etc.). Admin-only template creation, user compose flow with recipient selection and variable auto-fill, email send logging and activity tracking.
 
 ### Database Architecture
