@@ -54,7 +54,7 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
-import { eq } from "drizzle-orm";
+import { eq, sql } from "drizzle-orm";
 import { 
   customerContacts, 
   customerJourney, 
