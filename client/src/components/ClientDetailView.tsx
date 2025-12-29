@@ -148,7 +148,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     });
   };
 
-  const hasAddress = !!(customer.address1?.trim() || customer.city?.trim() || customer.province?.trim() || customer.zip?.trim());
+  // Match the display logic - need address1 OR city to consider it a complete address
+  const hasAddress = !!(customer.address1?.trim() || customer.city?.trim());
 
   const openGoogleMapsSearch = () => {
     const searchQuery = encodeURIComponent(customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim());
