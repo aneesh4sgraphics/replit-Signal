@@ -504,9 +504,12 @@ export default function Dashboard() {
                   </div>
                   {/* Quick Action Button */}
                   {stat.quickAction && (
-                    <Link
-                      href={stat.quickAction.path}
-                      onClick={(e) => e.stopPropagation()}
+                    <button
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        window.location.href = stat.quickAction!.path;
+                      }}
                       style={{
                         display: 'inline-flex',
                         alignItems: 'center',
@@ -518,14 +521,14 @@ export default function Dashboard() {
                         background: `${stat.accentColor}30`,
                         border: `1px solid ${stat.accentColor}50`,
                         borderRadius: '8px',
-                        textDecoration: 'none',
+                        cursor: 'pointer',
                         transition: 'all 0.2s ease',
                         opacity: hoveredCard === `stat-${i}` ? 1 : 0.7
                       }}
                     >
                       <Plus size={14} />
                       {stat.quickAction.label}
-                    </Link>
+                    </button>
                   )}
                 </div>
               </Link>
