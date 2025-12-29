@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,11 @@ import { Progress } from "@/components/ui/progress";
 import { Checkbox } from "@/components/ui/checkbox";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
+import {
+  Collapsible,
+  CollapsibleContent,
+  CollapsibleTrigger,
+} from "@/components/ui/collapsible";
 import {
   Tooltip,
   TooltipContent,
@@ -39,6 +44,7 @@ import {
   Calendar,
   Trophy,
   ChevronRight,
+  ChevronDown,
   Sparkles,
   TrendingUp,
   AlertCircle,
@@ -123,6 +129,7 @@ interface CustomerCoachPanelProps {
 export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps) {
   const [objectionDialog, setObjectionDialog] = useState<{ open: boolean; categoryName: string; trustId?: number }>({ open: false, categoryName: '' });
   const [machineNoteDialog, setMachineNoteDialog] = useState<{ open: boolean; machineId: string; machineLabel: string; details: string }>({ open: false, machineId: '', machineLabel: '', details: '' });
+  const [machineProfileOpen, setMachineProfileOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: machineProfiles = [], refetch: refetchMachines } = useQuery<CustomerMachineProfile[]>({
@@ -361,6 +368,20 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
         <Badge className={`${accountConfig?.bgColor} ${accountConfig?.color} border-0`}>
           {accountConfig?.label}
         </Badge>
+        {machineProfiles.length > 0 && (
+          <TooltipProvider>
+            <Tooltip>
+              <TooltipTrigger>
+                <div className="flex items-center justify-center h-6 w-6 rounded-full bg-green-500 text-white text-xs font-bold" data-testid="machine-indicator">
+                  M
+                </div>
+              </TooltipTrigger>
+              <TooltipContent>
+                {machineProfiles.length} machine{machineProfiles.length > 1 ? 's' : ''} configured
+              </TooltipContent>
+            </Tooltip>
+          </TooltipProvider>
+        )}
       </div>
 
       {nextMove && (
@@ -379,88 +400,6 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
           </CardContent>
         </Card>
       )}
-
-      <Card>
-        <CardHeader className="pb-2">
-          <CardTitle className="text-sm flex items-center gap-2">
-            <Printer className="h-4 w-4" />
-            Machine Profile
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <div className="grid grid-cols-2 gap-2">
-            {MACHINE_FAMILIES.map(machine => {
-              const profile = machineProfiles.find(p => p.machineFamily === machine.id);
-              const isEnabled = !!profile;
-              const isConfirmed = profile?.status === 'confirmed';
-              const isOther = machine.id === 'other';
-
-              return (
-                <div
-                  key={machine.id}
-                  className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
-                    isEnabled
-                      ? isConfirmed
-                        ? 'bg-green-50 border-green-200'
-                        : 'bg-blue-50 border-blue-200'
-                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
-                  }`}
-                  onClick={() => {
-                    if (REQUIRES_NOTE_MACHINES.includes(machine.id) && !isEnabled) {
-                      setMachineNoteDialog({ open: true, machineId: machine.id, machineLabel: machine.label, details: '' });
-                    } else {
-                      toggleMachineMutation.mutate({ machineFamily: machine.id, currentlyEnabled: isEnabled });
-                    }
-                  }}
-                  data-testid={`machine-${machine.id}`}
-                >
-                  <Checkbox
-                    checked={isEnabled}
-                    className="pointer-events-none"
-                  />
-                  <div className="flex-1 min-w-0">
-                    <p className="text-sm font-medium truncate">{machine.label}</p>
-                    {isEnabled && (
-                      <p className="text-xs text-gray-500">
-                        {isConfirmed ? (
-                          <span className="text-green-600 flex items-center gap-1">
-                            <CheckCircle2 className="h-3 w-3" /> Confirmed
-                          </span>
-                        ) : REQUIRES_NOTE_MACHINES.includes(machine.id) && profile?.otherDetails ? (
-                          <span className="text-blue-600 truncate">{profile.otherDetails}</span>
-                        ) : (
-                          <span className="text-blue-600">Inferred</span>
-                        )}
-                      </p>
-                    )}
-                  </div>
-                  {isEnabled && !isConfirmed && (
-                    <TooltipProvider>
-                      <Tooltip>
-                        <TooltipTrigger asChild>
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            className="h-6 w-6 p-0"
-                            onClick={(e) => {
-                              e.stopPropagation();
-                              if (profile) confirmMachineMutation.mutate(profile.id);
-                            }}
-                            data-testid={`confirm-machine-${machine.id}`}
-                          >
-                            <Check className="h-4 w-4 text-green-600" />
-                          </Button>
-                        </TooltipTrigger>
-                        <TooltipContent>Confirm machine</TooltipContent>
-                      </Tooltip>
-                    </TooltipProvider>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        </CardContent>
-      </Card>
 
       <Card>
         <CardHeader className="pb-2">
@@ -626,6 +565,101 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
           </CardContent>
         </Card>
       )}
+
+      <Collapsible open={machineProfileOpen} onOpenChange={setMachineProfileOpen}>
+        <Card>
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-2 cursor-pointer hover:bg-gray-50/50 transition-colors">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm flex items-center gap-2">
+                  <Printer className="h-4 w-4" />
+                  Machine Profile
+                  {machineProfiles.length > 0 && (
+                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
+                      {machineProfiles.length} selected
+                    </Badge>
+                  )}
+                </CardTitle>
+                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${machineProfileOpen ? 'rotate-180' : ''}`} />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent>
+              <div className="grid grid-cols-2 gap-2">
+                {MACHINE_FAMILIES.map(machine => {
+                  const profile = machineProfiles.find(p => p.machineFamily === machine.id);
+                  const isEnabled = !!profile;
+                  const isConfirmed = profile?.status === 'confirmed';
+
+                  return (
+                    <div
+                      key={machine.id}
+                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                        isEnabled
+                          ? isConfirmed
+                            ? 'bg-green-50 border-green-200'
+                            : 'bg-blue-50 border-blue-200'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                      }`}
+                      onClick={() => {
+                        if (REQUIRES_NOTE_MACHINES.includes(machine.id) && !isEnabled) {
+                          setMachineNoteDialog({ open: true, machineId: machine.id, machineLabel: machine.label, details: '' });
+                        } else {
+                          toggleMachineMutation.mutate({ machineFamily: machine.id, currentlyEnabled: isEnabled });
+                        }
+                      }}
+                      data-testid={`machine-${machine.id}`}
+                    >
+                      <Checkbox
+                        checked={isEnabled}
+                        className="pointer-events-none"
+                      />
+                      <div className="flex-1 min-w-0">
+                        <p className="text-sm font-medium truncate">{machine.label}</p>
+                        {isEnabled && (
+                          <p className="text-xs text-gray-500">
+                            {isConfirmed ? (
+                              <span className="text-green-600 flex items-center gap-1">
+                                <CheckCircle2 className="h-3 w-3" /> Confirmed
+                              </span>
+                            ) : REQUIRES_NOTE_MACHINES.includes(machine.id) && profile?.otherDetails ? (
+                              <span className="text-blue-600 truncate">{profile.otherDetails}</span>
+                            ) : (
+                              <span className="text-blue-600">Inferred</span>
+                            )}
+                          </p>
+                        )}
+                      </div>
+                      {isEnabled && !isConfirmed && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 w-6 p-0"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  if (profile) confirmMachineMutation.mutate(profile.id);
+                                }}
+                                data-testid={`confirm-machine-${machine.id}`}
+                              >
+                                <Check className="h-4 w-4 text-green-600" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Confirm machine</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </CardContent>
+          </CollapsibleContent>
+        </Card>
+      </Collapsible>
 
       <Dialog open={machineNoteDialog.open} onOpenChange={(open) => setMachineNoteDialog({ ...machineNoteDialog, open })}>
         <DialogContent className="sm:max-w-md">
