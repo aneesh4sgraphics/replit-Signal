@@ -93,6 +93,127 @@ export default function CompetitorPricing() {
   const [visibleColumns, setVisibleColumns] = useState<Set<string>>(
     new Set(['productKind', 'dimensions', 'thickness', 'priceSheet', 'priceM2', 'notes'])
   );
+
+  // ALL HOOKS MUST BE CALLED BEFORE ANY EARLY RETURNS
+  // Fetch competitor pricing data
+  const { data: competitorData = [], isLoading, error } = useQuery({
+    queryKey: ["/api/competitor-pricing"],
+    retry: false,
+    enabled: isAuthenticated
+  });
+
+  // Delete mutation
+  const deleteMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      toast({
+        title: "Success",
+        description: "Entry deleted successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete entry",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // File upload mutation
+  const uploadMutation = useMutation({
+    mutationFn: async (file: File) => {
+      const formData = new FormData();
+      formData.append('file', file);
+      
+      const response = await fetch('/api/upload-competitor-pricing', {
+        method: 'POST',
+        body: formData,
+      });
+      
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
+        throw new Error(errorData.error || 'Upload failed');
+      }
+      
+      return response.json();
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setUploadFile(null);
+      toast({
+        title: "Success",
+        description: data.message || "Data uploaded successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Upload Failed",
+        description: error.message || "Failed to upload data",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Bulk delete mutation
+  const bulkDeleteMutation = useMutation({
+    mutationFn: async (ids: number[]) => {
+      for (const id of ids) {
+        await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
+      }
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setSelectedIds(new Set());
+      toast({
+        title: "Success",
+        description: `Entries deleted successfully`,
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete some entries",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Bulk edit mutation
+  const bulkEditMutation = useMutation({
+    mutationFn: async (data: { ids: number[]; fields: Record<string, string> }) => {
+      await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", data);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      setSelectedIds(new Set());
+      setShowBulkEditModal(false);
+      setBulkEditFields({
+        type: '',
+        thickness: '',
+        productKind: '',
+        surfaceFinish: '',
+        supplierInfo: '',
+        infoReceivedFrom: '',
+        notes: '',
+        source: '',
+      });
+      toast({
+        title: "Success",
+        description: "Entries updated successfully",
+      });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update entries",
+        variant: "destructive",
+      });
+    },
+  });
   
   const toggleColumn = (key: string) => {
     setVisibleColumns(prev => {
@@ -211,69 +332,6 @@ export default function CompetitorPricing() {
     );
   }
 
-  // Fetch competitor pricing data
-  const { data: competitorData = [], isLoading, error } = useQuery({
-    queryKey: ["/api/competitor-pricing"],
-    retry: false,
-    enabled: isAuthenticated
-  });
-
-  // Delete mutation
-  const deleteMutation = useMutation({
-    mutationFn: async (id: number) => {
-      await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
-      toast({
-        title: "Success",
-        description: "Entry deleted successfully",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete entry",
-        variant: "destructive",
-      });
-    },
-  });
-
-  // File upload mutation
-  const uploadMutation = useMutation({
-    mutationFn: async (file: File) => {
-      const formData = new FormData();
-      formData.append('file', file);
-      
-      const response = await fetch('/api/upload-competitor-pricing', {
-        method: 'POST',
-        body: formData,
-      });
-      
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({ error: 'Upload failed' }));
-        throw new Error(errorData.error || 'Upload failed');
-      }
-      
-      return response.json();
-    },
-    onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
-      setUploadFile(null);
-      toast({
-        title: "Success",
-        description: data.message || "Data uploaded successfully",
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Upload Failed",
-        description: error.message || "Failed to upload data",
-        variant: "destructive",
-      });
-    },
-  });
-
   // Handle file upload
   const handleFileUpload = () => {
     if (!uploadFile) return;
@@ -286,30 +344,6 @@ export default function CompetitorPricing() {
       deleteMutation.mutate(id);
     }
   };
-
-  // Bulk delete mutation
-  const bulkDeleteMutation = useMutation({
-    mutationFn: async (ids: number[]) => {
-      for (const id of ids) {
-        await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
-      }
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
-      setSelectedIds(new Set());
-      toast({
-        title: "Success",
-        description: `${selectedIds.size} entries deleted successfully`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to delete some entries",
-        variant: "destructive",
-      });
-    },
-  });
 
   // Bulk selection helpers
   const toggleRowSelection = (id: number) => {
@@ -338,39 +372,6 @@ export default function CompetitorPricing() {
       bulkDeleteMutation.mutate(Array.from(selectedIds));
     }
   };
-
-  // Bulk edit mutation - supports multiple fields
-  const bulkEditMutation = useMutation({
-    mutationFn: async ({ ids, fields }: { ids: number[]; fields: Record<string, string> }) => {
-      await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", { ids, fields });
-    },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
-      setSelectedIds(new Set());
-      setShowBulkEditModal(false);
-      setBulkEditFields({
-        type: '',
-        thickness: '',
-        productKind: '',
-        surfaceFinish: '',
-        supplierInfo: '',
-        infoReceivedFrom: '',
-        notes: '',
-        source: '',
-      });
-      toast({
-        title: "Success",
-        description: `${selectedIds.size} entries updated successfully`,
-      });
-    },
-    onError: (error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to update entries",
-        variant: "destructive",
-      });
-    },
-  });
 
   const handleBulkEdit = () => {
     if (selectedIds.size === 0) return;
