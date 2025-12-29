@@ -148,8 +148,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     });
   };
 
-  // Match the display logic - need address1 OR city to consider it a complete address
-  const hasAddress = !!(customer.address1?.trim() || customer.city?.trim());
+  // Full address requires all 5 fields: address1, city, province/state, zip, and country
+  const hasCompleteAddress = !!(
+    customer.address1?.trim() && 
+    customer.city?.trim() && 
+    customer.province?.trim() && 
+    customer.zip?.trim() && 
+    customer.country?.trim()
+  );
 
   const openGoogleMapsSearch = () => {
     const searchQuery = encodeURIComponent(customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim());
@@ -972,7 +978,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                   Company Address
                 </span>
                 <div className="flex items-center gap-1">
-                  {!isEditingAddress && hasAddress && (
+                  {!isEditingAddress && hasCompleteAddress && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
@@ -990,7 +996,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                       </Tooltip>
                     </TooltipProvider>
                   )}
-                  {!isEditingAddress && !hasAddress && (
+                  {!isEditingAddress && !hasCompleteAddress && (
                     <TooltipProvider>
                       <Tooltip>
                         <TooltipTrigger asChild>
