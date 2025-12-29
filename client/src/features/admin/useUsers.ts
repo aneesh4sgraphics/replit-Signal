@@ -4,7 +4,7 @@ import type { User } from '@shared/schema';
 
 export function useUsers() {
   return useQuery({
-    queryKey: ['users'],
+    queryKey: ['/api/admin/users'],
     queryFn: () => api<User[]>('/api/admin/users'),
     staleTime: 1 * 60 * 1000, // 1 minute
     retry: (count, err: any) => {
