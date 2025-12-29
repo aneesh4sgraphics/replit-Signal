@@ -2138,10 +2138,10 @@ export default function ClientDatabase() {
                                     onClick={() => printAddressLabel(primary)}
                                     size="sm" 
                                     variant="ghost" 
-                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    className="h-7 w-7 p-0"
                                     data-testid={`button-print-label-${primary.id}`}
                                   >
-                                    <Printer className="h-3.5 w-3.5 text-gray-500" />
+                                    <Printer className="h-3.5 w-3.5 text-blue-500 hover:text-blue-700" />
                                   </Button>
                                 </TooltipTrigger>
                                 <TooltipContent>Print Address Label (4x2")</TooltipContent>
@@ -2208,21 +2208,21 @@ export default function ClientDatabase() {
                                     <span className="text-gray-400 text-xs hidden lg:block">• {customer.phone}</span>
                                   )}
                                 </div>
-                                <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
                                   {hasAddress(customer) && (
                                     <TooltipProvider>
                                       <Tooltip>
                                         <TooltipTrigger asChild>
                                           <Button onClick={() => printAddressLabel(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0">
-                                            <Printer className="h-2.5 w-2.5 text-gray-500" />
+                                            <Printer className="h-2.5 w-2.5 text-blue-500 hover:text-blue-700" />
                                           </Button>
                                         </TooltipTrigger>
                                         <TooltipContent>Print Address Label</TooltipContent>
                                       </Tooltip>
                                     </TooltipProvider>
                                   )}
-                                  <Button onClick={() => { setSelectedCustomer(customer); setSelectedCompanyContacts([]); }} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]">View</Button>
-                                  <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0"><Edit className="h-2.5 w-2.5" /></Button>
+                                  <Button onClick={() => { setSelectedCustomer(customer); setSelectedCompanyContacts([]); }} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100">View</Button>
+                                  <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"><Edit className="h-2.5 w-2.5" /></Button>
                                 </div>
                               </div>
                             );
@@ -2314,11 +2314,11 @@ export default function ClientDatabase() {
                         <TooltipProvider>
                           <Tooltip>
                             <TooltipTrigger asChild>
-                              <Button onClick={() => printAddressLabel(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0">
-                                <Printer className="h-4 w-4 text-gray-500" />
+                              <Button onClick={() => printAddressLabel(customer)} size="sm" variant="outline" className="h-8 w-8 p-0 border-blue-200">
+                                <Printer className="h-4 w-4 text-blue-500" />
                               </Button>
                             </TooltipTrigger>
-                            <TooltipContent>Print Address Label</TooltipContent>
+                            <TooltipContent>Print Address Label (4x2")</TooltipContent>
                           </Tooltip>
                         </TooltipProvider>
                       )}
