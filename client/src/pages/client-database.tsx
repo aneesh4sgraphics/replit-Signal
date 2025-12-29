@@ -263,6 +263,129 @@ export default function ClientDatabase() {
            normalized === '-' ||
            !normalized.includes('@');
   };
+
+  // Check if customer has printable address
+  const hasAddress = (customer: Customer): boolean => {
+    return !!(customer.address1 || customer.city || customer.province || customer.zip);
+  };
+
+  // Format address for label printing
+  const formatAddressLabel = (customer: Customer): string[] => {
+    const lines: string[] = [];
+    
+    // Line 1: Person Name (if available)
+    const personName = [customer.firstName, customer.lastName].filter(Boolean).join(' ').trim();
+    if (personName) {
+      lines.push(personName);
+    }
+    
+    // Line 2: Company Name (if different from person name)
+    if (customer.company && customer.company.trim() && customer.company.trim() !== personName) {
+      lines.push(customer.company.trim());
+    }
+    
+    // Line 3: Address Line 1
+    if (customer.address1?.trim()) {
+      lines.push(customer.address1.trim());
+    }
+    
+    // Line 4: Address Line 2 (if available)
+    if (customer.address2?.trim()) {
+      lines.push(customer.address2.trim());
+    }
+    
+    // Line 5: City, State ZIP
+    const cityStateZip = [
+      customer.city?.trim(),
+      customer.province?.trim(),
+      customer.zip?.trim()
+    ].filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' $1'); // Format as "City, State ZIP"
+    if (cityStateZip) {
+      lines.push(cityStateZip);
+    }
+    
+    return lines;
+  };
+
+  // Print 4x2" address label
+  const printAddressLabel = (customer: Customer) => {
+    const lines = formatAddressLabel(customer);
+    if (lines.length === 0) {
+      toast({
+        title: "No address available",
+        description: "This contact doesn't have address information to print.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    const printWindow = window.open('', '_blank', 'width=400,height=250');
+    if (!printWindow) {
+      toast({
+        title: "Popup blocked",
+        description: "Please allow popups to print labels.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // 4x2 inch label = 288pt x 144pt (at 72dpi)
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+      <head>
+        <title>Address Label</title>
+        <style>
+          @page {
+            size: 4in 2in;
+            margin: 0;
+          }
+          * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+          }
+          body {
+            width: 4in;
+            height: 2in;
+            padding: 0.15in 0.2in;
+            font-family: Arial, Helvetica, sans-serif;
+            display: flex;
+            flex-direction: column;
+            justify-content: center;
+          }
+          .label-line {
+            font-size: 11pt;
+            line-height: 1.4;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+          }
+          .label-line.name {
+            font-weight: bold;
+            font-size: 12pt;
+          }
+          .label-line.company {
+            font-weight: 600;
+          }
+        </style>
+      </head>
+      <body>
+        ${lines.map((line, i) => 
+          `<div class="label-line ${i === 0 ? 'name' : i === 1 && lines.length > 2 ? 'company' : ''}">${line}</div>`
+        ).join('')}
+      </body>
+      </html>
+    `);
+    printWindow.document.close();
+    
+    setTimeout(() => {
+      printWindow.print();
+      printWindow.close();
+    }, 250);
+
+    logUserAction("PRINTED LABEL", `Address label for ${customer.company || customer.firstName || customer.email}`);
+  };
   
   // Get Kanban category for a customer
   const getKanbanCategory = (customer: Customer): string => {
@@ -1992,6 +2115,11 @@ export default function ClientDatabase() {
                               <DropdownMenuItem onClick={() => startInlineEdit(primary, 'email')}>
                                 <Mail className="h-4 w-4 mr-2" /> Edit Email
                               </DropdownMenuItem>
+                              {hasAddress(primary) && (
+                                <DropdownMenuItem onClick={() => printAddressLabel(primary)}>
+                                  <Printer className="h-4 w-4 mr-2" /> Print Address Label
+                                </DropdownMenuItem>
+                              )}
                               <DropdownMenuSeparator />
                               <DropdownMenuItem onClick={() => toggleMergeSelection(primary.id)} disabled={selectedForMerge.size >= 2 && !selectedForMerge.has(primary.id)}>
                                 <Users className="h-4 w-4 mr-2" /> Select for Merge
@@ -2002,6 +2130,24 @@ export default function ClientDatabase() {
                               </DropdownMenuItem>
                             </DropdownMenuContent>
                           </DropdownMenu>
+                          {hasAddress(primary) && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    onClick={() => printAddressLabel(primary)}
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity"
+                                    data-testid={`button-print-label-${primary.id}`}
+                                  >
+                                    <Printer className="h-3.5 w-3.5 text-gray-500" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent>Print Address Label (4x2")</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           <Button 
                             onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }} 
                             size="sm" 
@@ -2063,6 +2209,18 @@ export default function ClientDatabase() {
                                   )}
                                 </div>
                                 <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity" onClick={(e) => e.stopPropagation()}>
+                                  {hasAddress(customer) && (
+                                    <TooltipProvider>
+                                      <Tooltip>
+                                        <TooltipTrigger asChild>
+                                          <Button onClick={() => printAddressLabel(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0">
+                                            <Printer className="h-2.5 w-2.5 text-gray-500" />
+                                          </Button>
+                                        </TooltipTrigger>
+                                        <TooltipContent>Print Address Label</TooltipContent>
+                                      </Tooltip>
+                                    </TooltipProvider>
+                                  )}
                                   <Button onClick={() => { setSelectedCustomer(customer); setSelectedCompanyContacts([]); }} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px]">View</Button>
                                   <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0"><Edit className="h-2.5 w-2.5" /></Button>
                                 </div>
@@ -2152,6 +2310,18 @@ export default function ClientDatabase() {
                     
                     <div className="flex items-center gap-1 pt-2 border-t border-gray-100">
                       <Button onClick={() => setSelectedCustomer(customer)} size="sm" variant="default" className="flex-1 h-8">View</Button>
+                      {hasAddress(customer) && (
+                        <TooltipProvider>
+                          <Tooltip>
+                            <TooltipTrigger asChild>
+                              <Button onClick={() => printAddressLabel(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0">
+                                <Printer className="h-4 w-4 text-gray-500" />
+                              </Button>
+                            </TooltipTrigger>
+                            <TooltipContent>Print Address Label</TooltipContent>
+                          </Tooltip>
+                        </TooltipProvider>
+                      )}
                       <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-8 w-8 p-0"><Edit className="h-4 w-4" /></Button>
                       <Button onClick={() => handleDeleteCustomer(customer.id)} size="sm" variant="ghost" className="h-8 w-8 p-0 text-red-500"><Trash2 className="h-4 w-4" /></Button>
                     </div>
