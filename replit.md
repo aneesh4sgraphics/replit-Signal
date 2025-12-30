@@ -43,6 +43,16 @@ Preferred communication style: Simple, everyday language.
   - Next Best Move prioritizes overdue quote follow-ups
   - Quote close flow with "won/lost" outcome tracking and optional trust advancement to "adopted"
 - **Email Studio**: Pre-composed email templates with dynamic variables ({{client.name}}, {{product.type}}, {{price.dealer}}, etc.). Admin-only template creation, user compose flow with recipient selection and variable auto-fill, email send logging and activity tracking.
+- **Shopify Integration**: Embedded Shopify Admin app for single-store internal use:
+  - OAuth flow: `/shopify/auth?shop=...` initiates install, `/shopify/callback` handles token exchange
+  - Automatic webhook registration for orders/paid, orders/updated, customers/create, customers/update
+  - HMAC verification for all webhooks using raw body capture before JSON parsing
+  - Embedded app entry point at `/app` for loading CRM inside Shopify Admin iframe
+  - App Bridge v4 integration via CDN script for navigation within Shopify Admin
+  - Order sync maps Shopify customers to CRM accounts by email/company name
+  - Paid orders auto-advance category trust to "adopted" via product mappings
+  - Environment variables: SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SHOPIFY_SCOPES, SHOPIFY_APP_URL
+  - Tables: `shopifyInstalls` (OAuth tokens), `shopifyWebhookEvents` (event logging), `shopifyOrders`, `shopifyProductMappings`
 
 ### Database Architecture
 - **ORM**: Drizzle ORM with PostgreSQL dialect

@@ -6,6 +6,7 @@ import { TooltipProvider } from "@/components/ui/tooltip";
 import { MicroFeedbackProvider } from "@/components/MicroFeedbackProvider";
 import { useAuth } from "@/hooks/useAuth";
 import { useEffect } from "react";
+import { ShopifyAppBridgeProvider } from "@/components/ShopifyAppBridgeProvider";
 // Removed: FloatingCalculator and AIChatbot per user request
 import { ServiceWorkerUpdater } from "@/components/ServiceWorkerUpdater";
 import { AuthWatcher } from "@/components/AuthWatcher";
@@ -169,14 +170,16 @@ function Router() {
 function App() {
   return (
     <QueryClientProvider client={queryClient}>
-      <TooltipProvider>
-        <MicroFeedbackProvider>
-          <Toaster />
-          <AuthWatcher />
-          <Router />
-          <ServiceWorkerUpdater />
-        </MicroFeedbackProvider>
-      </TooltipProvider>
+      <ShopifyAppBridgeProvider>
+        <TooltipProvider>
+          <MicroFeedbackProvider>
+            <Toaster />
+            <AuthWatcher />
+            <Router />
+            <ServiceWorkerUpdater />
+          </MicroFeedbackProvider>
+        </TooltipProvider>
+      </ShopifyAppBridgeProvider>
     </QueryClientProvider>
   );
 }

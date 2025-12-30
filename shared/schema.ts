@@ -1542,3 +1542,46 @@ export const shopifySettings = pgTable("shopify_settings", {
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Shopify App Install - stores OAuth access tokens for installed shops
+export const shopifyInstalls = pgTable("shopify_installs", {
+  id: serial("id").primaryKey(),
+  shop: varchar("shop", { length: 255 }).notNull().unique(), // e.g., "mystore.myshopify.com"
+  accessToken: varchar("access_token", { length: 255 }).notNull(),
+  scope: varchar("scope", { length: 500 }),
+  isActive: boolean("is_active").default(true),
+  installedAt: timestamp("installed_at").defaultNow(),
+  uninstalledAt: timestamp("uninstalled_at"),
+  lastApiCallAt: timestamp("last_api_call_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyInstallSchema = createInsertSchema(shopifyInstalls).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyInstall = typeof shopifyInstalls.$inferSelect;
+export type InsertShopifyInstall = z.infer<typeof insertShopifyInstallSchema>;
+
+// Shopify Webhook Events - logs all incoming webhooks for debugging and processing
+export const shopifyWebhookEvents = pgTable("shopify_webhook_events", {
+  id: serial("id").primaryKey(),
+  shop: varchar("shop", { length: 255 }).notNull(),
+  topic: varchar("topic", { length: 100 }).notNull(), // e.g., "orders/paid", "customers/create"
+  shopifyId: varchar("shopify_id", { length: 100 }), // order_id or customer_id
+  payload: jsonb("payload").notNull(),
+  hmacValid: boolean("hmac_valid"),
+  processed: boolean("processed").default(false),
+  processedAt: timestamp("processed_at"),
+  errorMessage: text("error_message"),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertShopifyWebhookEventSchema = createInsertSchema(shopifyWebhookEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type ShopifyWebhookEvent = typeof shopifyWebhookEvents.$inferSelect;
+export type InsertShopifyWebhookEvent = z.infer<typeof insertShopifyWebhookEventSchema>;

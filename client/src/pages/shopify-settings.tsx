@@ -53,12 +53,23 @@ export default function ShopifySettingsPage() {
     refetchOnMount: true,
   });
 
+  const { data: installStatus } = useQuery<{
+    installed: boolean;
+    shops: Array<{ shop: string; installedAt: string; scope: string }>;
+  }>({
+    queryKey: ['/api/shopify/install-status'],
+  });
+
   const { data: orders = [] } = useQuery<any[]>({
     queryKey: ['/api/shopify/orders'],
   });
 
   const { data: mappings = [] } = useQuery<any[]>({
     queryKey: ['/api/shopify/product-mappings'],
+  });
+
+  const { data: webhookEvents = [] } = useQuery<any[]>({
+    queryKey: ['/api/shopify/webhook-events'],
   });
 
   // Sync form state with loaded settings
@@ -156,8 +167,9 @@ export default function ShopifySettingsPage() {
         </Badge>
       </div>
 
-      <Tabs defaultValue="settings" className="space-y-4">
+      <Tabs defaultValue="install" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="install">App Install</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
           <TabsTrigger value="mappings">Product Mappings</TabsTrigger>
           <TabsTrigger value="orders">
@@ -166,7 +178,139 @@ export default function ShopifySettingsPage() {
               <Badge variant="destructive" className="ml-2">{unmatchedOrders.length}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="webhooks">
+            Webhook Logs
+            {webhookEvents.length > 0 && (
+              <Badge variant="outline" className="ml-2">{webhookEvents.length}</Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="install">
+          <div className="grid gap-6 md:grid-cols-2">
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <ShoppingCart className="h-5 w-5" />
+                  Shopify App Install
+                </CardTitle>
+                <CardDescription>
+                  Install the CRM app in your Shopify store to enable embedded access and automatic webhook registration
+                </CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {installStatus?.installed ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-green-600">
+                      <CheckCircle className="h-5 w-5" />
+                      <span className="font-medium">App Installed</span>
+                    </div>
+                    {installStatus.shops.map((shop, i) => (
+                      <div key={i} className="bg-gray-50 p-4 rounded-lg">
+                        <p className="font-medium">{shop.shop}</p>
+                        <p className="text-sm text-gray-500">
+                          Installed: {shop.installedAt ? format(new Date(shop.installedAt), 'PPp') : 'Unknown'}
+                        </p>
+                        <p className="text-xs text-gray-400 mt-1">Scopes: {shop.scope || 'N/A'}</p>
+                      </div>
+                    ))}
+                    <Button variant="outline" className="w-full" asChild>
+                      <a 
+                        href={`https://${installStatus.shops[0]?.shop || 'admin.shopify.com'}/admin/apps`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                      >
+                        <ExternalLink className="h-4 w-4 mr-2" />
+                        Open in Shopify Admin
+                      </a>
+                    </Button>
+                  </div>
+                ) : (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-2 text-orange-600">
+                      <AlertTriangle className="h-5 w-5" />
+                      <span className="font-medium">App Not Installed</span>
+                    </div>
+                    <p className="text-sm text-gray-600">
+                      Install the app on your Shopify store to enable:
+                    </p>
+                    <ul className="text-sm text-gray-600 list-disc list-inside space-y-1">
+                      <li>Access CRM directly from Shopify Admin</li>
+                      <li>Automatic webhook registration</li>
+                      <li>Order and customer syncing</li>
+                    </ul>
+                    <div className="space-y-2">
+                      <Label htmlFor="installShop">Enter your shop domain</Label>
+                      <Input
+                        id="installShop"
+                        placeholder="yourstore.myshopify.com"
+                        value={shopDomain}
+                        onChange={(e) => setShopDomain(e.target.value)}
+                        data-testid="input-install-shop"
+                      />
+                    </div>
+                    <Button 
+                      className="w-full"
+                      disabled={!shopDomain}
+                      onClick={() => {
+                        window.location.href = `/shopify/auth?shop=${shopDomain}`;
+                      }}
+                      data-testid="button-install-app"
+                    >
+                      Install App on Shopify
+                    </Button>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-lg">Setup Requirements</CardTitle>
+                <CardDescription>What you need to configure the Shopify app</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="space-y-3 text-sm">
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">1</div>
+                    <div>
+                      <p className="font-medium">Create Shopify App</p>
+                      <p className="text-gray-500">In Shopify Partners or store admin, create a custom app</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">2</div>
+                    <div>
+                      <p className="font-medium">Set App URL</p>
+                      <p className="text-gray-500">App URL: <code className="bg-gray-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/app</code></p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">3</div>
+                    <div>
+                      <p className="font-medium">Set Redirect URL</p>
+                      <p className="text-gray-500">Allowed redirect: <code className="bg-gray-100 px-1 rounded">{typeof window !== 'undefined' ? window.location.origin : ''}/shopify/callback</code></p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">4</div>
+                    <div>
+                      <p className="font-medium">Add Secrets</p>
+                      <p className="text-gray-500">Set SHOPIFY_API_KEY and SHOPIFY_API_SECRET in your environment</p>
+                    </div>
+                  </div>
+                  <div className="flex items-start gap-2">
+                    <div className="h-6 w-6 rounded-full bg-blue-100 text-blue-600 flex items-center justify-center text-xs font-bold">5</div>
+                    <div>
+                      <p className="font-medium">Required Scopes</p>
+                      <p className="text-gray-500">read_orders, read_customers, read_products</p>
+                    </div>
+                  </div>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </TabsContent>
 
         <TabsContent value="settings">
           <div className="grid gap-6 md:grid-cols-2">
@@ -463,6 +607,67 @@ export default function ShopifySettingsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {order.shopifyCreatedAt ? format(new Date(order.shopifyCreatedAt), 'MMM d, yyyy') : '-'}
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  )}
+                </TableBody>
+              </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="webhooks">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg">Webhook Event Log</CardTitle>
+              <CardDescription>Recent webhook events received from Shopify (for debugging)</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <Table>
+                <TableHeader>
+                  <TableRow>
+                    <TableHead>Topic</TableHead>
+                    <TableHead>Shop</TableHead>
+                    <TableHead>Shopify ID</TableHead>
+                    <TableHead>HMAC Valid</TableHead>
+                    <TableHead>Processed</TableHead>
+                    <TableHead>Received</TableHead>
+                  </TableRow>
+                </TableHeader>
+                <TableBody>
+                  {webhookEvents.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={6} className="text-center text-gray-500 py-8">
+                        No webhook events received yet.
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    webhookEvents.slice(0, 50).map((event: any) => (
+                      <TableRow key={event.id} data-testid={`row-webhook-${event.id}`}>
+                        <TableCell className="font-mono text-sm">{event.topic}</TableCell>
+                        <TableCell className="text-sm">{event.shop}</TableCell>
+                        <TableCell className="font-mono text-xs">{event.shopifyId}</TableCell>
+                        <TableCell>
+                          {event.hmacValid ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700">
+                              <CheckCircle className="h-3 w-3 mr-1" /> Valid
+                            </Badge>
+                          ) : (
+                            <Badge variant="outline" className="bg-red-50 text-red-700">
+                              <XCircle className="h-3 w-3 mr-1" /> Invalid
+                            </Badge>
+                          )}
+                        </TableCell>
+                        <TableCell>
+                          {event.processed ? (
+                            <Badge variant="outline" className="bg-green-50 text-green-700">Yes</Badge>
+                          ) : (
+                            <Badge variant="secondary">Pending</Badge>
+                          )}
+                        </TableCell>
+                        <TableCell className="text-sm text-gray-500">
+                          {event.createdAt ? format(new Date(event.createdAt), 'MMM d, HH:mm') : '-'}
                         </TableCell>
                       </TableRow>
                     ))

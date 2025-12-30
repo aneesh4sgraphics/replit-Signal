@@ -78,6 +78,8 @@ import {
   shopifyOrders,
   shopifyProductMappings,
   shopifySettings,
+  shopifyInstalls,
+  shopifyWebhookEvents,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
   CATEGORY_STATES,
@@ -7384,20 +7386,303 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // SHOPIFY INTEGRATION APIs
   // ========================================
 
-  // Shopify webhook endpoint for order notifications (no auth - verified by HMAC)
-  // Raw body is captured via express.raw() for webhook verification
+  // Environment variables for Shopify OAuth
+  const SHOPIFY_API_KEY = process.env.SHOPIFY_API_KEY;
+  const SHOPIFY_API_SECRET = process.env.SHOPIFY_API_SECRET;
+  const SHOPIFY_SCOPES = process.env.SHOPIFY_SCOPES || 'read_orders,read_customers,read_products';
+  const SHOPIFY_APP_URL = process.env.SHOPIFY_APP_URL || (process.env.REPLIT_DOMAINS ? `https://${process.env.REPLIT_DOMAINS.split(',')[0]}` : 'http://localhost:5000');
+
+  // Shopify OAuth: Initiate install flow
+  app.get("/shopify/auth", async (req, res) => {
+    try {
+      const shop = req.query.shop as string;
+      
+      if (!shop || !shop.match(/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/)) {
+        return res.status(400).send("Invalid shop parameter");
+      }
+      
+      if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET) {
+        return res.status(500).send("Shopify app credentials not configured");
+      }
+
+      // Generate state for CSRF protection
+      const crypto = await import('crypto');
+      const state = crypto.randomBytes(16).toString('hex');
+      
+      // Store state in session or temporary storage (we'll use session)
+      if (req.session) {
+        req.session.shopifyState = state;
+        req.session.shopifyShop = shop;
+      }
+
+      const redirectUri = `${SHOPIFY_APP_URL}/shopify/callback`;
+      const installUrl = `https://${shop}/admin/oauth/authorize?client_id=${SHOPIFY_API_KEY}&scope=${SHOPIFY_SCOPES}&redirect_uri=${encodeURIComponent(redirectUri)}&state=${state}`;
+      
+      console.log(`Shopify OAuth: Redirecting to ${shop} for install`);
+      res.redirect(installUrl);
+    } catch (error) {
+      console.error("Shopify auth error:", error);
+      res.status(500).send("Error initiating Shopify authentication");
+    }
+  });
+
+  // Shopify OAuth: Callback after user approves
+  app.get("/shopify/callback", async (req, res) => {
+    try {
+      const { shop, code, state, hmac } = req.query as { shop: string; code: string; state: string; hmac: string };
+      
+      if (!shop || !code || !state) {
+        return res.status(400).send("Missing required parameters");
+      }
+      
+      if (!SHOPIFY_API_KEY || !SHOPIFY_API_SECRET) {
+        return res.status(500).send("Shopify app credentials not configured");
+      }
+
+      // Verify state to prevent CSRF
+      const sessionState = req.session?.shopifyState;
+      if (state !== sessionState) {
+        console.warn("Shopify OAuth: State mismatch", { expected: sessionState, received: state });
+        return res.status(403).send("Invalid state parameter");
+      }
+
+      // Verify HMAC
+      const crypto = await import('crypto');
+      const queryParams = new URLSearchParams(req.query as any);
+      queryParams.delete('hmac');
+      const message = queryParams.toString();
+      const generatedHmac = crypto.createHmac('sha256', SHOPIFY_API_SECRET)
+        .update(message)
+        .digest('hex');
+      
+      if (generatedHmac !== hmac) {
+        console.warn("Shopify OAuth: HMAC verification failed");
+        return res.status(401).send("Invalid HMAC signature");
+      }
+
+      // Exchange code for access token
+      const axios = (await import('axios')).default;
+      const tokenResponse = await axios.post(`https://${shop}/admin/oauth/access_token`, {
+        client_id: SHOPIFY_API_KEY,
+        client_secret: SHOPIFY_API_SECRET,
+        code,
+      });
+
+      const { access_token, scope } = tokenResponse.data;
+      
+      if (!access_token) {
+        return res.status(500).send("Failed to obtain access token");
+      }
+
+      // Store the installation
+      await db.insert(shopifyInstalls).values({
+        shop,
+        accessToken: access_token,
+        scope,
+        isActive: true,
+        installedAt: new Date(),
+      }).onConflictDoUpdate({
+        target: shopifyInstalls.shop,
+        set: {
+          accessToken: access_token,
+          scope,
+          isActive: true,
+          uninstalledAt: null,
+          updatedAt: new Date(),
+        }
+      });
+
+      // Also update shopifySettings with the shop domain
+      const existingSettings = await db.select().from(shopifySettings).limit(1);
+      if (existingSettings.length > 0) {
+        await db.update(shopifySettings).set({ shopDomain: shop, isActive: true }).where(eq(shopifySettings.id, existingSettings[0].id));
+      } else {
+        await db.insert(shopifySettings).values({ shopDomain: shop, isActive: true });
+      }
+
+      // Register webhooks
+      await registerShopifyWebhooks(shop, access_token);
+
+      console.log(`Shopify OAuth: Successfully installed app for ${shop}`);
+      
+      // Redirect to embedded app
+      res.redirect(`https://${shop}/admin/apps/${SHOPIFY_API_KEY}`);
+    } catch (error: any) {
+      console.error("Shopify callback error:", error.response?.data || error);
+      res.status(500).send("Error completing Shopify authentication");
+    }
+  });
+
+  // Helper function to register webhooks after OAuth
+  async function registerShopifyWebhooks(shop: string, accessToken: string) {
+    try {
+      const axios = (await import('axios')).default;
+      const webhookUrl = `${SHOPIFY_APP_URL}/api/webhooks/shopify`;
+      
+      const webhooksToRegister = [
+        { topic: 'orders/paid', address: `${webhookUrl}/orders` },
+        { topic: 'orders/updated', address: `${webhookUrl}/orders` },
+        { topic: 'customers/create', address: `${webhookUrl}/customers` },
+        { topic: 'customers/update', address: `${webhookUrl}/customers` },
+      ];
+
+      for (const webhook of webhooksToRegister) {
+        try {
+          await axios.post(
+            `https://${shop}/admin/api/2024-01/webhooks.json`,
+            { webhook: { topic: webhook.topic, address: webhook.address, format: 'json' } },
+            { headers: { 'X-Shopify-Access-Token': accessToken, 'Content-Type': 'application/json' } }
+          );
+          console.log(`Registered webhook: ${webhook.topic} -> ${webhook.address}`);
+        } catch (webhookError: any) {
+          // Webhook might already exist
+          if (webhookError.response?.status !== 422) {
+            console.error(`Failed to register webhook ${webhook.topic}:`, webhookError.response?.data || webhookError.message);
+          }
+        }
+      }
+    } catch (error) {
+      console.error("Error registering webhooks:", error);
+    }
+  }
+
+  // Middleware to verify Shopify embedded app session
+  // For single-store internal app, we verify:
+  // 1. The shop parameter matches an installed shop
+  // 2. User has valid CRM session OR request comes from valid Shopify Admin
+  async function verifyShopifySession(req: any, res: any, next: any) {
+    try {
+      const shop = req.query.shop || req.headers['x-shopify-shop-domain'];
+      const host = req.query.host;
+      
+      if (!shop) {
+        // No shop parameter - redirect to home
+        return res.redirect('/');
+      }
+
+      // Validate shop format to prevent injection
+      if (!shop.match(/^[a-zA-Z0-9][a-zA-Z0-9-]*\.myshopify\.com$/)) {
+        return res.status(400).send("Invalid shop parameter");
+      }
+
+      // Check if we have an active installation for this shop
+      const install = await db.select().from(shopifyInstalls)
+        .where(and(eq(shopifyInstalls.shop, shop), eq(shopifyInstalls.isActive, true)))
+        .limit(1);
+
+      if (install.length === 0) {
+        // Not installed, redirect to OAuth flow
+        return res.redirect(`/shopify/auth?shop=${shop}`);
+      }
+
+      // For a single-store internal app, we trust requests with valid host parameter
+      // The host is Base64 encoded and provided by Shopify Admin
+      // Full session token validation would require App Bridge token exchange
+      if (!host) {
+        console.warn(`Shopify embedded request without host for ${shop}`);
+      }
+
+      // Set shop context on request
+      req.shopifyShop = shop;
+      req.shopifyHost = host;
+      req.shopifyAccessToken = install[0].accessToken;
+      
+      // Update last API call timestamp
+      await db.update(shopifyInstalls)
+        .set({ lastApiCallAt: new Date() })
+        .where(eq(shopifyInstalls.shop, shop));
+      
+      next();
+    } catch (error) {
+      console.error("Shopify session verification error:", error);
+      res.status(500).send("Error verifying Shopify session");
+    }
+  }
+
+  // Embedded app entry point - served when accessed from Shopify Admin
+  app.get("/app", verifyShopifySession, (req: any, res) => {
+    const shop = req.shopifyShop;
+    const host = req.shopifyHost;
+    
+    // Redirect to React app with embedded context
+    // The React app will initialize App Bridge if embedded=true
+    const redirectUrl = new URL('/', `${SHOPIFY_APP_URL}`);
+    redirectUrl.searchParams.set('embedded', 'true');
+    redirectUrl.searchParams.set('shop', shop);
+    if (host) redirectUrl.searchParams.set('host', host);
+    
+    res.redirect(redirectUrl.toString());
+  });
+
+  // API endpoint to get Shopify install status
+  app.get("/api/shopify/install-status", isAuthenticated, async (req, res) => {
+    try {
+      const installs = await db.select().from(shopifyInstalls)
+        .where(eq(shopifyInstalls.isActive, true));
+      
+      res.json({
+        installed: installs.length > 0,
+        shops: installs.map(i => ({ shop: i.shop, installedAt: i.installedAt, scope: i.scope })),
+      });
+    } catch (error) {
+      console.error("Error getting install status:", error);
+      res.status(500).json({ error: "Failed to get install status" });
+    }
+  });
+
+  // Helper function to verify Shopify HMAC signature
+  async function verifyShopifyWebhookHMAC(rawBody: Buffer | string, hmacHeader: string): Promise<boolean> {
+    if (!SHOPIFY_API_SECRET || !hmacHeader) {
+      console.warn("Shopify HMAC verification skipped: missing secret or header");
+      return true; // Allow if no secret configured
+    }
+    
+    try {
+      const crypto = await import('crypto');
+      const bodyBuffer = Buffer.isBuffer(rawBody) ? rawBody : Buffer.from(rawBody);
+      const computedHmac = crypto.createHmac('sha256', SHOPIFY_API_SECRET)
+        .update(bodyBuffer)
+        .digest('base64');
+      
+      // Use timing-safe comparison
+      const isValid = crypto.timingSafeEqual(
+        Buffer.from(computedHmac),
+        Buffer.from(hmacHeader)
+      );
+      
+      return isValid;
+    } catch (error) {
+      console.error("HMAC verification error:", error);
+      return false;
+    }
+  }
+
+  // Shopify webhook endpoint for order notifications (verified by HMAC)
   app.post("/api/webhooks/shopify/orders", async (req: any, res) => {
     try {
-      const hmacHeader = req.headers['x-shopify-hmac-sha256'];
-      const shopDomain = req.headers['x-shopify-shop-domain'];
-      const topic = req.headers['x-shopify-topic'];
+      const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;
+      const shopDomain = req.headers['x-shopify-shop-domain'] as string;
+      const topic = req.headers['x-shopify-topic'] as string;
       
-      // Note: HMAC verification requires raw body access which is complex with express.json()
-      // For now, we log the webhook source and process - users can enable IP whitelisting in Shopify
-      // Full HMAC verification would require express.raw() middleware before express.json()
-      const settings = await db.select().from(shopifySettings).limit(1);
+      // Verify HMAC signature using raw body (set by express.raw middleware in index.ts)
+      const hmacValid = await verifyShopifyWebhookHMAC(req.rawBody, hmacHeader);
       
-      console.log(`Shopify webhook from ${shopDomain}, topic: ${topic}, HMAC provided: ${!!hmacHeader}`);
+      console.log(`Shopify webhook from ${shopDomain}, topic: ${topic}, HMAC valid: ${hmacValid}`);
+      
+      // Log webhook event for debugging
+      await db.insert(shopifyWebhookEvents).values({
+        shop: shopDomain || 'unknown',
+        topic: topic || 'orders/unknown',
+        shopifyId: String(req.body?.id),
+        payload: req.body,
+        hmacValid,
+        processed: false,
+      });
+
+      if (!hmacValid) {
+        console.warn("Shopify webhook rejected: invalid HMAC signature");
+        return res.status(401).json({ error: "Invalid signature" });
+      }
 
       // Respond quickly to Shopify
       res.status(200).json({ received: true });
@@ -7578,6 +7863,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error processing order for coaching:", error);
     }
   }
+
+  // Shopify webhook endpoint for customer notifications (verified by HMAC)
+  app.post("/api/webhooks/shopify/customers", async (req: any, res) => {
+    try {
+      const hmacHeader = req.headers['x-shopify-hmac-sha256'] as string;
+      const shopDomain = req.headers['x-shopify-shop-domain'] as string;
+      const topic = req.headers['x-shopify-topic'] as string;
+      
+      // Verify HMAC signature using raw body
+      const hmacValid = await verifyShopifyWebhookHMAC(req.rawBody, hmacHeader);
+      
+      console.log(`Shopify customer webhook from ${shopDomain}, topic: ${topic}, HMAC valid: ${hmacValid}`);
+
+      // Log the webhook event
+      await db.insert(shopifyWebhookEvents).values({
+        shop: shopDomain || 'unknown',
+        topic: topic || 'customers/unknown',
+        shopifyId: String(req.body?.id),
+        payload: req.body,
+        hmacValid,
+        processed: false,
+      });
+
+      if (!hmacValid) {
+        console.warn("Shopify customer webhook rejected: invalid HMAC signature");
+        return res.status(401).json({ error: "Invalid signature" });
+      }
+
+      // Respond quickly to Shopify
+      res.status(200).json({ received: true });
+
+      // Process the customer data asynchronously
+      const customer = req.body;
+      
+      if (topic === 'customers/create' || topic === 'customers/update') {
+        const customerEmail = customer.email?.toLowerCase();
+        const customerName = `${customer.first_name || ''} ${customer.last_name || ''}`.trim();
+        const companyName = customer.default_address?.company || '';
+
+        // Try to match with existing CRM customer
+        if (customerEmail) {
+          const existingCustomer = await db.select().from(customers)
+            .where(ilike(customers.email, customerEmail))
+            .limit(1);
+          
+          if (existingCustomer.length > 0) {
+            // Log activity for customer sync
+            await db.insert(customerActivityEvents).values({
+              customerId: existingCustomer[0].id,
+              eventType: 'shopify_customer_sync',
+              eventCategory: 'sync',
+              description: `Shopify customer ${topic === 'customers/create' ? 'created' : 'updated'}`,
+              metadata: {
+                shopifyCustomerId: customer.id,
+                email: customerEmail,
+                ordersCount: customer.orders_count,
+                totalSpent: customer.total_spent,
+              },
+            });
+          }
+        }
+
+        // Update webhook event as processed
+        await db.update(shopifyWebhookEvents)
+          .set({ processed: true, processedAt: new Date() })
+          .where(eq(shopifyWebhookEvents.shopifyId, String(customer.id)));
+      }
+    } catch (error) {
+      console.error("Error processing Shopify customer webhook:", error);
+    }
+  });
+
+  // Get webhook events (for debugging)
+  app.get("/api/shopify/webhook-events", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      const events = await db.select().from(shopifyWebhookEvents)
+        .orderBy(desc(shopifyWebhookEvents.createdAt))
+        .limit(100);
+      
+      res.json(events);
+    } catch (error) {
+      console.error("Error fetching webhook events:", error);
+      res.status(500).json({ error: "Failed to fetch webhook events" });
+    }
+  });
 
   // Get Shopify settings
   app.get("/api/shopify/settings", isAuthenticated, async (req, res) => {

@@ -11,17 +11,45 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
 
 const app = express();
 
+// Shopify webhook routes need raw body for HMAC verification
+// Must be registered BEFORE express.json() middleware
+app.use('/api/webhooks/shopify', express.raw({ type: 'application/json' }), (req: any, res, next) => {
+  // Store raw body for HMAC verification
+  req.rawBody = req.body;
+  // Parse JSON from raw body
+  if (Buffer.isBuffer(req.body)) {
+    try {
+      req.body = JSON.parse(req.body.toString('utf8'));
+    } catch (e) {
+      console.error('Failed to parse Shopify webhook body:', e);
+      req.body = {};
+    }
+  }
+  next();
+});
+
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(cookieParser());
 
-// Allow embedding from your email client
+// Allow embedding from email clients and Shopify Admin
 app.use((req, res, next) => {
-  res.setHeader(
-    "Content-Security-Policy",
-    "frame-ancestors 'self' https://*.replit.app https://*.replit.dev"
-  );
-  res.removeHeader("X-Frame-Options");
+  // Allow Shopify Admin iframe embedding for /app route
+  const isShopifyEmbedded = req.path === '/app' || req.query.embedded === 'true' || req.query.shop;
+  
+  if (isShopifyEmbedded) {
+    res.setHeader(
+      "Content-Security-Policy",
+      "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.replit.app https://*.replit.dev"
+    );
+    res.removeHeader("X-Frame-Options");
+  } else {
+    res.setHeader(
+      "Content-Security-Policy",
+      "frame-ancestors 'self' https://*.replit.app https://*.replit.dev"
+    );
+    res.removeHeader("X-Frame-Options");
+  }
   next();
 });
 
