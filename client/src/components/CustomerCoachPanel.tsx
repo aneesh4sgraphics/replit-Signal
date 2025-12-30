@@ -62,6 +62,7 @@ import {
   Settings,
 } from "lucide-react";
 import type { Customer, CustomerMachineProfile, CategoryTrust, CategoryObjection } from "@shared/schema";
+import JourneyProgress from "./JourneyProgress";
 
 const ACCOUNT_STATE_CONFIG: Record<string, { label: string; color: string; bgColor: string; description: string }> = {
   prospect: { label: 'Prospect', color: 'text-gray-600', bgColor: 'bg-gray-100', description: 'No orders yet' },
@@ -515,6 +516,8 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
           </CardContent>
         </Card>
       )}
+
+      <JourneyProgress customerId={customer.id} />
 
       <Collapsible open={machineProfileOpen} onOpenChange={setMachineProfileOpen}>
         <Card className={hasMachines ? 'border-green-200' : ''}>
