@@ -1478,3 +1478,67 @@ export const insertCustomerJourneyProgressSchema = createInsertSchema(customerJo
 });
 export type CustomerJourneyProgress = typeof customerJourneyProgress.$inferSelect;
 export type InsertCustomerJourneyProgress = z.infer<typeof insertCustomerJourneyProgressSchema>;
+
+// Shopify Orders - synced from Shopify for coaching triggers
+export const shopifyOrders = pgTable("shopify_orders", {
+  id: serial("id").primaryKey(),
+  shopifyOrderId: varchar("shopify_order_id", { length: 100 }).notNull().unique(),
+  shopifyCustomerId: varchar("shopify_customer_id", { length: 100 }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  orderNumber: varchar("order_number", { length: 50 }),
+  email: varchar("email", { length: 255 }),
+  customerName: varchar("customer_name", { length: 255 }),
+  companyName: varchar("company_name", { length: 255 }),
+  totalPrice: decimal("total_price", { precision: 12, scale: 2 }),
+  currency: varchar("currency", { length: 10 }).default("USD"),
+  financialStatus: varchar("financial_status", { length: 50 }),
+  fulfillmentStatus: varchar("fulfillment_status", { length: 50 }),
+  lineItems: jsonb("line_items"),
+  tags: text("tags"),
+  note: text("note"),
+  shopifyCreatedAt: timestamp("shopify_created_at"),
+  processedForCoaching: boolean("processed_for_coaching").default(false),
+  coachingProcessedAt: timestamp("coaching_processed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyOrderSchema = createInsertSchema(shopifyOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyOrder = typeof shopifyOrders.$inferSelect;
+export type InsertShopifyOrder = z.infer<typeof insertShopifyOrderSchema>;
+
+// Shopify Product Category Mappings - maps Shopify product tags/titles to coaching categories
+export const shopifyProductMappings = pgTable("shopify_product_mappings", {
+  id: serial("id").primaryKey(),
+  shopifyProductTitle: varchar("shopify_product_title", { length: 255 }),
+  shopifyProductTag: varchar("shopify_product_tag", { length: 255 }),
+  shopifyProductType: varchar("shopify_product_type", { length: 255 }),
+  categoryName: varchar("category_name", { length: 100 }).notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyProductMappingSchema = createInsertSchema(shopifyProductMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyProductMapping = typeof shopifyProductMappings.$inferSelect;
+export type InsertShopifyProductMapping = z.infer<typeof insertShopifyProductMappingSchema>;
+
+// Shopify Integration Settings
+export const shopifySettings = pgTable("shopify_settings", {
+  id: serial("id").primaryKey(),
+  shopDomain: varchar("shop_domain", { length: 255 }),
+  webhookSecret: varchar("webhook_secret", { length: 255 }),
+  isActive: boolean("is_active").default(false),
+  lastSyncAt: timestamp("last_sync_at"),
+  ordersProcessed: integer("orders_processed").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});

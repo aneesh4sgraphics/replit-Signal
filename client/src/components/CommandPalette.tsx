@@ -34,6 +34,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/product-labels', icon: Tag, label: 'Product Labels', keywords: ['tags', 'stickers', 'product'] },
   { path: '/crm-journey', icon: Target, label: 'CRM Journey', keywords: ['pipeline', 'sales', 'customers', 'conversion', 'samples', 'swatches'] },
   { path: '/objections', icon: AlertTriangle, label: 'Objections', keywords: ['objections', 'issues', 'blockers', 'concerns', 'problems'] },
+  { path: '/shopify-settings', icon: Settings, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
   { path: '/admin', icon: Users, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
   { path: '/activity-logs', icon: Activity, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true },
   { path: '/product-pricing-management', icon: Database, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true },

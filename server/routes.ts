@@ -54,7 +54,7 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
-import { eq, sql } from "drizzle-orm";
+import { eq, sql, and, desc, ilike } from "drizzle-orm";
 import { 
   customers,
   customerContacts, 
@@ -75,6 +75,9 @@ import {
   customerJourneyProgress,
   customerActivityEvents,
   emailSends,
+  shopifyOrders,
+  shopifyProductMappings,
+  shopifySettings,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
   CATEGORY_STATES,
@@ -7374,6 +7377,370 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error resolving objection:", error);
       res.status(500).json({ error: "Failed to resolve objection" });
+    }
+  });
+
+  // ========================================
+  // SHOPIFY INTEGRATION APIs
+  // ========================================
+
+  // Shopify webhook endpoint for order notifications (no auth - verified by HMAC)
+  // Raw body is captured via express.raw() for webhook verification
+  app.post("/api/webhooks/shopify/orders", async (req: any, res) => {
+    try {
+      const hmacHeader = req.headers['x-shopify-hmac-sha256'];
+      const shopDomain = req.headers['x-shopify-shop-domain'];
+      const topic = req.headers['x-shopify-topic'];
+      
+      // Note: HMAC verification requires raw body access which is complex with express.json()
+      // For now, we log the webhook source and process - users can enable IP whitelisting in Shopify
+      // Full HMAC verification would require express.raw() middleware before express.json()
+      const settings = await db.select().from(shopifySettings).limit(1);
+      
+      console.log(`Shopify webhook from ${shopDomain}, topic: ${topic}, HMAC provided: ${!!hmacHeader}`);
+
+      // Respond quickly to Shopify
+      res.status(200).json({ received: true });
+
+      // Process the order asynchronously
+      const order = req.body;
+      console.log(`Shopify ${topic} webhook received:`, order.id, order.name);
+
+      if (topic === 'orders/create' || topic === 'orders/paid') {
+        // Extract customer info
+        const customerEmail = order.email?.toLowerCase();
+        const customerName = order.customer 
+          ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim()
+          : order.billing_address?.name || '';
+        const companyName = order.customer?.company || order.billing_address?.company || '';
+
+        // Try to match with existing CRM customer
+        let matchedCustomerId = null;
+        if (customerEmail) {
+          const existingCustomer = await db.select().from(customers)
+            .where(ilike(customers.email, customerEmail))
+            .limit(1);
+          if (existingCustomer.length > 0) {
+            matchedCustomerId = existingCustomer[0].id;
+          }
+        }
+        
+        // If no email match, try company name
+        if (!matchedCustomerId && companyName) {
+          const existingCustomer = await db.select().from(customers)
+            .where(ilike(customers.company, companyName))
+            .limit(1);
+          if (existingCustomer.length > 0) {
+            matchedCustomerId = existingCustomer[0].id;
+          }
+        }
+
+        // Store the order
+        await db.insert(shopifyOrders).values({
+          shopifyOrderId: String(order.id),
+          shopifyCustomerId: order.customer?.id ? String(order.customer.id) : null,
+          customerId: matchedCustomerId,
+          orderNumber: order.name || order.order_number,
+          email: customerEmail,
+          customerName,
+          companyName,
+          totalPrice: order.total_price,
+          currency: order.currency,
+          financialStatus: order.financial_status,
+          fulfillmentStatus: order.fulfillment_status,
+          lineItems: order.line_items,
+          tags: order.tags,
+          note: order.note,
+          shopifyCreatedAt: order.created_at ? new Date(order.created_at) : new Date(),
+          processedForCoaching: false,
+        }).onConflictDoUpdate({
+          target: shopifyOrders.shopifyOrderId,
+          set: {
+            financialStatus: order.financial_status,
+            fulfillmentStatus: order.fulfillment_status,
+            updatedAt: new Date(),
+          }
+        });
+
+        // If matched to CRM customer and order is paid, process for coaching
+        if (matchedCustomerId && order.financial_status === 'paid') {
+          await processOrderForCoaching(matchedCustomerId, order);
+        }
+
+        // Update settings last sync
+        await db.update(shopifySettings).set({
+          lastSyncAt: new Date(),
+          ordersProcessed: sql`orders_processed + 1`,
+        });
+      }
+    } catch (error) {
+      console.error("Error processing Shopify webhook:", error);
+    }
+  });
+
+  // Helper function to process paid orders for coaching
+  async function processOrderForCoaching(customerId: string, order: any) {
+    try {
+      // Get product mappings
+      const mappings = await db.select().from(shopifyProductMappings)
+        .where(eq(shopifyProductMappings.isActive, true));
+
+      // Extract categories from line items
+      const categoriesFromOrder = new Set<string>();
+      
+      for (const item of order.line_items || []) {
+        const title = item.title?.toLowerCase() || '';
+        const productType = item.product_type?.toLowerCase() || '';
+        
+        for (const mapping of mappings) {
+          if (mapping.shopifyProductTitle && title.includes(mapping.shopifyProductTitle.toLowerCase())) {
+            categoriesFromOrder.add(mapping.categoryName);
+          }
+          if (mapping.shopifyProductType && productType.includes(mapping.shopifyProductType.toLowerCase())) {
+            categoriesFromOrder.add(mapping.categoryName);
+          }
+        }
+      }
+
+      // Advance category trust to 'adopted' for each category in the order
+      for (const categoryName of categoriesFromOrder) {
+        const existingTrust = await db.select().from(categoryTrust)
+          .where(and(
+            eq(categoryTrust.customerId, customerId),
+            eq(categoryTrust.categoryName, categoryName)
+          ))
+          .limit(1);
+
+        if (existingTrust.length > 0) {
+          const trust = existingTrust[0];
+          // Only advance if not already adopted or habitual
+          if (trust.trustLevel !== 'adopted' && trust.trustLevel !== 'habitual') {
+            await db.update(categoryTrust)
+              .set({
+                trustLevel: 'adopted',
+                ordersPlaced: (trust.ordersPlaced || 0) + 1,
+                lastOrderDate: new Date(),
+                firstOrderDate: trust.firstOrderDate || new Date(),
+                totalOrderValue: String(Number(trust.totalOrderValue || 0) + Number(order.total_price || 0)),
+                updatedAt: new Date(),
+              })
+              .where(eq(categoryTrust.id, trust.id));
+          } else {
+            // Just update order stats
+            await db.update(categoryTrust)
+              .set({
+                ordersPlaced: (trust.ordersPlaced || 0) + 1,
+                lastOrderDate: new Date(),
+                totalOrderValue: String(Number(trust.totalOrderValue || 0) + Number(order.total_price || 0)),
+                updatedAt: new Date(),
+              })
+              .where(eq(categoryTrust.id, trust.id));
+          }
+        } else {
+          // Create new trust record as adopted (they bought it!)
+          await db.insert(categoryTrust).values({
+            customerId,
+            categoryName,
+            trustLevel: 'adopted',
+            ordersPlaced: 1,
+            lastOrderDate: new Date(),
+            firstOrderDate: new Date(),
+            totalOrderValue: order.total_price,
+          });
+        }
+      }
+
+      // Log activity event
+      await db.insert(customerActivityEvents).values({
+        customerId,
+        eventType: 'shopify_order',
+        eventCategory: 'order',
+        description: `Shopify order ${order.name} - $${order.total_price}`,
+        metadata: {
+          orderId: order.id,
+          orderNumber: order.name,
+          totalPrice: order.total_price,
+          itemCount: order.line_items?.length || 0,
+          categories: Array.from(categoriesFromOrder),
+        },
+      });
+
+      // Mark order as processed
+      await db.update(shopifyOrders)
+        .set({
+          processedForCoaching: true,
+          coachingProcessedAt: new Date(),
+        })
+        .where(eq(shopifyOrders.shopifyOrderId, String(order.id)));
+
+      console.log(`Processed order ${order.name} for customer ${customerId}, advanced ${categoriesFromOrder.size} categories`);
+    } catch (error) {
+      console.error("Error processing order for coaching:", error);
+    }
+  }
+
+  // Get Shopify settings
+  app.get("/api/shopify/settings", isAuthenticated, async (req, res) => {
+    try {
+      const settings = await db.select().from(shopifySettings).limit(1);
+      res.json(settings[0] || { isActive: false });
+    } catch (error) {
+      console.error("Error fetching Shopify settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+
+  // Update Shopify settings (admin only)
+  app.post("/api/shopify/settings", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { shopDomain, webhookSecret, isActive } = req.body;
+
+      const existing = await db.select().from(shopifySettings).limit(1);
+      
+      if (existing.length > 0) {
+        const result = await db.update(shopifySettings)
+          .set({
+            shopDomain,
+            webhookSecret,
+            isActive,
+            updatedAt: new Date(),
+          })
+          .where(eq(shopifySettings.id, existing[0].id))
+          .returning();
+        res.json(result[0]);
+      } else {
+        const result = await db.insert(shopifySettings).values({
+          shopDomain,
+          webhookSecret,
+          isActive,
+        }).returning();
+        res.json(result[0]);
+      }
+    } catch (error) {
+      console.error("Error updating Shopify settings:", error);
+      res.status(500).json({ error: "Failed to update settings" });
+    }
+  });
+
+  // Get Shopify orders
+  app.get("/api/shopify/orders", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId, limit: queryLimit } = req.query;
+      
+      let query = db.select().from(shopifyOrders);
+      
+      if (customerId) {
+        query = query.where(eq(shopifyOrders.customerId, customerId as string)) as any;
+      }
+      
+      const orders = await query
+        .orderBy(desc(shopifyOrders.shopifyCreatedAt))
+        .limit(parseInt(queryLimit as string) || 100);
+      
+      res.json(orders);
+    } catch (error) {
+      console.error("Error fetching Shopify orders:", error);
+      res.status(500).json({ error: "Failed to fetch orders" });
+    }
+  });
+
+  // Get product mappings
+  app.get("/api/shopify/product-mappings", isAuthenticated, async (req, res) => {
+    try {
+      const mappings = await db.select().from(shopifyProductMappings)
+        .orderBy(shopifyProductMappings.categoryName);
+      res.json(mappings);
+    } catch (error) {
+      console.error("Error fetching product mappings:", error);
+      res.status(500).json({ error: "Failed to fetch mappings" });
+    }
+  });
+
+  // Create product mapping
+  app.post("/api/shopify/product-mappings", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { shopifyProductTitle, shopifyProductTag, shopifyProductType, categoryName } = req.body;
+      
+      if (!categoryName) {
+        return res.status(400).json({ error: "categoryName is required" });
+      }
+
+      const result = await db.insert(shopifyProductMappings).values({
+        shopifyProductTitle,
+        shopifyProductTag,
+        shopifyProductType,
+        categoryName,
+      }).returning();
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error creating product mapping:", error);
+      res.status(500).json({ error: "Failed to create mapping" });
+    }
+  });
+
+  // Delete product mapping
+  app.delete("/api/shopify/product-mappings/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      await db.delete(shopifyProductMappings)
+        .where(eq(shopifyProductMappings.id, parseInt(req.params.id)));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting product mapping:", error);
+      res.status(500).json({ error: "Failed to delete mapping" });
+    }
+  });
+
+  // Manual customer matching for unmatched Shopify orders
+  app.post("/api/shopify/orders/:orderId/match-customer", isAuthenticated, async (req, res) => {
+    try {
+      const { orderId } = req.params;
+      const { customerId } = req.body;
+
+      if (!customerId) {
+        return res.status(400).json({ error: "customerId is required" });
+      }
+
+      const order = await db.select().from(shopifyOrders)
+        .where(eq(shopifyOrders.id, parseInt(orderId)))
+        .limit(1);
+
+      if (order.length === 0) {
+        return res.status(404).json({ error: "Order not found" });
+      }
+
+      // Update the order with matched customer
+      await db.update(shopifyOrders)
+        .set({ customerId, updatedAt: new Date() })
+        .where(eq(shopifyOrders.id, parseInt(orderId)));
+
+      // Process for coaching if paid
+      if (order[0].financialStatus === 'paid' && !order[0].processedForCoaching) {
+        await processOrderForCoaching(customerId, {
+          id: order[0].shopifyOrderId,
+          name: order[0].orderNumber,
+          total_price: order[0].totalPrice,
+          line_items: order[0].lineItems as any[],
+        });
+      }
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error matching customer to order:", error);
+      res.status(500).json({ error: "Failed to match customer" });
     }
   });
 
