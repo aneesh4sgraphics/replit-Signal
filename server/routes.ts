@@ -72,7 +72,6 @@ import {
   categoryObjections,
   quoteCategoryLinks,
   customerJourneyProgress,
-  sentQuotes,
   emailSends,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
@@ -6722,9 +6721,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(customerMachineProfiles.customerId, customerId));
       const hasMachineProfile = machines.length > 0;
 
-      // Get quotes sent count
-      const quotes = await db.select().from(sentQuotes)
-        .where(eq(sentQuotes.customerId, customerId));
+      // Get quotes sent count (using quoteEvents which has customerId)
+      const quotes = await db.select().from(quoteEvents)
+        .where(eq(quoteEvents.customerId, customerId));
       const quotesCount = quotes.length;
 
       // Get press kits sent count
