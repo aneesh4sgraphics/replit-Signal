@@ -71,6 +71,9 @@ import {
   customerMachineProfiles,
   categoryObjections,
   quoteCategoryLinks,
+  customerJourneyProgress,
+  sentQuotes,
+  emailSends,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
   CATEGORY_STATES,
@@ -81,7 +84,9 @@ import {
   COACH_NUDGE_ACTIONS,
   CUSTOMER_STATES,
   TRUST_LEVELS,
-  QUOTE_FOLLOW_UP_STAGES
+  QUOTE_FOLLOW_UP_STAGES,
+  JOURNEY_PROGRESS_STAGES,
+  insertCustomerJourneyProgressSchema
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -6700,6 +6705,148 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error recording coach action:", error);
       res.status(500).json({ error: "Failed to record action" });
+    }
+  });
+
+  // ========================================
+  // CUSTOMER JOURNEY PROGRESS (Horizontal Progress Indicator)
+  // ========================================
+
+  // Get journey progress summary for a customer
+  app.get("/api/crm/journey-progress/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+
+      // Get machine profiles count
+      const machines = await db.select().from(customerMachineProfiles)
+        .where(eq(customerMachineProfiles.customerId, customerId));
+      const hasMachineProfile = machines.length > 0;
+
+      // Get quotes sent count
+      const quotes = await db.select().from(sentQuotes)
+        .where(eq(sentQuotes.customerId, customerId));
+      const quotesCount = quotes.length;
+
+      // Get press kits sent count
+      const pressKits = await db.select().from(pressKitShipments)
+        .where(eq(pressKitShipments.customerId, customerId));
+      const pressKitsCount = pressKits.length;
+
+      // Get emails sent count
+      const emails = await db.select().from(emailSends)
+        .where(eq(emailSends.customerId, customerId));
+      const emailsCount = emails.length;
+
+      // Get manually tracked stages (call, rep_visit, buyer, try_and_try, dont_worry)
+      const manualStages = await db.select().from(customerJourneyProgress)
+        .where(eq(customerJourneyProgress.customerId, customerId));
+      
+      const manualStageMap: Record<string, boolean> = {};
+      manualStages.forEach(stage => {
+        if (stage.completedAt) {
+          manualStageMap[stage.stage] = true;
+        }
+      });
+
+      // Build the summary
+      const journeySummary = {
+        stages: {
+          machine_profile: { completed: hasMachineProfile, count: machines.length },
+          quotes: { completed: quotesCount > 0, count: quotesCount },
+          press_kit: { completed: pressKitsCount > 0, count: pressKitsCount },
+          call: { completed: !!manualStageMap['call'], count: manualStageMap['call'] ? 1 : 0 },
+          email: { completed: emailsCount > 0, count: emailsCount },
+          rep_visit: { completed: !!manualStageMap['rep_visit'], count: manualStageMap['rep_visit'] ? 1 : 0 },
+          buyer: { completed: !!manualStageMap['buyer'], count: manualStageMap['buyer'] ? 1 : 0 },
+          try_and_try: { completed: !!manualStageMap['try_and_try'], count: manualStageMap['try_and_try'] ? 1 : 0 },
+          dont_worry: { completed: !!manualStageMap['dont_worry'], count: manualStageMap['dont_worry'] ? 1 : 0 },
+        },
+        totalCompleted: [
+          hasMachineProfile,
+          quotesCount > 0,
+          pressKitsCount > 0,
+          !!manualStageMap['call'],
+          emailsCount > 0,
+          !!manualStageMap['rep_visit'],
+          !!manualStageMap['buyer'],
+          !!manualStageMap['try_and_try'],
+          !!manualStageMap['dont_worry'],
+        ].filter(Boolean).length,
+        totalStages: 9,
+      };
+
+      res.json(journeySummary);
+    } catch (error) {
+      console.error("Error fetching journey progress:", error);
+      res.status(500).json({ error: "Failed to fetch journey progress" });
+    }
+  });
+
+  // Mark a journey stage as completed
+  app.post("/api/crm/journey-progress/:customerId/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { stage, notes } = req.body;
+
+      // Validate stage
+      if (!JOURNEY_PROGRESS_STAGES.includes(stage)) {
+        return res.status(400).json({ error: "Invalid journey stage" });
+      }
+
+      // Check if already exists
+      const existing = await db.select().from(customerJourneyProgress)
+        .where(sql`${customerJourneyProgress.customerId} = ${customerId} AND ${customerJourneyProgress.stage} = ${stage}`);
+
+      if (existing.length > 0) {
+        // Update existing
+        await db.update(customerJourneyProgress)
+          .set({
+            completedAt: new Date(),
+            completedBy: req.user?.email,
+            notes,
+            updatedAt: new Date(),
+          })
+          .where(eq(customerJourneyProgress.id, existing[0].id));
+      } else {
+        // Create new
+        await db.insert(customerJourneyProgress).values({
+          customerId,
+          stage,
+          completedAt: new Date(),
+          completedBy: req.user?.email,
+          notes,
+        });
+      }
+
+      res.json({ success: true, stage, completed: true });
+    } catch (error) {
+      console.error("Error marking journey stage complete:", error);
+      res.status(500).json({ error: "Failed to mark stage complete" });
+    }
+  });
+
+  // Uncomplete a journey stage
+  app.post("/api/crm/journey-progress/:customerId/uncomplete", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { stage } = req.body;
+
+      const existing = await db.select().from(customerJourneyProgress)
+        .where(sql`${customerJourneyProgress.customerId} = ${customerId} AND ${customerJourneyProgress.stage} = ${stage}`);
+
+      if (existing.length > 0) {
+        await db.update(customerJourneyProgress)
+          .set({
+            completedAt: null,
+            updatedAt: new Date(),
+          })
+          .where(eq(customerJourneyProgress.id, existing[0].id));
+      }
+
+      res.json({ success: true, stage, completed: false });
+    } catch (error) {
+      console.error("Error uncompleting journey stage:", error);
+      res.status(500).json({ error: "Failed to uncomplete stage" });
     }
   });
 
