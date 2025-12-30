@@ -63,6 +63,7 @@ import {
 } from "lucide-react";
 import type { Customer, CustomerMachineProfile, CategoryTrust, CategoryObjection } from "@shared/schema";
 import JourneyProgress from "./JourneyProgress";
+import ConversationCoachModal from "./ConversationCoachModal";
 
 const ACCOUNT_STATE_CONFIG: Record<string, { label: string; color: string; bgColor: string; description: string }> = {
   prospect: { label: 'Prospect', color: 'text-gray-600', bgColor: 'bg-gray-100', description: 'No orders yet' },
@@ -164,6 +165,7 @@ const OBJECTION_TYPES = [
   { id: 'moq', label: 'MOQ', icon: Package },
   { id: 'lead_time', label: 'Lead Time', icon: Truck },
   { id: 'has_supplier', label: 'Has Supplier', icon: Users },
+  { id: 'not_a_fit', label: 'Not a Fit', icon: AlertTriangle },
 ];
 
 const CATEGORY_STATES = ['not_introduced', 'introduced', 'evaluated', 'adopted', 'habitual'] as const;
@@ -177,6 +179,7 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
   const [objectionDialog, setObjectionDialog] = useState<{ open: boolean; categoryName: string; trustId?: number }>({ open: false, categoryName: '' });
   const [machineNoteDialog, setMachineNoteDialog] = useState<{ open: boolean; machineId: string; machineLabel: string; details: string }>({ open: false, machineId: '', machineLabel: '', details: '' });
   const [machineProfileOpen, setMachineProfileOpen] = useState(true);
+  const [conversationModalOpen, setConversationModalOpen] = useState(false);
   const { toast } = useToast();
 
   const { data: machineProfiles = [], refetch: refetchMachines } = useQuery<CustomerMachineProfile[]>({
@@ -537,8 +540,17 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
             <Button
               className={`w-full ${getPriorityStyles(nextMove.priority)}`}
               data-testid="next-best-move-button"
+              onClick={() => {
+                if (nextMove.action === 'call_customer') {
+                  setConversationModalOpen(true);
+                }
+              }}
             >
-              <Zap className="h-4 w-4 mr-2" />
+              {nextMove.action === 'call_customer' ? (
+                <Phone className="h-4 w-4 mr-2" />
+              ) : (
+                <Zap className="h-4 w-4 mr-2" />
+              )}
               {getActionLabel(nextMove.action)}
               <ChevronRight className="h-4 w-4 ml-auto" />
             </Button>
@@ -917,6 +929,17 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <ConversationCoachModal
+        open={conversationModalOpen}
+        onOpenChange={setConversationModalOpen}
+        customer={customer}
+        accountState={accountState}
+        isDistributor={machineProfiles.some(p => p.machineFamily === 'distributor' || p.machineFamily === 'dealer')}
+        stalledCategories={categoryTrusts
+          .filter(t => t.trustLevel === 'introduced' || t.trustLevel === 'evaluated')
+          .map(t => t.categoryName)}
+      />
     </div>
   );
 }

@@ -136,6 +136,8 @@ export const customers = pgTable("customers", {
   taxExempt: boolean("tax_exempt").default(false),
   tags: varchar("tags", { length: 500 }),
   sources: text("sources").array().default([]), // Track import sources: ['odoo', 'shopify']
+  pausedUntil: timestamp("paused_until"), // Account paused for coaching - stop nudges until this date
+  pauseReason: varchar("pause_reason", { length: 100 }), // Why account was paused
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });

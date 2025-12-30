@@ -56,6 +56,7 @@ import {
 import { db } from "./db";
 import { eq, sql } from "drizzle-orm";
 import { 
+  customers,
   customerContacts, 
   customerJourney, 
   customerJourneyInstances, 
@@ -72,6 +73,7 @@ import {
   categoryObjections,
   quoteCategoryLinks,
   customerJourneyProgress,
+  customerActivityEvents,
   emailSends,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
@@ -6524,6 +6526,103 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error advancing trust level:", error);
       res.status(500).json({ error: "Failed to advance trust level" });
+    }
+  });
+
+  // Log conversation outcome from coach modal
+  app.post("/api/crm/conversation-outcome/:customerId", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { outcome, reason, stalledCategories } = req.body;
+
+      const customer = await storage.getCustomer(customerId);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      // Log the call event
+      await db.insert(customerActivityEvents).values({
+        customerId,
+        eventType: 'call_made',
+        title: `Coaching call - ${outcome === 'next_step_agreed' ? 'Positive' : outcome === 'still_undecided' ? 'Undecided' : 'Not moving forward'}`,
+        description: reason ? `Reason: ${reason}. Categories discussed: ${stalledCategories?.join(', ') || 'General'}` : `Categories discussed: ${stalledCategories?.join(', ') || 'General'}`,
+        sourceType: 'manual',
+        createdBy: req.user?.email,
+        createdByName: req.user?.email,
+        eventDate: new Date(),
+      });
+
+      // Handle outcomes
+      if (outcome === 'not_moving_forward') {
+        // Set pause date (60 days for prospect, 30 for others)
+        const pauseDays = 60;
+        const pauseUntil = new Date();
+        pauseUntil.setDate(pauseUntil.getDate() + pauseDays);
+
+        await db.update(customers)
+          .set({ 
+            pausedUntil: pauseUntil,
+            pauseReason: reason || 'not_moving_forward',
+            updatedAt: new Date()
+          })
+          .where(eq(customers.id, customerId));
+
+        // Mark any open quotes as closed-lost
+        await db.update(quoteCategoryLinks)
+          .set({ 
+            followUpStage: 'closed',
+            outcome: 'lost',
+            updatedAt: new Date()
+          })
+          .where(sql`${quoteCategoryLinks.customerId} = ${customerId} AND ${quoteCategoryLinks.followUpStage} != 'closed'`);
+
+        res.json({ 
+          success: true, 
+          action: 'paused', 
+          pausedUntil: pauseUntil,
+          message: `Account paused until ${pauseUntil.toLocaleDateString()}`
+        });
+
+      } else if (outcome === 'still_undecided') {
+        // Log objection if reason provided
+        if (reason && stalledCategories?.length > 0) {
+          for (const categoryName of stalledCategories) {
+            await db.insert(categoryObjections).values({
+              customerId,
+              categoryName,
+              objectionType: reason,
+              status: 'open',
+              createdBy: req.user?.email,
+            }).onConflictDoNothing();
+          }
+        }
+
+        res.json({ 
+          success: true, 
+          action: 'logged', 
+          message: 'Status updated. Consider next follow-up action.'
+        });
+
+      } else if (outcome === 'next_step_agreed') {
+        // Clear any pause and advance categories if stalled
+        await db.update(customers)
+          .set({ 
+            pausedUntil: null,
+            pauseReason: null,
+            updatedAt: new Date()
+          })
+          .where(eq(customers.id, customerId));
+
+        res.json({ 
+          success: true, 
+          action: 'advanced', 
+          message: 'Progress recorded. Next step agreed.'
+        });
+      }
+
+    } catch (error) {
+      console.error("Error logging conversation outcome:", error);
+      res.status(500).json({ error: "Failed to log conversation outcome" });
     }
   });
 
