@@ -21,7 +21,8 @@ import {
   ExternalLink,
   Copy,
   AlertTriangle,
-  Package
+  Package,
+  Users
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -41,6 +42,9 @@ export default function ShopifySettingsPage() {
   const [newMappingTitle, setNewMappingTitle] = useState("");
   const [newMappingType, setNewMappingType] = useState("");
   const [newMappingCategory, setNewMappingCategory] = useState("");
+  const [matchingOrderId, setMatchingOrderId] = useState<number | null>(null);
+  const [selectedCrmCustomer, setSelectedCrmCustomer] = useState("");
+  const [createMappingForFuture, setCreateMappingForFuture] = useState(true);
 
   const { data: settings, isLoading: settingsLoading } = useQuery<{
     shopDomain?: string;
@@ -148,6 +152,31 @@ export default function ShopifySettingsPage() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/product-mappings'] });
       toast({ title: "Mapping deleted" });
+    },
+  });
+
+  // CRM customers for matching
+  const { data: crmCustomers = [] } = useQuery<any[]>({
+    queryKey: ['/api/customers'],
+  });
+
+  // Match customer to order mutation
+  const matchCustomerMutation = useMutation({
+    mutationFn: async ({ orderId, customerId, createMapping }: { orderId: number; customerId: string; createMapping: boolean }) => {
+      return apiRequest('POST', `/api/shopify/orders/${orderId}/match-customer`, { customerId, createMapping });
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/orders'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/customer-mappings'] });
+      setMatchingOrderId(null);
+      setSelectedCrmCustomer("");
+      toast({ 
+        title: "Customer matched!", 
+        description: data.mappingCreated ? "A mapping was created for future orders from this customer." : undefined 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Match failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -640,12 +669,13 @@ export default function ShopifySettingsPage() {
                     <TableHead>Status</TableHead>
                     <TableHead>CRM Match</TableHead>
                     <TableHead>Date</TableHead>
+                    <TableHead>Actions</TableHead>
                   </TableRow>
                 </TableHeader>
                 <TableBody>
                   {orders.length === 0 ? (
                     <TableRow>
-                      <TableCell colSpan={7} className="text-center text-gray-500 py-8">
+                      <TableCell colSpan={8} className="text-center text-gray-500 py-8">
                         No orders synced yet. Configure webhooks in Shopify to start receiving orders.
                       </TableCell>
                     </TableRow>
@@ -674,6 +704,62 @@ export default function ShopifySettingsPage() {
                         </TableCell>
                         <TableCell className="text-sm text-gray-500">
                           {order.shopifyCreatedAt ? format(new Date(order.shopifyCreatedAt), 'MMM d, yyyy') : '-'}
+                        </TableCell>
+                        <TableCell>
+                          {!order.customerId && matchingOrderId === order.id ? (
+                            <div className="flex items-center gap-2">
+                              <Select value={selectedCrmCustomer} onValueChange={setSelectedCrmCustomer}>
+                                <SelectTrigger className="w-40">
+                                  <SelectValue placeholder="Select customer" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {crmCustomers.map((customer: any) => (
+                                    <SelectItem key={customer.id} value={String(customer.id)}>
+                                      {customer.company || `${customer.firstName} ${customer.lastName}`}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                              <div className="flex items-center gap-1">
+                                <input 
+                                  type="checkbox" 
+                                  id={`mapping-${order.id}`}
+                                  checked={createMappingForFuture} 
+                                  onChange={(e) => setCreateMappingForFuture(e.target.checked)}
+                                  className="h-3 w-3"
+                                />
+                                <label htmlFor={`mapping-${order.id}`} className="text-xs">Remember</label>
+                              </div>
+                              <Button 
+                                size="sm" 
+                                onClick={() => matchCustomerMutation.mutate({ 
+                                  orderId: order.id, 
+                                  customerId: selectedCrmCustomer, 
+                                  createMapping: createMappingForFuture 
+                                })}
+                                disabled={!selectedCrmCustomer || matchCustomerMutation.isPending}
+                                data-testid={`button-confirm-match-${order.id}`}
+                              >
+                                Save
+                              </Button>
+                              <Button 
+                                size="sm" 
+                                variant="ghost"
+                                onClick={() => { setMatchingOrderId(null); setSelectedCrmCustomer(""); }}
+                              >
+                                Cancel
+                              </Button>
+                            </div>
+                          ) : !order.customerId ? (
+                            <Button 
+                              size="sm" 
+                              variant="outline"
+                              onClick={() => setMatchingOrderId(order.id)}
+                              data-testid={`button-match-order-${order.id}`}
+                            >
+                              <Users className="h-3 w-3 mr-1" /> Match
+                            </Button>
+                          ) : null}
                         </TableCell>
                       </TableRow>
                     ))

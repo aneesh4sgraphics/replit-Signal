@@ -1531,6 +1531,27 @@ export const insertShopifyProductMappingSchema = createInsertSchema(shopifyProdu
 export type ShopifyProductMapping = typeof shopifyProductMappings.$inferSelect;
 export type InsertShopifyProductMapping = z.infer<typeof insertShopifyProductMappingSchema>;
 
+// Shopify Customer Mappings - maps Shopify customers to CRM accounts for future auto-matching
+export const shopifyCustomerMappings = pgTable("shopify_customer_mappings", {
+  id: serial("id").primaryKey(),
+  shopifyEmail: varchar("shopify_email", { length: 255 }),
+  shopifyCompanyName: varchar("shopify_company_name", { length: 255 }),
+  shopifyCustomerId: varchar("shopify_customer_id", { length: 100 }),
+  crmCustomerId: varchar("crm_customer_id", { length: 100 }).notNull(),
+  crmCustomerName: varchar("crm_customer_name", { length: 255 }),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyCustomerMappingSchema = createInsertSchema(shopifyCustomerMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyCustomerMapping = typeof shopifyCustomerMappings.$inferSelect;
+export type InsertShopifyCustomerMapping = z.infer<typeof insertShopifyCustomerMappingSchema>;
+
 // Shopify Integration Settings
 export const shopifySettings = pgTable("shopify_settings", {
   id: serial("id").primaryKey(),

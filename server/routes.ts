@@ -77,6 +77,7 @@ import {
   emailSends,
   shopifyOrders,
   shopifyProductMappings,
+  shopifyCustomerMappings,
   shopifySettings,
   shopifyInstalls,
   shopifyWebhookEvents,
@@ -7716,10 +7717,52 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ? `${order.customer.first_name || ''} ${order.customer.last_name || ''}`.trim()
           : order.billing_address?.name || '';
         const companyName = order.customer?.company || order.billing_address?.company || '';
+        const shopifyCustomerIdStr = order.customer?.id ? String(order.customer.id) : null;
 
-        // Try to match with existing CRM customer
+        // Try to match using customer mappings first
         let matchedCustomerId = null;
-        if (customerEmail) {
+        
+        // Check customer mappings by Shopify customer ID
+        if (shopifyCustomerIdStr) {
+          const mapping = await db.select().from(shopifyCustomerMappings)
+            .where(and(
+              eq(shopifyCustomerMappings.shopifyCustomerId, shopifyCustomerIdStr),
+              eq(shopifyCustomerMappings.isActive, true)
+            ))
+            .limit(1);
+          if (mapping.length > 0) {
+            matchedCustomerId = mapping[0].crmCustomerId;
+          }
+        }
+
+        // Check customer mappings by email
+        if (!matchedCustomerId && customerEmail) {
+          const mapping = await db.select().from(shopifyCustomerMappings)
+            .where(and(
+              ilike(shopifyCustomerMappings.shopifyEmail, customerEmail),
+              eq(shopifyCustomerMappings.isActive, true)
+            ))
+            .limit(1);
+          if (mapping.length > 0) {
+            matchedCustomerId = mapping[0].crmCustomerId;
+          }
+        }
+
+        // Check customer mappings by company name
+        if (!matchedCustomerId && companyName) {
+          const mapping = await db.select().from(shopifyCustomerMappings)
+            .where(and(
+              ilike(shopifyCustomerMappings.shopifyCompanyName, companyName),
+              eq(shopifyCustomerMappings.isActive, true)
+            ))
+            .limit(1);
+          if (mapping.length > 0) {
+            matchedCustomerId = mapping[0].crmCustomerId;
+          }
+        }
+
+        // Fall back to direct CRM email match
+        if (!matchedCustomerId && customerEmail) {
           const existingCustomer = await db.select().from(customers)
             .where(ilike(customers.email, customerEmail))
             .limit(1);
@@ -7728,7 +7771,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
         
-        // If no email match, try company name
+        // Fall back to direct CRM company name match
         if (!matchedCustomerId && companyName) {
           const existingCustomer = await db.select().from(customers)
             .where(ilike(customers.company, companyName))
@@ -8201,11 +8244,64 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Manual customer matching for unmatched Shopify orders
+  // Get customer mappings
+  app.get("/api/shopify/customer-mappings", isAuthenticated, async (req, res) => {
+    try {
+      const mappings = await db.select().from(shopifyCustomerMappings)
+        .where(eq(shopifyCustomerMappings.isActive, true))
+        .orderBy(shopifyCustomerMappings.crmCustomerName);
+      res.json(mappings);
+    } catch (error) {
+      console.error("Error fetching customer mappings:", error);
+      res.status(500).json({ error: "Failed to fetch customer mappings" });
+    }
+  });
+
+  // Create customer mapping (for auto-matching future orders)
+  app.post("/api/shopify/customer-mappings", isAuthenticated, async (req, res) => {
+    try {
+      const { shopifyEmail, shopifyCompanyName, shopifyCustomerId, crmCustomerId, crmCustomerName } = req.body;
+      
+      if (!crmCustomerId) {
+        return res.status(400).json({ error: "crmCustomerId is required" });
+      }
+
+      if (!shopifyEmail && !shopifyCompanyName && !shopifyCustomerId) {
+        return res.status(400).json({ error: "At least one Shopify identifier (email, company, or customer ID) is required" });
+      }
+
+      const result = await db.insert(shopifyCustomerMappings).values({
+        shopifyEmail: shopifyEmail?.toLowerCase() || null,
+        shopifyCompanyName: shopifyCompanyName || null,
+        shopifyCustomerId: shopifyCustomerId || null,
+        crmCustomerId,
+        crmCustomerName: crmCustomerName || null,
+      }).returning();
+
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error creating customer mapping:", error);
+      res.status(500).json({ error: "Failed to create customer mapping" });
+    }
+  });
+
+  // Delete customer mapping
+  app.delete("/api/shopify/customer-mappings/:id", isAuthenticated, async (req, res) => {
+    try {
+      await db.delete(shopifyCustomerMappings)
+        .where(eq(shopifyCustomerMappings.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting customer mapping:", error);
+      res.status(500).json({ error: "Failed to delete customer mapping" });
+    }
+  });
+
+  // Manual customer matching for unmatched Shopify orders (also creates a mapping for future)
   app.post("/api/shopify/orders/:orderId/match-customer", isAuthenticated, async (req, res) => {
     try {
       const { orderId } = req.params;
-      const { customerId } = req.body;
+      const { customerId, createMapping } = req.body;
 
       if (!customerId) {
         return res.status(400).json({ error: "customerId is required" });
@@ -8224,6 +8320,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ customerId, updatedAt: new Date() })
         .where(eq(shopifyOrders.id, parseInt(orderId)));
 
+      // Create customer mapping for future auto-matching if requested
+      if (createMapping) {
+        const orderData = order[0];
+        const mappingData: any = {
+          crmCustomerId: customerId,
+          crmCustomerName: null,
+        };
+
+        // Get CRM customer name
+        const crmCustomer = await db.select().from(customers)
+          .where(eq(customers.id, customerId))
+          .limit(1);
+        if (crmCustomer.length > 0) {
+          mappingData.crmCustomerName = crmCustomer[0].company || `${crmCustomer[0].firstName} ${crmCustomer[0].lastName}`.trim();
+        }
+
+        // Add Shopify identifiers
+        if (orderData.customerEmail) {
+          mappingData.shopifyEmail = orderData.customerEmail.toLowerCase();
+        }
+        if (orderData.companyName) {
+          mappingData.shopifyCompanyName = orderData.companyName;
+        }
+        if (orderData.shopifyCustomerId) {
+          mappingData.shopifyCustomerId = orderData.shopifyCustomerId;
+        }
+
+        // Check if mapping already exists
+        const existingMapping = await db.select().from(shopifyCustomerMappings)
+          .where(eq(shopifyCustomerMappings.crmCustomerId, customerId))
+          .limit(1);
+
+        if (existingMapping.length === 0) {
+          await db.insert(shopifyCustomerMappings).values(mappingData);
+        }
+      }
+
       // Process for coaching if paid
       if (order[0].financialStatus === 'paid' && !order[0].processedForCoaching) {
         await processOrderForCoaching(customerId, {
@@ -8234,7 +8367,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json({ success: true });
+      res.json({ success: true, mappingCreated: !!createMapping });
     } catch (error) {
       console.error("Error matching customer to order:", error);
       res.status(500).json({ error: "Failed to match customer" });
