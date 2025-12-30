@@ -1353,15 +1353,15 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                           <p className="text-xs font-medium text-gray-500 mb-2">Products Ordered:</p>
                           <div className="space-y-2">
                             {order.lineItems.slice(0, 5).map((item: any, idx: number) => (
-                              <div key={idx} className="flex items-center justify-between text-sm">
-                                <div className="flex items-center gap-2">
-                                  <Package className="h-4 w-4 text-gray-400" />
-                                  <span>{item.title || item.name}</span>
-                                  {item.quantity > 1 && (
-                                    <Badge variant="outline" className="text-xs">x{item.quantity}</Badge>
-                                  )}
+                              <div key={idx} className="flex items-center justify-between text-sm py-1">
+                                <div className="flex items-center gap-2 flex-1">
+                                  <Package className="h-4 w-4 text-gray-400 shrink-0" />
+                                  <span className="truncate">{item.title || item.name}</span>
                                 </div>
-                                <span className="text-gray-600">${item.price || (item.price_set?.shop_money?.amount)}</span>
+                                <div className="flex items-center gap-3 shrink-0">
+                                  <Badge variant="secondary" className="text-xs">Qty: {item.quantity || 1}</Badge>
+                                  <span className="text-gray-600 w-20 text-right">${item.price || (item.price_set?.shop_money?.amount)}</span>
+                                </div>
                               </div>
                             ))}
                             {order.lineItems.length > 5 && (
