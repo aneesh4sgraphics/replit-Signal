@@ -22,7 +22,8 @@ import {
   Copy,
   AlertTriangle,
   Package,
-  Users
+  Users,
+  ChevronRight
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -100,6 +101,50 @@ export default function ShopifySettingsPage() {
 
   const { data: webhookEvents = [] } = useQuery<any[]>({
     queryKey: ['/api/shopify/webhook-events'],
+  });
+
+  // Variant mappings for QuickQuote to Draft Order
+  const { data: variantMappings = [], refetch: refetchVariantMappings } = useQuery<any[]>({
+    queryKey: ['/api/shopify/variant-mappings'],
+  });
+
+  const { data: shopifyProducts = [], isLoading: productsLoading, refetch: refetchProducts } = useQuery<any[]>({
+    queryKey: ['/api/shopify/products'],
+    enabled: !!installStatus?.installed,
+  });
+
+  const { data: quickQuoteProducts = [] } = useQuery<any[]>({
+    queryKey: ['/api/products'],
+  });
+
+  const [variantMappingSearch, setVariantMappingSearch] = useState("");
+  const [selectedQuickQuoteProduct, setSelectedQuickQuoteProduct] = useState<any>(null);
+  const [selectedShopifyVariant, setSelectedShopifyVariant] = useState<any>(null);
+
+  const createVariantMappingMutation = useMutation({
+    mutationFn: async (data: any) => {
+      const res = await apiRequest('POST', '/api/shopify/variant-mappings', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/variant-mappings'] });
+      setSelectedQuickQuoteProduct(null);
+      setSelectedShopifyVariant(null);
+      toast({ title: "Mapping created", description: "Product mapped to Shopify variant" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const deleteVariantMappingMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/shopify/variant-mappings/${id}`, undefined);
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/shopify/variant-mappings'] });
+      toast({ title: "Mapping deleted" });
+    },
   });
 
   // Sync form state with loaded settings
@@ -277,7 +322,8 @@ export default function ShopifySettingsPage() {
         <TabsList>
           <TabsTrigger value="install">App Install</TabsTrigger>
           <TabsTrigger value="settings">Settings</TabsTrigger>
-          <TabsTrigger value="mappings">Product Mappings</TabsTrigger>
+          <TabsTrigger value="mappings">Category Mappings</TabsTrigger>
+          <TabsTrigger value="variant-mappings">Draft Order Mappings</TabsTrigger>
           <TabsTrigger value="orders">
             Orders
             {unmatchedOrders.length > 0 && (
@@ -700,6 +746,208 @@ export default function ShopifySettingsPage() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="variant-mappings">
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-lg flex items-center gap-2">
+                <Link2 className="h-5 w-5" />
+                QuickQuote to Shopify Draft Order Mappings
+              </CardTitle>
+              <CardDescription>
+                Map your QuickQuote products to Shopify variants. When you send a quote, you can create a Shopify draft order that customers can complete online.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {!installStatus?.installed ? (
+                <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4 text-center">
+                  <AlertTriangle className="h-8 w-8 text-yellow-600 mx-auto mb-2" />
+                  <p className="text-yellow-800 font-medium">Shopify Not Connected</p>
+                  <p className="text-sm text-yellow-700">Connect your Shopify store first to enable product mapping.</p>
+                </div>
+              ) : (
+                <>
+                  <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <div className="flex items-start gap-2">
+                      <Package className="h-5 w-5 text-blue-600 flex-shrink-0 mt-0.5" />
+                      <div className="text-sm text-blue-800">
+                        <p className="font-medium">How it works:</p>
+                        <p>Map your QuickQuote products to Shopify variants. When sending a quote, you can choose to create a Shopify draft order - customers receive a checkout link to complete their purchase.</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center justify-between">
+                    <Input
+                      placeholder="Search products..."
+                      value={variantMappingSearch}
+                      onChange={(e) => setVariantMappingSearch(e.target.value)}
+                      className="max-w-xs"
+                      data-testid="input-variant-search"
+                    />
+                    <Button variant="outline" onClick={() => refetchProducts()} disabled={productsLoading}>
+                      <RefreshCw className={`h-4 w-4 mr-1 ${productsLoading ? 'animate-spin' : ''}`} />
+                      Refresh Shopify Products
+                    </Button>
+                  </div>
+
+                  <div className="grid md:grid-cols-2 gap-4">
+                    <Card className="border-2">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">QuickQuote Products</CardTitle>
+                      </CardHeader>
+                      <CardContent className="max-h-64 overflow-y-auto space-y-1">
+                        {quickQuoteProducts
+                          .filter((p: any) => !variantMappingSearch || 
+                            p.productName?.toLowerCase().includes(variantMappingSearch.toLowerCase()) ||
+                            p.itemCode?.toLowerCase().includes(variantMappingSearch.toLowerCase())
+                          )
+                          .slice(0, 50)
+                          .map((product: any) => {
+                            const isMapped = variantMappings.some((m: any) => m.itemCode === product.itemCode);
+                            return (
+                              <div
+                                key={product.id}
+                                className={`p-2 rounded cursor-pointer text-sm ${
+                                  selectedQuickQuoteProduct?.id === product.id 
+                                    ? 'bg-purple-100 border-purple-300 border' 
+                                    : isMapped 
+                                      ? 'bg-green-50 border-green-200 border' 
+                                      : 'hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSelectedQuickQuoteProduct(product)}
+                                data-testid={`product-${product.id}`}
+                              >
+                                <p className="font-medium truncate">{product.productName}</p>
+                                <p className="text-xs text-gray-500">{product.itemCode} • {product.size}</p>
+                                {isMapped && <Badge variant="outline" className="text-xs mt-1 bg-green-50">Mapped</Badge>}
+                              </div>
+                            );
+                          })}
+                      </CardContent>
+                    </Card>
+
+                    <Card className="border-2">
+                      <CardHeader className="pb-2">
+                        <CardTitle className="text-sm font-medium">Shopify Variants</CardTitle>
+                      </CardHeader>
+                      <CardContent className="max-h-64 overflow-y-auto space-y-1">
+                        {productsLoading ? (
+                          <div className="text-center py-8 text-gray-500">Loading Shopify products...</div>
+                        ) : shopifyProducts.length === 0 ? (
+                          <div className="text-center py-8 text-gray-500">No Shopify products found</div>
+                        ) : (
+                          shopifyProducts
+                            .filter((v: any) => !variantMappingSearch || 
+                              v.fullTitle?.toLowerCase().includes(variantMappingSearch.toLowerCase()) ||
+                              v.sku?.toLowerCase().includes(variantMappingSearch.toLowerCase())
+                            )
+                            .slice(0, 50)
+                            .map((variant: any) => (
+                              <div
+                                key={variant.variantId}
+                                className={`p-2 rounded cursor-pointer text-sm ${
+                                  selectedShopifyVariant?.variantId === variant.variantId 
+                                    ? 'bg-purple-100 border-purple-300 border' 
+                                    : 'hover:bg-gray-50'
+                                }`}
+                                onClick={() => setSelectedShopifyVariant(variant)}
+                                data-testid={`variant-${variant.variantId}`}
+                              >
+                                <p className="font-medium truncate">{variant.fullTitle}</p>
+                                <p className="text-xs text-gray-500">SKU: {variant.sku || 'N/A'} • ${variant.price}</p>
+                              </div>
+                            ))
+                        )}
+                      </CardContent>
+                    </Card>
+                  </div>
+
+                  {selectedQuickQuoteProduct && selectedShopifyVariant && (
+                    <div className="bg-purple-50 border border-purple-200 rounded-lg p-4">
+                      <p className="text-sm font-medium text-purple-800 mb-2">Create Mapping:</p>
+                      <div className="flex items-center gap-2">
+                        <div className="flex-1 bg-white p-2 rounded text-sm">
+                          <p className="font-medium">{selectedQuickQuoteProduct.productName}</p>
+                          <p className="text-xs text-gray-500">{selectedQuickQuoteProduct.itemCode}</p>
+                        </div>
+                        <ChevronRight className="h-5 w-5 text-purple-500" />
+                        <div className="flex-1 bg-white p-2 rounded text-sm">
+                          <p className="font-medium">{selectedShopifyVariant.fullTitle}</p>
+                          <p className="text-xs text-gray-500">${selectedShopifyVariant.price}</p>
+                        </div>
+                        <Button
+                          onClick={() => createVariantMappingMutation.mutate({
+                            productPricingId: selectedQuickQuoteProduct.id,
+                            itemCode: selectedQuickQuoteProduct.itemCode,
+                            productName: selectedQuickQuoteProduct.productName,
+                            shopifyProductId: selectedShopifyVariant.productId,
+                            shopifyVariantId: selectedShopifyVariant.variantId,
+                            shopifyProductTitle: selectedShopifyVariant.productTitle,
+                            shopifyVariantTitle: selectedShopifyVariant.variantTitle,
+                            shopifyPrice: selectedShopifyVariant.price,
+                          })}
+                          disabled={createVariantMappingMutation.isPending}
+                          data-testid="button-create-variant-mapping"
+                        >
+                          <Plus className="h-4 w-4 mr-1" /> Map
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  <div>
+                    <h4 className="font-medium mb-2">Current Mappings ({variantMappings.length})</h4>
+                    <Table>
+                      <TableHeader>
+                        <TableRow>
+                          <TableHead>QuickQuote Product</TableHead>
+                          <TableHead>Shopify Variant</TableHead>
+                          <TableHead>Price</TableHead>
+                          <TableHead className="w-20">Actions</TableHead>
+                        </TableRow>
+                      </TableHeader>
+                      <TableBody>
+                        {variantMappings.length === 0 ? (
+                          <TableRow>
+                            <TableCell colSpan={4} className="text-center text-gray-500 py-8">
+                              No mappings yet. Select a QuickQuote product and Shopify variant above to create a mapping.
+                            </TableCell>
+                          </TableRow>
+                        ) : (
+                          variantMappings.map((mapping: any) => (
+                            <TableRow key={mapping.id}>
+                              <TableCell>
+                                <p className="font-medium">{mapping.productName}</p>
+                                <p className="text-xs text-gray-500">{mapping.itemCode}</p>
+                              </TableCell>
+                              <TableCell>
+                                <p>{mapping.shopifyProductTitle}</p>
+                                {mapping.shopifyVariantTitle !== 'Default Title' && (
+                                  <p className="text-xs text-gray-500">{mapping.shopifyVariantTitle}</p>
+                                )}
+                              </TableCell>
+                              <TableCell>${mapping.shopifyPrice}</TableCell>
+                              <TableCell>
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => deleteVariantMappingMutation.mutate(mapping.id)}
+                                >
+                                  <Trash2 className="h-4 w-4 text-red-500" />
+                                </Button>
+                              </TableCell>
+                            </TableRow>
+                          ))
+                        )}
+                      </TableBody>
+                    </Table>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

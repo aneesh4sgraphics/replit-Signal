@@ -1608,3 +1608,54 @@ export const insertShopifyWebhookEventSchema = createInsertSchema(shopifyWebhook
 });
 export type ShopifyWebhookEvent = typeof shopifyWebhookEvents.$inferSelect;
 export type InsertShopifyWebhookEvent = z.infer<typeof insertShopifyWebhookEventSchema>;
+
+// QuickQuote to Shopify Variant Mappings - maps QuickQuote products to Shopify variants for draft orders
+export const shopifyVariantMappings = pgTable("shopify_variant_mappings", {
+  id: serial("id").primaryKey(),
+  productPricingId: integer("product_pricing_id").references(() => productPricingMaster.id, { onDelete: "cascade" }),
+  itemCode: varchar("item_code", { length: 100 }), // QuickQuote item code
+  productName: varchar("product_name", { length: 255 }), // QuickQuote product name for display
+  shopifyProductId: varchar("shopify_product_id", { length: 100 }), // Shopify product GID
+  shopifyVariantId: varchar("shopify_variant_id", { length: 100 }).notNull(), // Shopify variant GID
+  shopifyProductTitle: varchar("shopify_product_title", { length: 255 }), // Shopify product title for display
+  shopifyVariantTitle: varchar("shopify_variant_title", { length: 255 }), // Shopify variant title
+  shopifyPrice: decimal("shopify_price", { precision: 10, scale: 2 }), // Current Shopify price
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyVariantMappingSchema = createInsertSchema(shopifyVariantMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyVariantMapping = typeof shopifyVariantMappings.$inferSelect;
+export type InsertShopifyVariantMapping = z.infer<typeof insertShopifyVariantMappingSchema>;
+
+// Shopify Draft Orders - tracks draft orders created from QuickQuotes
+export const shopifyDraftOrders = pgTable("shopify_draft_orders", {
+  id: serial("id").primaryKey(),
+  sentQuoteId: integer("sent_quote_id").references(() => sentQuotes.id, { onDelete: "set null" }),
+  quoteNumber: varchar("quote_number", { length: 50 }),
+  customerId: varchar("customer_id", { length: 100 }), // CRM customer ID
+  customerEmail: varchar("customer_email", { length: 255 }),
+  shopifyDraftOrderId: varchar("shopify_draft_order_id", { length: 100 }), // Shopify draft order GID
+  shopifyDraftOrderNumber: varchar("shopify_draft_order_number", { length: 50 }), // e.g., #D123
+  invoiceUrl: varchar("invoice_url", { length: 1000 }), // URL customer can use to complete purchase
+  status: varchar("status", { length: 50 }).default("open"), // open, invoice_sent, completed, cancelled
+  totalPrice: decimal("total_price", { precision: 10, scale: 2 }),
+  lineItemsCount: integer("line_items_count"),
+  shopifyOrderId: varchar("shopify_order_id", { length: 100 }), // If converted to order
+  completedAt: timestamp("completed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertShopifyDraftOrderSchema = createInsertSchema(shopifyDraftOrders).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShopifyDraftOrder = typeof shopifyDraftOrders.$inferSelect;
+export type InsertShopifyDraftOrder = z.infer<typeof insertShopifyDraftOrderSchema>;

@@ -81,6 +81,10 @@ import {
   shopifySettings,
   shopifyInstalls,
   shopifyWebhookEvents,
+  shopifyVariantMappings,
+  shopifyDraftOrders,
+  insertShopifyVariantMappingSchema,
+  insertShopifyDraftOrderSchema,
   ACCOUNT_STATES,
   ACCOUNT_STATE_CONFIG,
   CATEGORY_STATES,
@@ -8457,6 +8461,228 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error matching customer to order:", error);
       res.status(500).json({ error: "Failed to match customer" });
+    }
+  });
+
+  // ============================================================
+  // Shopify Variant Mappings - for QuickQuote to Draft Order integration
+  // ============================================================
+
+  // Fetch Shopify products (for mapping UI)
+  app.get("/api/shopify/products", isAuthenticated, async (req, res) => {
+    try {
+      if (!SHOPIFY_ACCESS_TOKEN || !SHOPIFY_STORE_DOMAIN) {
+        return res.status(400).json({ error: "Shopify not configured" });
+      }
+
+      const axios = (await import('axios')).default;
+      const response = await axios.get(
+        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/products.json?limit=250`,
+        {
+          headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      // Transform to include variants with product info
+      const productsWithVariants = response.data.products.flatMap((product: any) =>
+        product.variants.map((variant: any) => ({
+          productId: String(product.id),
+          variantId: String(variant.id),
+          productTitle: product.title,
+          variantTitle: variant.title,
+          sku: variant.sku,
+          price: variant.price,
+          inventoryQuantity: variant.inventory_quantity,
+          fullTitle: variant.title === 'Default Title' 
+            ? product.title 
+            : `${product.title} - ${variant.title}`,
+        }))
+      );
+
+      res.json(productsWithVariants);
+    } catch (error: any) {
+      console.error("Error fetching Shopify products:", error.response?.data || error);
+      res.status(500).json({ error: "Failed to fetch Shopify products" });
+    }
+  });
+
+  // Get variant mappings
+  app.get("/api/shopify/variant-mappings", isAuthenticated, async (req, res) => {
+    try {
+      const mappings = await db.select().from(shopifyVariantMappings)
+        .where(eq(shopifyVariantMappings.isActive, true))
+        .orderBy(shopifyVariantMappings.productName);
+      res.json(mappings);
+    } catch (error) {
+      console.error("Error fetching variant mappings:", error);
+      res.status(500).json({ error: "Failed to fetch variant mappings" });
+    }
+  });
+
+  // Create variant mapping
+  app.post("/api/shopify/variant-mappings", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const validatedData = insertShopifyVariantMappingSchema.parse(req.body);
+      
+      // Check if mapping already exists for this item
+      if (validatedData.itemCode) {
+        const existing = await db.select().from(shopifyVariantMappings)
+          .where(eq(shopifyVariantMappings.itemCode, validatedData.itemCode))
+          .limit(1);
+        if (existing.length > 0) {
+          // Update existing
+          const result = await db.update(shopifyVariantMappings)
+            .set({ ...validatedData, updatedAt: new Date() })
+            .where(eq(shopifyVariantMappings.id, existing[0].id))
+            .returning();
+          return res.json(result[0]);
+        }
+      }
+
+      const result = await db.insert(shopifyVariantMappings).values(validatedData).returning();
+      res.json(result[0]);
+    } catch (error) {
+      console.error("Error creating variant mapping:", error);
+      res.status(500).json({ error: "Failed to create variant mapping" });
+    }
+  });
+
+  // Delete variant mapping
+  app.delete("/api/shopify/variant-mappings/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      await db.delete(shopifyVariantMappings)
+        .where(eq(shopifyVariantMappings.id, parseInt(req.params.id)));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting variant mapping:", error);
+      res.status(500).json({ error: "Failed to delete variant mapping" });
+    }
+  });
+
+  // Create Shopify draft order from QuickQuote
+  app.post("/api/shopify/draft-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!SHOPIFY_ACCESS_TOKEN || !SHOPIFY_STORE_DOMAIN) {
+        return res.status(400).json({ error: "Shopify not configured" });
+      }
+
+      const { quoteNumber, customerEmail, customerId, lineItems, note } = req.body;
+
+      if (!lineItems || lineItems.length === 0) {
+        return res.status(400).json({ error: "At least one line item is required" });
+      }
+
+      // Get variant mappings for the quote items
+      const allMappings = await db.select().from(shopifyVariantMappings)
+        .where(eq(shopifyVariantMappings.isActive, true));
+
+      // Build Shopify line items
+      const shopifyLineItems: { variant_id: string; quantity: number; price?: string }[] = [];
+      const unmappedItems: string[] = [];
+
+      for (const item of lineItems) {
+        const mapping = allMappings.find(m => 
+          m.itemCode === item.itemCode || 
+          m.productName?.toLowerCase() === item.productName?.toLowerCase()
+        );
+
+        if (mapping) {
+          shopifyLineItems.push({
+            variant_id: mapping.shopifyVariantId,
+            quantity: item.quantity || 1,
+            price: item.unitPrice ? String(item.unitPrice) : undefined,
+          });
+        } else {
+          unmappedItems.push(item.productName || item.itemCode);
+        }
+      }
+
+      if (shopifyLineItems.length === 0) {
+        return res.status(400).json({ 
+          error: "No products could be mapped to Shopify variants",
+          unmappedItems,
+          suggestion: "Map products in Shopify Settings → Product Mappings first"
+        });
+      }
+
+      // Create draft order in Shopify
+      const axios = (await import('axios')).default;
+      const draftOrderPayload: any = {
+        draft_order: {
+          line_items: shopifyLineItems,
+          note: note || `QuickQuote: ${quoteNumber}`,
+          use_customer_default_address: true,
+        }
+      };
+
+      // Add customer by email if provided
+      if (customerEmail) {
+        draftOrderPayload.draft_order.email = customerEmail;
+      }
+
+      const response = await axios.post(
+        `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/draft_orders.json`,
+        draftOrderPayload,
+        {
+          headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        }
+      );
+
+      const draftOrder = response.data.draft_order;
+
+      // Save to our database
+      const savedDraft = await db.insert(shopifyDraftOrders).values({
+        quoteNumber,
+        customerId,
+        customerEmail,
+        shopifyDraftOrderId: String(draftOrder.id),
+        shopifyDraftOrderNumber: draftOrder.name,
+        invoiceUrl: draftOrder.invoice_url,
+        status: draftOrder.status,
+        totalPrice: draftOrder.total_price,
+        lineItemsCount: draftOrder.line_items?.length || 0,
+      }).returning();
+
+      res.json({
+        success: true,
+        draftOrder: savedDraft[0],
+        invoiceUrl: draftOrder.invoice_url,
+        adminUrl: `https://${SHOPIFY_STORE_DOMAIN}/admin/draft_orders/${draftOrder.id}`,
+        unmappedItems: unmappedItems.length > 0 ? unmappedItems : undefined,
+      });
+    } catch (error: any) {
+      console.error("Error creating draft order:", error.response?.data || error);
+      res.status(500).json({ 
+        error: "Failed to create draft order",
+        details: error.response?.data?.errors || error.message
+      });
+    }
+  });
+
+  // Get draft orders
+  app.get("/api/shopify/draft-orders", isAuthenticated, async (req, res) => {
+    try {
+      const drafts = await db.select().from(shopifyDraftOrders)
+        .orderBy(desc(shopifyDraftOrders.createdAt))
+        .limit(100);
+      res.json(drafts);
+    } catch (error) {
+      console.error("Error fetching draft orders:", error);
+      res.status(500).json({ error: "Failed to fetch draft orders" });
     }
   });
 
