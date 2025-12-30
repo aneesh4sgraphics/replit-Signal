@@ -7300,6 +7300,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // CATEGORY OBJECTION APIs
   // ========================================
 
+  // Get ALL objections (for summary page)
+  app.get("/api/crm/objections", isAuthenticated, async (req, res) => {
+    try {
+      const objections = await db.select().from(categoryObjections)
+        .orderBy(desc(categoryObjections.createdAt));
+      res.json(objections);
+    } catch (error) {
+      console.error("Error fetching all objections:", error);
+      res.status(500).json({ error: "Failed to fetch objections" });
+    }
+  });
+
   // Get objections for a customer
   app.get("/api/crm/objections/:customerId", isAuthenticated, async (req, res) => {
     try {

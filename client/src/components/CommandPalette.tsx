@@ -4,7 +4,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 import { 
   Home, FileText, DollarSign, Users, Database, Settings, LogOut,
   Activity, Calculator, TrendingUp, Truck, Package, Tag, Search, Clock,
-  Target
+  Target, AlertTriangle
 } from 'lucide-react';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
@@ -33,6 +33,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', keywords: ['labels', 'packages', 'shipment'] },
   { path: '/product-labels', icon: Tag, label: 'Product Labels', keywords: ['tags', 'stickers', 'product'] },
   { path: '/crm-journey', icon: Target, label: 'CRM Journey', keywords: ['pipeline', 'sales', 'customers', 'conversion', 'samples', 'swatches'] },
+  { path: '/objections', icon: AlertTriangle, label: 'Objections', keywords: ['objections', 'issues', 'blockers', 'concerns', 'problems'] },
   { path: '/admin', icon: Users, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
   { path: '/activity-logs', icon: Activity, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true },
   { path: '/product-pricing-management', icon: Database, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true },
