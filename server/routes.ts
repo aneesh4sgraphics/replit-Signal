@@ -8043,10 +8043,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync orders from Shopify (for direct token setup)
   app.post("/api/shopify/sync-orders", isAuthenticated, async (req: any, res) => {
     try {
-      if (req.user?.role !== 'admin') {
-        return res.status(403).json({ error: "Admin access required" });
-      }
-
       if (!SHOPIFY_ACCESS_TOKEN || !SHOPIFY_STORE_DOMAIN) {
         return res.status(400).json({ error: "Shopify direct access not configured. Please add SHOPIFY_ACCESS_TOKEN and SHOPIFY_STORE_DOMAIN to your secrets." });
       }
