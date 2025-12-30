@@ -399,20 +399,43 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
       return { action: 'check_reorder', reason: `Reorder due: ${adoptedWithReorderDue[0].categoryName}`, whyNow: 'Proactive outreach before they need to call', priority: 'high' };
     }
 
-    // Priority 4: Evaluated but not adopted - follow up
+    // Priority 3.5: Stalled customer - multiple categories worked but no adoption
+    // When 3+ categories are in introduced/evaluated but none adopted, prompt for a call
     const stuckEvaluated = categoryTrusts.filter(t => t.trustLevel === 'evaluated');
+    const introduced = categoryTrusts.filter(t => t.trustLevel === 'introduced');
+    const adoptedCategories = categoryTrusts.filter(t => t.trustLevel === 'adopted' || t.trustLevel === 'habitual');
+    const stalledCount = stuckEvaluated.length + introduced.length;
+    
+    if (stalledCount >= 3 && adoptedCategories.length === 0) {
+      return { 
+        action: 'call_customer', 
+        reason: `${stalledCount} categories shown but no orders - have a conversation`, 
+        whyNow: 'Multiple products introduced but customer hasn\'t committed - uncover what\'s blocking them',
+        priority: 'urgent' 
+      };
+    }
+    
+    // Priority 3.6: Moderate stall - 2 categories stuck with no adoption
+    if (stalledCount >= 2 && adoptedCategories.length === 0) {
+      return { 
+        action: 'call_customer', 
+        reason: 'Customer has seen products but hasn\'t ordered - call to check in', 
+        whyNow: 'They know your products but need a push to commit',
+        priority: 'high' 
+      };
+    }
+
+    // Priority 4: Evaluated but not adopted - follow up (only if some adoption exists or just 1 evaluated)
     if (stuckEvaluated.length > 0) {
       return { action: 'follow_up', reason: `Follow up on ${stuckEvaluated[0].categoryName} evaluation`, whyNow: 'They tested it - now is the time to close', priority: 'high' };
     }
 
     // Priority 5: Introduced but not evaluated - send sample
-    const introduced = categoryTrusts.filter(t => t.trustLevel === 'introduced');
     if (introduced.length > 0) {
       return { action: 'send_sample', reason: `Send sample for ${introduced[0].categoryName}`, whyNow: 'Move from awareness to hands-on trial', priority: 'normal' };
     }
 
     // Priority 6: Cross-sell within same category group (adopted once → introduce others in group)
-    const adoptedCategories = categoryTrusts.filter(t => t.trustLevel === 'adopted' || t.trustLevel === 'habitual');
     for (const adopted of adoptedCategories) {
       const group = getCategoryGroup(adopted.categoryName);
       if (group) {
@@ -460,6 +483,7 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
       introduce_category: 'Introduce Category',
       cross_sell: 'Cross-Sell',
       relationship: 'Relationship Review',
+      call_customer: 'Call Customer',
     };
     return labels[action] || action;
   };

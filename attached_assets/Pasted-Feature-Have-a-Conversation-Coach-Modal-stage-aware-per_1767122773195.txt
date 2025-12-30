@@ -1,0 +1,192 @@
+Feature: “Have a Conversation” Coach Modal (stage-aware + persona-aware)
+
+We need a “Have a Conversation” coaching action that appears when the system detects the account is stalled despite completing the normal steps (quotes/samples sent, follow-ups attempted, category trust not progressing, no purchase).
+
+1) Trigger logic (when to show)
+
+Show a “📞 Have a Conversation” CTA as the Next Best Move when ALL are true:
+
+Account has at least one relevant category at Introduced or Evaluated
+
+There is an Open or Expired quote older than X days (configurable, default 7–14)
+
+OR a Press Test Kit/Sample is Sent and outcome is missing beyond X days (default 7–10)
+
+No new order for this category in last X days (default 30)
+
+The usual nudges have already fired (quote follow-up, sample follow-up)
+=> This indicates a human uncertainty blocker.
+
+Clicking CTA opens a modal (or right-side panel) with calling scripts.
+
+2) Modal behavior (no typing required)
+
+Modal includes:
+
+A header showing: Account name, Account State (Prospect / Expansion), and Persona (Distributor / Dealer / End Customer)
+
+A script selector with tabs:
+
+Prospect scripts
+
+Expansion scripts
+
+Distributor scripts
+
+End Customer scripts
+(Auto-select the correct tab based on account state + machine type selection of Distributor/Dealer)
+
+Each script is shown as short “talk tracks” (1–2 sentences) with “Copy” button.
+
+At bottom, a quick outcome capture (buttons only):
+
+✅ Next step agreed
+
+🟡 Still undecided
+
+❌ Not moving forward
+Optional quick reason buttons (no free text):
+
+Price / Value unclear / Timing / Compatibility / Supplier locked / Internal approval / Not a fit
+
+Log this as an event so owner can see why deals stall.
+
+3) Script library (content required)
+
+A) Prospect stage scripts (first purchase not yet happened)
+Goal: uncover the real blocker politely and quickly.
+
+Permission opener:
+
+“Hey [Name] — quick check-in. Is this still something you’re considering, or should I step back for now?”
+
+Missing piece question:
+
+“I feel like we’ve covered the basics. What am I missing that’s keeping this from moving?”
+
+Compare vs inertia:
+
+“Are you comparing us against what you already use, or deciding whether to change at all?”
+
+Value vs budget:
+
+“When price comes up, is it more about budget, or about whether the value makes sense?”
+
+Next-step clarity:
+
+“If we were to move forward, what would you need to feel comfortable doing that?”
+
+B) Expansion stage scripts (customer already buys something; we want more categories)
+Goal: expand without sounding pushy; focus on standardization + risk reduction.
+
+Low-pressure expansion:
+
+“You’re already using [current category]. Would it be useful if I showed you the closest alternatives we have for [adjacent category]?”
+
+Standardization framing:
+
+“Most shops running [machine type] usually standardize on 2–3 materials. Want me to suggest the simplest set?”
+
+Blocker identification:
+
+“What’s the main reason you haven’t tried [next category] yet — timing, fit, or just no need?”
+
+Trial ask:
+
+“Would you be open to a small test pack so you can compare it on your own press?”
+
+Relationship move (high-frequency buyer):
+
+“Since you’re ordering regularly, would a stocking plan or bundle pricing make your life easier?”
+
+C) Distributor scripts (they care about margin, demand, and support)
+Goal: understand their channel motion and make it easy to list/stock.
+
+Fit + demand:
+
+“What would you need to see to feel confident there’s demand for this in your channel?”
+
+Margin clarity:
+
+“Is the hesitation mostly margin structure, or sell-through confidence?”
+
+Enablement:
+
+“If I gave you a simple sell-sheet + sample pack for your reps, would that make it easier to move?”
+
+Trial stock:
+
+“Would you consider a small starter stocking order so you can test sell-through?”
+
+Disqualify politely:
+
+“If this isn’t aligned with your category focus right now, should we revisit later or drop it?”
+
+D) End-customer scripts (print shop / direct buyer)
+Goal: reduce perceived risk (compatibility, quality, switching cost).
+
+Risk reduction:
+
+“What’s the biggest risk you’re trying to avoid — compatibility, customer acceptance, or downtime?”
+
+Supplier lock-in:
+
+“Are you happy with your current supplier, or just trying to avoid the hassle of switching?”
+
+Proof request:
+
+“If we ran a quick test and you liked the results, would you be ready to place an order?”
+
+Timing:
+
+“Is this a ‘not now’ problem, or a ‘not sure’ problem?”
+
+4) Let-go rules (clean disqualification)
+
+If outcome is ❌ Not moving forward:
+
+mark current quote as “Closed-Lost”
+
+set a “Revisit date” suggestion (30/60/90 days) but do NOT create tasks
+
+store reason code
+
+Next Best Move should stop nagging and instead show:
+“Paused — revisit in X days” (only visible to rep)
+
+If outcome is 🟡 Still undecided:
+
+Next Best Move should propose 1 action:
+
+“Log objection” OR “Send sample” OR “Schedule follow-up”
+(based on reason selected)
+
+Acceptance criteria
+
+Reps can open scripts and run the call without typing.
+
+Scripts adapt to Prospect vs Expansion and Distributor vs End Customer.
+
+Outcome is captured in 1 click and stored.
+
+System uses outcomes to stop endlessly repeating the same nudges.
+
+Extra guidance (so Replit doesn’t botch it)
+
+Keep scripts short; reps should not sound robotic.
+
+This modal must feel like a coach, not compliance.
+
+Do NOT add a general “task list” screen for this feature.
+
+My recommended “Let go” policy (for you, not the UI)
+
+If you want a clean rule your team can live with:
+
+Prospect: If 2 full cycles of follow-up (quote + sample) produce no response, mark as “Paused” and set a 60-day revisit.
+
+Expansion: If they buy consistently but reject expansion twice, pause that category and try a different adjacent category later.
+
+Distributor: If they won’t commit to a starter stock plan after margin + enablement is provided, pause and revisit quarterly.
+
+This keeps your pipeline honest and your reps sane.
