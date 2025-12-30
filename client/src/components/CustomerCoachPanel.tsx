@@ -124,12 +124,13 @@ const CATEGORY_STATES = ['not_introduced', 'introduced', 'evaluated', 'adopted',
 
 interface CustomerCoachPanelProps {
   customer: Customer;
+  onNavigateToPressProfiles?: () => void;
 }
 
-export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps) {
+export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles }: CustomerCoachPanelProps) {
   const [objectionDialog, setObjectionDialog] = useState<{ open: boolean; categoryName: string; trustId?: number }>({ open: false, categoryName: '' });
   const [machineNoteDialog, setMachineNoteDialog] = useState<{ open: boolean; machineId: string; machineLabel: string; details: string }>({ open: false, machineId: '', machineLabel: '', details: '' });
-  const [machineProfileOpen, setMachineProfileOpen] = useState(false);
+  const [machineProfileOpen, setMachineProfileOpen] = useState(true);
   const { toast } = useToast();
 
   const { data: machineProfiles = [], refetch: refetchMachines } = useQuery<CustomerMachineProfile[]>({
@@ -158,6 +159,16 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
       return res.json();
     },
   });
+
+  useEffect(() => {
+    if (machineProfiles.length > 0) {
+      setMachineProfileOpen(false);
+    } else {
+      setMachineProfileOpen(true);
+    }
+  }, [machineProfiles.length]);
+
+  const hasMachines = machineProfiles.length > 0;
 
   const toggleMachineMutation = useMutation({
     mutationFn: async ({ machineFamily, currentlyEnabled, otherDetails }: { machineFamily: string; currentlyEnabled: boolean; otherDetails?: string }) => {
@@ -567,25 +578,44 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
       )}
 
       <Collapsible open={machineProfileOpen} onOpenChange={setMachineProfileOpen}>
-        <Card>
+        <Card className={hasMachines ? 'border-green-200' : ''}>
           <CollapsibleTrigger asChild>
             <CardHeader className="pb-2 cursor-pointer hover:bg-gray-50/50 transition-colors">
               <div className="flex items-center justify-between">
                 <CardTitle className="text-sm flex items-center gap-2">
                   <Printer className="h-4 w-4" />
                   Machine Profile
-                  {machineProfiles.length > 0 && (
+                  {hasMachines && (
                     <Badge variant="outline" className="text-xs bg-green-50 text-green-700 border-green-200">
                       {machineProfiles.length} selected
                     </Badge>
                   )}
                 </CardTitle>
-                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${machineProfileOpen ? 'rotate-180' : ''}`} />
+                <div className="flex items-center gap-2">
+                  {hasMachines && onNavigateToPressProfiles && (
+                    <Button 
+                      variant="link" 
+                      size="sm" 
+                      className="h-auto p-0 text-xs text-blue-600"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        onNavigateToPressProfiles();
+                      }}
+                      data-testid="link-press-profiles"
+                    >
+                      View Press Details →
+                    </Button>
+                  )}
+                  <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${machineProfileOpen ? 'rotate-180' : ''}`} />
+                </div>
               </div>
             </CardHeader>
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent>
+              <p className="text-xs text-gray-500 mb-3">
+                Select the broad machine types this customer uses. For detailed press information, use the Press Profiles tab.
+              </p>
               <div className="grid grid-cols-2 gap-2">
                 {MACHINE_FAMILIES.map(machine => {
                   const profile = machineProfiles.find(p => p.machineFamily === machine.id);
@@ -656,6 +686,20 @@ export default function CustomerCoachPanel({ customer }: CustomerCoachPanelProps
                   );
                 })}
               </div>
+              {hasMachines && onNavigateToPressProfiles && (
+                <div className="mt-3 pt-3 border-t">
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    className="w-full"
+                    onClick={onNavigateToPressProfiles}
+                    data-testid="btn-go-to-press-profiles"
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Add Detailed Press Information
+                  </Button>
+                </div>
+              )}
             </CardContent>
           </CollapsibleContent>
         </Card>

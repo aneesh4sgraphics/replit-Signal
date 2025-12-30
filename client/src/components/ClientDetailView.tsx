@@ -1213,7 +1213,10 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
 
       <Card className="glass-card">
         <CardContent className="pt-4">
-          <CustomerCoachPanel customer={customer} />
+          <CustomerCoachPanel 
+            customer={customer} 
+            onNavigateToPressProfiles={() => setActiveTab('press-profiles')}
+          />
         </CardContent>
       </Card>
 
@@ -1708,11 +1711,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="offset">Offset</SelectItem>
-                  <SelectItem value="digital_dry_toner">Digital Dry Toner</SelectItem>
-                  <SelectItem value="hp_indigo">HP Indigo</SelectItem>
-                  <SelectItem value="inkjet">Inkjet</SelectItem>
-                  <SelectItem value="flexo">Flexographic</SelectItem>
-                  <SelectItem value="gravure">Gravure</SelectItem>
+                  <SelectItem value="digital_toner">Digital Dry Toner</SelectItem>
+                  <SelectItem value="hp_indigo">Digital - HP Indigo</SelectItem>
+                  <SelectItem value="digital_inkjet_uv">Digital Inkjet UV (KM1, Fuji)</SelectItem>
+                  <SelectItem value="label_press">Label Press</SelectItem>
+                  <SelectItem value="screen_printing">Screen Printing</SelectItem>
+                  <SelectItem value="wide_format_flatbed">Wide Format - Flat Bed</SelectItem>
+                  <SelectItem value="wide_format_roll">Wide Format - Roll to Roll</SelectItem>
+                  <SelectItem value="aqueous_photo">Aqueous Photo Printers</SelectItem>
                   <SelectItem value="other">Other</SelectItem>
                 </SelectContent>
               </Select>
