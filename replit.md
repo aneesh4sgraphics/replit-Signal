@@ -35,6 +35,13 @@ Preferred communication style: Simple, everyday language.
   - "Next Best Move" single actionable coach nudge based on customer state
   - One-click trust advancement and objection logging
   - Auto-sync capability from sample requests and test outcomes
+- **QuickQuotes + Customer Journey Integration**: Native integration between quote generation and CRM:
+  - Quotes auto-link to product categories via `quoteCategoryLinks` table
+  - Category trust automatically advances from "not_introduced" to "introduced" when quotes are sent
+  - Follow-up timers created: Initial (4 days), Second (7-10 days), Final (14+ days)
+  - Test outcomes auto-advance category trust to "evaluated"
+  - Next Best Move prioritizes overdue quote follow-ups
+  - Quote close flow with "won/lost" outcome tracking and optional trust advancement to "adopted"
 - **Email Studio**: Pre-composed email templates with dynamic variables ({{client.name}}, {{product.type}}, {{price.dealer}}, etc.). Admin-only template creation, user compose flow with recipient selection and variable auto-fill, email send logging and activity tracking.
 
 ### Database Architecture
