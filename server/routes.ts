@@ -5183,10 +5183,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  app.post("/api/crm/test-outcomes", isAuthenticated, async (req, res) => {
+  app.post("/api/crm/test-outcomes", isAuthenticated, async (req: any, res) => {
     try {
       const validatedData = insertTestOutcomeSchema.parse(req.body);
       const outcome = await storage.createTestOutcome(validatedData);
+
+      // === AUTO-UPDATE CATEGORY TRUST TO "EVALUATED" ===
+      if (validatedData.customerId && validatedData.productCategory) {
+        try {
+          const existingTrust = await db.select().from(categoryTrust)
+            .where(sql`${categoryTrust.customerId} = ${validatedData.customerId} AND ${categoryTrust.categoryName} = ${validatedData.productCategory}`);
+
+          if (existingTrust.length > 0) {
+            const trust = existingTrust[0];
+            // Progress to evaluated if currently at introduced or lower
+            const shouldAdvance = trust.trustLevel === 'not_introduced' || trust.trustLevel === 'introduced';
+            if (shouldAdvance) {
+              await db.update(categoryTrust)
+                .set({
+                  trustLevel: 'evaluated',
+                  updatedAt: new Date(),
+                  updatedBy: req.user?.email
+                })
+                .where(eq(categoryTrust.id, trust.id));
+              console.log(`[Test Outcome] Advanced category trust for ${validatedData.customerId}/${validatedData.productCategory} to evaluated`);
+            }
+          } else {
+            // Create new category trust at "evaluated" level
+            await db.insert(categoryTrust).values({
+              customerId: validatedData.customerId,
+              categoryName: validatedData.productCategory,
+              trustLevel: 'evaluated',
+              updatedBy: req.user?.email
+            });
+            console.log(`[Test Outcome] Created category trust for ${validatedData.customerId}/${validatedData.productCategory} at evaluated`);
+          }
+        } catch (trustError) {
+          console.error("[Test Outcome] Error updating category trust:", trustError);
+        }
+      }
+
       res.status(201).json(outcome);
     } catch (error) {
       if (error instanceof z.ZodError) {
