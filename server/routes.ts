@@ -6721,6 +6721,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .where(eq(customerMachineProfiles.customerId, customerId));
       const hasMachineProfile = machines.length > 0;
 
+      // Get swatch books sent count
+      const swatchBooks = await db.select().from(swatchBookShipments)
+        .where(eq(swatchBookShipments.customerId, customerId));
+      const swatchBooksCount = swatchBooks.length;
+
       // Get quotes sent count (using quoteEvents which has customerId)
       const quotes = await db.select().from(quoteEvents)
         .where(eq(quoteEvents.customerId, customerId));
@@ -6751,6 +6756,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const journeySummary = {
         stages: {
           machine_profile: { completed: hasMachineProfile, count: machines.length },
+          swatch_book: { completed: swatchBooksCount > 0, count: swatchBooksCount },
           quotes: { completed: quotesCount > 0, count: quotesCount },
           press_kit: { completed: pressKitsCount > 0, count: pressKitsCount },
           call: { completed: !!manualStageMap['call'], count: manualStageMap['call'] ? 1 : 0 },
@@ -6762,6 +6768,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         },
         totalCompleted: [
           hasMachineProfile,
+          swatchBooksCount > 0,
           quotesCount > 0,
           pressKitsCount > 0,
           !!manualStageMap['call'],
@@ -6771,7 +6778,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           !!manualStageMap['try_and_try'],
           !!manualStageMap['dont_worry'],
         ].filter(Boolean).length,
-        totalStages: 9,
+        totalStages: 10,
       };
 
       res.json(journeySummary);

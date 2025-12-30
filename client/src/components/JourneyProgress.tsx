@@ -9,6 +9,7 @@ import {
 } from "@/components/ui/tooltip";
 import {
   Printer,
+  Palette,
   FileText,
   Package,
   Phone,
@@ -29,6 +30,7 @@ interface JourneyStage {
 
 const JOURNEY_STAGES: JourneyStage[] = [
   { id: 'machine_profile', label: 'Machine Profile', icon: Printer },
+  { id: 'swatch_book', label: 'Swatch Book', icon: Palette, showCount: true },
   { id: 'quotes', label: 'Quotes', icon: FileText, showCount: true },
   { id: 'press_kit', label: 'Press Kit', icon: Package, showCount: true },
   { id: 'call', label: 'Call', icon: Phone },
