@@ -1258,7 +1258,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       </Card>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList className="grid w-full grid-cols-4 max-w-2xl bg-gray-100 p-1 rounded-lg">
+        <TabsList className="grid w-full grid-cols-5 max-w-3xl bg-gray-100 p-1 rounded-lg">
           <TabsTrigger 
             value="quotes-prices" 
             className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-orange-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
@@ -1270,8 +1270,17 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{sentQuotes.length + quoteEvents.length + priceListEvents.length}</Badge>
           </TabsTrigger>
           <TabsTrigger 
-            value="samples" 
+            value="orders" 
             className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-green-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
+            data-testid="tab-orders"
+          >
+            <ShoppingCart className="h-4 w-4" />
+            <span>Orders</span>
+            <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{shopifyOrders.length}</Badge>
+          </TabsTrigger>
+          <TabsTrigger 
+            value="samples" 
+            className="flex items-center gap-2 data-[state=active]:bg-white data-[state=active]:text-teal-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all"
             data-testid="tab-samples"
           >
             <FlaskConical className="h-4 w-4" />
@@ -1298,6 +1307,82 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{pressProfiles.length}</Badge>
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="orders" className="mt-4">
+          <Card className="glass-card">
+            <CardHeader className="pb-2">
+              <CardTitle className="text-base flex items-center gap-2">
+                <ShoppingCart className="h-5 w-5 text-green-600" />
+                Orders from Shopify
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="p-6 pt-2">
+              {shopifyOrders.length > 0 ? (
+                <div className="space-y-4">
+                  {shopifyOrders.map((order: any) => (
+                    <div key={order.id} className="border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow">
+                      <div className="flex items-start justify-between mb-3">
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-semibold text-lg">{order.orderNumber}</span>
+                            <Badge variant={order.financialStatus === 'paid' ? 'default' : 'secondary'}>
+                              {order.financialStatus}
+                            </Badge>
+                          </div>
+                          <p className="text-sm text-gray-500">
+                            {order.shopifyCreatedAt ? new Date(order.shopifyCreatedAt).toLocaleDateString('en-US', { 
+                              year: 'numeric', month: 'short', day: 'numeric' 
+                            }) : 'Unknown date'}
+                          </p>
+                        </div>
+                        <div className="text-right">
+                          <p className="font-bold text-lg text-green-600">${order.totalPrice}</p>
+                          <a 
+                            href={`https://${order.shopDomain || 'admin.shopify.com'}/admin/orders/${order.shopifyOrderId}`}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="text-xs text-blue-600 hover:text-blue-800 flex items-center gap-1 justify-end mt-1"
+                            data-testid={`link-shopify-order-${order.id}`}
+                          >
+                            View in Shopify <ExternalLink className="h-3 w-3" />
+                          </a>
+                        </div>
+                      </div>
+                      {order.lineItems && Array.isArray(order.lineItems) && order.lineItems.length > 0 && (
+                        <div className="border-t pt-3 mt-3">
+                          <p className="text-xs font-medium text-gray-500 mb-2">Products Ordered:</p>
+                          <div className="space-y-2">
+                            {order.lineItems.slice(0, 5).map((item: any, idx: number) => (
+                              <div key={idx} className="flex items-center justify-between text-sm">
+                                <div className="flex items-center gap-2">
+                                  <Package className="h-4 w-4 text-gray-400" />
+                                  <span>{item.title || item.name}</span>
+                                  {item.quantity > 1 && (
+                                    <Badge variant="outline" className="text-xs">x{item.quantity}</Badge>
+                                  )}
+                                </div>
+                                <span className="text-gray-600">${item.price || (item.price_set?.shop_money?.amount)}</span>
+                              </div>
+                            ))}
+                            {order.lineItems.length > 5 && (
+                              <p className="text-xs text-gray-400">+{order.lineItems.length - 5} more items</p>
+                            )}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="text-center py-8">
+                  <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
+                  <p className="text-gray-500">No orders matched to this customer yet</p>
+                  <p className="text-xs text-gray-400 mt-1">Orders from Shopify will appear here when matched</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="swatch-book" className="mt-4">
           <Card className="glass-card">

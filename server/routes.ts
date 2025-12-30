@@ -8076,7 +8076,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(desc(shopifyOrders.shopifyCreatedAt))
         .limit(parseInt(queryLimit as string) || 100);
       
-      res.json(orders);
+      // Add store domain to each order for constructing Shopify admin links
+      const ordersWithDomain = orders.map(order => ({
+        ...order,
+        shopDomain: SHOPIFY_STORE_DOMAIN || null,
+      }));
+      
+      res.json(ordersWithDomain);
     } catch (error) {
       console.error("Error fetching Shopify orders:", error);
       res.status(500).json({ error: "Failed to fetch orders" });
