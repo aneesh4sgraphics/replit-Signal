@@ -1060,4 +1060,278 @@ router.post("/rollback-batch/:batchId", isAuthenticated, requireAdmin, async (re
   }
 });
 
+// Helper to slugify a string into a code
+function slugify(str: string): string {
+  return str
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '_')
+    .replace(/^_|_$/g, '');
+}
+
+// Helper to detect subfamily from ProductType (for Rang Print, Screen Printing)
+function detectSubfamily(productType: string): string | null {
+  const lc = productType.toLowerCase();
+  if (lc.includes('rang duo')) return 'Rang Duo';
+  if (lc.includes('rang lux')) return 'Rang Lux';
+  if (lc.includes('eie')) return 'EiE';
+  if (lc.includes('ele')) return 'eLe';
+  return null;
+}
+
+// Sync catalog from pricing database - creates/updates categories and product types
+router.post("/sync-catalog-from-pricing", isAuthenticated, requireAdmin, async (req: any, res) => {
+  try {
+    console.log("=== Starting Catalog Sync from Pricing Database ===");
+    
+    const userId = req.user?.id || 'system';
+    const userEmail = req.user?.email || 'system@4sgraphics.com';
+    
+    // Create import log entry
+    const importLog = await storage.createCatalogImportLog({
+      fileName: 'pricing_database_sync',
+      importedBy: userId,
+      importedByEmail: userEmail,
+      status: 'pending'
+    });
+    
+    // Get all unique product_name values from productPricingMaster
+    const allPricing = await storage.getAllProductPricingMaster();
+    
+    if (!allPricing || allPricing.length === 0) {
+      await storage.updateCatalogImportLog(importLog.id, {
+        status: 'failed',
+        errors: ['No pricing data found in database. Please upload pricing CSV first.'],
+        completedAt: new Date()
+      });
+      return res.status(400).json({
+        error: "No pricing data found",
+        details: "Please upload the pricing CSV before syncing the catalog."
+      });
+    }
+    
+    console.log(`Found ${allPricing.length} pricing records to process`);
+    
+    // Extract unique categories (product_name) and product types
+    const categoryMap = new Map<string, { label: string; productTypes: Set<string> }>();
+    
+    for (const record of allPricing) {
+      const categoryLabel = record.productName;
+      if (!categoryMap.has(categoryLabel)) {
+        categoryMap.set(categoryLabel, { label: categoryLabel, productTypes: new Set() });
+      }
+      categoryMap.get(categoryLabel)!.productTypes.add(record.productType);
+    }
+    
+    console.log(`Found ${categoryMap.size} unique categories`);
+    
+    let categoriesCreated = 0;
+    let categoriesUpdated = 0;
+    let productTypesCreated = 0;
+    let productTypesUpdated = 0;
+    const errors: string[] = [];
+    
+    // Process each category
+    const categoryIdMap = new Map<string, number>(); // label -> id
+    const productTypeIdMap = new Map<string, number>(); // label -> id
+    
+    for (const [categoryLabel, categoryData] of Array.from(categoryMap.entries())) {
+      const categoryCode = slugify(categoryLabel);
+      
+      try {
+        // Check if category exists
+        const existingCategory = await storage.getAdminCategoryByCode(categoryCode);
+        
+        let categoryId: number;
+        if (existingCategory) {
+          categoryId = existingCategory.id;
+          categoriesUpdated++;
+          console.log(`Category exists: ${categoryLabel} (${categoryCode})`);
+        } else {
+          // Create new category
+          const newCategory = await storage.createAdminCategory({
+            code: categoryCode,
+            label: categoryLabel,
+            isActive: true,
+            sortOrder: categoriesCreated
+          });
+          categoryId = newCategory.id;
+          categoriesCreated++;
+          console.log(`Created category: ${categoryLabel} (${categoryCode})`);
+        }
+        
+        categoryIdMap.set(categoryLabel, categoryId);
+        
+        // Process product types for this category
+        for (const productTypeLabel of Array.from(categoryData.productTypes)) {
+          const productTypeCode = slugify(productTypeLabel);
+          const subfamily = detectSubfamily(productTypeLabel);
+          
+          try {
+            const existingProductType = await storage.getCatalogProductTypeByCode(productTypeCode);
+            
+            if (existingProductType) {
+              productTypesUpdated++;
+              productTypeIdMap.set(productTypeLabel, existingProductType.id);
+            } else {
+              const newProductType = await storage.createCatalogProductType({
+                categoryId,
+                code: productTypeCode,
+                label: productTypeLabel,
+                subfamily,
+                isActive: true,
+                sortOrder: productTypesCreated
+              });
+              productTypesCreated++;
+              productTypeIdMap.set(productTypeLabel, newProductType.id);
+              console.log(`Created product type: ${productTypeLabel} (subfamily: ${subfamily || 'none'})`);
+            }
+          } catch (err) {
+            const errMsg = `Failed to create product type ${productTypeLabel}: ${err instanceof Error ? err.message : 'Unknown error'}`;
+            console.error(errMsg);
+            errors.push(errMsg);
+          }
+        }
+      } catch (err) {
+        const errMsg = `Failed to create category ${categoryLabel}: ${err instanceof Error ? err.message : 'Unknown error'}`;
+        console.error(errMsg);
+        errors.push(errMsg);
+      }
+    }
+    
+    // Now update all productPricingMaster records with catalog links
+    let variantsUpdated = 0;
+    for (const record of allPricing) {
+      const categoryId = categoryIdMap.get(record.productName);
+      const productTypeId = productTypeIdMap.get(record.productType);
+      
+      if (categoryId && productTypeId) {
+        try {
+          await storage.updateProductPricingMasterCatalogLinks(
+            record.itemCode,
+            categoryId,
+            productTypeId
+          );
+          variantsUpdated++;
+        } catch (err) {
+          errors.push(`Failed to link ${record.itemCode}: ${err instanceof Error ? err.message : 'Unknown error'}`);
+        }
+      }
+    }
+    
+    // Update import log
+    await storage.updateCatalogImportLog(importLog.id, {
+      categoriesCreated,
+      categoriesUpdated,
+      productTypesCreated,
+      productTypesUpdated,
+      variantsCreated: 0,
+      variantsUpdated: variantsUpdated,
+      status: errors.length > 0 ? 'completed' : 'completed',
+      errors: errors.length > 0 ? errors : null,
+      completedAt: new Date()
+    });
+    
+    console.log("=== Catalog Sync Complete ===");
+    console.log(`Categories: ${categoriesCreated} created, ${categoriesUpdated} existing`);
+    console.log(`Product Types: ${productTypesCreated} created, ${productTypesUpdated} existing`);
+    console.log(`Variants linked: ${variantsUpdated}`);
+    
+    res.json({
+      success: true,
+      message: "Catalog synced successfully from pricing database",
+      stats: {
+        categoriesCreated,
+        categoriesUpdated,
+        productTypesCreated,
+        productTypesUpdated,
+        variantsLinked: variantsUpdated,
+        errors: errors.length
+      }
+    });
+  } catch (error) {
+    console.error("Error syncing catalog:", error);
+    res.status(500).json({
+      error: "Failed to sync catalog",
+      details: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+});
+
+// Get catalog categories with product types
+router.get("/catalog-categories", isAuthenticated, async (req, res) => {
+  try {
+    const categories = await storage.getAllAdminCategories();
+    const productTypes = await storage.getAllCatalogProductTypes();
+    
+    // Group product types by category
+    const categoriesWithTypes = categories.map(cat => ({
+      ...cat,
+      productTypes: productTypes.filter(pt => pt.categoryId === cat.id)
+    }));
+    
+    res.json(categoriesWithTypes);
+  } catch (error) {
+    console.error("Error fetching catalog categories:", error);
+    res.status(500).json({ error: "Failed to fetch catalog" });
+  }
+});
+
+// Get catalog import logs
+router.get("/catalog-import-logs", isAuthenticated, requireAdmin, async (req, res) => {
+  try {
+    const logs = await storage.getCatalogImportLogs();
+    res.json(logs);
+  } catch (error) {
+    console.error("Error fetching import logs:", error);
+    res.status(500).json({ error: "Failed to fetch import logs" });
+  }
+});
+
+// Get unmapped Shopify items
+router.get("/shopify-unmapped-items", isAuthenticated, requireAdmin, async (req, res) => {
+  try {
+    const items = await storage.getShopifyUnmappedItems();
+    res.json(items);
+  } catch (error) {
+    console.error("Error fetching unmapped items:", error);
+    res.status(500).json({ error: "Failed to fetch unmapped items" });
+  }
+});
+
+// Resolve an unmapped Shopify item
+router.post("/shopify-unmapped-items/:id/resolve", isAuthenticated, requireAdmin, async (req: any, res) => {
+  try {
+    const { id } = req.params;
+    const { categoryId, productTypeId, itemCode, createMapping } = req.body;
+    
+    const userId = req.user?.email || 'system';
+    
+    await storage.resolveShopifyUnmappedItem(
+      parseInt(id),
+      categoryId,
+      productTypeId,
+      itemCode,
+      userId
+    );
+    
+    // Optionally create a permanent SKU mapping rule
+    if (createMapping && req.body.sku) {
+      await storage.createAdminSkuMapping({
+        ruleType: 'exact',
+        pattern: req.body.sku,
+        categoryId,
+        categoryCode: null,
+        priority: 10,
+        description: `Auto-created from unmapped item resolution`,
+        isActive: true
+      });
+    }
+    
+    res.json({ success: true, message: "Item resolved successfully" });
+  } catch (error) {
+    console.error("Error resolving unmapped item:", error);
+    res.status(500).json({ error: "Failed to resolve item" });
+  }
+});
+
 export default router;

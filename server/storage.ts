@@ -143,6 +143,23 @@ import {
   userTutorialProgress,
   emailTemplates,
   emailSends,
+  // Admin Config tables
+  adminCategories,
+  type AdminCategory,
+  type InsertAdminCategory,
+  adminSkuMappings,
+  type AdminSkuMapping,
+  type InsertAdminSkuMapping,
+  // Catalog tables
+  catalogProductTypes,
+  type CatalogProductType,
+  type InsertCatalogProductType,
+  catalogImportLogs,
+  type CatalogImportLog,
+  type InsertCatalogImportLog,
+  shopifyUnmappedItems,
+  type ShopifyUnmappedItem,
+  type InsertShopifyUnmappedItem,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -459,6 +476,42 @@ export interface IStorage {
   // Email Sends
   getEmailSends(customerId?: string): Promise<EmailSend[]>;
   createEmailSend(data: InsertEmailSend): Promise<EmailSend>;
+
+  // ========================================
+  // Admin Categories & Catalog System Methods
+  // ========================================
+
+  // Admin Categories
+  getAllAdminCategories(): Promise<AdminCategory[]>;
+  getAdminCategory(id: number): Promise<AdminCategory | undefined>;
+  getAdminCategoryByCode(code: string): Promise<AdminCategory | undefined>;
+  createAdminCategory(data: InsertAdminCategory): Promise<AdminCategory>;
+  updateAdminCategory(id: number, data: Partial<InsertAdminCategory>): Promise<AdminCategory | undefined>;
+
+  // Catalog Product Types
+  getAllCatalogProductTypes(): Promise<CatalogProductType[]>;
+  getCatalogProductType(id: number): Promise<CatalogProductType | undefined>;
+  getCatalogProductTypeByCode(code: string): Promise<CatalogProductType | undefined>;
+  getCatalogProductTypesByCategory(categoryId: number): Promise<CatalogProductType[]>;
+  createCatalogProductType(data: InsertCatalogProductType): Promise<CatalogProductType>;
+  updateCatalogProductType(id: number, data: Partial<InsertCatalogProductType>): Promise<CatalogProductType | undefined>;
+
+  // Catalog Import Logs
+  getCatalogImportLogs(): Promise<CatalogImportLog[]>;
+  createCatalogImportLog(data: InsertCatalogImportLog): Promise<CatalogImportLog>;
+  updateCatalogImportLog(id: number, data: Partial<InsertCatalogImportLog>): Promise<CatalogImportLog | undefined>;
+
+  // Shopify Unmapped Items
+  getShopifyUnmappedItems(status?: string): Promise<ShopifyUnmappedItem[]>;
+  createShopifyUnmappedItem(data: InsertShopifyUnmappedItem): Promise<ShopifyUnmappedItem>;
+  resolveShopifyUnmappedItem(id: number, categoryId: number | null, productTypeId: number | null, itemCode: string | null, resolvedBy: string): Promise<ShopifyUnmappedItem | undefined>;
+
+  // Admin SKU Mappings
+  getAllAdminSkuMappings(): Promise<AdminSkuMapping[]>;
+  createAdminSkuMapping(data: InsertAdminSkuMapping): Promise<AdminSkuMapping>;
+
+  // Catalog Links Update
+  updateProductPricingMasterCatalogLinks(itemCode: string, categoryId: number, productTypeId: number): Promise<void>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -2425,6 +2478,160 @@ export class DatabaseStorage implements IStorage {
   async createEmailSend(data: InsertEmailSend): Promise<EmailSend> {
     const [send] = await db.insert(emailSends).values(data).returning();
     return send;
+  }
+
+  // ========================================
+  // Admin Categories & Catalog System Implementation
+  // ========================================
+
+  async getAllAdminCategories(): Promise<AdminCategory[]> {
+    return await db.select().from(adminCategories).orderBy(adminCategories.sortOrder);
+  }
+
+  async getAdminCategory(id: number): Promise<AdminCategory | undefined> {
+    const [category] = await db.select().from(adminCategories).where(eq(adminCategories.id, id));
+    return category;
+  }
+
+  async getAdminCategoryByCode(code: string): Promise<AdminCategory | undefined> {
+    const [category] = await db.select().from(adminCategories).where(eq(adminCategories.code, code));
+    return category;
+  }
+
+  async createAdminCategory(data: InsertAdminCategory): Promise<AdminCategory> {
+    const [category] = await db.insert(adminCategories).values(data).returning();
+    return category;
+  }
+
+  async updateAdminCategory(id: number, data: Partial<InsertAdminCategory>): Promise<AdminCategory | undefined> {
+    const [category] = await db
+      .update(adminCategories)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(adminCategories.id, id))
+      .returning();
+    return category;
+  }
+
+  // Catalog Product Types
+  async getAllCatalogProductTypes(): Promise<CatalogProductType[]> {
+    return await db.select().from(catalogProductTypes).orderBy(catalogProductTypes.sortOrder);
+  }
+
+  async getCatalogProductType(id: number): Promise<CatalogProductType | undefined> {
+    const [type] = await db.select().from(catalogProductTypes).where(eq(catalogProductTypes.id, id));
+    return type;
+  }
+
+  async getCatalogProductTypeByCode(code: string): Promise<CatalogProductType | undefined> {
+    const [type] = await db.select().from(catalogProductTypes).where(eq(catalogProductTypes.code, code));
+    return type;
+  }
+
+  async getCatalogProductTypesByCategory(categoryId: number): Promise<CatalogProductType[]> {
+    return await db
+      .select()
+      .from(catalogProductTypes)
+      .where(eq(catalogProductTypes.categoryId, categoryId))
+      .orderBy(catalogProductTypes.sortOrder);
+  }
+
+  async createCatalogProductType(data: InsertCatalogProductType): Promise<CatalogProductType> {
+    const [type] = await db.insert(catalogProductTypes).values(data).returning();
+    return type;
+  }
+
+  async updateCatalogProductType(id: number, data: Partial<InsertCatalogProductType>): Promise<CatalogProductType | undefined> {
+    const [type] = await db
+      .update(catalogProductTypes)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(catalogProductTypes.id, id))
+      .returning();
+    return type;
+  }
+
+  // Catalog Import Logs
+  async getCatalogImportLogs(): Promise<CatalogImportLog[]> {
+    return await db.select().from(catalogImportLogs).orderBy(desc(catalogImportLogs.createdAt));
+  }
+
+  async createCatalogImportLog(data: InsertCatalogImportLog): Promise<CatalogImportLog> {
+    const [log] = await db.insert(catalogImportLogs).values(data).returning();
+    return log;
+  }
+
+  async updateCatalogImportLog(id: number, data: Partial<InsertCatalogImportLog>): Promise<CatalogImportLog | undefined> {
+    const [log] = await db
+      .update(catalogImportLogs)
+      .set(data)
+      .where(eq(catalogImportLogs.id, id))
+      .returning();
+    return log;
+  }
+
+  // Shopify Unmapped Items
+  async getShopifyUnmappedItems(status?: string): Promise<ShopifyUnmappedItem[]> {
+    if (status) {
+      return await db
+        .select()
+        .from(shopifyUnmappedItems)
+        .where(eq(shopifyUnmappedItems.status, status))
+        .orderBy(desc(shopifyUnmappedItems.createdAt));
+    }
+    return await db.select().from(shopifyUnmappedItems).orderBy(desc(shopifyUnmappedItems.createdAt));
+  }
+
+  async createShopifyUnmappedItem(data: InsertShopifyUnmappedItem): Promise<ShopifyUnmappedItem> {
+    const [item] = await db.insert(shopifyUnmappedItems).values(data).returning();
+    return item;
+  }
+
+  async resolveShopifyUnmappedItem(
+    id: number,
+    categoryId: number | null,
+    productTypeId: number | null,
+    itemCode: string | null,
+    resolvedBy: string
+  ): Promise<ShopifyUnmappedItem | undefined> {
+    const [item] = await db
+      .update(shopifyUnmappedItems)
+      .set({
+        resolvedCategoryId: categoryId,
+        resolvedProductTypeId: productTypeId,
+        resolvedItemCode: itemCode,
+        resolvedBy,
+        resolvedAt: new Date(),
+        status: 'resolved',
+        updatedAt: new Date()
+      })
+      .where(eq(shopifyUnmappedItems.id, id))
+      .returning();
+    return item;
+  }
+
+  // Admin SKU Mappings
+  async getAllAdminSkuMappings(): Promise<AdminSkuMapping[]> {
+    return await db.select().from(adminSkuMappings).orderBy(desc(adminSkuMappings.priority));
+  }
+
+  async createAdminSkuMapping(data: InsertAdminSkuMapping): Promise<AdminSkuMapping> {
+    const [mapping] = await db.insert(adminSkuMappings).values(data).returning();
+    return mapping;
+  }
+
+  // Catalog Links Update
+  async updateProductPricingMasterCatalogLinks(
+    itemCode: string,
+    categoryId: number,
+    productTypeId: number
+  ): Promise<void> {
+    await db
+      .update(productPricingMaster)
+      .set({
+        catalogCategoryId: categoryId,
+        catalogProductTypeId: productTypeId,
+        updatedAt: new Date()
+      })
+      .where(eq(productPricingMaster.itemCode, itemCode));
   }
 }
 

@@ -103,6 +103,288 @@ type AdminAuditLog = {
   createdAt: string;
 };
 
+// Product Catalog Tab - Shows categories synced from pricing database
+type CatalogProductType = {
+  id: number;
+  categoryId: number | null;
+  code: string;
+  label: string;
+  subfamily: string | null;
+  description: string | null;
+  sortOrder: number | null;
+  isActive: boolean | null;
+};
+
+type CatalogCategory = {
+  id: number;
+  code: string;
+  label: string;
+  productTypes: CatalogProductType[];
+};
+
+type CatalogImportLog = {
+  id: number;
+  fileName: string;
+  importedBy: string | null;
+  importedByEmail: string | null;
+  categoriesCreated: number | null;
+  categoriesUpdated: number | null;
+  productTypesCreated: number | null;
+  productTypesUpdated: number | null;
+  variantsCreated: number | null;
+  variantsUpdated: number | null;
+  errors: any;
+  status: string;
+  completedAt: string | null;
+  createdAt: string;
+};
+
+function ProductCatalogTab({ categories }: { categories: AdminCategory[] }) {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  const [expandedCategories, setExpandedCategories] = useState<Set<number>>(new Set());
+
+  const { data: catalogCategories = [], isLoading: catalogLoading, refetch: refetchCatalog } = useQuery<CatalogCategory[]>({
+    queryKey: ["/api/pricing-database/catalog-categories"],
+  });
+
+  const { data: importLogs = [], isLoading: logsLoading } = useQuery<CatalogImportLog[]>({
+    queryKey: ["/api/pricing-database/catalog-import-logs"],
+  });
+
+  const syncCatalogMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest("POST", "/api/pricing-database/sync-catalog-from-pricing");
+      return response;
+    },
+    onSuccess: (data: any) => {
+      toast({
+        title: "Catalog Synced",
+        description: `Created ${data.stats?.categoriesCreated || 0} categories, ${data.stats?.productTypesCreated || 0} product types. Linked ${data.stats?.variantsLinked || 0} pricing variants.`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-database/catalog-categories"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/pricing-database/catalog-import-logs"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/admin/config/categories"] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync catalog from pricing database",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const toggleCategory = (categoryId: number) => {
+    setExpandedCategories(prev => {
+      const next = new Set(prev);
+      if (next.has(categoryId)) {
+        next.delete(categoryId);
+      } else {
+        next.add(categoryId);
+      }
+      return next;
+    });
+  };
+
+  const totalProductTypes = catalogCategories.reduce((sum, cat) => sum + (cat.productTypes?.length || 0), 0);
+  const lastSync = importLogs[0];
+
+  return (
+    <div className="space-y-6">
+      {/* Header Card */}
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Package className="h-5 w-5" />
+                Product Catalog
+              </CardTitle>
+              <CardDescription>
+                Categories and product types derived from your pricing database (CSV)
+              </CardDescription>
+            </div>
+            <Button 
+              onClick={() => syncCatalogMutation.mutate()} 
+              disabled={syncCatalogMutation.isPending}
+              data-testid="sync-catalog-button"
+            >
+              <RefreshCw className={`h-4 w-4 mr-2 ${syncCatalogMutation.isPending ? 'animate-spin' : ''}`} />
+              {syncCatalogMutation.isPending ? "Syncing..." : "Sync from Pricing DB"}
+            </Button>
+          </div>
+        </CardHeader>
+        <CardContent>
+          <div className="grid grid-cols-3 gap-4">
+            <div className="bg-blue-50 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-blue-700">{catalogCategories.length}</div>
+              <div className="text-sm text-blue-600">Categories</div>
+            </div>
+            <div className="bg-purple-50 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-purple-700">{totalProductTypes}</div>
+              <div className="text-sm text-purple-600">Product Types</div>
+            </div>
+            <div className="bg-green-50 p-4 rounded-lg text-center">
+              <div className="text-2xl font-bold text-green-700">
+                {lastSync ? (
+                  <span className="flex items-center justify-center gap-1">
+                    <CheckCircle className="h-5 w-5" />
+                    Synced
+                  </span>
+                ) : (
+                  <span className="text-gray-500">Never</span>
+                )}
+              </div>
+              <div className="text-sm text-green-600">
+                {lastSync ? new Date(lastSync.createdAt).toLocaleDateString() : "Not synced yet"}
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Category Browser */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Category Browser</CardTitle>
+          <CardDescription>
+            Click a category to expand and see its product types
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {catalogLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading catalog...</div>
+          ) : catalogCategories.length === 0 ? (
+            <div className="text-center py-8 border rounded-lg bg-gray-50">
+              <Package className="h-12 w-12 mx-auto text-gray-400 mb-3" />
+              <p className="text-gray-600 font-medium">No catalog data yet</p>
+              <p className="text-sm text-gray-500 mt-1">
+                Upload a pricing CSV, then click "Sync from Pricing DB" to populate the catalog
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-2">
+              {catalogCategories.map((category) => (
+                <div key={category.id} className="border rounded-lg overflow-hidden">
+                  <button
+                    onClick={() => toggleCategory(category.id)}
+                    className="w-full flex items-center justify-between p-3 bg-gray-50 hover:bg-gray-100 transition-colors text-left"
+                    data-testid={`category-toggle-${category.id}`}
+                  >
+                    <div className="flex items-center gap-2">
+                      <ChevronRight className={`h-4 w-4 transition-transform ${expandedCategories.has(category.id) ? 'rotate-90' : ''}`} />
+                      <span className="font-medium">{category.label}</span>
+                      <Badge variant="secondary" className="ml-2">
+                        {category.productTypes?.length || 0} types
+                      </Badge>
+                    </div>
+                    <code className="text-xs text-gray-500 bg-gray-200 px-2 py-1 rounded">
+                      {category.code}
+                    </code>
+                  </button>
+                  {expandedCategories.has(category.id) && category.productTypes && (
+                    <div className="p-3 bg-white border-t">
+                      {category.productTypes.length === 0 ? (
+                        <p className="text-sm text-gray-500 italic">No product types</p>
+                      ) : (
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-2">
+                          {category.productTypes.map((pt) => (
+                            <div 
+                              key={pt.id} 
+                              className="flex items-center gap-2 p-2 bg-gray-50 rounded text-sm"
+                            >
+                              <span className="flex-1">{pt.label}</span>
+                              {pt.subfamily && (
+                                <Badge variant="outline" className="text-xs">
+                                  {pt.subfamily}
+                                </Badge>
+                              )}
+                            </div>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
+                </div>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Import History */}
+      <Card>
+        <CardHeader>
+          <CardTitle>Sync History</CardTitle>
+          <CardDescription>Recent catalog sync operations</CardDescription>
+        </CardHeader>
+        <CardContent>
+          {logsLoading ? (
+            <div className="text-center py-4 text-gray-500">Loading...</div>
+          ) : importLogs.length === 0 ? (
+            <div className="text-center py-4 text-gray-500 border rounded-lg">
+              No sync history yet
+            </div>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Status</TableHead>
+                  <TableHead>Categories</TableHead>
+                  <TableHead>Product Types</TableHead>
+                  <TableHead>Variants Linked</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {importLogs.slice(0, 5).map((log) => (
+                  <TableRow key={log.id}>
+                    <TableCell className="text-sm">
+                      {new Date(log.createdAt).toLocaleString()}
+                    </TableCell>
+                    <TableCell>
+                      <Badge variant={log.status === 'completed' ? 'default' : log.status === 'failed' ? 'destructive' : 'secondary'}>
+                        {log.status}
+                      </Badge>
+                    </TableCell>
+                    <TableCell>
+                      +{log.categoriesCreated || 0} / {log.categoriesUpdated || 0} existing
+                    </TableCell>
+                    <TableCell>
+                      +{log.productTypesCreated || 0} / {log.productTypesUpdated || 0} existing
+                    </TableCell>
+                    <TableCell>
+                      {log.variantsUpdated || 0}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+
+      {/* Info Card */}
+      <Card className="bg-blue-50 border-blue-200">
+        <CardContent className="p-4">
+          <div className="flex items-start gap-3">
+            <Info className="h-5 w-5 text-blue-600 mt-0.5" />
+            <div>
+              <p className="font-medium text-blue-900">How the Catalog Works</p>
+              <p className="text-sm text-blue-700 mt-1">
+                The catalog is derived from your pricing CSV file. Each unique <code className="bg-blue-100 px-1 rounded">product_name</code> becomes a Category, 
+                and each unique <code className="bg-blue-100 px-1 rounded">ProductType</code> becomes a Product Type within that category.
+                This links your pricing data to the CRM trust system for automatic category advancement.
+              </p>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+    </div>
+  );
+}
+
 const ICON_MAP: Record<string, any> = {
   Printer: Printer,
   Zap: Zap,
@@ -207,10 +489,14 @@ export default function AdminConfig() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-7 w-full max-w-5xl">
+          <TabsList className="grid grid-cols-8 w-full max-w-6xl">
             <TabsTrigger value="home" className="flex items-center gap-1" data-testid="tab-home">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Home</span>
+            </TabsTrigger>
+            <TabsTrigger value="catalog" className="flex items-center gap-1" data-testid="tab-catalog">
+              <Package className="h-4 w-4" />
+              <span className="hidden sm:inline">Catalog</span>
             </TabsTrigger>
             <TabsTrigger value="taxonomy" className="flex items-center gap-1" data-testid="tab-taxonomy">
               <Layers className="h-4 w-4" />
@@ -252,6 +538,10 @@ export default function AdminConfig() {
               onSeedConfig={() => seedConfigMutation.mutate()}
               isSeedPending={seedConfigMutation.isPending}
             />
+          </TabsContent>
+
+          <TabsContent value="catalog">
+            <ProductCatalogTab categories={categories} />
           </TabsContent>
 
           <TabsContent value="taxonomy">
