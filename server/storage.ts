@@ -2486,6 +2486,21 @@ export class DatabaseStorage implements IStorage {
   // Admin Categories & Catalog System Implementation
   // ========================================
 
+  // Alias for pricing master items - used by routes-pricing-database
+  async getAllPricingMasterItems(): Promise<ProductPricingMaster[]> {
+    return await db.select().from(productPricingMaster).orderBy(productPricingMaster.sortOrder, productPricingMaster.id);
+  }
+
+  async getAllAdminMachineTypes(): Promise<{ id: number; code: string; label: string; icon?: string | null; sortOrder: number }[]> {
+    const { adminMachineTypes } = await import("@shared/schema");
+    return await db.select().from(adminMachineTypes).orderBy(adminMachineTypes.sortOrder);
+  }
+
+  async getAllAdminCategoryGroups(): Promise<{ id: number; code: string; label: string; sortOrder: number }[]> {
+    const { adminCategoryGroups } = await import("@shared/schema");
+    return await db.select().from(adminCategoryGroups).orderBy(adminCategoryGroups.sortOrder);
+  }
+
   async getAllAdminCategories(): Promise<AdminCategory[]> {
     return await db.select().from(adminCategories).orderBy(adminCategories.sortOrder);
   }

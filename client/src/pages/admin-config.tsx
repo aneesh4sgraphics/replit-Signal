@@ -514,6 +514,24 @@ function MappingAuditTab({ categories }: { categories: AdminCategory[] }) {
       toast({ title: 'Failed to preview impact', variant: 'destructive' });
     },
   });
+  
+  const seedCategoriesMutation = useMutation({
+    mutationFn: async () => {
+      const response = await apiRequest('/api/pricing-database/seed-categories-from-pricing', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+      });
+      return response as { success: boolean; created: number; skipped: number; message: string };
+    },
+    onSuccess: (data) => {
+      toast({ title: data.message });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/config/categories'] });
+      refetch();
+    },
+    onError: () => {
+      toast({ title: 'Failed to seed categories', variant: 'destructive' });
+    },
+  });
 
   const createMappingMutation = useMutation({
     mutationFn: async (data: { pattern: string; ruleType: string; categoryId: number }) => {
@@ -567,11 +585,37 @@ function MappingAuditTab({ categories }: { categories: AdminCategory[] }) {
           <h2 className="text-xl font-semibold">Mapping Audit</h2>
           <p className="text-sm text-gray-500">Track coverage of Shopify SKUs mapped to product categories</p>
         </div>
-        <Button onClick={() => refetch()} variant="outline" size="sm" data-testid="refresh-audit">
-          <RefreshCw className="h-4 w-4 mr-2" />
-          Refresh
-        </Button>
+        <div className="flex gap-2">
+          <Button onClick={() => refetch()} variant="outline" size="sm" data-testid="refresh-audit">
+            <RefreshCw className="h-4 w-4 mr-2" />
+            Refresh
+          </Button>
+        </div>
       </div>
+      
+      {categories.length === 0 && (
+        <Card className="bg-yellow-50 border-yellow-200">
+          <CardContent className="p-4 flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <AlertTriangle className="h-5 w-5 text-yellow-600" />
+              <div>
+                <div className="font-medium text-yellow-800">No Categories Found</div>
+                <div className="text-sm text-yellow-600">
+                  Seed categories from your pricing database to enable SKU mapping.
+                </div>
+              </div>
+            </div>
+            <Button 
+              onClick={() => seedCategoriesMutation.mutate()}
+              disabled={seedCategoriesMutation.isPending}
+              data-testid="seed-categories-btn"
+            >
+              <Database className="h-4 w-4 mr-2" />
+              {seedCategoriesMutation.isPending ? 'Seeding...' : 'Seed Categories from Pricing'}
+            </Button>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid grid-cols-5 gap-4">
         <Card>

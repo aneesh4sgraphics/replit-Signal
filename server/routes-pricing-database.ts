@@ -1363,7 +1363,7 @@ router.get("/mapping-audit", isAuthenticated, requireAdmin, async (req, res) => 
     const unmappedItems = await storage.getShopifyUnmappedItems();
     
     // Also get unique ItemCodes from pricing database
-    const uniqueItemCodes = [...itemCodes];
+    const uniqueItemCodes = Array.from(itemCodes);
     
     // Build audit results
     const auditResults = {
@@ -1383,12 +1383,12 @@ router.get("/mapping-audit", isAuthenticated, requireAdmin, async (req, res) => 
       })),
       unmappedItems: unmappedItems.filter(u => !u.resolvedCategoryId).map(item => ({
         id: item.id,
-        sku: item.shopifySku,
-        productTitle: item.shopifyProductTitle,
-        variantTitle: item.shopifyVariantTitle,
+        sku: item.sku,
+        productTitle: item.productTitle,
+        variantTitle: item.variantTitle,
         orderId: item.shopifyOrderId,
         createdAt: item.createdAt,
-        suggestedMatches: findSuggestedMatches(item.shopifySku || '', pricingItems, categories),
+        suggestedMatches: findSuggestedMatches(item.sku || '', pricingItems, categories),
       })),
       mappingRules: activeMappings.map(rule => ({
         id: rule.id,
@@ -1711,15 +1711,15 @@ router.post("/preview-impact", isAuthenticated, requireAdmin, async (req: any, r
     if (testPattern) {
       if (testRuleType === 'exact') {
         matchingPricingItems = pricingItems.filter(p => p.itemCode === testPattern);
-        matchingUnmappedItems = unresolvedItems.filter(u => u.shopifySku === testPattern);
+        matchingUnmappedItems = unresolvedItems.filter(u => u.sku === testPattern);
       } else if (testRuleType === 'prefix') {
         matchingPricingItems = pricingItems.filter(p => p.itemCode?.startsWith(testPattern));
-        matchingUnmappedItems = unresolvedItems.filter(u => u.shopifySku?.startsWith(testPattern));
+        matchingUnmappedItems = unresolvedItems.filter(u => u.sku?.startsWith(testPattern));
       } else if (testRuleType === 'regex') {
         try {
           const regex = new RegExp(testPattern);
           matchingPricingItems = pricingItems.filter(p => p.itemCode && regex.test(p.itemCode));
-          matchingUnmappedItems = unresolvedItems.filter(u => u.shopifySku && regex.test(u.shopifySku));
+          matchingUnmappedItems = unresolvedItems.filter(u => u.sku && regex.test(u.sku));
         } catch (e) {
           // Invalid regex
         }
@@ -1762,8 +1762,8 @@ router.post("/preview-impact", isAuthenticated, requireAdmin, async (req: any, r
           productType: p.productType,
         })),
         unmappedItems: matchingUnmappedItems.slice(0, 5).map(u => ({
-          sku: u.shopifySku,
-          productTitle: u.shopifyProductTitle,
+          sku: u.sku,
+          productTitle: u.productTitle,
         })),
       },
     };
@@ -1772,6 +1772,70 @@ router.post("/preview-impact", isAuthenticated, requireAdmin, async (req: any, r
   } catch (error) {
     console.error("Error previewing impact:", error);
     res.status(500).json({ error: "Failed to preview impact" });
+  }
+});
+
+// Seed admin categories from pricing database
+router.post("/seed-categories-from-pricing", isAuthenticated, requireAdmin, async (req: any, res) => {
+  try {
+    // Get unique product names from pricing database
+    const pricingItems = await storage.getAllPricingMasterItems();
+    
+    // Extract unique product names
+    const uniqueProductNames = Array.from(new Set(pricingItems.map(p => p.productName).filter(Boolean))) as string[];
+    
+    // Get existing categories
+    const existingCategories = await storage.getAllAdminCategories();
+    const existingCodes = new Set(existingCategories.map(c => c.code));
+    
+    // Get category groups for assignment
+    const groups = await storage.getAllAdminCategoryGroups();
+    const defaultGroupId = groups.length > 0 ? groups[0].id : null;
+    
+    let created = 0;
+    let skipped = 0;
+    
+    for (const productName of uniqueProductNames) {
+      // Generate a category code from product name
+      const code = productName
+        .toUpperCase()
+        .replace(/[^A-Z0-9\s]/g, '')
+        .replace(/\s+/g, '_')
+        .substring(0, 50);
+      
+      if (existingCodes.has(code)) {
+        skipped++;
+        continue;
+      }
+      
+      try {
+        await storage.createAdminCategory({
+          code,
+          label: productName,
+          groupId: defaultGroupId,
+          description: `Auto-seeded from pricing database: ${productName}`,
+          compatibleMachineTypes: [],
+          isActive: true,
+          sortOrder: created,
+        });
+        existingCodes.add(code);
+        created++;
+      } catch (e) {
+        console.error(`Failed to create category for ${productName}:`, e);
+        skipped++;
+      }
+    }
+    
+    res.json({
+      success: true,
+      created,
+      skipped,
+      total: uniqueProductNames.length,
+      message: `Created ${created} categories, skipped ${skipped} (already exist or error)`
+    });
+  } catch (error) {
+    console.error("Error seeding categories:", error);
+    res.status(500).json({ error: "Failed to seed categories" });
   }
 });
 
