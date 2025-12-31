@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, Printer, Zap, Sparkles, Droplet, Maximize } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, Printer, Zap, Sparkles, Droplet, Maximize, Info, AlertTriangle, Check } from "lucide-react";
 import { Link } from "wouter";
 
 type AdminMachineType = {
@@ -940,6 +940,9 @@ function CategoryDialog({
     }));
   };
 
+  const activeGroups = categoryGroups.filter(g => g.isActive !== false);
+  const activeMachines = machineTypes.filter(m => m.isActive !== false);
+
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg max-h-[90vh] overflow-y-auto">
@@ -947,6 +950,24 @@ function CategoryDialog({
           <DialogTitle>{category ? "Edit Product Category" : "Add Product Category"}</DialogTitle>
           <DialogDescription>Product categories are specific product types (e.g., GraffitiStick, PermaTack, ChromaLabel). Each category can be marked as compatible with certain machine types.</DialogDescription>
         </DialogHeader>
+        
+        {/* Workflow Guide */}
+        {!category && (
+          <div className="bg-blue-50 border border-blue-200 rounded-lg p-3 text-sm">
+            <div className="flex items-start gap-2">
+              <Info className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
+              <div>
+                <p className="font-medium text-blue-800 mb-1">Quick Setup Guide</p>
+                <ol className="text-blue-700 text-xs space-y-0.5 list-decimal list-inside">
+                  <li>First, create <strong>Machine Types</strong> (Offset, Digital, etc.)</li>
+                  <li>Then, create <strong>Product Groups</strong> (Labels, Films, etc.)</li>
+                  <li>Finally, add <strong>Categories</strong> here and assign them to groups</li>
+                </ol>
+              </div>
+            </div>
+          </div>
+        )}
+
         <div className="space-y-5">
           <div>
             <Label className="text-sm font-medium">Internal ID (Code)</Label>
@@ -962,40 +983,68 @@ function CategoryDialog({
             <div>
               <Label className="text-sm font-medium">Product Group</Label>
               <p className="text-xs text-gray-500 mb-1">Which group does this belong to?</p>
-              <Select value={formData.groupId?.toString() || ""} onValueChange={(v) => setFormData({ ...formData, groupId: v ? parseInt(v) : null })}>
-                <SelectTrigger><SelectValue placeholder="Select group" /></SelectTrigger>
-                <SelectContent>
-                  {categoryGroups.map(g => (
-                    <SelectItem key={g.id} value={g.id.toString()}>{g.label}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              {activeGroups.length === 0 ? (
+                <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-700">
+                  <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                  No groups available. Create a Product Group first in the "Product Groups" section above.
+                </div>
+              ) : (
+                <Select value={formData.groupId?.toString() || ""} onValueChange={(v) => setFormData({ ...formData, groupId: v ? parseInt(v) : null })}>
+                  <SelectTrigger className={!formData.groupId ? "border-amber-300" : ""}>
+                    <SelectValue placeholder={`Select from ${activeGroups.length} group${activeGroups.length !== 1 ? 's' : ''}`} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activeGroups.map(g => (
+                      <SelectItem key={g.id} value={g.id.toString()}>
+                        <div className="flex items-center gap-2">
+                          <span className="font-medium">{g.label}</span>
+                          <span className="text-xs text-gray-400">({g.code})</span>
+                        </div>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
             </div>
             <div>
               <Label className="text-sm font-medium">Display Order</Label>
-              <p className="text-xs text-gray-500 mb-1">Lower numbers first</p>
-              <Input type="number" value={formData.sortOrder} onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })} placeholder="1, 2, 3..." />
+              <p className="text-xs text-gray-500 mb-1">Lower numbers appear first</p>
+              <Input type="number" value={formData.sortOrder} onChange={(e) => setFormData({ ...formData, sortOrder: parseInt(e.target.value) || 0 })} placeholder="0" />
             </div>
           </div>
           <div>
-            <Label className="text-sm font-medium">Works With These Machines</Label>
-            <p className="text-xs text-gray-500 mb-1">Click to select which printing machines this product works with</p>
-            <div className="flex flex-wrap gap-2 mt-2">
-              {machineTypes.length === 0 && (
-                <p className="text-sm text-gray-400 italic">No machine types configured yet. Add some above first.</p>
+            <div className="flex items-center justify-between mb-1">
+              <Label className="text-sm font-medium">Works With These Machines</Label>
+              {formData.compatibleMachineTypes.length > 0 && (
+                <span className="text-xs text-green-600 font-medium">{formData.compatibleMachineTypes.length} selected</span>
               )}
-              {machineTypes.map(mt => (
-                <Button
-                  key={mt.code}
-                  type="button"
-                  variant={formData.compatibleMachineTypes.includes(mt.code) ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => toggleMachine(mt.code)}
-                >
-                  {mt.label}
-                </Button>
-              ))}
             </div>
+            <p className="text-xs text-gray-500 mb-2">Click to toggle which printing machines this product works with</p>
+            {activeMachines.length === 0 ? (
+              <div className="bg-amber-50 border border-amber-200 rounded-md p-3 text-xs text-amber-700">
+                <AlertTriangle className="h-3.5 w-3.5 inline mr-1" />
+                No machine types available. Create Machine Types first in the "Machine Types" section above.
+              </div>
+            ) : (
+              <div className="flex flex-wrap gap-2">
+                {activeMachines.map(mt => {
+                  const isSelected = formData.compatibleMachineTypes.includes(mt.code);
+                  return (
+                    <Button
+                      key={mt.code}
+                      type="button"
+                      variant={isSelected ? "default" : "outline"}
+                      size="sm"
+                      onClick={() => toggleMachine(mt.code)}
+                      className={isSelected ? "bg-green-600 hover:bg-green-700" : ""}
+                    >
+                      {isSelected && <Check className="h-3 w-3 mr-1" />}
+                      {mt.label}
+                    </Button>
+                  );
+                })}
+              </div>
+            )}
           </div>
           <div>
             <Label className="text-sm font-medium">Notes (Optional)</Label>
@@ -1012,7 +1061,10 @@ function CategoryDialog({
         </div>
         <DialogFooter>
           <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
-          <Button onClick={() => onSave({ ...formData, id: category?.id })} disabled={isPending}>
+          <Button 
+            onClick={() => onSave({ ...formData, id: category?.id })} 
+            disabled={isPending || !formData.code || !formData.label}
+          >
             <Save className="h-4 w-4 mr-2" />{isPending ? "Saving..." : "Save"}
           </Button>
         </DialogFooter>
