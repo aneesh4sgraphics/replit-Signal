@@ -9373,7 +9373,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.insert(adminNudgeSettings).values(ns).onConflictDoNothing();
       }
 
-      await logAdminAudit("system", "seed", null, "Initial config seeding", null, { machineTypes, categoryGroups, coachingTimers, nudgeSettings }, userId, userEmail);
+      // Seed conversation scripts
+      const conversationScripts = [
+        { 
+          scriptKey: 'prospect_intro_call', 
+          title: 'Introduction Call', 
+          stage: 'prospect', 
+          persona: 'all', 
+          situation: 'first_contact',
+          scriptContent: `Hi [Name], this is [Your Name] from 4S Graphics. I noticed you recently [trigger event]. 
+
+I wanted to reach out because we specialize in [relevant product category] for [their machine type].
+
+"What type of printing do you do most often?"
+
+[Listen for machine types and applications]
+
+"That's great! We have several products that work exceptionally well with [their machine]. Would you be interested in seeing some samples?"
+
+[If yes] "Perfect! I'll put together a sample kit with our top recommendations. What's the best address to send it to?"
+
+[If no] "No problem at all. I'll send you our digital catalog so you have it for reference. What email works best for you?"`
+        },
+        { 
+          scriptKey: 'prospect_sample_followup', 
+          title: 'Sample Follow-Up', 
+          stage: 'prospect', 
+          persona: 'all', 
+          situation: 'sample_sent',
+          scriptContent: `Hi [Name], this is [Your Name] from 4S Graphics. I'm calling to follow up on the samples we sent last week.
+
+"Did you get a chance to test them out?"
+
+[If yes - positive] "That's great to hear! What did you like most about it? Ready to place an order?"
+
+[If yes - issues] "I appreciate you trying it. What challenges did you run into? [Listen] Let me suggest [alternative product] which might work better for your setup."
+
+[If not yet] "No problem! When do you think you'll have time to run them? I'll set a reminder to check back then."
+
+"Is there anything else I can help you with in the meantime?"`
+        },
+        { 
+          scriptKey: 'expansion_cross_sell', 
+          title: 'Cross-Sell Opportunity', 
+          stage: 'expansion', 
+          persona: 'all', 
+          situation: 'reorder',
+          scriptContent: `Hi [Name], this is [Your Name] from 4S Graphics. Thanks for your recent order!
+
+I noticed you've been ordering [current product]. I wanted to mention that many of our customers who use [current product] also love [complementary product] for [use case].
+
+"Have you ever tried it for [application]?"
+
+[If interested] "Great! I can add some samples to your next shipment so you can test it. Would that work?"
+
+[If not interested] "No worries at all. Just wanted to make sure you knew about it. Is there anything else you need for your upcoming projects?"
+
+"By the way, if you order [volume] of [product], we have a special pricing tier I can set up for you."`
+        },
+        { 
+          scriptKey: 'retention_stale_account', 
+          title: 'Re-Engagement Call', 
+          stage: 'retention', 
+          persona: 'all', 
+          situation: 'stale_account',
+          scriptContent: `Hi [Name], this is [Your Name] from 4S Graphics. It's been a while since we connected, and I wanted to check in.
+
+"How have things been going at [Company]?"
+
+[Listen for business updates, challenges]
+
+"We've actually introduced some new products since we last spoke that I think would be perfect for [their use case]. Have you heard about [new product]?"
+
+[Share relevant update]
+
+"Would you like me to send over some samples so you can see the improvements?"
+
+"Is there anything specific you've been looking for that you haven't found a good solution for yet?"`
+        },
+      ];
+
+      for (const cs of conversationScripts) {
+        await db.insert(adminConversationScripts).values(cs).onConflictDoNothing();
+      }
+
+      await logAdminAudit("system", "seed", null, "Initial config seeding", null, { machineTypes, categoryGroups, coachingTimers, nudgeSettings, conversationScripts }, userId, userEmail);
 
       res.json({ message: "Config seeded successfully", seeded: true });
     } catch (error) {

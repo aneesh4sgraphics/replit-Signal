@@ -1540,23 +1540,68 @@ function CategoryDialog({
                 No machine types available. Create Machine Types first in the "Machine Types" section above.
               </div>
             ) : (
-              <div className="flex flex-wrap gap-2">
-                {activeMachines.map(mt => {
-                  const isSelected = formData.compatibleMachineTypes.includes(mt.code);
-                  return (
-                    <Button
-                      key={mt.code}
-                      type="button"
-                      variant={isSelected ? "default" : "outline"}
-                      size="sm"
-                      onClick={() => toggleMachine(mt.code)}
-                      className={isSelected ? "bg-green-600 hover:bg-green-700" : ""}
-                    >
-                      {isSelected && <Check className="h-3 w-3 mr-1" />}
-                      {mt.label}
-                    </Button>
-                  );
-                })}
+              <div className="space-y-2">
+                {/* Quick Selection Buttons */}
+                <div className="flex flex-wrap gap-2 pb-2 border-b">
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData({ ...formData, compatibleMachineTypes: activeMachines.map(m => m.code) })}
+                  >
+                    Select All
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData({ ...formData, compatibleMachineTypes: [] })}
+                  >
+                    Clear All
+                  </Button>
+                  <div className="h-6 border-l mx-1" />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData({ ...formData, compatibleMachineTypes: ['offset', 'digital_dry_toner', 'hp_indigo'].filter(c => activeMachines.some(m => m.code === c)) })}
+                    title="Offset + Digital Dry Toner + HP Indigo"
+                  >
+                    🏷️ Label Print
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="sm"
+                    className="text-xs"
+                    onClick={() => setFormData({ ...formData, compatibleMachineTypes: ['wide_format_flatbed', 'wide_format_roll', 'digital_inkjet_uv'].filter(c => activeMachines.some(m => m.code === c)) })}
+                    title="Wide Format + UV Inkjet"
+                  >
+                    🖼️ Wide Format
+                  </Button>
+                </div>
+                {/* Machine Type Toggles */}
+                <div className="flex flex-wrap gap-2">
+                  {activeMachines.map(mt => {
+                    const isSelected = formData.compatibleMachineTypes.includes(mt.code);
+                    return (
+                      <Button
+                        key={mt.code}
+                        type="button"
+                        variant={isSelected ? "default" : "outline"}
+                        size="sm"
+                        onClick={() => toggleMachine(mt.code)}
+                        className={isSelected ? "bg-green-600 hover:bg-green-700" : ""}
+                      >
+                        {isSelected && <Check className="h-3 w-3 mr-1" />}
+                        {mt.label}
+                      </Button>
+                    );
+                  })}
+                </div>
               </div>
             )}
           </div>
