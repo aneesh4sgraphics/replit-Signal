@@ -1659,3 +1659,221 @@ export const insertShopifyDraftOrderSchema = createInsertSchema(shopifyDraftOrde
 });
 export type ShopifyDraftOrder = typeof shopifyDraftOrders.$inferSelect;
 export type InsertShopifyDraftOrder = z.infer<typeof insertShopifyDraftOrderSchema>;
+
+// ============================================
+// ADMIN RULES & CONFIG SYSTEM
+// ============================================
+
+// Admin Config Versions - tracks published config snapshots for rollback
+export const adminConfigVersions = pgTable("admin_config_versions", {
+  id: serial("id").primaryKey(),
+  configType: varchar("config_type", { length: 50 }).notNull(), // 'machine_types', 'categories', 'coaching_timers', 'nudge_settings', 'scripts', 'sku_mappings'
+  version: integer("version").notNull().default(1),
+  status: varchar("status", { length: 20 }).notNull().default("draft"), // 'draft', 'published', 'archived'
+  configData: jsonb("config_data").notNull(), // Full snapshot of config at this version
+  publishedBy: varchar("published_by"),
+  publishedAt: timestamp("published_at"),
+  validationErrors: jsonb("validation_errors"), // Any validation warnings/errors
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAdminConfigVersionSchema = createInsertSchema(adminConfigVersions).omit({
+  id: true,
+  createdAt: true,
+});
+export type AdminConfigVersion = typeof adminConfigVersions.$inferSelect;
+export type InsertAdminConfigVersion = z.infer<typeof insertAdminConfigVersionSchema>;
+
+// Admin Audit Log - tracks all admin changes
+export const adminAuditLog = pgTable("admin_audit_log", {
+  id: serial("id").primaryKey(),
+  configType: varchar("config_type", { length: 50 }).notNull(),
+  action: varchar("action", { length: 50 }).notNull(), // 'create', 'update', 'delete', 'publish', 'rollback'
+  entityId: varchar("entity_id", { length: 100 }), // ID of the affected entity
+  entityName: varchar("entity_name", { length: 255 }), // Display name for context
+  beforeData: jsonb("before_data"), // State before change
+  afterData: jsonb("after_data"), // State after change
+  userId: varchar("user_id").notNull(),
+  userEmail: varchar("user_email", { length: 255 }),
+  ipAddress: varchar("ip_address", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertAdminAuditLogSchema = createInsertSchema(adminAuditLog).omit({
+  id: true,
+  createdAt: true,
+});
+export type AdminAuditLog = typeof adminAuditLog.$inferSelect;
+export type InsertAdminAuditLog = z.infer<typeof insertAdminAuditLogSchema>;
+
+// Admin Machine Types - configurable machine types for category compatibility
+export const adminMachineTypes = pgTable("admin_machine_types", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(), // 'offset', 'digital_dry_toner', 'hp_indigo', 'inkjet', 'flexo', 'wide_format'
+  label: varchar("label", { length: 100 }).notNull(), // Display name
+  icon: varchar("icon", { length: 50 }), // Icon name from lucide-react
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminMachineTypeSchema = createInsertSchema(adminMachineTypes).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminMachineType = typeof adminMachineTypes.$inferSelect;
+export type InsertAdminMachineType = z.infer<typeof insertAdminMachineTypeSchema>;
+
+// Admin Category Groups - groups for organizing categories
+export const adminCategoryGroups = pgTable("admin_category_groups", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 50 }).notNull().unique(), // 'labels', 'synthetic', 'specialty', etc.
+  label: varchar("label", { length: 100 }).notNull(),
+  color: varchar("color", { length: 20 }), // Badge color
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminCategoryGroupSchema = createInsertSchema(adminCategoryGroups).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminCategoryGroup = typeof adminCategoryGroups.$inferSelect;
+export type InsertAdminCategoryGroup = z.infer<typeof insertAdminCategoryGroupSchema>;
+
+// Admin Categories - the 48 product categories with machine compatibility
+export const adminCategories = pgTable("admin_categories", {
+  id: serial("id").primaryKey(),
+  code: varchar("code", { length: 100 }).notNull().unique(), // 'graffitistick', 'rang_lux', etc.
+  label: varchar("label", { length: 255 }).notNull(), // Display name
+  groupId: integer("group_id").references(() => adminCategoryGroups.id, { onDelete: "set null" }),
+  compatibleMachineTypes: text("compatible_machine_types").array(), // Array of machine type codes
+  description: text("description"),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminCategorySchema = createInsertSchema(adminCategories).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminCategory = typeof adminCategories.$inferSelect;
+export type InsertAdminCategory = z.infer<typeof insertAdminCategorySchema>;
+
+// Admin Category Variants - sub-variants of categories (e.g., GraffitiStick variants)
+export const adminCategoryVariants = pgTable("admin_category_variants", {
+  id: serial("id").primaryKey(),
+  categoryId: integer("category_id").notNull().references(() => adminCategories.id, { onDelete: "cascade" }),
+  code: varchar("code", { length: 100 }).notNull(),
+  label: varchar("label", { length: 255 }).notNull(),
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminCategoryVariantSchema = createInsertSchema(adminCategoryVariants).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminCategoryVariant = typeof adminCategoryVariants.$inferSelect;
+export type InsertAdminCategoryVariant = z.infer<typeof insertAdminCategoryVariantSchema>;
+
+// Admin SKU Mappings - maps Shopify SKUs to internal categories
+export const adminSkuMappings = pgTable("admin_sku_mappings", {
+  id: serial("id").primaryKey(),
+  ruleType: varchar("rule_type", { length: 20 }).notNull().default("exact"), // 'exact', 'prefix', 'regex'
+  pattern: varchar("pattern", { length: 255 }).notNull(), // SKU pattern or exact match
+  categoryId: integer("category_id").references(() => adminCategories.id, { onDelete: "cascade" }),
+  categoryCode: varchar("category_code", { length: 100 }), // Fallback if category deleted
+  priority: integer("priority").default(0), // Higher priority = checked first (for overrides)
+  description: text("description"), // Notes about this mapping
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminSkuMappingSchema = createInsertSchema(adminSkuMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminSkuMapping = typeof adminSkuMappings.$inferSelect;
+export type InsertAdminSkuMapping = z.infer<typeof insertAdminSkuMappingSchema>;
+
+// Admin Coaching Timers - configurable timing parameters
+export const adminCoachingTimers = pgTable("admin_coaching_timers", {
+  id: serial("id").primaryKey(),
+  timerKey: varchar("timer_key", { length: 100 }).notNull().unique(), // 'quote_followup_soft', 'quote_followup_risk', etc.
+  label: varchar("label", { length: 255 }).notNull(),
+  category: varchar("category", { length: 50 }).notNull(), // 'quote_followup', 'press_test', 'habitual', 'stale_account'
+  valueDays: integer("value_days").notNull(), // Number of days
+  description: text("description"),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminCoachingTimerSchema = createInsertSchema(adminCoachingTimers).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminCoachingTimer = typeof adminCoachingTimers.$inferSelect;
+export type InsertAdminCoachingTimer = z.infer<typeof insertAdminCoachingTimerSchema>;
+
+// Admin Nudge Settings - configurable nudge engine parameters
+export const adminNudgeSettings = pgTable("admin_nudge_settings", {
+  id: serial("id").primaryKey(),
+  nudgeKey: varchar("nudge_key", { length: 100 }).notNull().unique(), // 'press_test_followup', 'quote_followup', 'reorder_due', etc.
+  label: varchar("label", { length: 255 }).notNull(),
+  priority: integer("priority").notNull().default(50), // Lower = higher priority
+  severity: varchar("severity", { length: 20 }).notNull().default("medium"), // 'low', 'medium', 'high', 'critical'
+  isEnabled: boolean("is_enabled").default(true),
+  description: text("description"),
+  triggerConditions: jsonb("trigger_conditions"), // Optional conditions for when nudge applies
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminNudgeSettingSchema = createInsertSchema(adminNudgeSettings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminNudgeSetting = typeof adminNudgeSettings.$inferSelect;
+export type InsertAdminNudgeSetting = z.infer<typeof insertAdminNudgeSettingSchema>;
+
+// Admin Conversation Scripts - editable conversation templates
+export const adminConversationScripts = pgTable("admin_conversation_scripts", {
+  id: serial("id").primaryKey(),
+  scriptKey: varchar("script_key", { length: 100 }).notNull().unique(),
+  title: varchar("title", { length: 255 }).notNull(),
+  stage: varchar("stage", { length: 50 }).notNull(), // 'prospect', 'expansion', 'retention'
+  persona: varchar("persona", { length: 50 }).notNull(), // 'distributor', 'end_customer', 'all'
+  situation: varchar("situation", { length: 100 }), // 'cold_call', 'followup', 'objection_handling', etc.
+  scriptContent: text("script_content").notNull(), // The actual script text
+  talkingPoints: text("talking_points").array(), // Key bullet points
+  sortOrder: integer("sort_order").default(0),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertAdminConversationScriptSchema = createInsertSchema(adminConversationScripts).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type AdminConversationScript = typeof adminConversationScripts.$inferSelect;
+export type InsertAdminConversationScript = z.infer<typeof insertAdminConversationScriptSchema>;
