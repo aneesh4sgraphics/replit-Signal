@@ -29,7 +29,8 @@ import {
   History,
   Mail,
   HardDrive,
-  Gauge
+  Gauge,
+  AlertTriangle
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
@@ -107,7 +108,6 @@ const appCategories = [
     name: 'CRM & Samples',
     icon: Target,
     apps: [
-      { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#6366f1', bgGradient: 'linear-gradient(135deg, rgba(165, 180, 252, 0.4), rgba(129, 140, 248, 0.3))' },
       { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#14b8a6', bgGradient: 'linear-gradient(135deg, rgba(94, 234, 212, 0.4), rgba(45, 212, 191, 0.3))' },
       { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#a855f7', bgGradient: 'linear-gradient(135deg, rgba(216, 180, 254, 0.4), rgba(192, 132, 252, 0.3))' },
       { path: '/email-app', icon: Mail, label: 'Email Studio', color: '#ec4899', bgGradient: 'linear-gradient(135deg, rgba(249, 168, 212, 0.4), rgba(236, 72, 153, 0.3))' },
@@ -148,6 +148,13 @@ export default function Dashboard() {
     enabled: isAdminUser,
     refetchInterval: 60000, // Refresh every minute
   });
+
+  const { data: objections = [] } = useQuery<{ id: number; status: string }[]>({
+    queryKey: ["/api/crm/objections"],
+    retry: 1,
+  });
+
+  const openObjections = objections.filter(o => o.status === 'open').length;
 
   const now = new Date();
   const dayNames = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'];
@@ -540,6 +547,80 @@ export default function Dashboard() {
         <div style={{ marginBottom: '32px' }}>
           <StartYourDayDashboard />
         </div>
+
+        {/* Objection Summary Card */}
+        <Link
+          href="/objections"
+          style={{
+            display: 'block',
+            marginBottom: '32px',
+            textDecoration: 'none',
+          }}
+          data-testid="objection-summary-card"
+        >
+          <div style={{
+            background: openObjections > 0 
+              ? 'linear-gradient(135deg, rgba(254, 243, 199, 0.8), rgba(253, 230, 138, 0.6))'
+              : 'rgba(255, 255, 255, 0.7)',
+            backdropFilter: 'blur(60px) saturate(150%)',
+            WebkitBackdropFilter: 'blur(60px) saturate(150%)',
+            border: openObjections > 0 
+              ? '1px solid rgba(251, 191, 36, 0.4)'
+              : '1px solid rgba(255, 255, 255, 0.8)',
+            borderRadius: '16px',
+            padding: '16px 20px',
+            boxShadow: '0 4px 16px rgba(148, 163, 184, 0.08)',
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'space-between',
+            cursor: 'pointer',
+            transition: 'all 0.3s ease',
+          }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+              <div style={{
+                width: '40px',
+                height: '40px',
+                borderRadius: '10px',
+                background: openObjections > 0 
+                  ? 'linear-gradient(135deg, rgba(251, 191, 36, 0.4), rgba(245, 158, 11, 0.3))'
+                  : 'linear-gradient(135deg, rgba(148, 163, 184, 0.3), rgba(100, 116, 139, 0.2))',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+              }}>
+                <AlertTriangle size={20} style={{ color: openObjections > 0 ? '#b45309' : '#64748b' }} />
+              </div>
+              <div>
+                <div style={{ 
+                  fontSize: '14px', 
+                  fontWeight: '600', 
+                  color: openObjections > 0 ? '#92400e' : '#475569',
+                  marginBottom: '2px'
+                }}>
+                  Objection Summary
+                </div>
+                <div style={{ fontSize: '12px', color: openObjections > 0 ? '#a16207' : '#64748b' }}>
+                  {objections.length} total objections • {openObjections} open
+                </div>
+              </div>
+            </div>
+            <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+              {openObjections > 0 && (
+                <span style={{
+                  background: 'rgba(245, 158, 11, 0.2)',
+                  color: '#b45309',
+                  padding: '4px 10px',
+                  borderRadius: '12px',
+                  fontSize: '12px',
+                  fontWeight: '600',
+                }}>
+                  {openObjections} need attention
+                </span>
+              )}
+              <ChevronRight size={18} style={{ color: openObjections > 0 ? '#b45309' : '#94a3b8' }} />
+            </div>
+          </div>
+        </Link>
 
         {/* Loading skeleton */}
         {statsLoading && (
