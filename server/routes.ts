@@ -9316,14 +9316,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ message: "Config already seeded", seeded: false });
       }
 
-      // Seed machine types
+      // Seed machine types (8 families as per spec)
       const machineTypes = [
-        { code: 'offset', label: 'Offset', icon: 'Printer', sortOrder: 1 },
-        { code: 'digital_dry_toner', label: 'Digital Dry Toner', icon: 'Zap', sortOrder: 2 },
-        { code: 'hp_indigo', label: 'HP Indigo', icon: 'Sparkles', sortOrder: 3 },
-        { code: 'inkjet', label: 'Inkjet', icon: 'Droplet', sortOrder: 4 },
-        { code: 'flexo', label: 'Flexo', icon: 'Layers', sortOrder: 5 },
-        { code: 'wide_format', label: 'Wide Format', icon: 'Maximize', sortOrder: 6 },
+        { code: 'offset', label: 'Offset', icon: 'Printer', description: 'Traditional offset lithography presses', sortOrder: 1 },
+        { code: 'digital_dry_toner', label: 'Digital Dry Toner', icon: 'Zap', description: 'Xerox, Canon, Konica Minolta dry toner', sortOrder: 2 },
+        { code: 'hp_indigo', label: 'HP Indigo', icon: 'Sparkles', description: 'HP Indigo liquid electroink presses', sortOrder: 3 },
+        { code: 'digital_inkjet_uv', label: 'Digital Inkjet/UV', icon: 'Droplet', description: 'UV-curable inkjet printers', sortOrder: 4 },
+        { code: 'wide_format_flatbed', label: 'Wide Format Flatbed', icon: 'Maximize', description: 'Flatbed wide format printers', sortOrder: 5 },
+        { code: 'wide_format_roll', label: 'Wide Format Roll', icon: 'Maximize', description: 'Roll-fed wide format printers', sortOrder: 6 },
+        { code: 'aqueous_photo', label: 'Aqueous Photo', icon: 'Droplet', description: 'Aqueous-based photo printers', sortOrder: 7 },
+        { code: 'screen_printing', label: 'Screen Printing', icon: 'Layers', description: 'Screen printing equipment', sortOrder: 8 },
       ];
 
       for (const mt of machineTypes) {

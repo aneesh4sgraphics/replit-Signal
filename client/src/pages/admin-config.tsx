@@ -1720,6 +1720,7 @@ function CoachingTimersTab({ timers, isLoading }: { timers: AdminCoachingTimer[]
   const { toast } = useToast();
   const queryClient = useQueryClient();
   const [editingTimer, setEditingTimer] = useState<AdminCoachingTimer | null>(null);
+  const [validationError, setValidationError] = useState<string | null>(null);
 
   const saveTimerMutation = useMutation({
     mutationFn: async (data: { id: number; valueDays: number }) => {
@@ -1728,6 +1729,7 @@ function CoachingTimersTab({ timers, isLoading }: { timers: AdminCoachingTimer[]
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/admin/config/coaching-timers"] });
       setEditingTimer(null);
+      setValidationError(null);
       toast({ title: "Saved", description: "Timer updated" });
     },
     onError: (error: any) => {
@@ -1743,58 +1745,239 @@ function CoachingTimersTab({ timers, isLoading }: { timers: AdminCoachingTimer[]
     return acc;
   }, {} as Record<string, AdminCoachingTimer[]>);
 
+  const getQuoteFollowupTimers = () => {
+    const soft = timers.find(t => t.timerKey === 'quote_followup_soft');
+    const risk = timers.find(t => t.timerKey === 'quote_followup_risk');
+    const expire = timers.find(t => t.timerKey === 'quote_followup_expire');
+    return { soft, risk, expire };
+  };
+
+  const validateTimer = (timer: AdminCoachingTimer, newValue: number): string | null => {
+    const { soft, risk, expire } = getQuoteFollowupTimers();
+    
+    if (timer.timerKey === 'quote_followup_soft') {
+      if (risk && newValue >= risk.valueDays) {
+        return `Soft (${newValue}) must be less than Risk (${risk.valueDays})`;
+      }
+    }
+    if (timer.timerKey === 'quote_followup_risk') {
+      if (soft && newValue <= soft.valueDays) {
+        return `Risk (${newValue}) must be greater than Soft (${soft.valueDays})`;
+      }
+      if (expire && newValue >= expire.valueDays) {
+        return `Risk (${newValue}) must be less than Expired (${expire.valueDays})`;
+      }
+    }
+    if (timer.timerKey === 'quote_followup_expire') {
+      if (risk && newValue <= risk.valueDays) {
+        return `Expired (${newValue}) must be greater than Risk (${risk.valueDays})`;
+      }
+    }
+    if (newValue < 1) {
+      return "Timer must be at least 1 day";
+    }
+    if (newValue > 365) {
+      return "Timer cannot exceed 365 days";
+    }
+    return null;
+  };
+
+  const handleSave = (timer: AdminCoachingTimer) => {
+    const error = validateTimer(timer, editingTimer?.valueDays || 0);
+    if (error) {
+      setValidationError(error);
+      toast({ title: "Validation Error", description: error, variant: "destructive" });
+      return;
+    }
+    saveTimerMutation.mutate({ id: timer.id, valueDays: editingTimer!.valueDays });
+  };
+
+  const getCategoryInfo = (category: string) => {
+    switch (category) {
+      case 'quote_followup':
+        return {
+          title: 'Quote Follow-up Timeline',
+          icon: '📊',
+          description: 'These timers control when quotes become stale. Order must be: Soft < At Risk < Expired.',
+          example: 'Example: If Soft=4, Risk=7, Expired=14: After 4 days you get a reminder, at 7 days it turns yellow, at 14 days it turns red.'
+        };
+      case 'press_test':
+        return {
+          title: 'Press Test Timeline',
+          icon: '🖨️',
+          description: 'Grace period after sample delivery before follow-up nudges appear.',
+          example: 'Example: Grace=5 means you wait 5 days after delivery before asking for test results.'
+        };
+      case 'habitual':
+        return {
+          title: 'Habitual Customer Definition',
+          icon: '🔄',
+          description: 'When does a customer become "habitual" (repeat buyer)?',
+          example: 'Example: 90 days means 2 purchases within 90 days = habitual customer.'
+        };
+      case 'stale_account':
+        return {
+          title: 'Stale Account Detection',
+          icon: '⏰',
+          description: 'How long without contact before an account is considered stale?',
+          example: 'Example: 60 days means no activity for 60 days triggers a "check in" nudge.'
+        };
+      default:
+        return {
+          title: category.replace(/_/g, ' '),
+          icon: '⚙️',
+          description: '',
+          example: ''
+        };
+    }
+  };
+
+  const { soft, risk, expire } = getQuoteFollowupTimers();
+
   return (
-    <div className="grid gap-4">
-      {Object.entries(groupedTimers).map(([category, categoryTimers]) => (
-        <Card key={category}>
-          <CardHeader>
-            <CardTitle className="text-lg capitalize">{category.replace(/_/g, ' ')}</CardTitle>
+    <div className="space-y-6">
+      {/* Quote Timeline Visualization */}
+      {soft && risk && expire && (
+        <Card className="bg-gradient-to-r from-green-50 via-yellow-50 to-red-50 border-0">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-lg flex items-center gap-2">
+              <Clock className="h-5 w-5" />
+              Quote Follow-up Timeline
+            </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="space-y-3">
-              {categoryTimers.map((timer) => (
-                <div key={timer.id} className="flex items-center justify-between p-3 border rounded-lg">
-                  <div>
-                    <div className="font-medium">{timer.label}</div>
-                    <div className="text-sm text-gray-500">{timer.description}</div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    {editingTimer?.id === timer.id ? (
-                      <div className="flex items-center gap-2">
-                        <Input
-                          type="number"
-                          className="w-20"
-                          value={editingTimer.valueDays}
-                          onChange={(e) => setEditingTimer({ ...editingTimer, valueDays: parseInt(e.target.value) || 0 })}
-                        />
-                        <span className="text-sm text-gray-500">days</span>
-                        <Button size="sm" onClick={() => saveTimerMutation.mutate({ id: timer.id, valueDays: editingTimer.valueDays })} disabled={saveTimerMutation.isPending}>
-                          <Save className="h-4 w-4" />
-                        </Button>
-                        <Button size="sm" variant="outline" onClick={() => setEditingTimer(null)}>Cancel</Button>
-                      </div>
-                    ) : (
-                      <>
-                        <Badge variant="outline" className="text-lg px-3 py-1">{timer.valueDays} days</Badge>
-                        <Button variant="ghost" size="sm" onClick={() => setEditingTimer(timer)} data-testid={`edit-timer-${timer.timerKey}`}>
-                          <Pencil className="h-4 w-4" />
-                        </Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              ))}
+            <div className="relative h-16">
+              <div className="absolute inset-x-0 top-6 h-2 bg-gray-200 rounded-full">
+                <div 
+                  className="absolute left-0 h-full bg-green-400 rounded-l-full"
+                  style={{ width: `${(soft.valueDays / expire.valueDays) * 100}%` }}
+                />
+                <div 
+                  className="absolute h-full bg-yellow-400"
+                  style={{ 
+                    left: `${(soft.valueDays / expire.valueDays) * 100}%`,
+                    width: `${((risk.valueDays - soft.valueDays) / expire.valueDays) * 100}%`
+                  }}
+                />
+                <div 
+                  className="absolute h-full bg-red-400 rounded-r-full"
+                  style={{ 
+                    left: `${(risk.valueDays / expire.valueDays) * 100}%`,
+                    width: `${((expire.valueDays - risk.valueDays) / expire.valueDays) * 100}%`
+                  }}
+                />
+              </div>
+              <div className="absolute top-0 text-xs text-gray-600" style={{ left: '0%' }}>
+                Day 0<br/><span className="text-green-600 font-medium">Fresh</span>
+              </div>
+              <div className="absolute top-0 text-xs text-gray-600 -translate-x-1/2" style={{ left: `${(soft.valueDays / expire.valueDays) * 100}%` }}>
+                Day {soft.valueDays}<br/><span className="text-yellow-600 font-medium">Soft</span>
+              </div>
+              <div className="absolute top-0 text-xs text-gray-600 -translate-x-1/2" style={{ left: `${(risk.valueDays / expire.valueDays) * 100}%` }}>
+                Day {risk.valueDays}<br/><span className="text-orange-600 font-medium">At Risk</span>
+              </div>
+              <div className="absolute top-0 text-xs text-gray-600 -translate-x-full" style={{ left: '100%' }}>
+                Day {expire.valueDays}<br/><span className="text-red-600 font-medium">Expired</span>
+              </div>
             </div>
-          </CardContent>
-        </Card>
-      ))}
-      {timers.length === 0 && (
-        <Card>
-          <CardContent className="text-center py-8 text-gray-500">
-            No coaching timers configured. Click "Seed Initial Config" to get started.
+            <p className="text-xs text-gray-500 mt-4">
+              Drag the values below to adjust the timeline. Rule: Soft &lt; At Risk &lt; Expired
+            </p>
           </CardContent>
         </Card>
       )}
+
+      {/* Timer Groups */}
+      <div className="grid gap-4">
+        {Object.entries(groupedTimers).map(([category, categoryTimers]) => {
+          const info = getCategoryInfo(category);
+          return (
+            <Card key={category}>
+              <CardHeader>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <span>{info.icon}</span>
+                  {info.title}
+                </CardTitle>
+                {info.description && (
+                  <CardDescription>{info.description}</CardDescription>
+                )}
+              </CardHeader>
+              <CardContent>
+                <div className="space-y-3">
+                  {categoryTimers.map((timer) => (
+                    <div key={timer.id} className="flex items-center justify-between p-3 border rounded-lg bg-white">
+                      <div className="flex-1">
+                        <div className="font-medium">{timer.label}</div>
+                        <div className="text-sm text-gray-500">{timer.description}</div>
+                      </div>
+                      <div className="flex items-center gap-3">
+                        {editingTimer?.id === timer.id ? (
+                          <div className="flex flex-col gap-1">
+                            <div className="flex items-center gap-2">
+                              <Input
+                                type="number"
+                                className={`w-20 ${validationError ? 'border-red-500' : ''}`}
+                                value={editingTimer.valueDays}
+                                min={1}
+                                max={365}
+                                onChange={(e) => {
+                                  const val = parseInt(e.target.value) || 0;
+                                  setEditingTimer({ ...editingTimer, valueDays: val });
+                                  setValidationError(validateTimer(timer, val));
+                                }}
+                              />
+                              <span className="text-sm text-gray-500">days</span>
+                              <Button 
+                                size="sm" 
+                                onClick={() => handleSave(timer)} 
+                                disabled={saveTimerMutation.isPending || !!validationError}
+                              >
+                                <Save className="h-4 w-4" />
+                              </Button>
+                              <Button size="sm" variant="outline" onClick={() => {
+                                setEditingTimer(null);
+                                setValidationError(null);
+                              }}>Cancel</Button>
+                            </div>
+                            {validationError && (
+                              <p className="text-xs text-red-500 flex items-center gap-1">
+                                <AlertTriangle className="h-3 w-3" />
+                                {validationError}
+                              </p>
+                            )}
+                          </div>
+                        ) : (
+                          <>
+                            <Badge variant="outline" className="text-lg px-3 py-1">{timer.valueDays} days</Badge>
+                            <Button variant="ghost" size="sm" onClick={() => setEditingTimer(timer)} data-testid={`edit-timer-${timer.timerKey}`}>
+                              <Pencil className="h-4 w-4" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                {info.example && (
+                  <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-100">
+                    <p className="text-xs text-blue-700 flex items-start gap-2">
+                      <Info className="h-4 w-4 shrink-0 mt-0.5" />
+                      {info.example}
+                    </p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          );
+        })}
+        {timers.length === 0 && (
+          <Card>
+            <CardContent className="text-center py-8 text-gray-500">
+              No coaching timers configured. Click "Seed Initial Config" on the Home tab to get started.
+            </CardContent>
+          </Card>
+        )}
+      </div>
     </div>
   );
 }
