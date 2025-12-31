@@ -2990,10 +2990,10 @@ function CoachingTimersTab({ timers, isLoading }: { timers: AdminCoachingTimer[]
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="relative h-16">
-              <div className="absolute inset-x-0 top-6 h-2 bg-gray-200 rounded-full">
+            <div className="relative h-20 mb-2">
+              <div className="absolute inset-x-0 top-8 h-3 bg-gray-200 rounded-full overflow-hidden">
                 <div 
-                  className="absolute left-0 h-full bg-green-400 rounded-l-full"
+                  className="absolute left-0 h-full bg-green-400"
                   style={{ width: `${(soft.valueDays / expire.valueDays) * 100}%` }}
                 />
                 <div 
@@ -3004,27 +3004,31 @@ function CoachingTimersTab({ timers, isLoading }: { timers: AdminCoachingTimer[]
                   }}
                 />
                 <div 
-                  className="absolute h-full bg-red-400 rounded-r-full"
+                  className="absolute h-full bg-red-400"
                   style={{ 
                     left: `${(risk.valueDays / expire.valueDays) * 100}%`,
                     width: `${((expire.valueDays - risk.valueDays) / expire.valueDays) * 100}%`
                   }}
                 />
               </div>
-              <div className="absolute top-0 text-xs text-gray-600" style={{ left: '0%' }}>
-                Day 0<br/><span className="text-green-600 font-medium">Fresh</span>
+              <div className="absolute top-0 left-0 text-xs text-center" style={{ width: `${(soft.valueDays / expire.valueDays) * 100}%` }}>
+                <div className="text-gray-600">Day 0</div>
+                <div className="text-green-600 font-medium">Fresh</div>
               </div>
-              <div className="absolute top-0 text-xs text-gray-600 -translate-x-1/2" style={{ left: `${(soft.valueDays / expire.valueDays) * 100}%` }}>
-                Day {soft.valueDays}<br/><span className="text-yellow-600 font-medium">Soft</span>
+              <div className="absolute top-0 text-xs text-center" style={{ left: `${(soft.valueDays / expire.valueDays) * 100}%`, width: `${((risk.valueDays - soft.valueDays) / expire.valueDays) * 100}%` }}>
+                <div className="text-gray-600">Day {soft.valueDays}</div>
+                <div className="text-yellow-600 font-medium">Soft</div>
               </div>
-              <div className="absolute top-0 text-xs text-gray-600 -translate-x-1/2" style={{ left: `${(risk.valueDays / expire.valueDays) * 100}%` }}>
-                Day {risk.valueDays}<br/><span className="text-orange-600 font-medium">At Risk</span>
+              <div className="absolute top-0 text-xs text-center" style={{ left: `${(risk.valueDays / expire.valueDays) * 100}%`, width: `${((expire.valueDays - risk.valueDays) / expire.valueDays) * 100}%` }}>
+                <div className="text-gray-600">Day {risk.valueDays}</div>
+                <div className="text-orange-600 font-medium">At Risk</div>
               </div>
-              <div className="absolute top-0 text-xs text-gray-600 -translate-x-full" style={{ left: '100%' }}>
-                Day {expire.valueDays}<br/><span className="text-red-600 font-medium">Expired</span>
+              <div className="absolute top-0 right-0 text-xs text-right">
+                <div className="text-gray-600">Day {expire.valueDays}</div>
+                <div className="text-red-600 font-medium">Expired</div>
               </div>
             </div>
-            <p className="text-xs text-gray-500 mt-4">
+            <p className="text-xs text-gray-500 mt-2">
               Drag the values below to adjust the timeline. Rule: Soft &lt; At Risk &lt; Expired
             </p>
           </CardContent>
