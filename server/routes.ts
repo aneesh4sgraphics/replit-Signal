@@ -83,6 +83,24 @@ import {
   shopifyWebhookEvents,
   shopifyVariantMappings,
   shopifyDraftOrders,
+  adminMachineTypes,
+  adminCategoryGroups,
+  adminCategories,
+  adminCategoryVariants,
+  adminSkuMappings,
+  adminCoachingTimers,
+  adminNudgeSettings,
+  adminConversationScripts,
+  adminConfigVersions,
+  adminAuditLog,
+  insertAdminMachineTypeSchema,
+  insertAdminCategoryGroupSchema,
+  insertAdminCategorySchema,
+  insertAdminCategoryVariantSchema,
+  insertAdminSkuMappingSchema,
+  insertAdminCoachingTimerSchema,
+  insertAdminNudgeSettingSchema,
+  insertAdminConversationScriptSchema,
   insertShopifyVariantMappingSchema,
   insertShopifyDraftOrderSchema,
   ACCOUNT_STATES,
@@ -8683,6 +8701,682 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching draft orders:", error);
       res.status(500).json({ error: "Failed to fetch draft orders" });
+    }
+  });
+
+  // ============================================
+  // ADMIN RULES & CONFIG ROUTES
+  // ============================================
+
+  // Helper: Log admin audit event
+  async function logAdminAudit(
+    configType: string,
+    action: string,
+    entityId: string | null,
+    entityName: string | null,
+    beforeData: any,
+    afterData: any,
+    userId: string,
+    userEmail: string | null
+  ) {
+    try {
+      await db.insert(adminAuditLog).values({
+        configType,
+        action,
+        entityId: entityId || undefined,
+        entityName: entityName || undefined,
+        beforeData,
+        afterData,
+        userId,
+        userEmail: userEmail || undefined,
+      });
+    } catch (e) {
+      console.error("Failed to log admin audit:", e);
+    }
+  }
+
+  // --- Machine Types ---
+  app.get("/api/admin/config/machine-types", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const types = await db.select().from(adminMachineTypes).orderBy(adminMachineTypes.sortOrder);
+      res.json(types);
+    } catch (error) {
+      console.error("Error fetching machine types:", error);
+      res.status(500).json({ error: "Failed to fetch machine types" });
+    }
+  });
+
+  app.post("/api/admin/config/machine-types", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminMachineTypeSchema.parse(req.body);
+      const [created] = await db.insert(adminMachineTypes).values(parsed).returning();
+      await logAdminAudit("machine_types", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating machine type:", error);
+      res.status(400).json({ error: error.message || "Failed to create machine type" });
+    }
+  });
+
+  app.put("/api/admin/config/machine-types/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminMachineTypes).where(eq(adminMachineTypes.id, id));
+      if (!existing) return res.status(404).json({ error: "Machine type not found" });
+
+      const parsed = insertAdminMachineTypeSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminMachineTypes).set({ ...parsed, updatedAt: new Date() }).where(eq(adminMachineTypes.id, id)).returning();
+      await logAdminAudit("machine_types", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating machine type:", error);
+      res.status(400).json({ error: error.message || "Failed to update machine type" });
+    }
+  });
+
+  app.delete("/api/admin/config/machine-types/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminMachineTypes).where(eq(adminMachineTypes.id, id));
+      if (!existing) return res.status(404).json({ error: "Machine type not found" });
+
+      await db.delete(adminMachineTypes).where(eq(adminMachineTypes.id, id));
+      await logAdminAudit("machine_types", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting machine type:", error);
+      res.status(500).json({ error: error.message || "Failed to delete machine type" });
+    }
+  });
+
+  // --- Category Groups ---
+  app.get("/api/admin/config/category-groups", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const groups = await db.select().from(adminCategoryGroups).orderBy(adminCategoryGroups.sortOrder);
+      res.json(groups);
+    } catch (error) {
+      console.error("Error fetching category groups:", error);
+      res.status(500).json({ error: "Failed to fetch category groups" });
+    }
+  });
+
+  app.post("/api/admin/config/category-groups", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminCategoryGroupSchema.parse(req.body);
+      const [created] = await db.insert(adminCategoryGroups).values(parsed).returning();
+      await logAdminAudit("category_groups", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating category group:", error);
+      res.status(400).json({ error: error.message || "Failed to create category group" });
+    }
+  });
+
+  app.put("/api/admin/config/category-groups/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategoryGroups).where(eq(adminCategoryGroups.id, id));
+      if (!existing) return res.status(404).json({ error: "Category group not found" });
+
+      const parsed = insertAdminCategoryGroupSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminCategoryGroups).set({ ...parsed, updatedAt: new Date() }).where(eq(adminCategoryGroups.id, id)).returning();
+      await logAdminAudit("category_groups", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating category group:", error);
+      res.status(400).json({ error: error.message || "Failed to update category group" });
+    }
+  });
+
+  app.delete("/api/admin/config/category-groups/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategoryGroups).where(eq(adminCategoryGroups.id, id));
+      if (!existing) return res.status(404).json({ error: "Category group not found" });
+
+      await db.delete(adminCategoryGroups).where(eq(adminCategoryGroups.id, id));
+      await logAdminAudit("category_groups", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting category group:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category group" });
+    }
+  });
+
+  // --- Categories ---
+  app.get("/api/admin/config/categories", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const categories = await db.select().from(adminCategories).orderBy(adminCategories.sortOrder);
+      res.json(categories);
+    } catch (error) {
+      console.error("Error fetching categories:", error);
+      res.status(500).json({ error: "Failed to fetch categories" });
+    }
+  });
+
+  app.post("/api/admin/config/categories", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminCategorySchema.parse(req.body);
+      const [created] = await db.insert(adminCategories).values(parsed).returning();
+      await logAdminAudit("categories", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating category:", error);
+      res.status(400).json({ error: error.message || "Failed to create category" });
+    }
+  });
+
+  app.put("/api/admin/config/categories/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategories).where(eq(adminCategories.id, id));
+      if (!existing) return res.status(404).json({ error: "Category not found" });
+
+      const parsed = insertAdminCategorySchema.partial().parse(req.body);
+      const [updated] = await db.update(adminCategories).set({ ...parsed, updatedAt: new Date() }).where(eq(adminCategories.id, id)).returning();
+      await logAdminAudit("categories", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating category:", error);
+      res.status(400).json({ error: error.message || "Failed to update category" });
+    }
+  });
+
+  app.delete("/api/admin/config/categories/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategories).where(eq(adminCategories.id, id));
+      if (!existing) return res.status(404).json({ error: "Category not found" });
+
+      await db.delete(adminCategories).where(eq(adminCategories.id, id));
+      await logAdminAudit("categories", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting category:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category" });
+    }
+  });
+
+  // --- Category Variants ---
+  app.get("/api/admin/config/category-variants", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const categoryId = req.query.categoryId ? parseInt(req.query.categoryId as string) : undefined;
+      let query = db.select().from(adminCategoryVariants);
+      if (categoryId) {
+        const variants = await db.select().from(adminCategoryVariants).where(eq(adminCategoryVariants.categoryId, categoryId)).orderBy(adminCategoryVariants.sortOrder);
+        return res.json(variants);
+      }
+      const variants = await query.orderBy(adminCategoryVariants.sortOrder);
+      res.json(variants);
+    } catch (error) {
+      console.error("Error fetching category variants:", error);
+      res.status(500).json({ error: "Failed to fetch category variants" });
+    }
+  });
+
+  app.post("/api/admin/config/category-variants", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminCategoryVariantSchema.parse(req.body);
+      const [created] = await db.insert(adminCategoryVariants).values(parsed).returning();
+      await logAdminAudit("category_variants", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating category variant:", error);
+      res.status(400).json({ error: error.message || "Failed to create category variant" });
+    }
+  });
+
+  app.put("/api/admin/config/category-variants/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategoryVariants).where(eq(adminCategoryVariants.id, id));
+      if (!existing) return res.status(404).json({ error: "Category variant not found" });
+
+      const parsed = insertAdminCategoryVariantSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminCategoryVariants).set({ ...parsed, updatedAt: new Date() }).where(eq(adminCategoryVariants.id, id)).returning();
+      await logAdminAudit("category_variants", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating category variant:", error);
+      res.status(400).json({ error: error.message || "Failed to update category variant" });
+    }
+  });
+
+  app.delete("/api/admin/config/category-variants/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCategoryVariants).where(eq(adminCategoryVariants.id, id));
+      if (!existing) return res.status(404).json({ error: "Category variant not found" });
+
+      await db.delete(adminCategoryVariants).where(eq(adminCategoryVariants.id, id));
+      await logAdminAudit("category_variants", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting category variant:", error);
+      res.status(500).json({ error: error.message || "Failed to delete category variant" });
+    }
+  });
+
+  // --- SKU Mappings ---
+  app.get("/api/admin/config/sku-mappings", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const mappings = await db.select().from(adminSkuMappings).orderBy(desc(adminSkuMappings.priority));
+      res.json(mappings);
+    } catch (error) {
+      console.error("Error fetching SKU mappings:", error);
+      res.status(500).json({ error: "Failed to fetch SKU mappings" });
+    }
+  });
+
+  app.post("/api/admin/config/sku-mappings", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminSkuMappingSchema.parse(req.body);
+      const [created] = await db.insert(adminSkuMappings).values(parsed).returning();
+      await logAdminAudit("sku_mappings", "create", String(created.id), created.pattern, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating SKU mapping:", error);
+      res.status(400).json({ error: error.message || "Failed to create SKU mapping" });
+    }
+  });
+
+  app.put("/api/admin/config/sku-mappings/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminSkuMappings).where(eq(adminSkuMappings.id, id));
+      if (!existing) return res.status(404).json({ error: "SKU mapping not found" });
+
+      const parsed = insertAdminSkuMappingSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminSkuMappings).set({ ...parsed, updatedAt: new Date() }).where(eq(adminSkuMappings.id, id)).returning();
+      await logAdminAudit("sku_mappings", "update", String(id), updated.pattern, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating SKU mapping:", error);
+      res.status(400).json({ error: error.message || "Failed to update SKU mapping" });
+    }
+  });
+
+  app.delete("/api/admin/config/sku-mappings/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminSkuMappings).where(eq(adminSkuMappings.id, id));
+      if (!existing) return res.status(404).json({ error: "SKU mapping not found" });
+
+      await db.delete(adminSkuMappings).where(eq(adminSkuMappings.id, id));
+      await logAdminAudit("sku_mappings", "delete", String(id), existing.pattern, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting SKU mapping:", error);
+      res.status(500).json({ error: error.message || "Failed to delete SKU mapping" });
+    }
+  });
+
+  // --- Coaching Timers ---
+  app.get("/api/admin/config/coaching-timers", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const timers = await db.select().from(adminCoachingTimers).orderBy(adminCoachingTimers.category);
+      res.json(timers);
+    } catch (error) {
+      console.error("Error fetching coaching timers:", error);
+      res.status(500).json({ error: "Failed to fetch coaching timers" });
+    }
+  });
+
+  app.post("/api/admin/config/coaching-timers", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminCoachingTimerSchema.parse(req.body);
+      const [created] = await db.insert(adminCoachingTimers).values(parsed).returning();
+      await logAdminAudit("coaching_timers", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating coaching timer:", error);
+      res.status(400).json({ error: error.message || "Failed to create coaching timer" });
+    }
+  });
+
+  app.put("/api/admin/config/coaching-timers/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCoachingTimers).where(eq(adminCoachingTimers.id, id));
+      if (!existing) return res.status(404).json({ error: "Coaching timer not found" });
+
+      const parsed = insertAdminCoachingTimerSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminCoachingTimers).set({ ...parsed, updatedAt: new Date() }).where(eq(adminCoachingTimers.id, id)).returning();
+      await logAdminAudit("coaching_timers", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating coaching timer:", error);
+      res.status(400).json({ error: error.message || "Failed to update coaching timer" });
+    }
+  });
+
+  app.delete("/api/admin/config/coaching-timers/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminCoachingTimers).where(eq(adminCoachingTimers.id, id));
+      if (!existing) return res.status(404).json({ error: "Coaching timer not found" });
+
+      await db.delete(adminCoachingTimers).where(eq(adminCoachingTimers.id, id));
+      await logAdminAudit("coaching_timers", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting coaching timer:", error);
+      res.status(500).json({ error: error.message || "Failed to delete coaching timer" });
+    }
+  });
+
+  // --- Nudge Settings ---
+  app.get("/api/admin/config/nudge-settings", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const settings = await db.select().from(adminNudgeSettings).orderBy(adminNudgeSettings.priority);
+      res.json(settings);
+    } catch (error) {
+      console.error("Error fetching nudge settings:", error);
+      res.status(500).json({ error: "Failed to fetch nudge settings" });
+    }
+  });
+
+  app.post("/api/admin/config/nudge-settings", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminNudgeSettingSchema.parse(req.body);
+      const [created] = await db.insert(adminNudgeSettings).values(parsed).returning();
+      await logAdminAudit("nudge_settings", "create", String(created.id), created.label, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating nudge setting:", error);
+      res.status(400).json({ error: error.message || "Failed to create nudge setting" });
+    }
+  });
+
+  app.put("/api/admin/config/nudge-settings/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminNudgeSettings).where(eq(adminNudgeSettings.id, id));
+      if (!existing) return res.status(404).json({ error: "Nudge setting not found" });
+
+      const parsed = insertAdminNudgeSettingSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminNudgeSettings).set({ ...parsed, updatedAt: new Date() }).where(eq(adminNudgeSettings.id, id)).returning();
+      await logAdminAudit("nudge_settings", "update", String(id), updated.label, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating nudge setting:", error);
+      res.status(400).json({ error: error.message || "Failed to update nudge setting" });
+    }
+  });
+
+  app.delete("/api/admin/config/nudge-settings/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminNudgeSettings).where(eq(adminNudgeSettings.id, id));
+      if (!existing) return res.status(404).json({ error: "Nudge setting not found" });
+
+      await db.delete(adminNudgeSettings).where(eq(adminNudgeSettings.id, id));
+      await logAdminAudit("nudge_settings", "delete", String(id), existing.label, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting nudge setting:", error);
+      res.status(500).json({ error: error.message || "Failed to delete nudge setting" });
+    }
+  });
+
+  // --- Conversation Scripts ---
+  app.get("/api/admin/config/conversation-scripts", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const scripts = await db.select().from(adminConversationScripts).orderBy(adminConversationScripts.sortOrder);
+      res.json(scripts);
+    } catch (error) {
+      console.error("Error fetching conversation scripts:", error);
+      res.status(500).json({ error: "Failed to fetch conversation scripts" });
+    }
+  });
+
+  app.post("/api/admin/config/conversation-scripts", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const parsed = insertAdminConversationScriptSchema.parse(req.body);
+      const [created] = await db.insert(adminConversationScripts).values(parsed).returning();
+      await logAdminAudit("conversation_scripts", "create", String(created.id), created.title, null, created, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(created);
+    } catch (error: any) {
+      console.error("Error creating conversation script:", error);
+      res.status(400).json({ error: error.message || "Failed to create conversation script" });
+    }
+  });
+
+  app.put("/api/admin/config/conversation-scripts/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminConversationScripts).where(eq(adminConversationScripts.id, id));
+      if (!existing) return res.status(404).json({ error: "Conversation script not found" });
+
+      const parsed = insertAdminConversationScriptSchema.partial().parse(req.body);
+      const [updated] = await db.update(adminConversationScripts).set({ ...parsed, updatedAt: new Date() }).where(eq(adminConversationScripts.id, id)).returning();
+      await logAdminAudit("conversation_scripts", "update", String(id), updated.title, existing, updated, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json(updated);
+    } catch (error: any) {
+      console.error("Error updating conversation script:", error);
+      res.status(400).json({ error: error.message || "Failed to update conversation script" });
+    }
+  });
+
+  app.delete("/api/admin/config/conversation-scripts/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [existing] = await db.select().from(adminConversationScripts).where(eq(adminConversationScripts.id, id));
+      if (!existing) return res.status(404).json({ error: "Conversation script not found" });
+
+      await db.delete(adminConversationScripts).where(eq(adminConversationScripts.id, id));
+      await logAdminAudit("conversation_scripts", "delete", String(id), existing.title, existing, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting conversation script:", error);
+      res.status(500).json({ error: error.message || "Failed to delete conversation script" });
+    }
+  });
+
+  // --- Audit Log (read-only) ---
+  app.get("/api/admin/config/audit-log", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const limit = Math.min(parseInt(req.query.limit as string) || 100, 500);
+      const offset = parseInt(req.query.offset as string) || 0;
+      const configType = req.query.configType as string;
+
+      let logs;
+      if (configType) {
+        logs = await db.select().from(adminAuditLog)
+          .where(eq(adminAuditLog.configType, configType))
+          .orderBy(desc(adminAuditLog.createdAt))
+          .limit(limit)
+          .offset(offset);
+      } else {
+        logs = await db.select().from(adminAuditLog)
+          .orderBy(desc(adminAuditLog.createdAt))
+          .limit(limit)
+          .offset(offset);
+      }
+      res.json(logs);
+    } catch (error) {
+      console.error("Error fetching audit log:", error);
+      res.status(500).json({ error: "Failed to fetch audit log" });
+    }
+  });
+
+  // --- Config Versions (for rollback) ---
+  app.get("/api/admin/config/versions", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const configType = req.query.configType as string;
+      if (!configType) {
+        return res.status(400).json({ error: "configType query parameter required" });
+      }
+      const versions = await db.select().from(adminConfigVersions)
+        .where(eq(adminConfigVersions.configType, configType))
+        .orderBy(desc(adminConfigVersions.version));
+      res.json(versions);
+    } catch (error) {
+      console.error("Error fetching config versions:", error);
+      res.status(500).json({ error: "Failed to fetch config versions" });
+    }
+  });
+
+  // Publish current config as a new version
+  app.post("/api/admin/config/versions/publish", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { configType, configData } = req.body;
+      if (!configType || !configData) {
+        return res.status(400).json({ error: "configType and configData required" });
+      }
+
+      // Get latest version number
+      const [latest] = await db.select().from(adminConfigVersions)
+        .where(eq(adminConfigVersions.configType, configType))
+        .orderBy(desc(adminConfigVersions.version))
+        .limit(1);
+
+      const newVersion = (latest?.version || 0) + 1;
+
+      // Archive previous published version
+      if (latest && latest.status === 'published') {
+        await db.update(adminConfigVersions)
+          .set({ status: 'archived' })
+          .where(eq(adminConfigVersions.id, latest.id));
+      }
+
+      // Create new published version
+      const [created] = await db.insert(adminConfigVersions).values({
+        configType,
+        version: newVersion,
+        status: 'published',
+        configData,
+        publishedBy: req.user?.claims?.sub || 'unknown',
+        publishedAt: new Date(),
+      }).returning();
+
+      await logAdminAudit("config_versions", "publish", String(created.id), `${configType} v${newVersion}`, latest?.configData, configData, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+
+      res.json(created);
+    } catch (error) {
+      console.error("Error publishing config version:", error);
+      res.status(500).json({ error: "Failed to publish config version" });
+    }
+  });
+
+  // Rollback to a previous version
+  app.post("/api/admin/config/versions/:id/rollback", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const [targetVersion] = await db.select().from(adminConfigVersions).where(eq(adminConfigVersions.id, id));
+
+      if (!targetVersion) {
+        return res.status(404).json({ error: "Version not found" });
+      }
+
+      // Get current published version
+      const [current] = await db.select().from(adminConfigVersions)
+        .where(and(
+          eq(adminConfigVersions.configType, targetVersion.configType),
+          eq(adminConfigVersions.status, 'published')
+        ))
+        .limit(1);
+
+      // Archive current
+      if (current) {
+        await db.update(adminConfigVersions)
+          .set({ status: 'archived' })
+          .where(eq(adminConfigVersions.id, current.id));
+      }
+
+      // Create new version from rollback
+      const newVersion = (current?.version || targetVersion.version) + 1;
+      const [created] = await db.insert(adminConfigVersions).values({
+        configType: targetVersion.configType,
+        version: newVersion,
+        status: 'published',
+        configData: targetVersion.configData,
+        publishedBy: req.user?.claims?.sub || 'unknown',
+        publishedAt: new Date(),
+      }).returning();
+
+      await logAdminAudit("config_versions", "rollback", String(id), `${targetVersion.configType} rollback to v${targetVersion.version}`, current?.configData, targetVersion.configData, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+
+      res.json(created);
+    } catch (error) {
+      console.error("Error rolling back config version:", error);
+      res.status(500).json({ error: "Failed to rollback config version" });
+    }
+  });
+
+  // Seed initial config data from hardcoded constants
+  app.post("/api/admin/config/seed", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || 'unknown';
+      const userEmail = req.user?.claims?.email || null;
+
+      // Check if already seeded
+      const existingMachines = await db.select().from(adminMachineTypes).limit(1);
+      if (existingMachines.length > 0) {
+        return res.json({ message: "Config already seeded", seeded: false });
+      }
+
+      // Seed machine types
+      const machineTypes = [
+        { code: 'offset', label: 'Offset', icon: 'Printer', sortOrder: 1 },
+        { code: 'digital_dry_toner', label: 'Digital Dry Toner', icon: 'Zap', sortOrder: 2 },
+        { code: 'hp_indigo', label: 'HP Indigo', icon: 'Sparkles', sortOrder: 3 },
+        { code: 'inkjet', label: 'Inkjet', icon: 'Droplet', sortOrder: 4 },
+        { code: 'flexo', label: 'Flexo', icon: 'Layers', sortOrder: 5 },
+        { code: 'wide_format', label: 'Wide Format', icon: 'Maximize', sortOrder: 6 },
+      ];
+
+      for (const mt of machineTypes) {
+        await db.insert(adminMachineTypes).values(mt).onConflictDoNothing();
+      }
+
+      // Seed category groups
+      const categoryGroups = [
+        { code: 'labels', label: 'Labels', color: 'blue', sortOrder: 1 },
+        { code: 'synthetic', label: 'Synthetic', color: 'green', sortOrder: 2 },
+        { code: 'specialty', label: 'Specialty', color: 'purple', sortOrder: 3 },
+        { code: 'thermal', label: 'Thermal', color: 'orange', sortOrder: 4 },
+      ];
+
+      for (const cg of categoryGroups) {
+        await db.insert(adminCategoryGroups).values(cg).onConflictDoNothing();
+      }
+
+      // Seed coaching timers
+      const coachingTimers = [
+        { timerKey: 'quote_followup_soft', label: 'Quote Follow-up (Soft)', category: 'quote_followup', valueDays: 4, description: 'Days until initial quote follow-up reminder' },
+        { timerKey: 'quote_followup_risk', label: 'Quote Follow-up (At Risk)', category: 'quote_followup', valueDays: 7, description: 'Days until quote marked as at-risk' },
+        { timerKey: 'quote_followup_expire', label: 'Quote Follow-up (Expired)', category: 'quote_followup', valueDays: 14, description: 'Days until quote considered expired' },
+        { timerKey: 'press_test_delivery_grace', label: 'Press Test Delivery Grace', category: 'press_test', valueDays: 5, description: 'Days after sample delivery before follow-up' },
+        { timerKey: 'press_test_escalation', label: 'Press Test Escalation', category: 'press_test', valueDays: 10, description: 'Days until press test escalated' },
+        { timerKey: 'habitual_window', label: 'Habitual Definition', category: 'habitual', valueDays: 90, description: '2 purchases within this many days = habitual' },
+        { timerKey: 'stale_account_days', label: 'Stale Account', category: 'stale_account', valueDays: 60, description: 'Days without touch before account marked stale' },
+      ];
+
+      for (const ct of coachingTimers) {
+        await db.insert(adminCoachingTimers).values(ct).onConflictDoNothing();
+      }
+
+      // Seed nudge settings
+      const nudgeSettings = [
+        { nudgeKey: 'press_test_followup', label: 'Press Test Follow-up', priority: 10, severity: 'high', isEnabled: true, description: 'Follow up on press tests awaiting results' },
+        { nudgeKey: 'quote_followup', label: 'Quote Follow-up', priority: 20, severity: 'medium', isEnabled: true, description: 'Follow up on open quotes' },
+        { nudgeKey: 'reorder_overdue', label: 'Reorder Overdue', priority: 30, severity: 'high', isEnabled: true, description: 'Habitual customer missed expected reorder' },
+        { nudgeKey: 'reorder_due', label: 'Reorder Due', priority: 40, severity: 'medium', isEnabled: true, description: 'Habitual customer reorder window approaching' },
+        { nudgeKey: 'expand_category', label: 'Expand Category', priority: 50, severity: 'low', isEnabled: true, description: 'Opportunity to introduce new categories' },
+        { nudgeKey: 'stale_account', label: 'Stale Account', priority: 60, severity: 'low', isEnabled: true, description: 'Account has gone quiet' },
+      ];
+
+      for (const ns of nudgeSettings) {
+        await db.insert(adminNudgeSettings).values(ns).onConflictDoNothing();
+      }
+
+      await logAdminAudit("system", "seed", null, "Initial config seeding", null, { machineTypes, categoryGroups, coachingTimers, nudgeSettings }, userId, userEmail);
+
+      res.json({ message: "Config seeded successfully", seeded: true });
+    } catch (error) {
+      console.error("Error seeding config:", error);
+      res.status(500).json({ error: "Failed to seed config" });
     }
   });
 
