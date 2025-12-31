@@ -83,18 +83,18 @@ const CATEGORY_STATE_CONFIG: Record<string, { label: string; progress: number; c
 };
 
 const MACHINE_FAMILIES = [
-  { id: 'offset', label: 'Offset' },
-  { id: 'digital_toner', label: 'Digital Dry Toner' },
-  { id: 'hp_indigo', label: 'Digital - HP Indigo' },
-  { id: 'digital_inkjet_uv', label: 'Digital Inkjet UV (KM1, Fuji)' },
-  { id: 'label_press', label: 'Label Press' },
-  { id: 'screen_printing', label: 'Screen Printing' },
-  { id: 'wide_format_flatbed', label: 'Wide Format - Flat Bed' },
-  { id: 'wide_format_roll', label: 'Wide Format - Roll to Roll' },
-  { id: 'aqueous_photo', label: 'Aqueous Photo Printers' },
-  { id: 'distributor', label: 'Distributor', requiresNote: true },
-  { id: 'dealer', label: 'Dealer', requiresNote: true },
-  { id: 'other', label: 'Other', requiresNote: true },
+  { id: 'offset', label: 'Offset', icon: '🖨️', color: 'text-blue-600' },
+  { id: 'digital_toner', label: 'Digital Dry Toner', icon: '⚡', color: 'text-yellow-600' },
+  { id: 'hp_indigo', label: 'Digital - HP Indigo', icon: '💠', color: 'text-indigo-600' },
+  { id: 'digital_inkjet_uv', label: 'Digital Inkjet UV', icon: '☀️', color: 'text-orange-500' },
+  { id: 'label_press', label: 'Label Press', icon: '🏷️', color: 'text-pink-600' },
+  { id: 'screen_printing', label: 'Screen Printing', icon: '🎨', color: 'text-purple-600' },
+  { id: 'wide_format_flatbed', label: 'Wide Format - Flatbed', icon: '📐', color: 'text-teal-600' },
+  { id: 'wide_format_roll', label: 'Wide Format - Roll', icon: '📜', color: 'text-cyan-600' },
+  { id: 'aqueous_photo', label: 'Aqueous Photo', icon: '💧', color: 'text-sky-500' },
+  { id: 'distributor', label: 'Distributor', icon: '🏢', color: 'text-gray-600', requiresNote: true },
+  { id: 'dealer', label: 'Dealer', icon: '🤝', color: 'text-gray-600', requiresNote: true },
+  { id: 'other', label: 'Other', icon: '⚙️', color: 'text-gray-500', requiresNote: true },
 ];
 
 const REQUIRES_NOTE_MACHINES = ['distributor', 'dealer', 'other'];
@@ -647,12 +647,12 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
                   return (
                     <div
                       key={machine.id}
-                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-colors ${
+                      className={`flex items-center gap-2 p-2 rounded-lg border cursor-pointer transition-all ${
                         isEnabled
                           ? isConfirmed
-                            ? 'bg-green-50 border-green-200'
-                            : 'bg-blue-50 border-blue-200'
-                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                            ? 'bg-green-50 border-green-300 shadow-sm'
+                            : 'bg-blue-50 border-blue-300 shadow-sm'
+                          : 'bg-gray-50 border-gray-200 hover:bg-gray-100 hover:border-gray-300'
                       }`}
                       onClick={() => {
                         if (REQUIRES_NOTE_MACHINES.includes(machine.id) && !isEnabled) {
@@ -663,12 +663,9 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
                       }}
                       data-testid={`machine-${machine.id}`}
                     >
-                      <Checkbox
-                        checked={isEnabled}
-                        className="pointer-events-none"
-                      />
+                      <span className="text-lg">{machine.icon}</span>
                       <div className="flex-1 min-w-0">
-                        <p className="text-sm font-medium truncate">{machine.label}</p>
+                        <p className={`text-sm font-medium truncate ${isEnabled ? machine.color : 'text-gray-600'}`}>{machine.label}</p>
                         {isEnabled && (
                           <p className="text-xs text-gray-500">
                             {isConfirmed ? (

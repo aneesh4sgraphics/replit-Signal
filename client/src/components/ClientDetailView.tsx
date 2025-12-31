@@ -672,87 +672,113 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   };
 
   return (
-    <div className="space-y-6" data-testid="client-detail-view">
-      {/* Breadcrumb Navigation */}
-      <nav className="flex items-center gap-2 text-sm text-gray-500" data-testid="breadcrumb-nav">
-        <Link href="/customers" className="hover:text-blue-600 transition-colors">
-          Clients
-        </Link>
-        <ChevronRight className="h-4 w-4" />
-        <span className="text-gray-900 font-medium">{customerName}</span>
-      </nav>
-
-      <div className="flex items-start justify-between">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={onBack} data-testid="btn-back">
-            <ArrowLeft className="h-5 w-5" />
-          </Button>
-          <div>
-            <div className="flex items-center gap-3">
-              <h1 className="text-2xl font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
+    <div className="space-y-4" data-testid="client-detail-view">
+      {/* Sticky Header with Client Name */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b -mx-4 px-4 py-3 mb-2 shadow-sm">
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8" data-testid="btn-back">
+              <ArrowLeft className="h-4 w-4" />
+            </Button>
+            <div className="flex items-center gap-2">
+              <h1 className="text-lg font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
               {countryFlag && (
-                <TooltipProvider>
-                  <Tooltip>
-                    <TooltipTrigger asChild>
-                      <span className="text-2xl cursor-default" data-testid="country-flag">{countryFlag}</span>
-                    </TooltipTrigger>
-                    <TooltipContent>{customer.country}</TooltipContent>
-                  </Tooltip>
-                </TooltipProvider>
+                <span className="text-lg" data-testid="country-flag">{countryFlag}</span>
               )}
               {journey && (
-                <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white`}>
-                  {journey.journeyStage}
+                <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white text-xs`}>
+                  {journey.journeyStage?.replace(/_/g, ' ')}
                 </Badge>
               )}
             </div>
-            {customer.firstName && customer.lastName && customer.company && (
-              <p className="text-gray-500">{customer.firstName} {customer.lastName}</p>
+          </div>
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="outline" 
+              size="sm"
+              onClick={() => setIsJourneyPanelOpen(true)} 
+              className="gap-1 h-8"
+              data-testid="btn-journey-panel"
+            >
+              <Route className="h-3 w-3" />
+              <span className="hidden sm:inline">Journeys</span>
+            </Button>
+            {onEdit && (
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onEdit(customer)} data-testid="btn-edit-client">
+                <Pencil className="h-3 w-3" />
+              </Button>
+            )}
+            {onDelete && (
+              <Button variant="outline" size="icon" className="h-8 w-8" onClick={() => onDelete(customer.id)} data-testid="btn-delete-client">
+                <Trash2 className="h-3 w-3" />
+              </Button>
             )}
           </div>
         </div>
-        <div className="flex items-center gap-2">
-          <Button 
-            variant="outline" 
-            onClick={() => setIsJourneyPanelOpen(true)} 
-            className="gap-2"
-            data-testid="btn-journey-panel"
-          >
-            <Route className="h-4 w-4" />
-            Journeys
-          </Button>
-          {onEdit && (
-            <Button variant="outline" size="icon" onClick={() => onEdit(customer)} data-testid="btn-edit-client">
-              <Pencil className="h-4 w-4" />
-            </Button>
-          )}
-          {onDelete && (
-            <Button variant="outline" size="icon" onClick={() => onDelete(customer.id)} data-testid="btn-delete-client">
-              <Trash2 className="h-4 w-4" />
-            </Button>
-          )}
+      </div>
+
+      {/* Compact Overview Bar */}
+      <div className="grid grid-cols-4 gap-3 bg-gray-50 rounded-lg p-3">
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">${parseFloat(customer.totalSpent || '0').toLocaleString()}</p>
+          <p className="text-xs text-gray-500">Total Spent</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{customer.totalOrders || 0}</p>
+          <p className="text-xs text-gray-500">Orders</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{sentQuotes.length}</p>
+          <p className="text-xs text-gray-500">Quotes Sent</p>
+        </div>
+        <div className="text-center">
+          <p className="text-2xl font-bold text-gray-900">{sampleRequests.filter(s => s.status === 'shipped' || s.status === 'delivered').length}</p>
+          <p className="text-xs text-gray-500">Samples Sent</p>
         </div>
       </div>
 
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-        {/* People Card */}
+      {/* Customer Coach Panel - Moved Up */}
+      <Card className="glass-card">
+        <CardContent className="pt-4">
+          <CustomerCoachPanel 
+            customer={customer} 
+            onNavigateToPressProfiles={() => {
+              setActiveTab('press-profiles');
+              setHighlightAddPressProfile(true);
+            }}
+          />
+        </CardContent>
+      </Card>
+
+      {/* Collapsible People & Address Section */}
+      <Collapsible defaultOpen={false}>
         <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <div className="flex items-center justify-between">
-              <CardTitle className="text-sm font-medium text-gray-600">People</CardTitle>
-              <Button 
-                variant="ghost" 
-                size="sm" 
-                onClick={() => setIsAddingContact(true)}
-                className="h-7 px-2"
-                data-testid="btn-add-contact"
-              >
-                <Plus className="h-3 w-3 mr-1" />
-                Add
-              </Button>
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-2">
+          <CollapsibleTrigger asChild>
+            <CardHeader className="pb-2 cursor-pointer hover:bg-gray-50 transition-colors">
+              <div className="flex items-center justify-between">
+                <CardTitle className="text-sm font-medium text-gray-600 flex items-center gap-2">
+                  <Users className="h-4 w-4" />
+                  People & Address
+                  <Badge variant="outline" className="ml-2 text-xs">{companyContacts.length + customerContacts.length || 1}</Badge>
+                </CardTitle>
+                <ChevronsUpDown className="h-4 w-4 text-gray-400" />
+              </div>
+            </CardHeader>
+          </CollapsibleTrigger>
+          <CollapsibleContent>
+            <CardContent className="space-y-2 pt-0">
+              <div className="flex items-center justify-end mb-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setIsAddingContact(true)}
+                  className="h-7 px-2"
+                  data-testid="btn-add-contact"
+                >
+                  <Plus className="h-3 w-3 mr-1" />
+                  Add Contact
+                </Button>
+              </div>
             {/* Show all company contacts (people from the same company) */}
             {companyContacts.length > 0 ? (
               <>
@@ -1183,112 +1209,10 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 )
               )}
             </div>
-          </CardContent>
+            </CardContent>
+          </CollapsibleContent>
         </Card>
-
-        {/* Risk Profile Card */}
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Risk Profile</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Total Spent</span>
-              <span className="font-medium">${parseFloat(customer.totalSpent || '0').toLocaleString()}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Total Orders</span>
-              <span className="font-medium">{customer.totalOrders || 0}</span>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Engagement</span>
-              <Badge variant="outline" className={journey ? 'bg-green-50 text-green-700 border-green-200' : 'bg-gray-100'}>
-                {journey ? 'Active' : 'New'}
-              </Badge>
-            </div>
-            <div className="flex items-center justify-between text-sm">
-              <span className="text-gray-500">Journey Stage</span>
-              <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-400'} text-white text-xs`}>
-                {journey?.journeyStage?.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase()) || 'None'}
-              </Badge>
-            </div>
-            {(customer.city || customer.province) && (
-              <div className="flex items-center gap-2 text-sm pt-2 border-t">
-                <MapPin className="h-4 w-4 text-gray-400" />
-                <span className="text-gray-600">{[customer.city, customer.province].filter(Boolean).join(', ')}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        {/* Activity Summary Card */}
-        <Card className="glass-card">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-gray-600">Activity Summary</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-blue-100 rounded-lg flex items-center justify-center">
-                  <FileText className="h-4 w-4 text-blue-600" />
-                </div>
-                <span className="text-gray-600">Quotes Sent</span>
-              </div>
-              <Badge variant="secondary" className="text-base px-3">{sentQuotes.length}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-purple-100 rounded-lg flex items-center justify-center">
-                  <Package className="h-4 w-4 text-purple-600" />
-                </div>
-                <span className="text-gray-600">Sample Kits Sent</span>
-              </div>
-              <Badge variant="secondary" className="text-base px-3">{sampleRequests.filter(s => s.status === 'shipped' || s.status === 'delivered').length}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-orange-100 rounded-lg flex items-center justify-center">
-                  <Clock className="h-4 w-4 text-orange-600" />
-                </div>
-                <span className="text-gray-600">Follow-up Tasks</span>
-              </div>
-              <Badge variant="secondary" className="text-base px-3">{journeyInstances.filter(j => j.status === 'in_progress').length}</Badge>
-            </div>
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2 text-sm">
-                <div className="w-8 h-8 bg-green-100 rounded-lg flex items-center justify-center">
-                  <ShoppingCart className="h-4 w-4 text-green-600" />
-                </div>
-                <span className="text-gray-600">Orders Placed</span>
-              </div>
-              <Badge variant="secondary" className="text-base px-3">{shopifyOrders.length}</Badge>
-            </div>
-            {journeyInstances.filter(j => j.status === 'in_progress').length > 0 && (
-              <div className="pt-2 border-t">
-                <p className="text-xs text-gray-500 mb-1">Active Journeys:</p>
-                {journeyInstances.filter(j => j.status === 'in_progress').slice(0, 2).map(j => (
-                  <div key={j.id} className="text-xs text-gray-600 flex items-center gap-1">
-                    <ChevronRight className="h-3 w-3" />
-                    {j.journeyType === 'press_test' ? 'Press Test' : j.journeyType === 'swatch_book' ? 'Swatch Book' : 'Quote'} - {j.currentStep?.replace(/_/g, ' ')}
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      <Card className="glass-card">
-        <CardContent className="pt-4">
-          <CustomerCoachPanel 
-            customer={customer} 
-            onNavigateToPressProfiles={() => {
-              setActiveTab('press-profiles');
-              setHighlightAddPressProfile(true);
-            }}
-          />
-        </CardContent>
-      </Card>
+      </Collapsible>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="grid w-full grid-cols-5 max-w-3xl bg-gray-100 p-1 rounded-lg">
@@ -1628,7 +1552,12 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">No quotes or price lists sent to this customer yet</p>
-                  <p className="text-xs text-gray-400 mt-2">Use QuickQuotes or Price List apps to send pricing to this customer</p>
+                  <Link href="/quote-calculator">
+                    <Button className="mt-4" data-testid="btn-create-first-quote">
+                      <Plus className="h-4 w-4 mr-2" />
+                      Create First Quote
+                    </Button>
+                  </Link>
                 </div>
               )}
             </CardContent>
