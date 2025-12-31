@@ -469,6 +469,40 @@ function AdminHomeTab({
         </Card>
       )}
 
+      {/* How This Works - Mental Model */}
+      <Card className="border-blue-200 bg-blue-50">
+        <CardHeader className="pb-2">
+          <CardTitle className="text-base flex items-center gap-2 text-blue-800">
+            <Info className="h-4 w-4" />
+            How This Works
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="pt-0">
+          <ul className="text-sm text-blue-700 space-y-1.5">
+            <li className="flex items-start gap-2">
+              <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><strong>Machine types unlock categories</strong> — each product category is tagged with compatible machines</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><strong>SKU map makes Shopify orders affect category trust</strong> — orders auto-advance trust when SKUs match</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><strong>Timers drive coaching nudges</strong> — how long until "soft reminder," "at risk," or "expired"</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><strong>Nudges are prioritized; only one shows</strong> — the highest-priority actionable nudge wins</span>
+            </li>
+            <li className="flex items-start gap-2">
+              <ChevronRight className="h-4 w-4 mt-0.5 flex-shrink-0" />
+              <span><strong>Scripts appear when stalled</strong> — conversation starters for stuck sales situations</span>
+            </li>
+          </ul>
+        </CardContent>
+      </Card>
+
       {/* Setup Checklist */}
       <Card>
         <CardHeader>
