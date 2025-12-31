@@ -194,10 +194,16 @@ export default function ClientDatabase() {
     }
   }, [customers, selectedCustomer]);
   
-  // Fetch quote counts per customer
+  // Fetch quote counts per customer (for individual customer badges)
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],
   });
+
+  // Fetch total sent quotes from the main sent-quotes endpoint (synced with QuickQuotes)
+  const { data: sentQuotes = [] } = useQuery<any[]>({
+    queryKey: ['/api/sent-quotes'],
+  });
+  const totalQuotesSent = sentQuotes.length;
   
   // Fetch total samples sent count
   const { data: sampleRequests = [] } = useQuery<any[]>({
@@ -214,9 +220,6 @@ export default function ClientDatabase() {
   const { data: pressKitShipments = [] } = useQuery<any[]>({
     queryKey: ['/api/crm/press-kit-shipments'],
   });
-  
-  // Calculate total quotes sent
-  const totalQuotesSent = Object.values(quoteCounts).reduce((sum, count) => sum + count, 0);
   
   // Toggle card expansion
   const toggleCardExpansion = (customerId: string) => {
