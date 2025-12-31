@@ -245,6 +245,11 @@ export default function ClientDatabase() {
   const { data: pressKitShipments = [] } = useQuery<any[]>({
     queryKey: ['/api/crm/press-kit-shipments'],
   });
+
+  // Fetch email sends for mailer count
+  const { data: emailSends = [] } = useQuery<any[]>({
+    queryKey: ['/api/email/sends'],
+  });
   
   // Toggle card expansion
   const toggleCardExpansion = (customerId: string) => {
@@ -284,6 +289,13 @@ export default function ClientDatabase() {
     return pressKitShipments.some((s: any) => 
       String(s.customerId) === customerId || s.customerId === customerId
     );
+  };
+
+  // Get mailer/email send count for a customer
+  const getMailerCount = (customerId: string): number => {
+    return emailSends.filter((e: any) => 
+      String(e.customerId) === customerId || e.customerId === customerId
+    ).length;
   };
   
   // Check if customer has missing details
@@ -2178,11 +2190,12 @@ export default function ClientDatabase() {
                 />
                 <div className="w-5" />
                 <span className="flex-1 min-w-[200px]">Company</span>
-                <span className="w-24 text-center hidden md:block">Source</span>
-                <span className="w-20 text-center hidden lg:block">Quotes</span>
-                <span className="w-16 text-center hidden lg:block">Swatch</span>
-                <span className="w-16 text-center hidden lg:block">Kit</span>
-                <span className="w-48 hidden lg:block">Email</span>
+                <span className="w-28 text-left hidden md:block">Source</span>
+                <span className="w-16 text-center hidden lg:block">Quotes</span>
+                <span className="w-14 text-center hidden lg:block">Swatch</span>
+                <span className="w-14 text-center hidden lg:block">Kit</span>
+                <span className="w-14 text-center hidden lg:block">Mailer</span>
+                <span className="w-44 hidden lg:block">Email</span>
                 <span className="w-28 text-right">Quick Actions</span>
               </div>
               
@@ -2256,36 +2269,36 @@ export default function ClientDatabase() {
                           )}
                         </div>
                         
-                        {/* Source badges - Colorful Pills */}
-                        <div className="w-24 flex items-center justify-center gap-1 hidden md:flex">
+                        {/* Source badges - Left-aligned */}
+                        <div className="w-28 flex items-center justify-start gap-1 hidden md:flex flex-wrap">
                           {primary.sources?.includes('shopify') && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
                               <SiShopify className="h-3 w-3" /> Shopify
                             </span>
                           )}
                           {primary.sources?.includes('odoo') && (
-                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
                               <SiOdoo className="h-3 w-3" /> Odoo
                             </span>
                           )}
                           {!primary.sources?.length && (
-                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
                               Manual
                             </span>
                           )}
                         </div>
                         
                         {/* Quote/Sample counts - Improved Pills */}
-                        <div className="w-20 flex items-center justify-center gap-1 hidden lg:flex">
+                        <div className="w-16 flex items-center justify-center gap-1 hidden lg:flex">
                           {totalQuotes > 0 ? (
-                            <span className="bg-blue-100 text-blue-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-200">{totalQuotes} Quote{totalQuotes > 1 ? 's' : ''}</span>
+                            <span className="bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-200">{totalQuotes}</span>
                           ) : (
                             <span className="text-gray-300 text-[10px]">-</span>
                           )}
                         </div>
 
                         {/* Swatch Book */}
-                        <div className="w-16 flex items-center justify-center hidden lg:flex">
+                        <div className="w-14 flex items-center justify-center hidden lg:flex">
                           {hasSwatchBook(primary.id) ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-700 border border-purple-200">
                               <BookOpen className="h-3 w-3" />
@@ -2296,7 +2309,7 @@ export default function ClientDatabase() {
                         </div>
 
                         {/* Press Kit */}
-                        <div className="w-16 flex items-center justify-center hidden lg:flex">
+                        <div className="w-14 flex items-center justify-center hidden lg:flex">
                           {hasPressKit(primary.id) ? (
                             <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-700 border border-orange-200">
                               <Printer className="h-3 w-3" />
@@ -2305,9 +2318,20 @@ export default function ClientDatabase() {
                             <span className="text-gray-300 text-[10px]">-</span>
                           )}
                         </div>
+
+                        {/* Mailer Sent */}
+                        <div className="w-14 flex items-center justify-center hidden lg:flex">
+                          {getMailerCount(primary.id) > 0 ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-pink-100 text-pink-700 border border-pink-200 font-medium">
+                              <Mail className="h-3 w-3" /> {getMailerCount(primary.id)}
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-[10px]">-</span>
+                          )}
+                        </div>
                         
                         {/* Inline editable email */}
-                        <div className="w-48 hidden lg:block" onClick={(e) => e.stopPropagation()}>
+                        <div className="w-44 hidden lg:block" onClick={(e) => e.stopPropagation()}>
                           {isInlineEditing && editingField === 'email' ? (
                             <div className="flex items-center gap-1">
                               <Input
