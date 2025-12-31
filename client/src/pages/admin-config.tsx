@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, Printer, Zap, Sparkles, Droplet, Maximize, Info, AlertTriangle, Check } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, Printer, Zap, Sparkles, Droplet, Maximize, Info, AlertTriangle, Check, Home, User, PlayCircle, GripVertical, ChevronRight, RotateCcw, Eye } from "lucide-react";
 import { Link } from "wouter";
 
 type AdminMachineType = {
@@ -115,7 +115,8 @@ const ICON_MAP: Record<string, any> = {
 export default function AdminConfig() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("taxonomy");
+  const [activeTab, setActiveTab] = useState("home");
+  const [testCustomerOpen, setTestCustomerOpen] = useState(false);
 
   const { data: machineTypes = [], isLoading: machineTypesLoading } = useQuery<AdminMachineType[]>({
     queryKey: ["/api/admin/config/machine-types"],
@@ -206,7 +207,11 @@ export default function AdminConfig() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-6 w-full max-w-4xl">
+          <TabsList className="grid grid-cols-7 w-full max-w-5xl">
+            <TabsTrigger value="home" className="flex items-center gap-1" data-testid="tab-home">
+              <Home className="h-4 w-4" />
+              <span className="hidden sm:inline">Home</span>
+            </TabsTrigger>
             <TabsTrigger value="taxonomy" className="flex items-center gap-1" data-testid="tab-taxonomy">
               <Layers className="h-4 w-4" />
               <span className="hidden sm:inline">Taxonomy</span>
@@ -232,6 +237,22 @@ export default function AdminConfig() {
               <span className="hidden sm:inline">Audit</span>
             </TabsTrigger>
           </TabsList>
+
+          <TabsContent value="home">
+            <AdminHomeTab 
+              machineTypes={machineTypes}
+              categoryGroups={categoryGroups}
+              categories={categories}
+              skuMappings={skuMappings}
+              coachingTimers={coachingTimers}
+              nudgeSettings={nudgeSettings}
+              conversationScripts={conversationScripts}
+              onNavigate={setActiveTab}
+              onOpenTestCustomer={() => setTestCustomerOpen(true)}
+              onSeedConfig={() => seedConfigMutation.mutate()}
+              isSeedPending={seedConfigMutation.isPending}
+            />
+          </TabsContent>
 
           <TabsContent value="taxonomy">
             <ProductTaxonomyTab 
@@ -279,7 +300,500 @@ export default function AdminConfig() {
           </TabsContent>
         </Tabs>
       </div>
+
+      {/* Test Customer Simulator Dialog */}
+      <TestCustomerDialog 
+        open={testCustomerOpen}
+        onOpenChange={setTestCustomerOpen}
+        machineTypes={machineTypes}
+        categories={categories}
+        categoryGroups={categoryGroups}
+        coachingTimers={coachingTimers}
+        nudgeSettings={nudgeSettings}
+      />
     </div>
+  );
+}
+
+// Admin Home Tab with Setup Checklist
+function AdminHomeTab({
+  machineTypes,
+  categoryGroups,
+  categories,
+  skuMappings,
+  coachingTimers,
+  nudgeSettings,
+  conversationScripts,
+  onNavigate,
+  onOpenTestCustomer,
+  onSeedConfig,
+  isSeedPending,
+}: {
+  machineTypes: AdminMachineType[];
+  categoryGroups: AdminCategoryGroup[];
+  categories: AdminCategory[];
+  skuMappings: AdminSkuMapping[];
+  coachingTimers: AdminCoachingTimer[];
+  nudgeSettings: AdminNudgeSetting[];
+  conversationScripts: AdminConversationScript[];
+  onNavigate: (tab: string) => void;
+  onOpenTestCustomer: () => void;
+  onSeedConfig: () => void;
+  isSeedPending: boolean;
+}) {
+  const EXPECTED_MACHINE_TYPES = ["offset", "digital_dry_toner", "hp_indigo", "digital_inkjet_uv", "wide_format_flatbed", "wide_format_roll", "aqueous_photo", "screen_printing"];
+  
+  const checklistItems = [
+    {
+      key: "machines",
+      label: "Machine Types",
+      description: "Define printing machine families (Offset, Digital, etc.)",
+      tab: "taxonomy",
+      isComplete: machineTypes.length >= 6,
+      count: machineTypes.length,
+      expected: "8 recommended",
+      icon: Printer,
+    },
+    {
+      key: "groups",
+      label: "Product Groups",
+      description: "Organize categories into groups (Labels, Films, Papers)",
+      tab: "taxonomy",
+      isComplete: categoryGroups.length >= 3,
+      count: categoryGroups.length,
+      expected: "3+ recommended",
+      icon: Layers,
+    },
+    {
+      key: "categories",
+      label: "Product Categories",
+      description: "Define product types with machine compatibility",
+      tab: "taxonomy",
+      isComplete: categories.length >= 5,
+      count: categories.length,
+      expected: "5+ recommended",
+      icon: Database,
+    },
+    {
+      key: "sku",
+      label: "SKU Mappings",
+      description: "Map Shopify SKUs to internal categories",
+      tab: "sku-mapping",
+      isComplete: skuMappings.length >= 1,
+      count: skuMappings.length,
+      expected: "At least 1",
+      icon: Database,
+    },
+    {
+      key: "timers",
+      label: "Coaching Timers",
+      description: "Configure follow-up timing (quote stale, sample grace)",
+      tab: "timers",
+      isComplete: coachingTimers.length >= 5,
+      count: coachingTimers.length,
+      expected: "5+ recommended",
+      icon: Clock,
+    },
+    {
+      key: "nudges",
+      label: "Nudge Settings",
+      description: "Configure Next Best Move priority and rules",
+      tab: "nudges",
+      isComplete: nudgeSettings.length >= 3,
+      count: nudgeSettings.length,
+      expected: "3+ recommended",
+      icon: Bell,
+    },
+    {
+      key: "scripts",
+      label: "Conversation Scripts",
+      description: "Sales scripts by stage, persona, and scenario",
+      tab: "scripts",
+      isComplete: conversationScripts.length >= 1,
+      count: conversationScripts.length,
+      expected: "At least 1",
+      icon: MessageSquare,
+    },
+  ];
+
+  const completedCount = checklistItems.filter(item => item.isComplete).length;
+  const completionPercent = Math.round((completedCount / checklistItems.length) * 100);
+  const isEmpty = machineTypes.length === 0 && coachingTimers.length === 0;
+
+  return (
+    <div className="space-y-6">
+      {/* Hero Section */}
+      <Card className="bg-gradient-to-r from-purple-600 to-indigo-600 text-white border-0">
+        <CardContent className="p-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h2 className="text-2xl font-bold mb-2">Admin Configuration Center</h2>
+              <p className="text-purple-100">Configure coaching logic, product taxonomy, and sales scripts without touching code.</p>
+            </div>
+            <div className="flex items-center gap-4">
+              <div className="text-center">
+                <div className="text-4xl font-bold">{completionPercent}%</div>
+                <div className="text-purple-200 text-sm">Setup Complete</div>
+              </div>
+              <Button 
+                variant="secondary" 
+                onClick={onOpenTestCustomer}
+                className="bg-white text-purple-700 hover:bg-purple-50"
+              >
+                <PlayCircle className="h-4 w-4 mr-2" />
+                Test Customer Simulator
+              </Button>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Seed Option */}
+      {isEmpty && (
+        <Card className="border-amber-200 bg-amber-50">
+          <CardContent className="p-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <AlertTriangle className="h-5 w-5 text-amber-600" />
+                <div>
+                  <p className="font-medium text-amber-800">No configuration data found</p>
+                  <p className="text-sm text-amber-600">Start with recommended defaults to get up and running quickly.</p>
+                </div>
+              </div>
+              <Button onClick={onSeedConfig} disabled={isSeedPending}>
+                <Database className="h-4 w-4 mr-2" />
+                {isSeedPending ? "Seeding..." : "Seed Default Config"}
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Setup Checklist */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <CheckCircle className="h-5 w-5 text-green-600" />
+            Setup Checklist
+          </CardTitle>
+          <CardDescription>
+            Complete these steps to fully configure the coaching system. {completedCount} of {checklistItems.length} complete.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="space-y-3">
+            {checklistItems.map((item) => {
+              const Icon = item.icon;
+              return (
+                <div 
+                  key={item.key}
+                  className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${
+                    item.isComplete 
+                      ? 'bg-green-50 border-green-200' 
+                      : 'bg-gray-50 border-gray-200 hover:bg-gray-100'
+                  }`}
+                >
+                  <div className="flex items-center gap-3">
+                    <div className={`h-8 w-8 rounded-full flex items-center justify-center ${
+                      item.isComplete ? 'bg-green-500' : 'bg-gray-300'
+                    }`}>
+                      {item.isComplete ? (
+                        <Check className="h-4 w-4 text-white" />
+                      ) : (
+                        <Icon className="h-4 w-4 text-white" />
+                      )}
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{item.label}</p>
+                      <p className="text-sm text-gray-500">{item.description}</p>
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <div className="text-right">
+                      <p className={`text-sm font-medium ${item.isComplete ? 'text-green-600' : 'text-gray-600'}`}>
+                        {item.count} configured
+                      </p>
+                      <p className="text-xs text-gray-400">{item.expected}</p>
+                    </div>
+                    <Button 
+                      variant={item.isComplete ? "outline" : "default"}
+                      size="sm"
+                      onClick={() => onNavigate(item.tab)}
+                    >
+                      {item.isComplete ? 'View' : 'Fix Now'}
+                      <ChevronRight className="h-4 w-4 ml-1" />
+                    </Button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Quick Info Cards */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <Info className="h-5 w-5 text-blue-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-gray-900">How it works</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  1. Define machine types your customers use<br/>
+                  2. Create product groups and categories<br/>
+                  3. Map Shopify SKUs to categories<br/>
+                  4. Set up timing rules and nudges
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <PlayCircle className="h-5 w-5 text-purple-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-gray-900">Test Before Deploy</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  Use the Test Customer Simulator to see how rules apply to a sample customer. See Next Best Move and trust states.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardContent className="p-4">
+            <div className="flex items-start gap-3">
+              <History className="h-5 w-5 text-amber-500 mt-0.5" />
+              <div>
+                <p className="font-medium text-gray-900">Audit Trail</p>
+                <p className="text-sm text-gray-500 mt-1">
+                  All changes are logged with before/after diffs. You can rollback to any previous configuration version.
+                </p>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+    </div>
+  );
+}
+
+// Test Customer Simulator Dialog
+function TestCustomerDialog({
+  open,
+  onOpenChange,
+  machineTypes,
+  categories,
+  categoryGroups,
+  coachingTimers,
+  nudgeSettings,
+}: {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+  machineTypes: AdminMachineType[];
+  categories: AdminCategory[];
+  categoryGroups: AdminCategoryGroup[];
+  coachingTimers: AdminCoachingTimer[];
+  nudgeSettings: AdminNudgeSetting[];
+}) {
+  const [selectedMachines, setSelectedMachines] = useState<string[]>([]);
+  const [accountState, setAccountState] = useState("prospect");
+  const [dayssinceQuote, setDaysSinceQuote] = useState(0);
+  const [daysSinceSample, setDaysSinceSample] = useState(0);
+  const [hasPendingQuote, setHasPendingQuote] = useState(false);
+  const [hasPendingSample, setHasPendingSample] = useState(false);
+
+  const compatibleCategories = categories.filter(cat => 
+    cat.compatibleMachineTypes?.some(m => selectedMachines.includes(m))
+  );
+
+  const getTimerValue = (key: string) => {
+    const timer = coachingTimers.find(t => t.timerKey === key);
+    return timer?.valueDays || 0;
+  };
+
+  const quoteStaleTimer = getTimerValue("quote_stale_days");
+  const sampleGraceTimer = getTimerValue("sample_grace_period");
+
+  const isQuoteOverdue = hasPendingQuote && dayssinceQuote > quoteStaleTimer;
+  const isSampleOverdue = hasPendingSample && daysSinceSample > sampleGraceTimer;
+
+  const nextBestMove = (() => {
+    if (isQuoteOverdue) return { action: "Follow up on stale quote", reason: `Quote is ${dayssinceQuote} days old, exceeds ${quoteStaleTimer}-day threshold`, severity: "high" };
+    if (isSampleOverdue) return { action: "Check in on sample", reason: `Sample sent ${daysSinceSample} days ago, exceeds ${sampleGraceTimer}-day grace period`, severity: "medium" };
+    if (accountState === "prospect") return { action: "Send introduction materials", reason: "New prospect needs initial touchpoint", severity: "low" };
+    if (selectedMachines.length === 0) return { action: "Identify customer's machines", reason: "No machine profile set - cannot recommend compatible products", severity: "medium" };
+    return { action: "Explore expansion opportunities", reason: "Customer is established, look for new category opportunities", severity: "low" };
+  })();
+
+  return (
+    <Dialog open={open} onOpenChange={onOpenChange}>
+      <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <User className="h-5 w-5" />
+            Test Customer Simulator
+          </DialogTitle>
+          <DialogDescription>
+            Configure a test customer profile to see how the coaching rules apply. This helps you understand the impact of your configuration.
+          </DialogDescription>
+        </DialogHeader>
+
+        <div className="grid grid-cols-2 gap-6">
+          {/* Input Panel */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-gray-900 border-b pb-2">Customer Profile</h3>
+            
+            <div>
+              <Label className="text-sm font-medium">Account State</Label>
+              <Select value={accountState} onValueChange={setAccountState}>
+                <SelectTrigger className="mt-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="prospect">Prospect</SelectItem>
+                  <SelectItem value="first_trust">First Trust</SelectItem>
+                  <SelectItem value="expansion_possible">Expansion Possible</SelectItem>
+                  <SelectItem value="expansion_in_progress">Expansion In Progress</SelectItem>
+                  <SelectItem value="multi_category">Multi Category</SelectItem>
+                  <SelectItem value="embedded">Embedded</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div>
+              <Label className="text-sm font-medium">Customer's Machines</Label>
+              <p className="text-xs text-gray-500 mb-2">Select machines the customer uses</p>
+              <div className="flex flex-wrap gap-2">
+                {machineTypes.filter(m => m.isActive !== false).map(mt => (
+                  <Button
+                    key={mt.code}
+                    type="button"
+                    variant={selectedMachines.includes(mt.code) ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setSelectedMachines(prev => 
+                      prev.includes(mt.code) 
+                        ? prev.filter(m => m !== mt.code)
+                        : [...prev, mt.code]
+                    )}
+                    className={selectedMachines.includes(mt.code) ? "bg-purple-600" : ""}
+                  >
+                    {mt.label}
+                  </Button>
+                ))}
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Switch checked={hasPendingQuote} onCheckedChange={setHasPendingQuote} />
+                  <Label className="text-sm">Has pending quote</Label>
+                </div>
+                {hasPendingQuote && (
+                  <div>
+                    <Label className="text-xs">Days since sent</Label>
+                    <Input 
+                      type="number" 
+                      value={dayssinceQuote} 
+                      onChange={(e) => setDaysSinceQuote(parseInt(e.target.value) || 0)}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
+              <div>
+                <div className="flex items-center gap-2 mb-2">
+                  <Switch checked={hasPendingSample} onCheckedChange={setHasPendingSample} />
+                  <Label className="text-sm">Has pending sample</Label>
+                </div>
+                {hasPendingSample && (
+                  <div>
+                    <Label className="text-xs">Days since sent</Label>
+                    <Input 
+                      type="number" 
+                      value={daysSinceSample} 
+                      onChange={(e) => setDaysSinceSample(parseInt(e.target.value) || 0)}
+                      className="mt-1"
+                    />
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+
+          {/* Output Panel */}
+          <div className="space-y-4">
+            <h3 className="font-medium text-gray-900 border-b pb-2">Simulation Results</h3>
+
+            {/* Next Best Move */}
+            <div className={`p-4 rounded-lg border-2 ${
+              nextBestMove.severity === 'high' ? 'border-red-300 bg-red-50' :
+              nextBestMove.severity === 'medium' ? 'border-amber-300 bg-amber-50' :
+              'border-green-300 bg-green-50'
+            }`}>
+              <div className="flex items-start gap-2">
+                <Bell className={`h-5 w-5 mt-0.5 ${
+                  nextBestMove.severity === 'high' ? 'text-red-600' :
+                  nextBestMove.severity === 'medium' ? 'text-amber-600' :
+                  'text-green-600'
+                }`} />
+                <div>
+                  <p className="font-medium text-gray-900">Next Best Move</p>
+                  <p className="text-sm font-semibold mt-1">{nextBestMove.action}</p>
+                  <p className="text-xs text-gray-600 mt-1">{nextBestMove.reason}</p>
+                </div>
+              </div>
+            </div>
+
+            {/* Compatible Categories */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">
+                Compatible Categories ({compatibleCategories.length})
+              </p>
+              {selectedMachines.length === 0 ? (
+                <p className="text-sm text-gray-400 italic">Select machines to see compatible categories</p>
+              ) : compatibleCategories.length === 0 ? (
+                <p className="text-sm text-amber-600">No categories match selected machines</p>
+              ) : (
+                <div className="flex flex-wrap gap-1">
+                  {compatibleCategories.map(cat => (
+                    <Badge key={cat.id} variant="secondary" className="text-xs">
+                      {cat.label}
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+
+            {/* Active Timers */}
+            <div>
+              <p className="text-sm font-medium text-gray-700 mb-2">Active Timer Thresholds</p>
+              <div className="space-y-1 text-xs">
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Quote stale after:</span>
+                  <span className={hasPendingQuote && dayssinceQuote > quoteStaleTimer ? 'text-red-600 font-medium' : ''}>
+                    {quoteStaleTimer} days
+                  </span>
+                </div>
+                <div className="flex justify-between">
+                  <span className="text-gray-500">Sample grace period:</span>
+                  <span className={hasPendingSample && daysSinceSample > sampleGraceTimer ? 'text-red-600 font-medium' : ''}>
+                    {sampleGraceTimer} days
+                  </span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <DialogFooter>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Close</Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
   );
 }
 
