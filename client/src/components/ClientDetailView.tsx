@@ -673,23 +673,92 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
 
   return (
     <div className="space-y-4" data-testid="client-detail-view">
-      {/* Sticky Header with Client Name */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b -mx-4 px-4 py-3 mb-2 shadow-sm">
-        <div className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8" data-testid="btn-back">
+      {/* Sticky Header with Client Name & Contacts */}
+      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b -mx-4 px-4 py-2 mb-2 shadow-sm">
+        <div className="flex items-start justify-between">
+          <div className="flex items-start gap-3">
+            <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 mt-0.5" data-testid="btn-back">
               <ArrowLeft className="h-4 w-4" />
             </Button>
-            <div className="flex items-center gap-2">
-              <h1 className="text-lg font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
-              {countryFlag && (
-                <span className="text-lg" data-testid="country-flag">{countryFlag}</span>
-              )}
-              {journey && (
-                <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white text-xs`}>
-                  {journey.journeyStage?.replace(/_/g, ' ')}
-                </Badge>
-              )}
+            <div>
+              <div className="flex items-center gap-2">
+                <h1 className="text-lg font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
+                {countryFlag && (
+                  <span className="text-lg" data-testid="country-flag">{countryFlag}</span>
+                )}
+                {journey && (
+                  <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white text-xs`}>
+                    {journey.journeyStage?.replace(/_/g, ' ')}
+                  </Badge>
+                )}
+              </div>
+              {/* Contact Lines */}
+              <div className="mt-1 space-y-0.5">
+                {/* Primary customer contact */}
+                {(customer.email || customer.phone) && (
+                  <div className="flex items-center gap-3 text-sm">
+                    <span className="text-gray-600 font-medium min-w-[100px] truncate">
+                      {`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary'}
+                    </span>
+                    {customer.email && (
+                      <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        {customer.email}
+                      </a>
+                    )}
+                    {customer.phone && (
+                      <a href={`tel:${customer.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {customer.phone}
+                      </a>
+                    )}
+                  </div>
+                )}
+                {/* Company contacts */}
+                {companyContacts.filter(c => c.id !== customer.id).slice(0, 3).map(contact => (
+                  <div key={contact.id} className="flex items-center gap-3 text-sm">
+                    <span className="text-gray-600 font-medium min-w-[100px] truncate">
+                      {`${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Contact'}
+                    </span>
+                    {contact.email && (
+                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        {contact.email}
+                      </a>
+                    )}
+                    {contact.phone && (
+                      <a href={`tel:${contact.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {contact.phone}
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {/* Additional contacts from contacts table */}
+                {customerContacts.slice(0, 2).map(contact => (
+                  <div key={contact.id} className="flex items-center gap-3 text-sm">
+                    <span className="text-gray-600 font-medium min-w-[100px] truncate">{contact.name}</span>
+                    {contact.email && (
+                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                        <Mail className="h-3 w-3" />
+                        {contact.email}
+                      </a>
+                    )}
+                    {contact.phone && (
+                      <a href={`tel:${contact.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
+                        <Phone className="h-3 w-3" />
+                        {contact.phone}
+                      </a>
+                    )}
+                  </div>
+                ))}
+                {/* Show count if more contacts */}
+                {(companyContacts.length > 4 || customerContacts.length > 2) && (
+                  <p className="text-xs text-gray-400">
+                    +{(companyContacts.length - 4) + (customerContacts.length - 2)} more contacts
+                  </p>
+                )}
+              </div>
             </div>
           </div>
           <div className="flex items-center gap-1">
