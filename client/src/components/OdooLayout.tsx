@@ -182,10 +182,16 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 <Link
                   key={item.path}
                   href={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 ${
-                    isActive ? 'bg-gray-900 text-white' : 'text-gray-600 hover:bg-gray-100'
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 relative ${
+                    isActive 
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
+                      : 'text-gray-600 hover:bg-gray-100'
                   }`}
+                  style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                 >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                  )}
                   <Icon className="h-5 w-5" />
                   <span className="text-sm font-medium">{item.label}</span>
                 </Link>
@@ -358,13 +364,17 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 <Link 
                   key={item.path} 
                   href={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
                     isActive 
-                      ? 'bg-gray-900 text-white'
+                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
                       : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                   }`}
                   title={!sidebarExpanded ? item.label : undefined}
+                  style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                 >
+                  {isActive && (
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                  )}
                   <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
                   {sidebarExpanded && (
                     <span className="text-sm font-medium truncate">{item.label}</span>
@@ -387,13 +397,17 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                   <Link 
                     key={item.path} 
                     href={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group ${
+                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
                       isActive 
-                        ? 'bg-gray-900 text-white'
+                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
                         : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
                     }`}
                     title={!sidebarExpanded ? item.label : undefined}
+                    style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                   >
+                    {isActive && (
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                    )}
                     <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
                     {sidebarExpanded && (
                       <span className="text-sm font-medium truncate">{item.label}</span>
