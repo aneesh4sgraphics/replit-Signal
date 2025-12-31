@@ -203,12 +203,37 @@ export default function ClientDatabase() {
   const { data: sentQuotes = [] } = useQuery<any[]>({
     queryKey: ['/api/sent-quotes'],
   });
-  const totalQuotesSent = sentQuotes.length;
   
   // Fetch total samples sent count
   const { data: sampleRequests = [] } = useQuery<any[]>({
     queryKey: ['/api/crm/sample-requests'],
   });
+  
+  // Calculate week-to-date counts (last 7 days)
+  const getWeekStart = () => {
+    const now = new Date();
+    const dayOfWeek = now.getDay();
+    const start = new Date(now);
+    start.setDate(now.getDate() - dayOfWeek);
+    start.setHours(0, 0, 0, 0);
+    return start;
+  };
+  
+  const weekStart = getWeekStart();
+  
+  const quotesThisWeek = sentQuotes.filter((q: any) => {
+    const sentDate = new Date(q.sentAt || q.createdAt || 0);
+    return sentDate >= weekStart;
+  }).length;
+  
+  const samplesThisWeek = sampleRequests.filter((s: any) => {
+    if (s.status !== 'shipped' && s.status !== 'completed') return false;
+    const shippedDate = new Date(s.shippedAt || s.createdAt || 0);
+    return shippedDate >= weekStart;
+  }).length;
+  
+  // Lifetime totals for reference
+  const totalQuotesSent = sentQuotes.length;
   const totalSamplesSent = sampleRequests.filter((s: any) => s.status === 'shipped' || s.status === 'completed').length;
 
   // Fetch swatch book shipments
@@ -1522,11 +1547,11 @@ export default function ClientDatabase() {
                 <Package className="h-4 w-4 text-green-500" />
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-gray-900">{totalSamplesSent}</span>
+                <span className="text-2xl font-bold text-gray-900">{samplesThisWeek}</span>
                 <span className="text-sm text-gray-400">/ 10</span>
               </div>
-              <Progress value={Math.min((totalSamplesSent / 10) * 100, 100)} className="h-1.5 mt-2" />
-              {totalSamplesSent === 0 && (
+              <Progress value={Math.min((samplesThisWeek / 10) * 100, 100)} className="h-1.5 mt-2" />
+              {samplesThisWeek === 0 && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
@@ -1549,11 +1574,11 @@ export default function ClientDatabase() {
                 <FileText className="h-4 w-4 text-purple-500" />
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-gray-900">{totalQuotesSent}</span>
+                <span className="text-2xl font-bold text-gray-900">{quotesThisWeek}</span>
                 <span className="text-sm text-gray-400">/ 15</span>
               </div>
-              <Progress value={Math.min((totalQuotesSent / 15) * 100, 100)} className="h-1.5 mt-2" />
-              {totalQuotesSent === 0 && (
+              <Progress value={Math.min((quotesThisWeek / 15) * 100, 100)} className="h-1.5 mt-2" />
+              {quotesThisWeek === 0 && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
