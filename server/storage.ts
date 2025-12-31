@@ -2491,12 +2491,12 @@ export class DatabaseStorage implements IStorage {
     return await db.select().from(productPricingMaster).orderBy(productPricingMaster.sortOrder, productPricingMaster.id);
   }
 
-  async getAllAdminMachineTypes(): Promise<{ id: number; code: string; label: string; icon?: string | null; sortOrder: number }[]> {
+  async getAllAdminMachineTypes(): Promise<{ id: number; code: string; label: string; icon?: string | null; sortOrder: number | null }[]> {
     const { adminMachineTypes } = await import("@shared/schema");
     return await db.select().from(adminMachineTypes).orderBy(adminMachineTypes.sortOrder);
   }
 
-  async getAllAdminCategoryGroups(): Promise<{ id: number; code: string; label: string; sortOrder: number }[]> {
+  async getAllAdminCategoryGroups(): Promise<{ id: number; code: string; label: string; sortOrder: number | null }[]> {
     const { adminCategoryGroups } = await import("@shared/schema");
     return await db.select().from(adminCategoryGroups).orderBy(adminCategoryGroups.sortOrder);
   }
