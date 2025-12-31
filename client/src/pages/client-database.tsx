@@ -2126,9 +2126,9 @@ export default function ClientDatabase() {
                 <span className="w-24 text-center hidden md:block">Source</span>
                 <span className="w-20 text-center hidden lg:block">Quotes</span>
                 <span className="w-16 text-center hidden lg:block">Swatch</span>
-                <span className="w-16 text-center hidden lg:block">Press Kit</span>
+                <span className="w-16 text-center hidden lg:block">Kit</span>
                 <span className="w-48 hidden lg:block">Email</span>
-                <span className="w-20 text-right">Actions</span>
+                <span className="w-28 text-right">Quick Actions</span>
               </div>
               
               <div className="divide-y divide-gray-100">
@@ -2201,33 +2201,53 @@ export default function ClientDatabase() {
                           )}
                         </div>
                         
-                        {/* Source badges */}
+                        {/* Source badges - Colorful Pills */}
                         <div className="w-24 flex items-center justify-center gap-1 hidden md:flex">
-                          {primary.sources?.includes('shopify') && <SiShopify className="h-4 w-4 text-green-600" />}
-                          {primary.sources?.includes('odoo') && <SiOdoo className="h-4 w-4 text-purple-600" />}
+                          {primary.sources?.includes('shopify') && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
+                              <SiShopify className="h-3 w-3" /> Shopify
+                            </span>
+                          )}
+                          {primary.sources?.includes('odoo') && (
+                            <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
+                              <SiOdoo className="h-3 w-3" /> Odoo
+                            </span>
+                          )}
+                          {!primary.sources?.length && (
+                            <span className="inline-flex items-center px-2 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
+                              Manual
+                            </span>
+                          )}
                         </div>
                         
-                        {/* Quote/Sample counts */}
+                        {/* Quote/Sample counts - Improved Pills */}
                         <div className="w-20 flex items-center justify-center gap-1 hidden lg:flex">
-                          {totalQuotes > 0 && (
-                            <span className="bg-blue-100 text-blue-700 text-xs px-1.5 py-0.5 rounded">{totalQuotes}Q</span>
-                          )}
-                          {totalSamples > 0 && (
-                            <span className="bg-green-100 text-green-700 text-xs px-1.5 py-0.5 rounded">{totalSamples}S</span>
+                          {totalQuotes > 0 ? (
+                            <span className="bg-blue-100 text-blue-700 text-[10px] font-semibold px-2 py-0.5 rounded-full border border-blue-200">{totalQuotes} Quote{totalQuotes > 1 ? 's' : ''}</span>
+                          ) : (
+                            <span className="text-gray-300 text-[10px]">-</span>
                           )}
                         </div>
 
                         {/* Swatch Book */}
                         <div className="w-16 flex items-center justify-center hidden lg:flex">
-                          {hasSwatchBook(primary.id) && (
-                            <BookOpen className="h-4 w-4 text-purple-600" />
+                          {hasSwatchBook(primary.id) ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-700 border border-purple-200">
+                              <BookOpen className="h-3 w-3" />
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-[10px]">-</span>
                           )}
                         </div>
 
                         {/* Press Kit */}
                         <div className="w-16 flex items-center justify-center hidden lg:flex">
-                          {hasPressKit(primary.id) && (
-                            <Printer className="h-4 w-4 text-orange-600" />
+                          {hasPressKit(primary.id) ? (
+                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-700 border border-orange-200">
+                              <Printer className="h-3 w-3" />
+                            </span>
+                          ) : (
+                            <span className="text-gray-300 text-[10px]">-</span>
                           )}
                         </div>
                         
@@ -2260,8 +2280,75 @@ export default function ClientDatabase() {
                           )}
                         </div>
                         
-                        {/* Actions Dropdown */}
-                        <div className="w-20 flex items-center justify-end gap-1" onClick={(e) => e.stopPropagation()}>
+                        {/* Quick Actions (appear on hover) */}
+                        <div className="w-28 flex items-center justify-end gap-0.5" onClick={(e) => e.stopPropagation()}>
+                          {/* Quick Action Icons - visible on hover */}
+                          <div className="flex items-center gap-0.5 opacity-0 group-hover:opacity-100 transition-opacity">
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-7 w-7 p-0 hover:bg-blue-50"
+                                    onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}
+                                  >
+                                    <Eye className="h-3.5 w-3.5 text-blue-500" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">View Details</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-7 w-7 p-0 hover:bg-purple-50"
+                                    onClick={() => window.location.href = `/quick-quotes?customerId=${primary.id}`}
+                                  >
+                                    <FileText className="h-3.5 w-3.5 text-purple-500" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Send Quote</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            <TooltipProvider delayDuration={200}>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <Button 
+                                    variant="ghost" 
+                                    size="sm" 
+                                    className="h-7 w-7 p-0 hover:bg-green-50"
+                                    onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}
+                                  >
+                                    <Package className="h-3.5 w-3.5 text-green-500" />
+                                  </Button>
+                                </TooltipTrigger>
+                                <TooltipContent side="top">Log Sample</TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                            {needsDataCleanup && (
+                              <TooltipProvider delayDuration={200}>
+                                <Tooltip>
+                                  <TooltipTrigger asChild>
+                                    <Button 
+                                      variant="ghost" 
+                                      size="sm" 
+                                      className="h-7 w-7 p-0 hover:bg-amber-50"
+                                      onClick={() => startInlineEdit(primary, 'email')}
+                                    >
+                                      <AlertTriangle className="h-3.5 w-3.5 text-amber-500" />
+                                    </Button>
+                                  </TooltipTrigger>
+                                  <TooltipContent side="top">Fix Email</TooltipContent>
+                                </Tooltip>
+                              </TooltipProvider>
+                            )}
+                          </div>
+                          
+                          {/* More Actions Dropdown */}
                           <DropdownMenu>
                             <DropdownMenuTrigger asChild>
                               <Button variant="ghost" size="sm" className="h-7 w-7 p-0 opacity-0 group-hover:opacity-100 transition-opacity">
