@@ -33,6 +33,7 @@ import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/component
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import { useEmailComposer } from "./email-composer";
 import CustomerJourneyPanel from "./CustomerJourneyPanel";
 import CustomerCoachPanel from "./CustomerCoachPanel";
 import {
@@ -146,6 +147,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   const addPressProfileButtonRef = useRef<HTMLButtonElement>(null);
   const { toast } = useToast();
   const { logActivity } = useActivityLogger();
+  const { open: openEmailComposer } = useEmailComposer();
 
   useEffect(() => {
     if (highlightAddPressProfile && addPressProfileButtonRef.current) {
@@ -713,10 +715,19 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                       {`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary'}
                     </span>
                     {customer.email && (
-                      <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                      <button 
+                        onClick={() => openEmailComposer({
+                          to: customer.email!,
+                          customerId: customer.id,
+                          customerName: customerName,
+                          variables: { 'client.name': customerName, 'client.company': customer.company || '' }
+                        })}
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                        data-testid="btn-email-customer"
+                      >
                         <Mail className="h-3 w-3" />
                         {customer.email}
-                      </a>
+                      </button>
                     )}
                     {customer.phone && (
                       <a href={`tel:${customer.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
@@ -733,10 +744,19 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                       {`${contact.firstName || ''} ${contact.lastName || ''}`.trim() || 'Contact'}
                     </span>
                     {contact.email && (
-                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                      <button 
+                        onClick={() => openEmailComposer({
+                          to: contact.email!,
+                          customerId: customer.id,
+                          customerName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName,
+                          variables: { 'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 'client.company': customer.company || '' }
+                        })}
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                        data-testid={`btn-email-contact-${contact.id}`}
+                      >
                         <Mail className="h-3 w-3" />
                         {contact.email}
-                      </a>
+                      </button>
                     )}
                     {contact.phone && (
                       <a href={`tel:${contact.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
@@ -751,10 +771,19 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                   <div key={contact.id} className="flex items-center gap-3 text-sm">
                     <span className="text-gray-600 font-medium min-w-[100px] truncate">{contact.name}</span>
                     {contact.email && (
-                      <a href={`mailto:${contact.email}`} className="text-blue-600 hover:underline flex items-center gap-1">
+                      <button 
+                        onClick={() => openEmailComposer({
+                          to: contact.email!,
+                          customerId: customer.id,
+                          customerName: contact.name,
+                          variables: { 'client.name': contact.name, 'client.company': customer.company || '' }
+                        })}
+                        className="text-blue-600 hover:underline flex items-center gap-1"
+                        data-testid={`btn-email-additional-${contact.id}`}
+                      >
                         <Mail className="h-3 w-3" />
                         {contact.email}
-                      </a>
+                      </button>
                     )}
                     {contact.phone && (
                       <a href={`tel:${contact.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
@@ -877,7 +906,18 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                           {contact.email && (
                             <div className="flex items-center gap-1">
                               <Mail className="h-3 w-3 text-gray-400" />
-                              <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                              <button 
+                                onClick={() => openEmailComposer({
+                                  to: contact.email!,
+                                  customerId: customer.id,
+                                  customerName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName,
+                                  variables: { 'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 'client.company': customer.company || '' }
+                                })}
+                                className="text-xs text-blue-600 hover:underline"
+                                data-testid={`btn-email-company-${contact.id}`}
+                              >
+                                {contact.email}
+                              </button>
                               <button 
                                 onClick={() => copyToClipboard(contact.email!, 'Email')}
                                 className="p-0.5 hover:bg-blue-100 rounded transition-colors"
@@ -922,7 +962,18 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                         {customer.email && (
                           <div className="flex items-center gap-1">
                             <Mail className="h-3 w-3 text-gray-400" />
-                            <a href={`mailto:${customer.email}`} className="text-xs text-blue-600 hover:underline">{customer.email}</a>
+                            <button 
+                              onClick={() => openEmailComposer({
+                                to: customer.email!,
+                                customerId: customer.id,
+                                customerName: customerName,
+                                variables: { 'client.name': customerName, 'client.company': customer.company || '' }
+                              })}
+                              className="text-xs text-blue-600 hover:underline"
+                              data-testid="btn-email-primary-contact"
+                            >
+                              {customer.email}
+                            </button>
                             <button 
                               onClick={() => copyToClipboard(customer.email!, 'Email')}
                               className="p-0.5 hover:bg-gray-200 rounded transition-colors"
@@ -1018,7 +1069,18 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                           {contact.role && <Badge variant="secondary" className="text-[10px] py-0">{contact.role}</Badge>}
                         </div>
                         {contact.email && (
-                          <a href={`mailto:${contact.email}`} className="text-xs text-blue-600 hover:underline">{contact.email}</a>
+                          <button 
+                            onClick={() => openEmailComposer({
+                              to: contact.email!,
+                              customerId: customer.id,
+                              customerName: contact.name,
+                              variables: { 'client.name': contact.name, 'client.company': customer.company || '' }
+                            })}
+                            className="text-xs text-blue-600 hover:underline"
+                            data-testid={`btn-email-ccontact-${contact.id}`}
+                          >
+                            {contact.email}
+                          </button>
                         )}
                         {contact.phone && (
                           <p className="text-xs text-gray-500">{contact.phone}</p>
