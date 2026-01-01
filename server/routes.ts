@@ -4595,12 +4595,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       });
       
       // Log the email activity
-      await storage.logActivity({
-        userId: req.user?.claims?.sub || 'anonymous',
-        activityType: 'email_sent',
-        description: `Email sent to ${to}: ${subject}`,
-        metadata: { to, subject, messageId: result.id }
-      });
+      try {
+        await storage.logActivity({
+          userId: req.user?.claims?.sub || req.user?.id || 'anonymous',
+          userEmail: req.user?.email || req.user?.claims?.email || 'unknown',
+          userRole: req.user?.role || 'user',
+          action: 'email_sent',
+          actionType: 'email',
+          description: `Email sent to ${to}: ${subject}`,
+          metadata: { to, subject, messageId: result.id }
+        });
+      } catch (logError) {
+        console.error("Error logging email activity (non-critical):", logError);
+      }
       
       // Log as customer activity if customerId is provided
       if (customerId) {
