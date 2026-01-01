@@ -4622,9 +4622,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       res.json({ success: true, messageId: result.id, emailSend });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error sending email:", error);
-      res.status(500).json({ error: "Failed to send email" });
+      const errorMessage = error?.message || error?.errors?.[0]?.message || "Failed to send email";
+      const errorDetails = error?.response?.data || error?.errors || null;
+      console.error("Email error details:", JSON.stringify(errorDetails, null, 2));
+      res.status(500).json({ 
+        error: errorMessage,
+        details: errorDetails 
+      });
     }
   });
 

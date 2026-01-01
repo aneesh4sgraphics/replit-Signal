@@ -4,7 +4,7 @@ import { google } from 'googleapis';
 let connectionSettings: any;
 
 async function getAccessToken() {
-  if (connectionSettings && connectionSettings.settings.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
+  if (connectionSettings && connectionSettings.settings?.expires_at && new Date(connectionSettings.settings.expires_at).getTime() > Date.now()) {
     return connectionSettings.settings.access_token;
   }
   
@@ -19,39 +19,26 @@ async function getAccessToken() {
     throw new Error('X_REPLIT_TOKEN not found for repl/depl');
   }
 
-  try {
-    const response = await fetch(
-      'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
-      {
-        headers: {
-          'Accept': 'application/json',
-          'X_REPLIT_TOKEN': xReplitToken
-        }
+  connectionSettings = await fetch(
+    'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
+    {
+      headers: {
+        'Accept': 'application/json',
+        'X_REPLIT_TOKEN': xReplitToken
       }
-    );
-    const data = await response.json();
-    console.log('Gmail connection response:', JSON.stringify(data, null, 2));
-    connectionSettings = data.items?.[0];
-  } catch (err) {
-    console.error('Failed to fetch Gmail connection:', err);
-    throw new Error('Failed to connect to Gmail service');
-  }
+    }
+  ).then(res => res.json()).then(data => data.items?.[0]);
 
-  if (!connectionSettings || !connectionSettings.settings) {
-    console.error('Gmail connection settings not found:', connectionSettings);
+  const accessToken = connectionSettings?.settings?.access_token || connectionSettings?.settings?.oauth?.credentials?.access_token;
+
+  if (!connectionSettings || !accessToken) {
+    console.error('Gmail connection settings:', connectionSettings);
     throw new Error('Gmail not connected - please reconnect in Integrations panel');
-  }
-
-  const accessToken = connectionSettings.settings?.access_token || connectionSettings.settings?.oauth?.credentials?.access_token;
-
-  if (!accessToken) {
-    console.error('No access token found in settings:', connectionSettings.settings);
-    throw new Error('Gmail access token not available');
   }
   return accessToken;
 }
 
-export async function getGmailClient() {
+async function getGmailClient() {
   const accessToken = await getAccessToken();
 
   const oauth2Client = new google.auth.OAuth2();
@@ -71,11 +58,13 @@ export async function sendEmail(to: string, subject: string, body: string, htmlB
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
     '',
-    htmlBody || body
+    htmlBody || body.replace(/\n/g, '<br>')
   ];
   
   const email = emailLines.join('\r\n');
   const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
+  
+  console.log('Sending email to:', to, 'Subject:', subject);
   
   const result = await gmail.users.messages.send({
     userId: 'me',
@@ -84,6 +73,7 @@ export async function sendEmail(to: string, subject: string, body: string, htmlB
     }
   });
   
+  console.log('Email sent successfully, messageId:', result.data.id);
   return result.data;
 }
 
