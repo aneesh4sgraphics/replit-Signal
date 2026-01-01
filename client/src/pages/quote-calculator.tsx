@@ -20,6 +20,7 @@ import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 import { EmptyState, getErrorType, getErrorMessage, getErrorDetails } from "@/components/EmptyState";
 import { ApiError } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
+import { useEmailComposer } from "@/components/email-composer";
 
 interface ProductData {
   id: number;
@@ -108,6 +109,7 @@ export default function QuoteCalculator() {
   const queryClient = useQueryClient();
   const { user } = useAuth();
   const { logPageView, logQuoteGeneration, logQuoteDownload, logUserAction } = useActivityLogger();
+  const { open: openEmailComposer } = useEmailComposer();
 
   // Log page view on mount
   useEffect(() => {
@@ -660,22 +662,23 @@ We eagerly look forward for your business.
 Yours truly
 ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase() + (user as any).email.split('@')[0].slice(1) : '4S Graphics Team'}`;
 
-    // Create mailto link
-    const mailtoLink = `mailto:${customerEmail}?subject=${encodeURIComponent(emailSubject)}&body=${encodeURIComponent(emailBody)}`;
-    
-    // Open default email client
-    window.location.href = mailtoLink;
+    // Open email composer popup with quote content
+    openEmailComposer({
+      to: customerEmail,
+      subject: emailSubject,
+      body: emailBody,
+      customerId: selectedCustomer?.id,
+      customerName: customerName,
+      variables: {
+        'client.name': customerName,
+        'client.company': selectedCustomer?.company || '',
+        'quote.number': quoteNumber,
+        'quote.total': `$${calculatedTotalAmount.toFixed(2)}`,
+      }
+    });
     
     // Log quote email activity
-    logUserAction("Composed email quote", `Quote ${quoteNumber} for ${customerName}`);
-    
-    // Show success message
-    toast({
-      title: "Email Client Opened",
-      description: selectedCustomer ? 
-        `Comprehensive quote email composed for ${customerName}` :
-        "Quote email composed - please add recipient email address",
-    });
+    logUserAction("Opened email composer for quote", `Quote ${quoteNumber} for ${customerName}`);
     
     } catch (error) {
       toast({
