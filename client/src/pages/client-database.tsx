@@ -166,6 +166,9 @@ export default function ClientDatabase() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedCompanyContacts, setSelectedCompanyContacts] = useState<Customer[]>([]);
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
+  const [showMissingTierDialog, setShowMissingTierDialog] = useState(false);
+  const [pendingCustomerForTier, setPendingCustomerForTier] = useState<{ customer: Customer; contacts: Customer[] } | null>(null);
+  const [selectedTierForPending, setSelectedTierForPending] = useState<string>("");
   const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
@@ -1173,6 +1176,40 @@ export default function ClientDatabase() {
     if (window.confirm("Are you sure you want to delete this client?")) {
       deleteCustomerMutation.mutate(id);
     }
+  };
+
+  // Handler to check for missing pricing tier before viewing customer
+  const handleSelectCustomer = (customer: Customer, contacts: Customer[] = []) => {
+    if (!customer.tags || customer.tags.trim() === '') {
+      // Customer has no pricing tier - show dialog to select one
+      setPendingCustomerForTier({ customer, contacts });
+      setSelectedTierForPending("");
+      setShowMissingTierDialog(true);
+    } else {
+      // Customer has a pricing tier - proceed normally
+      setSelectedCustomer(customer);
+      setSelectedCompanyContacts(contacts);
+    }
+  };
+
+  // Save the selected tier for pending customer
+  const handleSavePendingTier = async () => {
+    if (!pendingCustomerForTier || !selectedTierForPending) return;
+    
+    const updatedCustomer = { ...pendingCustomerForTier.customer, tags: selectedTierForPending };
+    updateCustomerMutation.mutate(updatedCustomer, {
+      onSuccess: () => {
+        setShowMissingTierDialog(false);
+        setSelectedCustomer(updatedCustomer);
+        setSelectedCompanyContacts(pendingCustomerForTier.contacts);
+        setPendingCustomerForTier(null);
+        setSelectedTierForPending("");
+        toast({
+          title: "Pricing Tier Saved",
+          description: `Customer tier set to ${selectedTierForPending}`,
+        });
+      }
+    });
   };
 
   const clearFilters = () => {
@@ -2318,7 +2355,7 @@ export default function ClientDatabase() {
                           )}
                           <span 
                             className="font-medium text-gray-900 truncate min-w-[180px] hover:text-blue-600 hover:underline cursor-pointer"
-                            onClick={(e) => { e.stopPropagation(); setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}
+                            onClick={(e) => { e.stopPropagation(); handleSelectCustomer(primary, group.customers); }}
                             data-testid={`link-client-${primary.id}`}
                           >
                             {group.companyName}
@@ -2339,13 +2376,13 @@ export default function ClientDatabase() {
                               </Button>
                             </DropdownMenuTrigger>
                             <DropdownMenuContent align="start" className="w-48">
-                              <DropdownMenuItem onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}>
+                              <DropdownMenuItem onClick={() => handleSelectCustomer(primary, group.customers)}>
                                 <Eye className="h-4 w-4 mr-2 text-blue-500" /> View Details
                               </DropdownMenuItem>
                               <DropdownMenuItem onClick={() => window.location.href = `/quick-quotes?customerId=${primary.id}`}>
                                 <FileText className="h-4 w-4 mr-2 text-purple-500" /> Send Quote
                               </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}>
+                              <DropdownMenuItem onClick={() => handleSelectCustomer(primary, group.customers)}>
                                 <Package className="h-4 w-4 mr-2 text-green-500" /> Log Sample
                               </DropdownMenuItem>
                               <DropdownMenuSeparator />
@@ -2519,7 +2556,7 @@ export default function ClientDatabase() {
                         {/* View button on right side */}
                         <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
                           <Button 
-                            onClick={() => { setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }} 
+                            onClick={() => handleSelectCustomer(primary, group.customers)} 
                             size="sm" 
                             variant="ghost" 
                             className="h-7 px-2 text-xs"
@@ -2592,7 +2629,7 @@ export default function ClientDatabase() {
                                       </Tooltip>
                                     </TooltipProvider>
                                   )}
-                                  <Button onClick={() => { setSelectedCustomer(customer); setSelectedCompanyContacts([]); }} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100">View</Button>
+                                  <Button onClick={() => handleSelectCustomer(customer, [])} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100">View</Button>
                                   <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"><Edit className="h-2.5 w-2.5" /></Button>
                                 </div>
                               </div>
@@ -2629,7 +2666,7 @@ export default function ClientDatabase() {
                         <div className="flex-1 min-w-0">
                           <h3 
                             className="font-semibold text-gray-900 truncate hover:text-blue-600 hover:underline cursor-pointer"
-                            onClick={() => setSelectedCustomer(customer)}
+                            onClick={() => handleSelectCustomer(customer)}
                             data-testid={`link-client-card-${customer.id}`}
                           >
                             {getCompanyDisplayName(customer)}
@@ -2680,7 +2717,7 @@ export default function ClientDatabase() {
                     </div>
                     
                     <div className="flex items-center gap-1 pt-2 border-t border-gray-100">
-                      <Button onClick={() => setSelectedCustomer(customer)} size="sm" variant="default" className="flex-1 h-8">View</Button>
+                      <Button onClick={() => handleSelectCustomer(customer)} size="sm" variant="default" className="flex-1 h-8">View</Button>
                       {hasAddress(customer) ? (
                         <TooltipProvider>
                           <Tooltip>
@@ -2752,7 +2789,7 @@ export default function ClientDatabase() {
                                       className={`bg-white border border-gray-200 rounded-lg p-3 hover:shadow-sm cursor-pointer transition-shadow ${
                                         snapshot.isDragging ? 'shadow-lg ring-2 ring-blue-300' : ''
                                       }`}
-                                      onClick={() => setSelectedCustomer(customer)}
+                                      onClick={() => handleSelectCustomer(customer)}
                                     >
                                       <div className="flex items-center gap-1 mb-1">
                                         <div {...provided.dragHandleProps} className="cursor-grab active:cursor-grabbing p-0.5 -ml-1 hover:bg-gray-100 rounded">
@@ -3317,6 +3354,83 @@ export default function ClientDatabase() {
               }
             }}>
               {isCreateDialogOpen ? 'Create' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Missing Pricing Tier Dialog */}
+      <Dialog open={showMissingTierDialog} onOpenChange={(open) => {
+        if (!open) {
+          setShowMissingTierDialog(false);
+          setPendingCustomerForTier(null);
+          setSelectedTierForPending("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <AlertTriangle className="h-5 w-5 text-amber-500" />
+              Pricing Tier Required
+            </DialogTitle>
+            <DialogDescription>
+              This customer doesn't have a pricing tier assigned. Please select one to continue.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {pendingCustomerForTier && (
+            <div className="space-y-4">
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <p className="font-medium text-gray-900">
+                  {pendingCustomerForTier.customer.company || 
+                   `${pendingCustomerForTier.customer.firstName || ''} ${pendingCustomerForTier.customer.lastName || ''}`.trim() ||
+                   pendingCustomerForTier.customer.email}
+                </p>
+                {pendingCustomerForTier.customer.email && (
+                  <p className="text-sm text-gray-500">{pendingCustomerForTier.customer.email}</p>
+                )}
+              </div>
+              
+              <div>
+                <Label htmlFor="pendingTier">Select Pricing Tier *</Label>
+                <Select value={selectedTierForPending} onValueChange={setSelectedTierForPending}>
+                  <SelectTrigger id="pendingTier" data-testid="select-pending-tier">
+                    <SelectValue placeholder="Choose a pricing tier..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LANDED PRICE">LANDED PRICE</SelectItem>
+                    <SelectItem value="EXPORT ONLY">EXPORT ONLY</SelectItem>
+                    <SelectItem value="DISTRIBUTOR">DISTRIBUTOR</SelectItem>
+                    <SelectItem value="DEALER-VIP">DEALER-VIP</SelectItem>
+                    <SelectItem value="DEALER">DEALER</SelectItem>
+                    <SelectItem value="SHOPIFY LOWEST">SHOPIFY LOWEST</SelectItem>
+                    <SelectItem value="SHOPIFY3">SHOPIFY3</SelectItem>
+                    <SelectItem value="SHOPIFY2">SHOPIFY2</SelectItem>
+                    <SelectItem value="SHOPIFY1">SHOPIFY1</SelectItem>
+                    <SelectItem value="SHOPIFY-ACCOUNT">SHOPIFY-ACCOUNT</SelectItem>
+                    <SelectItem value="RETAIL">RETAIL</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowMissingTierDialog(false);
+                setPendingCustomerForTier(null);
+                setSelectedTierForPending("");
+              }}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSavePendingTier}
+              disabled={!selectedTierForPending || updateCustomerMutation.isPending}
+            >
+              {updateCustomerMutation.isPending ? 'Saving...' : 'Save & Continue'}
             </Button>
           </DialogFooter>
         </DialogContent>
