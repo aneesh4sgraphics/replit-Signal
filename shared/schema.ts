@@ -161,7 +161,9 @@ export const customerContacts = pgTable("customer_contacts", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_customer_contacts_customer_id").on(table.customerId),
+]);
 
 export const insertCustomerContactSchema = createInsertSchema(customerContacts).omit({
   id: true,
@@ -182,7 +184,10 @@ export const sentQuotes = pgTable("sent_quotes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentVia: varchar("sent_via", { length: 20 }).notNull(), // 'email' or 'pdf'
   status: varchar("status", { length: 20 }).notNull().default("sent"), // 'sent', 'viewed', 'accepted'
-});
+}, (table) => [
+  index("IDX_sent_quotes_created_at").on(table.createdAt),
+  index("IDX_sent_quotes_customer_email").on(table.customerEmail),
+]);
 
 export const competitorPricing = pgTable("competitor_pricing", {
   id: serial("id").primaryKey(),
@@ -224,7 +229,10 @@ export const activityLogs = pgTable("activity_logs", {
   targetType: varchar("target_type", { length: 50 }), // 'quote', 'customer', 'user', 'pricing', etc.
   status: varchar("status", { length: 20 }).default("completed"), // 'completed', 'failed', 'pending'
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_activity_logs_user_id").on(table.userId),
+  index("IDX_activity_logs_created_at").on(table.createdAt),
+]);
 
 export const insertProductCategorySchema = createInsertSchema(productCategories).omit({
   id: true,
@@ -549,7 +557,9 @@ export const pressProfiles = pgTable("press_profiles", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_press_profiles_customer_id").on(table.customerId),
+]);
 
 export const insertPressProfileSchema = createInsertSchema(pressProfiles).omit({
   id: true,
@@ -578,7 +588,10 @@ export const sampleRequests = pgTable("sample_requests", {
   createdBy: varchar("created_by"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_sample_requests_customer_id").on(table.customerId),
+  index("IDX_sample_requests_created_at").on(table.createdAt),
+]);
 
 export const insertSampleRequestSchema = createInsertSchema(sampleRequests).omit({
   id: true,
@@ -601,7 +614,10 @@ export const testOutcomes = pgTable("test_outcomes", {
   finishScore: integer("finish_score"), // 1-10
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_test_outcomes_customer_id").on(table.customerId),
+  index("IDX_test_outcomes_sample_request_id").on(table.sampleRequestId),
+]);
 
 export const insertTestOutcomeSchema = createInsertSchema(testOutcomes).omit({
   id: true,
@@ -660,7 +676,9 @@ export const swatchBookShipments = pgTable("swatch_book_shipments", {
   trackingNumber: varchar("tracking_number", { length: 100 }),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_swatch_book_shipments_customer_id").on(table.customerId),
+]);
 
 export const insertSwatchBookShipmentSchema = createInsertSchema(swatchBookShipments).omit({
   id: true,
@@ -748,7 +766,10 @@ export const quoteEvents = pgTable("quote_events", {
   itemCount: integer("item_count"),
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_quote_events_customer_id").on(table.customerId),
+  index("IDX_quote_events_created_at").on(table.createdAt),
+]);
 
 export const insertQuoteEventSchema = createInsertSchema(quoteEvents).omit({
   id: true,
@@ -776,7 +797,10 @@ export const quoteCategoryLinks = pgTable("quote_category_links", {
   notes: text("notes"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_quote_category_links_customer_id").on(table.customerId),
+  index("IDX_quote_category_links_next_follow_up").on(table.nextFollowUpDue),
+]);
 
 export const insertQuoteCategoryLinkSchema = createInsertSchema(quoteCategoryLinks).omit({
   id: true,
@@ -796,7 +820,10 @@ export const priceListEvents = pgTable("price_list_events", {
   userId: varchar("user_id"),
   userEmail: varchar("user_email", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_price_list_events_customer_id").on(table.customerId),
+  index("IDX_price_list_events_created_at").on(table.createdAt),
+]);
 
 export const insertPriceListEventSchema = createInsertSchema(priceListEvents).omit({
   id: true,
@@ -986,7 +1013,10 @@ export const customerActivityEvents = pgTable("customer_activity_events", {
   // Timestamps
   eventDate: timestamp("event_date").defaultNow(), // When the event occurred
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_customer_activity_customer_id").on(table.customerId),
+  index("IDX_customer_activity_event_date").on(table.eventDate),
+]);
 
 export const insertCustomerActivityEventSchema = createInsertSchema(customerActivityEvents).omit({
   id: true,
@@ -1039,7 +1069,11 @@ export const followUpTasks = pgTable("follow_up_tasks", {
   
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_follow_up_tasks_customer_id").on(table.customerId),
+  index("IDX_follow_up_tasks_due_date").on(table.dueDate),
+  index("IDX_follow_up_tasks_status").on(table.status),
+]);
 
 export const insertFollowUpTaskSchema = createInsertSchema(followUpTasks).omit({
   id: true,
@@ -1211,7 +1245,10 @@ export const emailSends = pgTable("email_sends", {
   sentBy: varchar("sent_by", { length: 255 }),
   sentAt: timestamp("sent_at").defaultNow(),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_email_sends_customer_id").on(table.customerId),
+  index("IDX_email_sends_sent_at").on(table.sentAt),
+]);
 
 export const insertEmailSendSchema = createInsertSchema(emailSends).omit({
   id: true,
