@@ -66,6 +66,7 @@ import {
   Printer,
   ExternalLink,
   ShoppingCart,
+  Flame,
 } from "lucide-react";
 import {
   Tooltip,
@@ -463,6 +464,27 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     },
   });
 
+  const toggleHotProspectMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('PUT', `/api/customers/${customer.id}`, {
+        isHotProspect: !customer.isHotProspect
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      toast({ 
+        title: customer.isHotProspect ? "Removed Hot Prospect" : "Marked as Hot Prospect",
+        description: customer.isHotProspect 
+          ? `${customerName} is no longer a hot prospect`
+          : `${customerName} is now marked as a hot prospect`
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update hot prospect status", variant: "destructive" });
+    },
+  });
+
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest('POST', '/api/crm/journeys', data);
@@ -719,7 +741,11 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   return (
     <div className="space-y-4" data-testid="client-detail-view">
       {/* Sticky Header with Client Name & Contacts */}
-      <div className="sticky top-0 z-20 bg-white/95 backdrop-blur-sm border-b -mx-4 px-4 py-2 mb-2 shadow-sm">
+      <div className={`sticky top-0 z-20 backdrop-blur-sm border-b -mx-4 px-4 py-2 mb-2 shadow-sm ${
+        customer.isHotProspect 
+          ? 'bg-orange-100/95 border-orange-300' 
+          : 'bg-white/95'
+      }`}>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
             <Button variant="ghost" size="icon" onClick={onBack} className="h-8 w-8 mt-0.5" data-testid="btn-back">
@@ -837,6 +863,26 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
             </div>
           </div>
           <div className="flex items-center gap-1">
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={customer.isHotProspect ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => toggleHotProspectMutation.mutate()} 
+                    className={`gap-1 h-8 ${customer.isHotProspect ? 'bg-orange-500 hover:bg-orange-600 text-white' : ''}`}
+                    data-testid="btn-hot-prospect"
+                    disabled={toggleHotProspectMutation.isPending}
+                  >
+                    <Flame className={`h-3.5 w-3.5 ${customer.isHotProspect ? 'fill-current' : ''}`} />
+                    <span className="hidden sm:inline">{customer.isHotProspect ? 'Hot Lead' : 'Mark Hot'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {customer.isHotProspect ? 'Remove hot prospect status' : 'Mark as hot prospect for priority follow-up'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
             <Button 
               variant="outline" 
               size="sm"

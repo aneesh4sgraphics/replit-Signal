@@ -141,6 +141,7 @@ export const customers = pgTable("customers", {
   sources: text("sources").array().default([]), // Track import sources: ['odoo', 'shopify']
   pausedUntil: timestamp("paused_until"), // Account paused for coaching - stop nudges until this date
   pauseReason: varchar("pause_reason", { length: 100 }), // Why account was paused
+  isHotProspect: boolean("is_hot_prospect").default(false), // Mark customer as hot lead for priority follow-up
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
