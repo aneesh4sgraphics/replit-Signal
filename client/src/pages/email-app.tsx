@@ -29,6 +29,13 @@ const TEMPLATE_CATEGORIES = [
   { value: "product_info", label: "Product Information" },
 ];
 
+const TEMPLATE_USAGE_TYPES = [
+  { value: "quick_quotes", label: "QuickQuotes" },
+  { value: "price_list", label: "Price List" },
+  { value: "client_email", label: "Client Email" },
+  { value: "marketing", label: "Marketing Emails" },
+];
+
 export default function EmailApp() {
   const { user } = useAuth();
   const { toast } = useToast();
@@ -49,6 +56,7 @@ export default function EmailApp() {
     subject: "",
     body: "",
     category: "general",
+    usageType: "client_email",
     variables: [] as string[],
   });
 
@@ -130,6 +138,7 @@ export default function EmailApp() {
       subject: "",
       body: "",
       category: "general",
+      usageType: "client_email",
       variables: [],
     });
   };
@@ -142,6 +151,7 @@ export default function EmailApp() {
       subject: template.subject,
       body: template.body,
       category: template.category || "general",
+      usageType: (template as any).usageType || "client_email",
       variables: (template.variables as string[]) || [],
     });
     setShowTemplateEditor(true);
@@ -674,6 +684,23 @@ export default function EmailApp() {
           </DialogHeader>
 
           <div className="space-y-4">
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Where do you want to use this template?</Label>
+              <Select 
+                value={templateForm.usageType} 
+                onValueChange={(v) => setTemplateForm(prev => ({ ...prev, usageType: v }))}
+              >
+                <SelectTrigger data-testid="select-template-usage" className="w-full">
+                  <SelectValue placeholder="Select where to use this template" />
+                </SelectTrigger>
+                <SelectContent>
+                  {TEMPLATE_USAGE_TYPES.map(type => (
+                    <SelectItem key={type.value} value={type.value}>{type.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
             <div className="grid grid-cols-2 gap-4">
               <div className="space-y-2">
                 <Label>Template Name</Label>
