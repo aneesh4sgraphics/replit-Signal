@@ -134,6 +134,10 @@ import {
   type InsertEmailTemplate,
   type EmailSend,
   type InsertEmailSend,
+  type EmailTrackingToken,
+  type InsertEmailTrackingToken,
+  type EmailTrackingEvent,
+  type InsertEmailTrackingEvent,
   // Customer Activity System tables
   customerActivityEvents,
   followUpTasks,
@@ -143,6 +147,8 @@ import {
   userTutorialProgress,
   emailTemplates,
   emailSends,
+  emailTrackingTokens,
+  emailTrackingEvents,
   // Admin Config tables
   adminCategories,
   type AdminCategory,
@@ -497,6 +503,14 @@ export interface IStorage {
   // Email Sends
   getEmailSends(customerId?: string): Promise<EmailSend[]>;
   createEmailSend(data: InsertEmailSend): Promise<EmailSend>;
+
+  // Email Tracking
+  createEmailTrackingToken(data: InsertEmailTrackingToken): Promise<EmailTrackingToken>;
+  getEmailTrackingTokenByToken(token: string): Promise<EmailTrackingToken | undefined>;
+  getEmailTrackingTokensByCustomer(customerId: string): Promise<EmailTrackingToken[]>;
+  recordEmailOpenEvent(tokenId: number, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent>;
+  recordEmailClickEvent(tokenId: number, linkUrl: string, linkText?: string, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent>;
+  getEmailTrackingEventsByToken(tokenId: number): Promise<EmailTrackingEvent[]>;
 
   // ========================================
   // Admin Categories & Catalog System Methods
@@ -2630,6 +2644,84 @@ export class DatabaseStorage implements IStorage {
   async createEmailSend(data: InsertEmailSend): Promise<EmailSend> {
     const [send] = await db.insert(emailSends).values(data).returning();
     return send;
+  }
+
+  // ========================================
+  // Email Tracking Implementation
+  // ========================================
+
+  async createEmailTrackingToken(data: InsertEmailTrackingToken): Promise<EmailTrackingToken> {
+    const [token] = await db.insert(emailTrackingTokens).values(data).returning();
+    return token;
+  }
+
+  async getEmailTrackingTokenByToken(token: string): Promise<EmailTrackingToken | undefined> {
+    const [result] = await db
+      .select()
+      .from(emailTrackingTokens)
+      .where(eq(emailTrackingTokens.token, token));
+    return result;
+  }
+
+  async getEmailTrackingTokensByCustomer(customerId: string): Promise<EmailTrackingToken[]> {
+    return await db
+      .select()
+      .from(emailTrackingTokens)
+      .where(eq(emailTrackingTokens.customerId, customerId))
+      .orderBy(desc(emailTrackingTokens.createdAt));
+  }
+
+  async recordEmailOpenEvent(tokenId: number, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent> {
+    // Create the event
+    const [event] = await db.insert(emailTrackingEvents).values({
+      tokenId,
+      eventType: 'open',
+      ipAddress,
+      userAgent,
+    }).returning();
+
+    // Update the token's open count and timestamps
+    const now = new Date();
+    await db
+      .update(emailTrackingTokens)
+      .set({
+        openCount: sql`${emailTrackingTokens.openCount} + 1`,
+        firstOpenedAt: sql`COALESCE(${emailTrackingTokens.firstOpenedAt}, ${now})`,
+        lastOpenedAt: now,
+      })
+      .where(eq(emailTrackingTokens.id, tokenId));
+
+    return event;
+  }
+
+  async recordEmailClickEvent(tokenId: number, linkUrl: string, linkText?: string, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent> {
+    // Create the event
+    const [event] = await db.insert(emailTrackingEvents).values({
+      tokenId,
+      eventType: 'click',
+      linkUrl,
+      linkText,
+      ipAddress,
+      userAgent,
+    }).returning();
+
+    // Update the token's click count
+    await db
+      .update(emailTrackingTokens)
+      .set({
+        clickCount: sql`${emailTrackingTokens.clickCount} + 1`,
+      })
+      .where(eq(emailTrackingTokens.id, tokenId));
+
+    return event;
+  }
+
+  async getEmailTrackingEventsByToken(tokenId: number): Promise<EmailTrackingEvent[]> {
+    return await db
+      .select()
+      .from(emailTrackingEvents)
+      .where(eq(emailTrackingEvents.tokenId, tokenId))
+      .orderBy(desc(emailTrackingEvents.createdAt));
   }
 
   // ========================================
