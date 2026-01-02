@@ -162,6 +162,22 @@ import {
   type InsertShopifyUnmappedItem,
   categoryTrust,
   type CategoryTrust,
+  // Drip Campaign tables
+  dripCampaigns,
+  dripCampaignSteps,
+  dripCampaignAssignments,
+  dripCampaignStepStatus,
+  mediaUploads,
+  type DripCampaign,
+  type InsertDripCampaign,
+  type DripCampaignStep,
+  type InsertDripCampaignStep,
+  type DripCampaignAssignment,
+  type InsertDripCampaignAssignment,
+  type DripCampaignStepStatus,
+  type InsertDripCampaignStepStatus,
+  type MediaUpload,
+  type InsertMediaUpload,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -514,6 +530,42 @@ export interface IStorage {
 
   // Catalog Links Update
   updateProductPricingMasterCatalogLinks(itemCode: string, categoryId: number, productTypeId: number): Promise<void>;
+
+  // ========================================
+  // Drip Campaign Methods
+  // ========================================
+  
+  // Drip Campaigns
+  getDripCampaigns(): Promise<DripCampaign[]>;
+  getDripCampaign(id: number): Promise<DripCampaign | undefined>;
+  createDripCampaign(data: InsertDripCampaign): Promise<DripCampaign>;
+  updateDripCampaign(id: number, data: Partial<InsertDripCampaign>): Promise<DripCampaign | undefined>;
+  deleteDripCampaign(id: number): Promise<void>;
+  
+  // Drip Campaign Steps
+  getDripCampaignSteps(campaignId: number): Promise<DripCampaignStep[]>;
+  getDripCampaignStep(id: number): Promise<DripCampaignStep | undefined>;
+  createDripCampaignStep(data: InsertDripCampaignStep): Promise<DripCampaignStep>;
+  updateDripCampaignStep(id: number, data: Partial<InsertDripCampaignStep>): Promise<DripCampaignStep | undefined>;
+  deleteDripCampaignStep(id: number): Promise<void>;
+  reorderDripCampaignSteps(campaignId: number, stepIds: number[]): Promise<void>;
+  
+  // Drip Campaign Assignments
+  getDripCampaignAssignments(campaignId?: number, customerId?: string): Promise<DripCampaignAssignment[]>;
+  getDripCampaignAssignment(id: number): Promise<DripCampaignAssignment | undefined>;
+  createDripCampaignAssignment(data: InsertDripCampaignAssignment): Promise<DripCampaignAssignment>;
+  updateDripCampaignAssignment(id: number, data: Partial<InsertDripCampaignAssignment>): Promise<DripCampaignAssignment | undefined>;
+  
+  // Drip Campaign Step Status
+  getDripCampaignStepStatuses(assignmentId: number): Promise<DripCampaignStepStatus[]>;
+  getScheduledDripEmails(): Promise<DripCampaignStepStatus[]>;
+  createDripCampaignStepStatus(data: InsertDripCampaignStepStatus): Promise<DripCampaignStepStatus>;
+  updateDripCampaignStepStatus(id: number, data: Partial<InsertDripCampaignStepStatus>): Promise<DripCampaignStepStatus | undefined>;
+  
+  // Media Uploads
+  getMediaUploads(): Promise<MediaUpload[]>;
+  createMediaUpload(data: InsertMediaUpload): Promise<MediaUpload>;
+  deleteMediaUpload(id: number): Promise<void>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -2654,6 +2706,165 @@ export class DatabaseStorage implements IStorage {
         updatedAt: new Date()
       })
       .where(eq(productPricingMaster.itemCode, itemCode));
+  }
+
+  // ========================================
+  // Drip Campaign Implementation
+  // ========================================
+
+  async getDripCampaigns(): Promise<DripCampaign[]> {
+    return await db.select().from(dripCampaigns).orderBy(desc(dripCampaigns.createdAt));
+  }
+
+  async getDripCampaign(id: number): Promise<DripCampaign | undefined> {
+    const [campaign] = await db.select().from(dripCampaigns).where(eq(dripCampaigns.id, id));
+    return campaign;
+  }
+
+  async createDripCampaign(data: InsertDripCampaign): Promise<DripCampaign> {
+    const [campaign] = await db.insert(dripCampaigns).values(data).returning();
+    return campaign;
+  }
+
+  async updateDripCampaign(id: number, data: Partial<InsertDripCampaign>): Promise<DripCampaign | undefined> {
+    const [campaign] = await db
+      .update(dripCampaigns)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dripCampaigns.id, id))
+      .returning();
+    return campaign;
+  }
+
+  async deleteDripCampaign(id: number): Promise<void> {
+    await db.delete(dripCampaigns).where(eq(dripCampaigns.id, id));
+  }
+
+  // Drip Campaign Steps
+  async getDripCampaignSteps(campaignId: number): Promise<DripCampaignStep[]> {
+    return await db
+      .select()
+      .from(dripCampaignSteps)
+      .where(eq(dripCampaignSteps.campaignId, campaignId))
+      .orderBy(dripCampaignSteps.stepOrder);
+  }
+
+  async getDripCampaignStep(id: number): Promise<DripCampaignStep | undefined> {
+    const [step] = await db.select().from(dripCampaignSteps).where(eq(dripCampaignSteps.id, id));
+    return step;
+  }
+
+  async createDripCampaignStep(data: InsertDripCampaignStep): Promise<DripCampaignStep> {
+    const [step] = await db.insert(dripCampaignSteps).values(data).returning();
+    return step;
+  }
+
+  async updateDripCampaignStep(id: number, data: Partial<InsertDripCampaignStep>): Promise<DripCampaignStep | undefined> {
+    const [step] = await db
+      .update(dripCampaignSteps)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dripCampaignSteps.id, id))
+      .returning();
+    return step;
+  }
+
+  async deleteDripCampaignStep(id: number): Promise<void> {
+    await db.delete(dripCampaignSteps).where(eq(dripCampaignSteps.id, id));
+  }
+
+  async reorderDripCampaignSteps(campaignId: number, stepIds: number[]): Promise<void> {
+    for (let i = 0; i < stepIds.length; i++) {
+      await db
+        .update(dripCampaignSteps)
+        .set({ stepOrder: i + 1, updatedAt: new Date() })
+        .where(and(eq(dripCampaignSteps.id, stepIds[i]), eq(dripCampaignSteps.campaignId, campaignId)));
+    }
+  }
+
+  // Drip Campaign Assignments
+  async getDripCampaignAssignments(campaignId?: number, customerId?: string): Promise<DripCampaignAssignment[]> {
+    let query = db.select().from(dripCampaignAssignments);
+    if (campaignId && customerId) {
+      return await db.select().from(dripCampaignAssignments)
+        .where(and(eq(dripCampaignAssignments.campaignId, campaignId), eq(dripCampaignAssignments.customerId, customerId)))
+        .orderBy(desc(dripCampaignAssignments.createdAt));
+    } else if (campaignId) {
+      return await db.select().from(dripCampaignAssignments)
+        .where(eq(dripCampaignAssignments.campaignId, campaignId))
+        .orderBy(desc(dripCampaignAssignments.createdAt));
+    } else if (customerId) {
+      return await db.select().from(dripCampaignAssignments)
+        .where(eq(dripCampaignAssignments.customerId, customerId))
+        .orderBy(desc(dripCampaignAssignments.createdAt));
+    }
+    return await db.select().from(dripCampaignAssignments).orderBy(desc(dripCampaignAssignments.createdAt));
+  }
+
+  async getDripCampaignAssignment(id: number): Promise<DripCampaignAssignment | undefined> {
+    const [assignment] = await db.select().from(dripCampaignAssignments).where(eq(dripCampaignAssignments.id, id));
+    return assignment;
+  }
+
+  async createDripCampaignAssignment(data: InsertDripCampaignAssignment): Promise<DripCampaignAssignment> {
+    const [assignment] = await db.insert(dripCampaignAssignments).values(data).returning();
+    return assignment;
+  }
+
+  async updateDripCampaignAssignment(id: number, data: Partial<InsertDripCampaignAssignment>): Promise<DripCampaignAssignment | undefined> {
+    const [assignment] = await db
+      .update(dripCampaignAssignments)
+      .set(data)
+      .where(eq(dripCampaignAssignments.id, id))
+      .returning();
+    return assignment;
+  }
+
+  // Drip Campaign Step Status
+  async getDripCampaignStepStatuses(assignmentId: number): Promise<DripCampaignStepStatus[]> {
+    return await db
+      .select()
+      .from(dripCampaignStepStatus)
+      .where(eq(dripCampaignStepStatus.assignmentId, assignmentId))
+      .orderBy(dripCampaignStepStatus.scheduledFor);
+  }
+
+  async getScheduledDripEmails(): Promise<DripCampaignStepStatus[]> {
+    const now = new Date();
+    return await db
+      .select()
+      .from(dripCampaignStepStatus)
+      .where(and(
+        eq(dripCampaignStepStatus.status, 'scheduled'),
+        sql`${dripCampaignStepStatus.scheduledFor} <= ${now}`
+      ))
+      .orderBy(dripCampaignStepStatus.scheduledFor);
+  }
+
+  async createDripCampaignStepStatus(data: InsertDripCampaignStepStatus): Promise<DripCampaignStepStatus> {
+    const [status] = await db.insert(dripCampaignStepStatus).values(data).returning();
+    return status;
+  }
+
+  async updateDripCampaignStepStatus(id: number, data: Partial<InsertDripCampaignStepStatus>): Promise<DripCampaignStepStatus | undefined> {
+    const [status] = await db
+      .update(dripCampaignStepStatus)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(dripCampaignStepStatus.id, id))
+      .returning();
+    return status;
+  }
+
+  // Media Uploads
+  async getMediaUploads(): Promise<MediaUpload[]> {
+    return await db.select().from(mediaUploads).orderBy(desc(mediaUploads.createdAt));
+  }
+
+  async createMediaUpload(data: InsertMediaUpload): Promise<MediaUpload> {
+    const [upload] = await db.insert(mediaUploads).values(data).returning();
+    return upload;
+  }
+
+  async deleteMediaUpload(id: number): Promise<void> {
+    await db.delete(mediaUploads).where(eq(mediaUploads.id, id));
   }
 }
 
