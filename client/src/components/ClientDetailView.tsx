@@ -281,6 +281,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'press-profiles',
   });
 
   const { data: sampleRequests = [], refetch: refetchSamples } = useQuery<SampleRequest[]>({
@@ -290,6 +291,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'samples',
   });
 
   const { data: swatchShipments = [] } = useQuery<SwatchBookShipment[]>({
@@ -299,6 +301,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'swatch-book',
   });
 
   const { data: productCategories = [] } = useQuery<ProductCategory[]>({
@@ -312,6 +315,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'quotes-prices',
   });
 
   const { data: priceListEvents = [] } = useQuery<PriceListEvent[]>({
@@ -321,6 +325,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'quotes-prices',
   });
 
   const { data: sentQuotes = [] } = useQuery<SentQuote[]>({
@@ -333,7 +338,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!(customer.email || customer.company),
+    enabled: activeTab === 'quotes-prices' && !!(customer.email || customer.company),
   });
 
   // Fetch journey instances (Press Test, Swatch Book, Quote Sent journeys)
@@ -364,6 +369,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'orders',
   });
 
   // Fetch email sends for this customer
@@ -374,6 +380,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
+    enabled: activeTab === 'emails',
   });
 
   // Fetch drip campaigns for assignment
