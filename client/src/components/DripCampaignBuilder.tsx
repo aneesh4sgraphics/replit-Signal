@@ -494,7 +494,10 @@ export default function DripCampaignBuilder() {
               <>
                 <Switch 
                   checked={selectedCampaign.isActive || false}
-                  onCheckedChange={(checked) => updateCampaignMutation.mutate({ id: selectedCampaign.id, data: { isActive: checked } })}
+                  onCheckedChange={(checked) => {
+                    setSelectedCampaign(prev => prev ? { ...prev, isActive: checked } : null);
+                    updateCampaignMutation.mutate({ id: selectedCampaign.id, data: { isActive: checked } });
+                  }}
                   data-testid="switch-campaign-active"
                 />
                 <span className="text-sm text-gray-500">Active</span>
