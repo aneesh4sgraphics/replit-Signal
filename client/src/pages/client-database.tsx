@@ -1719,6 +1719,15 @@ export default function ClientDatabase() {
         <div className="w-px h-5 bg-gray-200 mx-1" />
         <Button 
           size="sm" 
+          variant={showHotOnly ? 'default' : 'outline'} 
+          className={`h-7 text-xs gap-1.5 ${showHotOnly ? 'bg-orange-500 hover:bg-orange-600' : 'border-orange-300 text-orange-600 hover:bg-orange-50'}`}
+          onClick={() => setShowHotOnly(!showHotOnly)}
+          data-testid="button-hot-leads-filter"
+        >
+          <Flame className="h-3.5 w-3.5" /> Hot Leads
+        </Button>
+        <Button 
+          size="sm" 
           variant={showSamplesFilter ? 'default' : 'outline'} 
           className="h-7 text-xs"
           onClick={() => setShowSamplesFilter(!showSamplesFilter)}
@@ -1753,7 +1762,7 @@ export default function ClientDatabase() {
             ))}
           </SelectContent>
         </Select>
-        {(filters.source !== 'all' || showSamplesFilter || filters.province || Object.values(missingDataFilters).some(Boolean)) && (
+        {(filters.source !== 'all' || showSamplesFilter || showHotOnly || filters.province || Object.values(missingDataFilters).some(Boolean)) && (
           <Button 
             size="sm" 
             variant="ghost" 
@@ -1761,6 +1770,7 @@ export default function ClientDatabase() {
             onClick={() => { 
               setFilters({...filters, source: 'all', province: ''}); 
               setShowSamplesFilter(false); 
+              setShowHotOnly(false);
               setMissingDataFilters({noEmail: false, noPhone: false, noTags: false, noCompany: false}); 
             }}
           >
