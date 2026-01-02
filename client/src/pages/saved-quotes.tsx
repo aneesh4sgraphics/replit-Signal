@@ -95,6 +95,7 @@ export default function SavedQuotes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes", (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/customer-sent-quotes"] });
       toast({
         title: "Success",
         description: "Quote deleted successfully",
@@ -201,6 +202,7 @@ export default function SavedQuotes() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/sent-quotes", (user as any)?.id] });
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/customer-sent-quotes"] });
       toast({ title: "Success", description: `${selectedQuotes.size} quotes deleted` });
       setSelectedQuotes(new Set());
     },
