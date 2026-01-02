@@ -1707,13 +1707,25 @@ export default function ClientDatabase() {
         >
           No Phone
         </Button>
-        {(filters.source !== 'all' || showSamplesFilter || Object.values(missingDataFilters).some(Boolean)) && (
+        <div className="w-px h-5 bg-gray-200 mx-1" />
+        <Select value={filters.province || "all"} onValueChange={(val) => setFilters({...filters, province: val === "all" ? "" : val})}>
+          <SelectTrigger className="h-7 w-[130px] text-xs" data-testid="select-state-filter">
+            <SelectValue placeholder="All States" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All States</SelectItem>
+            {Array.from(new Set(customers.map(c => c.province).filter(Boolean))).sort().map(state => (
+              <SelectItem key={state} value={state!}>{state}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+        {(filters.source !== 'all' || showSamplesFilter || filters.province || Object.values(missingDataFilters).some(Boolean)) && (
           <Button 
             size="sm" 
             variant="ghost" 
             className="h-7 text-xs text-gray-500"
             onClick={() => { 
-              setFilters({...filters, source: 'all'}); 
+              setFilters({...filters, source: 'all', province: ''}); 
               setShowSamplesFilter(false); 
               setMissingDataFilters({noEmail: false, noPhone: false, noTags: false, noCompany: false}); 
             }}
