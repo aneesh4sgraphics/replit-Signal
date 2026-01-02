@@ -2302,6 +2302,9 @@ export default function ClientDatabase() {
                             <div className="w-5" />
                           )}
                           <Building2 className="h-4 w-4 text-gray-400" />
+                          {primary.isHotProspect && (
+                            <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
+                          )}
                           <span 
                             className="font-medium text-gray-900 truncate min-w-[180px] hover:text-blue-600 hover:underline cursor-pointer"
                             onClick={(e) => { e.stopPropagation(); setSelectedCustomer(primary); setSelectedCompanyContacts(group.customers); }}
