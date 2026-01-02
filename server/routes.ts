@@ -853,7 +853,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/customers/:id", async (req, res) => {
     try {
       const customerId = req.params.id;
-      const customerData = req.body;
+      const customerData = { ...req.body };
+      
+      // Convert date strings to Date objects for timestamp fields
+      if (customerData.pausedUntil && typeof customerData.pausedUntil === 'string') {
+        customerData.pausedUntil = new Date(customerData.pausedUntil);
+      }
+      if (customerData.updatedAt && typeof customerData.updatedAt === 'string') {
+        customerData.updatedAt = new Date(customerData.updatedAt);
+      }
+      if (customerData.createdAt && typeof customerData.createdAt === 'string') {
+        customerData.createdAt = new Date(customerData.createdAt);
+      }
+      
       const customer = await storage.updateCustomer(customerId, customerData);
       
       if (!customer) {
@@ -1122,7 +1134,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.put("/api/customers/:id", isAuthenticated, requireAdmin, async (req, res) => {
     try {
       const customerId = req.params.id;
-      const customerData = req.body;
+      const customerData = { ...req.body };
+      
+      // Convert date strings to Date objects for timestamp fields
+      if (customerData.pausedUntil && typeof customerData.pausedUntil === 'string') {
+        customerData.pausedUntil = new Date(customerData.pausedUntil);
+      }
+      if (customerData.updatedAt && typeof customerData.updatedAt === 'string') {
+        customerData.updatedAt = new Date(customerData.updatedAt);
+      }
+      if (customerData.createdAt && typeof customerData.createdAt === 'string') {
+        customerData.createdAt = new Date(customerData.createdAt);
+      }
       
       // Check if customer exists
       const existingCustomer = await storage.getCustomer(customerId);
