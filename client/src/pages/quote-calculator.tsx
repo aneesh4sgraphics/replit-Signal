@@ -1172,11 +1172,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                     </div>
                   )}
                   {selectedCustomer.tags && (
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <Tag className="h-4 w-4 text-gray-500" />
-                      {selectedCustomer.tags.split(',').map((tag: string, i: number) => (
-                        <span key={i} className="px-2 py-0.5 bg-indigo-100 text-indigo-700 text-xs rounded-full">{tag.trim()}</span>
-                      ))}
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-indigo-600" />
+                      <span className="px-3 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm">
+                        {selectedCustomer.tags}
+                      </span>
                     </div>
                   )}
                   {(selectedCustomer as any).sources && (selectedCustomer as any).sources.length > 0 && (
