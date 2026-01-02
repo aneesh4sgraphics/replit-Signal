@@ -67,6 +67,7 @@ import {
   ExternalLink,
   ShoppingCart,
   Flame,
+  Tag,
 } from "lucide-react";
 import {
   Tooltip,
@@ -763,6 +764,15 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                   </Badge>
                 )}
               </div>
+              {/* Pricing Tier Badge */}
+              {customer.tags && (
+                <div className="flex items-center gap-2 mt-1" data-testid="pricing-tier-badge">
+                  <Tag className="h-4 w-4 text-indigo-600" />
+                  <span className="px-3 py-0.5 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm">
+                    {customer.tags}
+                  </span>
+                </div>
+              )}
               {/* Contact Lines */}
               <div className="mt-1 space-y-0.5">
                 {/* Primary customer contact */}
