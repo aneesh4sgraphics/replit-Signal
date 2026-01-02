@@ -600,6 +600,7 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
         </Card>
       )}
 
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
       <Collapsible open={machineProfileOpen} onOpenChange={setMachineProfileOpen}>
         <Card className={hasMachines ? 'border-green-200' : ''}>
           <CollapsibleTrigger asChild>
@@ -718,8 +719,6 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
           </CollapsibleContent>
         </Card>
       </Collapsible>
-
-      <JourneyProgress customerId={customer.id} />
 
       <Card>
         <CardHeader className="pb-2">
@@ -895,6 +894,9 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
           )}
         </CardContent>
       </Card>
+      </div>
+
+      <JourneyProgress customerId={customer.id} />
 
       {categoryTrusts.filter(t => (t.trustLevel === 'adopted' || t.trustLevel === 'habitual') && t.lastOrderDate).length > 0 && (
         <Card>
