@@ -1960,3 +1960,117 @@ export const insertCatalogImportLogSchema = createInsertSchema(catalogImportLogs
 });
 export type CatalogImportLog = typeof catalogImportLogs.$inferSelect;
 export type InsertCatalogImportLog = z.infer<typeof insertCatalogImportLogSchema>;
+
+// ===== DRIP EMAIL CAMPAIGNS =====
+
+// Drip Campaigns - main campaign configuration
+export const dripCampaigns = pgTable("drip_campaigns", {
+  id: serial("id").primaryKey(),
+  name: varchar("name", { length: 255 }).notNull(),
+  description: text("description"),
+  isActive: boolean("is_active").default(false),
+  triggerType: varchar("trigger_type", { length: 50 }).default("manual"), // manual, on_signup, on_purchase, on_quote
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDripCampaignSchema = createInsertSchema(dripCampaigns).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DripCampaign = typeof dripCampaigns.$inferSelect;
+export type InsertDripCampaign = z.infer<typeof insertDripCampaignSchema>;
+
+// Drip Campaign Steps - individual email steps with delays
+export const dripCampaignSteps = pgTable("drip_campaign_steps", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => dripCampaigns.id, { onDelete: "cascade" }),
+  stepOrder: integer("step_order").notNull().default(1),
+  name: varchar("name", { length: 255 }).notNull(),
+  subject: varchar("subject", { length: 500 }).notNull(),
+  body: text("body").notNull(), // HTML content from rich text editor
+  delayAmount: integer("delay_amount").notNull().default(0), // 0 = send immediately
+  delayUnit: varchar("delay_unit", { length: 20 }).default("days"), // minutes, hours, days, weeks
+  templateId: integer("template_id").references(() => emailTemplates.id, { onDelete: "set null" }), // Optional base template
+  attachments: jsonb("attachments").$type<Array<{ url: string; filename: string; type: string }>>().default([]),
+  variables: jsonb("variables").$type<string[]>().default([]), // Variables used in this step
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDripCampaignStepSchema = createInsertSchema(dripCampaignSteps).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DripCampaignStep = typeof dripCampaignSteps.$inferSelect;
+export type InsertDripCampaignStep = z.infer<typeof insertDripCampaignStepSchema>;
+
+// Drip Campaign Assignments - customer enrollments
+export const dripCampaignAssignments = pgTable("drip_campaign_assignments", {
+  id: serial("id").primaryKey(),
+  campaignId: integer("campaign_id").notNull().references(() => dripCampaigns.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  status: varchar("status", { length: 20 }).default("active"), // active, paused, completed, cancelled
+  startedAt: timestamp("started_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+  pausedAt: timestamp("paused_at"),
+  cancelledAt: timestamp("cancelled_at"),
+  assignedBy: varchar("assigned_by", { length: 255 }),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertDripCampaignAssignmentSchema = createInsertSchema(dripCampaignAssignments).omit({
+  id: true,
+  createdAt: true,
+});
+export type DripCampaignAssignment = typeof dripCampaignAssignments.$inferSelect;
+export type InsertDripCampaignAssignment = z.infer<typeof insertDripCampaignAssignmentSchema>;
+
+// Drip Campaign Step Status - tracking sent status for each step per assignment
+export const dripCampaignStepStatus = pgTable("drip_campaign_step_status", {
+  id: serial("id").primaryKey(),
+  assignmentId: integer("assignment_id").notNull().references(() => dripCampaignAssignments.id, { onDelete: "cascade" }),
+  stepId: integer("step_id").notNull().references(() => dripCampaignSteps.id, { onDelete: "cascade" }),
+  scheduledFor: timestamp("scheduled_for").notNull(),
+  status: varchar("status", { length: 20 }).default("scheduled"), // scheduled, sending, sent, failed, skipped
+  sentAt: timestamp("sent_at"),
+  emailSendId: integer("email_send_id").references(() => emailSends.id, { onDelete: "set null" }),
+  gmailMessageId: varchar("gmail_message_id", { length: 255 }),
+  lastError: text("last_error"),
+  retryCount: integer("retry_count").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertDripCampaignStepStatusSchema = createInsertSchema(dripCampaignStepStatus).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DripCampaignStepStatus = typeof dripCampaignStepStatus.$inferSelect;
+export type InsertDripCampaignStepStatus = z.infer<typeof insertDripCampaignStepStatusSchema>;
+
+// Media Uploads - for storing images used in drip emails
+export const mediaUploads = pgTable("media_uploads", {
+  id: serial("id").primaryKey(),
+  filename: varchar("filename", { length: 255 }).notNull(),
+  originalName: varchar("original_name", { length: 255 }).notNull(),
+  mimeType: varchar("mime_type", { length: 100 }).notNull(),
+  size: integer("size").notNull(),
+  url: varchar("url", { length: 1000 }).notNull(),
+  uploadedBy: varchar("uploaded_by", { length: 255 }),
+  usedIn: varchar("used_in", { length: 50 }).default("drip_email"), // drip_email, template, etc.
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertMediaUploadSchema = createInsertSchema(mediaUploads).omit({
+  id: true,
+  createdAt: true,
+});
+export type MediaUpload = typeof mediaUploads.$inferSelect;
+export type InsertMediaUpload = z.infer<typeof insertMediaUploadSchema>;
