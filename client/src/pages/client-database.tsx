@@ -2266,6 +2266,7 @@ export default function ClientDatabase() {
                 <div className="w-5" />
                 <span className="flex-1 min-w-[200px]">Company</span>
                 <span className="w-28 text-left hidden md:block">Source</span>
+                <span className="w-24 text-left hidden lg:block">Tier</span>
                 <span className="w-16 text-center hidden lg:block">Quotes</span>
                 <span className="w-14 text-center hidden lg:block">Swatch</span>
                 <span className="w-14 text-center hidden lg:block">Kit</span>
@@ -2416,6 +2417,17 @@ export default function ClientDatabase() {
                             <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
                               Manual
                             </span>
+                          )}
+                        </div>
+
+                        {/* Pricing Tier */}
+                        <div className="w-24 hidden lg:block">
+                          {primary.tags ? (
+                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-full">
+                              {primary.tags}
+                            </span>
+                          ) : (
+                            <span className="text-gray-400 text-[10px] italic">No tier</span>
                           )}
                         </div>
                         
@@ -3248,6 +3260,31 @@ export default function ClientDatabase() {
                   />
                   <Label htmlFor="acceptsEmailMarketing" className="font-normal">Email Marketing</Label>
                 </div>
+              </div>
+
+              <div>
+                <Label htmlFor="tags">Pricing Tier *</Label>
+                <Select 
+                  value={editingCustomer.tags || ""} 
+                  onValueChange={(value) => setEditingCustomer(prev => prev ? {...prev, tags: value} : null)}
+                >
+                  <SelectTrigger id="tags" data-testid="select-pricing-tier">
+                    <SelectValue placeholder="Select pricing tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="LANDED PRICE">LANDED PRICE</SelectItem>
+                    <SelectItem value="EXPORT ONLY">EXPORT ONLY</SelectItem>
+                    <SelectItem value="DISTRIBUTOR">DISTRIBUTOR</SelectItem>
+                    <SelectItem value="DEALER-VIP">DEALER-VIP</SelectItem>
+                    <SelectItem value="DEALER">DEALER</SelectItem>
+                    <SelectItem value="SHOPIFY LOWEST">SHOPIFY LOWEST</SelectItem>
+                    <SelectItem value="SHOPIFY3">SHOPIFY3</SelectItem>
+                    <SelectItem value="SHOPIFY2">SHOPIFY2</SelectItem>
+                    <SelectItem value="SHOPIFY1">SHOPIFY1</SelectItem>
+                    <SelectItem value="SHOPIFY-ACCOUNT">SHOPIFY-ACCOUNT</SelectItem>
+                    <SelectItem value="RETAIL">RETAIL</SelectItem>
+                  </SelectContent>
+                </Select>
               </div>
 
               <div className="md:col-span-2">
