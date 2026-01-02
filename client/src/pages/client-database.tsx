@@ -1510,7 +1510,11 @@ export default function ClientDatabase() {
                   <circle 
                     cx="50" cy="50" r="40" 
                     stroke={(() => {
-                      const cleanCount = groupedByCompany.filter(g => !g.customers.some(c => hasIncompleteEmail(c.email))).length;
+                      // A "clean" record needs valid email AND complete address
+                      const cleanCount = groupedByCompany.filter(g => {
+                        const primary = g.customers[0];
+                        return !hasIncompleteEmail(primary?.email) && hasAddress(primary);
+                      }).length;
                       const pct = groupedByCompany.length > 0 ? Math.round((cleanCount / groupedByCompany.length) * 100) : 100;
                       return pct >= 80 ? '#22c55e' : pct >= 50 ? '#f59e0b' : '#ef4444';
                     })()}
@@ -1518,20 +1522,29 @@ export default function ClientDatabase() {
                     fill="none"
                     strokeLinecap="round"
                     strokeDasharray={`${(() => {
-                      const cleanCount = groupedByCompany.filter(g => !g.customers.some(c => hasIncompleteEmail(c.email))).length;
+                      const cleanCount = groupedByCompany.filter(g => {
+                        const primary = g.customers[0];
+                        return !hasIncompleteEmail(primary?.email) && hasAddress(primary);
+                      }).length;
                       return groupedByCompany.length > 0 ? Math.round((cleanCount / groupedByCompany.length) * 251.2) : 251.2;
                     })()} 251.2`}
                   />
                 </svg>
                 <div className="absolute inset-0 flex items-center justify-center">
                   <span className="text-xl font-bold text-gray-900">
-                    {groupedByCompany.length > 0 
-                      ? Math.round((groupedByCompany.filter(g => !g.customers.some(c => hasIncompleteEmail(c.email))).length / groupedByCompany.length) * 100)
-                      : 100}%
+                    {(() => {
+                      const cleanCount = groupedByCompany.filter(g => {
+                        const primary = g.customers[0];
+                        return !hasIncompleteEmail(primary?.email) && hasAddress(primary);
+                      }).length;
+                      return groupedByCompany.length > 0 
+                        ? Math.round((cleanCount / groupedByCompany.length) * 100)
+                        : 100;
+                    })()}%
                   </span>
                 </div>
               </div>
-              <p className="text-[10px] text-gray-500 mt-1 text-center">Clean records improve sales</p>
+              <p className="text-[10px] text-gray-500 mt-1 text-center">Email + address complete</p>
             </div>
           </CardContent>
         </Card>
