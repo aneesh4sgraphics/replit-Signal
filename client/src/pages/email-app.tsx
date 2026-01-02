@@ -23,10 +23,11 @@ type VariableKey = keyof typeof EMAIL_TEMPLATE_VARIABLES;
 
 const TEMPLATE_CATEGORIES = [
   { value: "general", label: "General" },
-  { value: "quote", label: "Quote Follow-up" },
-  { value: "sample", label: "Sample Request" },
-  { value: "follow_up", label: "Follow-up" },
+  { value: "marketing", label: "Marketing Email" },
+  { value: "follow_up", label: "Follow Up Emails" },
   { value: "product_info", label: "Product Information" },
+  { value: "account_payments", label: "Account/Payments" },
+  { value: "other", label: "Other" },
 ];
 
 const TEMPLATE_USAGE_TYPES = [
