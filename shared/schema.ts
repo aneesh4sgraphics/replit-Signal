@@ -142,6 +142,8 @@ export const customers = pgTable("customers", {
   pausedUntil: timestamp("paused_until"), // Account paused for coaching - stop nudges until this date
   pauseReason: varchar("pause_reason", { length: 100 }), // Why account was paused
   isHotProspect: boolean("is_hot_prospect").default(false), // Mark customer as hot lead for priority follow-up
+  salesRepId: varchar("sales_rep_id"), // Assigned sales rep user ID
+  salesRepName: varchar("sales_rep_name", { length: 255 }), // Assigned sales rep display name
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
