@@ -168,9 +168,10 @@ export default function ClientDatabase() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [selectedCompanyContacts, setSelectedCompanyContacts] = useState<Customer[]>([]);
   const [selectedLetter, setSelectedLetter] = useState<string | null>(null);
-  const [showMissingTierDialog, setShowMissingTierDialog] = useState(false);
-  const [pendingCustomerForTier, setPendingCustomerForTier] = useState<{ customer: Customer; contacts: Customer[] } | null>(null);
+  const [showMissingInfoDialog, setShowMissingInfoDialog] = useState(false);
+  const [pendingCustomerForInfo, setPendingCustomerForInfo] = useState<{ customer: Customer; contacts: Customer[] } | null>(null);
   const [selectedTierForPending, setSelectedTierForPending] = useState<string>("");
+  const [selectedSalesRepForPending, setSelectedSalesRepForPending] = useState<string>("");
   const [selectedForMerge, setSelectedForMerge] = useState<Set<string>>(new Set());
   const [showMergeDialog, setShowMergeDialog] = useState(false);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
@@ -1196,35 +1197,68 @@ export default function ClientDatabase() {
     }
   };
 
-  // Handler to check for missing pricing tier before viewing customer
+  // Fetch team users for sales rep selection
+  interface TeamUser {
+    id: string;
+    email: string;
+    displayName: string;
+    role: string;
+  }
+  const { data: teamUsers = [] } = useQuery<TeamUser[]>({
+    queryKey: ['/api/users'],
+  });
+
+  // Handler to check for missing pricing tier or sales rep before viewing customer
   const handleSelectCustomer = (customer: Customer, contacts: Customer[] = []) => {
-    if (!customer.pricingTier || customer.pricingTier.trim() === '') {
-      // Customer has no pricing tier - show dialog to select one
-      setPendingCustomerForTier({ customer, contacts });
-      setSelectedTierForPending("");
-      setShowMissingTierDialog(true);
+    const missingTier = !customer.pricingTier || customer.pricingTier.trim() === '';
+    const missingSalesRep = !customer.salesRepId || customer.salesRepId.trim() === '';
+    
+    if (missingTier || missingSalesRep) {
+      // Customer has missing required info - show dialog
+      setPendingCustomerForInfo({ customer, contacts });
+      setSelectedTierForPending(customer.pricingTier || "");
+      setSelectedSalesRepForPending(customer.salesRepId || "");
+      setShowMissingInfoDialog(true);
     } else {
-      // Customer has a pricing tier - proceed normally
+      // Customer has all required info - proceed normally
       setSelectedCustomer(customer);
       setSelectedCompanyContacts(contacts);
     }
   };
 
-  // Save the selected tier for pending customer
-  const handleSavePendingTier = async () => {
-    if (!pendingCustomerForTier || !selectedTierForPending) return;
+  // Save the selected tier and sales rep for pending customer
+  const handleSavePendingInfo = async () => {
+    if (!pendingCustomerForInfo) return;
     
-    const updatedCustomer = { ...pendingCustomerForTier.customer, pricingTier: selectedTierForPending };
+    // Check both fields are filled
+    const needsTier = !pendingCustomerForInfo.customer.pricingTier;
+    const needsSalesRep = !pendingCustomerForInfo.customer.salesRepId;
+    
+    if (needsTier && !selectedTierForPending) return;
+    if (needsSalesRep && !selectedSalesRepForPending) return;
+    
+    // Get sales rep name from the selected ID
+    const selectedUser = teamUsers.find(u => u.email === selectedSalesRepForPending);
+    const salesRepName = selectedUser?.displayName || selectedSalesRepForPending;
+    
+    const updatedCustomer = { 
+      ...pendingCustomerForInfo.customer, 
+      pricingTier: selectedTierForPending || pendingCustomerForInfo.customer.pricingTier,
+      salesRepId: selectedSalesRepForPending || pendingCustomerForInfo.customer.salesRepId,
+      salesRepName: salesRepName || pendingCustomerForInfo.customer.salesRepName
+    };
+    
     updateCustomerMutation.mutate(updatedCustomer, {
       onSuccess: () => {
-        setShowMissingTierDialog(false);
+        setShowMissingInfoDialog(false);
         setSelectedCustomer(updatedCustomer);
-        setSelectedCompanyContacts(pendingCustomerForTier.contacts);
-        setPendingCustomerForTier(null);
+        setSelectedCompanyContacts(pendingCustomerForInfo.contacts);
+        setPendingCustomerForInfo(null);
         setSelectedTierForPending("");
+        setSelectedSalesRepForPending("");
         toast({
-          title: "Pricing Tier Saved",
-          description: `Customer tier set to ${selectedTierForPending}`,
+          title: "Customer Info Saved",
+          description: "Pricing tier and sales rep have been assigned",
         });
       }
     });
@@ -3395,51 +3429,72 @@ export default function ClientDatabase() {
         </DialogContent>
       </Dialog>
 
-      {/* Missing Pricing Tier Dialog */}
-      <Dialog open={showMissingTierDialog} onOpenChange={(open) => {
+      {/* Missing Customer Info Dialog (Pricing Tier and Sales Rep) */}
+      <Dialog open={showMissingInfoDialog} onOpenChange={(open) => {
         if (!open) {
-          setShowMissingTierDialog(false);
-          setPendingCustomerForTier(null);
+          setShowMissingInfoDialog(false);
+          setPendingCustomerForInfo(null);
           setSelectedTierForPending("");
+          setSelectedSalesRepForPending("");
         }
       }}>
         <DialogContent className="max-w-md">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <AlertTriangle className="h-5 w-5 text-amber-500" />
-              Pricing Tier Required
+              Required Information Missing
             </DialogTitle>
             <DialogDescription>
-              This customer doesn't have a pricing tier assigned. Please select one to continue.
+              Please fill in the required fields to continue.
             </DialogDescription>
           </DialogHeader>
           
-          {pendingCustomerForTier && (
+          {pendingCustomerForInfo && (
             <div className="space-y-4">
               <div className="p-3 bg-gray-50 rounded-lg">
                 <p className="font-medium text-gray-900">
-                  {pendingCustomerForTier.customer.company || 
-                   `${pendingCustomerForTier.customer.firstName || ''} ${pendingCustomerForTier.customer.lastName || ''}`.trim() ||
-                   pendingCustomerForTier.customer.email}
+                  {pendingCustomerForInfo.customer.company || 
+                   `${pendingCustomerForInfo.customer.firstName || ''} ${pendingCustomerForInfo.customer.lastName || ''}`.trim() ||
+                   pendingCustomerForInfo.customer.email}
                 </p>
-                {pendingCustomerForTier.customer.email && (
-                  <p className="text-sm text-gray-500">{pendingCustomerForTier.customer.email}</p>
+                {pendingCustomerForInfo.customer.email && (
+                  <p className="text-sm text-gray-500">{pendingCustomerForInfo.customer.email}</p>
                 )}
               </div>
               
-              <div>
-                <Label htmlFor="pendingTier">Select Pricing Tier *</Label>
-                <Select value={selectedTierForPending} onValueChange={setSelectedTierForPending}>
-                  <SelectTrigger id="pendingTier" data-testid="select-pending-tier">
-                    <SelectValue placeholder="Choose a pricing tier..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {PRICING_TIERS.map(tier => (
-                      <SelectItem key={tier} value={tier}>{tier}</SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
+              {/* Pricing Tier - show if missing */}
+              {!pendingCustomerForInfo.customer.pricingTier && (
+                <div>
+                  <Label htmlFor="pendingTier">Pricing Tier *</Label>
+                  <Select value={selectedTierForPending} onValueChange={setSelectedTierForPending}>
+                    <SelectTrigger id="pendingTier" data-testid="select-pending-tier">
+                      <SelectValue placeholder="Choose a pricing tier..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRICING_TIERS.map(tier => (
+                        <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
+              
+              {/* Sales Rep - show if missing */}
+              {!pendingCustomerForInfo.customer.salesRepId && (
+                <div>
+                  <Label htmlFor="pendingSalesRep">Sales Rep *</Label>
+                  <Select value={selectedSalesRepForPending} onValueChange={setSelectedSalesRepForPending}>
+                    <SelectTrigger id="pendingSalesRep" data-testid="select-pending-sales-rep">
+                      <SelectValue placeholder="Choose a sales rep..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teamUsers.map(user => (
+                        <SelectItem key={user.id} value={user.email}>{user.displayName}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
             </div>
           )}
 
@@ -3447,16 +3502,21 @@ export default function ClientDatabase() {
             <Button 
               variant="outline" 
               onClick={() => {
-                setShowMissingTierDialog(false);
-                setPendingCustomerForTier(null);
+                setShowMissingInfoDialog(false);
+                setPendingCustomerForInfo(null);
                 setSelectedTierForPending("");
+                setSelectedSalesRepForPending("");
               }}
             >
               Cancel
             </Button>
             <Button 
-              onClick={handleSavePendingTier}
-              disabled={!selectedTierForPending || updateCustomerMutation.isPending}
+              onClick={handleSavePendingInfo}
+              disabled={
+                (!pendingCustomerForInfo?.customer.pricingTier && !selectedTierForPending) ||
+                (!pendingCustomerForInfo?.customer.salesRepId && !selectedSalesRepForPending) ||
+                updateCustomerMutation.isPending
+              }
             >
               {updateCustomerMutation.isPending ? 'Saving...' : 'Save & Continue'}
             </Button>
