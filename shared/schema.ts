@@ -144,9 +144,27 @@ export const customers = pgTable("customers", {
   isHotProspect: boolean("is_hot_prospect").default(false), // Mark customer as hot lead for priority follow-up
   salesRepId: varchar("sales_rep_id"), // Assigned sales rep user ID
   salesRepName: varchar("sales_rep_name", { length: 255 }), // Assigned sales rep display name
+  pricingTier: varchar("pricing_tier", { length: 50 }), // Mandatory pricing tier for quotes
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
+
+// Predefined pricing tiers - every customer must have one
+export const PRICING_TIERS = [
+  'LANDED PRICE',
+  'EXPORT ONLY', 
+  'DISTRIBUTOR',
+  'DEALER-VIP',
+  'DEALER',
+  'SHOPIFY LOWEST',
+  'SHOPIFY3',
+  'SHOPIFY2',
+  'SHOPIFY1',
+  'SHOPIFY-ACCOUNT',
+  'RETAIL'
+] as const;
+
+export type PricingTierType = typeof PRICING_TIERS[number];
 
 // Customer schema types
 // export type Customer = typeof customers.$inferSelect;

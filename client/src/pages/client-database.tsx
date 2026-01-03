@@ -100,6 +100,7 @@ import {
 } from "@/components/ui/select";
 
 import type { Customer } from '@shared/schema';
+import { PRICING_TIERS } from '@shared/schema';
 import { EmailLaunchIcon } from "@/components/email-composer";
 
 // Fuzzy search function
@@ -147,6 +148,7 @@ export default function ClientDatabase() {
     emailMarketing: "all",
     source: "all", // New: Shopify, Odoo, or All
     clientValue: "all", // New: high (5+), medium (1-4), low (0)
+    pricingTier: "all", // Filter by pricing tier
   });
   const [missingDataFilters, setMissingDataFilters] = useState({
     noEmail: false,
@@ -603,8 +605,13 @@ export default function ClientDatabase() {
     
     // Hot prospect filter
     const matchesHotFilter = !showHotOnly || customer.isHotProspect === true;
+    
+    // Pricing tier filter
+    const matchesPricingTier = filters.pricingTier === "all" || 
+      (filters.pricingTier === "missing" && !customer.pricingTier) ||
+      customer.pricingTier === filters.pricingTier;
 
-    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter;
+    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter && matchesPricingTier;
   }).sort((a, b) => {
     // Sort by company name (case-insensitive)
     const companyA = getCompanyDisplayName(a).toLowerCase();
@@ -729,6 +736,17 @@ export default function ClientDatabase() {
       if (showDataCleanupFilter) {
         const hasIncompleteData = group.customers.some(c => hasIncompleteEmail(c.email));
         if (!hasIncompleteData) return false;
+      }
+      
+      // Pricing tier filter
+      if (filters.pricingTier !== "all") {
+        if (filters.pricingTier === "missing") {
+          const hasMissingTier = group.customers.some(c => !c.pricingTier);
+          if (!hasMissingTier) return false;
+        } else {
+          const hasTier = group.customers.some(c => c.pricingTier === filters.pricingTier);
+          if (!hasTier) return false;
+        }
       }
       
       return true;
@@ -1180,7 +1198,7 @@ export default function ClientDatabase() {
 
   // Handler to check for missing pricing tier before viewing customer
   const handleSelectCustomer = (customer: Customer, contacts: Customer[] = []) => {
-    if (!customer.tags || customer.tags.trim() === '') {
+    if (!customer.pricingTier || customer.pricingTier.trim() === '') {
       // Customer has no pricing tier - show dialog to select one
       setPendingCustomerForTier({ customer, contacts });
       setSelectedTierForPending("");
@@ -1196,7 +1214,7 @@ export default function ClientDatabase() {
   const handleSavePendingTier = async () => {
     if (!pendingCustomerForTier || !selectedTierForPending) return;
     
-    const updatedCustomer = { ...pendingCustomerForTier.customer, tags: selectedTierForPending };
+    const updatedCustomer = { ...pendingCustomerForTier.customer, pricingTier: selectedTierForPending };
     updateCustomerMutation.mutate(updatedCustomer, {
       onSuccess: () => {
         setShowMissingTierDialog(false);
@@ -1222,6 +1240,7 @@ export default function ClientDatabase() {
       emailMarketing: "all",
       source: "all",
       clientValue: "all",
+      pricingTier: "all",
     });
     setMissingDataFilters({
       noEmail: false,
@@ -1994,6 +2013,23 @@ export default function ClientDatabase() {
                         <SelectItem value="low">
                           <span className="flex items-center gap-2"><TrendingUp className="h-3 w-3 text-gray-400" /> Low (0 quotes)</span>
                         </SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div>
+                    <Label className="text-xs text-gray-500">Pricing Tier</Label>
+                    <Select value={filters.pricingTier} onValueChange={(val) => setFilters({...filters, pricingTier: val})}>
+                      <SelectTrigger data-testid="select-pricing-tier">
+                        <SelectValue placeholder="All Tiers" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="all">All Tiers</SelectItem>
+                        <SelectItem value="missing">
+                          <span className="flex items-center gap-2 text-red-600">Missing Tier</span>
+                        </SelectItem>
+                        {PRICING_TIERS.map(tier => (
+                          <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                        ))}
                       </SelectContent>
                     </Select>
                   </div>
@@ -3398,17 +3434,9 @@ export default function ClientDatabase() {
                     <SelectValue placeholder="Choose a pricing tier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="LANDED PRICE">LANDED PRICE</SelectItem>
-                    <SelectItem value="EXPORT ONLY">EXPORT ONLY</SelectItem>
-                    <SelectItem value="DISTRIBUTOR">DISTRIBUTOR</SelectItem>
-                    <SelectItem value="DEALER-VIP">DEALER-VIP</SelectItem>
-                    <SelectItem value="DEALER">DEALER</SelectItem>
-                    <SelectItem value="SHOPIFY LOWEST">SHOPIFY LOWEST</SelectItem>
-                    <SelectItem value="SHOPIFY3">SHOPIFY3</SelectItem>
-                    <SelectItem value="SHOPIFY2">SHOPIFY2</SelectItem>
-                    <SelectItem value="SHOPIFY1">SHOPIFY1</SelectItem>
-                    <SelectItem value="SHOPIFY-ACCOUNT">SHOPIFY-ACCOUNT</SelectItem>
-                    <SelectItem value="RETAIL">RETAIL</SelectItem>
+                    {PRICING_TIERS.map(tier => (
+                      <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                    ))}
                   </SelectContent>
                 </Select>
               </div>
