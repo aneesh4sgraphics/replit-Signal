@@ -185,6 +185,7 @@ export default function ClientDatabase() {
     return saved ? JSON.parse(saved) : [];
   });
   const [showRecentSearches, setShowRecentSearches] = useState(false);
+  const [showTagSuggestions, setShowTagSuggestions] = useState(false);
   const searchInputRef = useRef<HTMLInputElement>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   
@@ -254,6 +255,22 @@ export default function ClientDatabase() {
   };
   
   const weekStart = getWeekStart();
+
+  // Extract unique tags from all customers for suggestions
+  const uniqueTags = Array.from(new Set(
+    customers
+      .flatMap(c => (c.tags || '').split(',').map(t => t.trim()))
+      .filter(t => t.length > 0)
+  )).sort();
+
+  // Helper to add a tag to the current tags string
+  const addTagToCustomer = (existingTags: string, newTag: string): string => {
+    const currentTags = existingTags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+    if (!currentTags.includes(newTag)) {
+      currentTags.push(newTag);
+    }
+    return currentTags.join(', ');
+  };
   
   const quotesThisWeek = sentQuotes.filter((q: any) => {
     const sentDate = new Date(q.sentAt || q.createdAt || 0);
@@ -1533,12 +1550,35 @@ export default function ClientDatabase() {
                 </div>
                 <div className="md:col-span-2">
                   <Label htmlFor="editTags">Tags</Label>
-                  <Input
-                    id="editTags"
-                    value={editingCustomer.tags || ""}
-                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, tags: e.target.value} : null)}
-                    placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
-                  />
+                  <div className="relative">
+                    <Input
+                      id="editTags"
+                      value={editingCustomer.tags || ""}
+                      onChange={(e) => setEditingCustomer(prev => prev ? {...prev, tags: e.target.value} : null)}
+                      onFocus={() => setShowTagSuggestions(true)}
+                      onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                      placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
+                    />
+                    {showTagSuggestions && uniqueTags.length > 0 && (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                        <p className="text-xs text-muted-foreground mb-2">Click to add existing tags:</p>
+                        <div className="flex flex-wrap gap-1">
+                          {uniqueTags.map(tag => (
+                            <Badge
+                              key={tag}
+                              variant="secondary"
+                              className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                              onClick={() => {
+                                setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
+                              }}
+                            >
+                              {tag}
+                            </Badge>
+                          ))}
+                        </div>
+                      </div>
+                    )}
+                  </div>
                   <p className="text-xs text-muted-foreground mt-1">Separate multiple tags with commas</p>
                 </div>
               </div>
@@ -3431,12 +3471,35 @@ export default function ClientDatabase() {
 
               <div className="md:col-span-2">
                 <Label htmlFor="tags2">Tags</Label>
-                <Input
-                  id="tags2"
-                  value={editingCustomer.tags || ""}
-                  onChange={(e) => setEditingCustomer(prev => prev ? {...prev, tags: e.target.value} : null)}
-                  placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
-                />
+                <div className="relative">
+                  <Input
+                    id="tags2"
+                    value={editingCustomer.tags || ""}
+                    onChange={(e) => setEditingCustomer(prev => prev ? {...prev, tags: e.target.value} : null)}
+                    onFocus={() => setShowTagSuggestions(true)}
+                    onBlur={() => setTimeout(() => setShowTagSuggestions(false), 200)}
+                    placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
+                  />
+                  {showTagSuggestions && uniqueTags.length > 0 && (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
+                      <p className="text-xs text-muted-foreground mb-2">Click to add existing tags:</p>
+                      <div className="flex flex-wrap gap-1">
+                        {uniqueTags.map(tag => (
+                          <Badge
+                            key={tag}
+                            variant="secondary"
+                            className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                            onClick={() => {
+                              setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
+                            }}
+                          >
+                            {tag}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
                 <p className="text-xs text-muted-foreground mt-1">Separate multiple tags with commas</p>
               </div>
             </div>
