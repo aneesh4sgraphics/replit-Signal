@@ -332,6 +332,82 @@ export default function Dashboard() {
                 {dateString}
               </p>
             </div>
+            
+            {/* Quick Access Sales Tools */}
+            <div style={{ 
+              display: 'flex', 
+              flexDirection: 'column', 
+              gap: '12px',
+              alignItems: 'flex-end'
+            }}>
+              <span style={{
+                fontSize: '12px',
+                fontWeight: '600',
+                color: '#64748b',
+                letterSpacing: '0.5px',
+                textTransform: 'uppercase',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px'
+              }}>
+                <DollarSign size={14} />
+                Quick Access
+              </span>
+              <div style={{ display: 'flex', flexWrap: 'wrap', gap: '8px', justifyContent: 'flex-end', maxWidth: '400px' }}>
+                {appCategories[0].apps.map((app, i) => {
+                  const Icon = app.icon;
+                  const appKey = `quick-${i}`;
+                  const isHovered = hoveredCard === appKey;
+                  
+                  return (
+                    <Link
+                      key={app.path}
+                      href={app.path}
+                      onClick={() => trackUsage(app.path)}
+                      onMouseEnter={() => setHoveredCard(appKey)}
+                      onMouseLeave={() => setHoveredCard(null)}
+                      style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        gap: '8px',
+                        padding: '10px 14px',
+                        borderRadius: '12px',
+                        background: isHovered ? 'rgba(255, 255, 255, 0.95)' : 'rgba(255, 255, 255, 0.6)',
+                        backdropFilter: 'blur(20px)',
+                        border: isHovered ? `2px solid ${app.color}50` : '1px solid rgba(255, 255, 255, 0.7)',
+                        cursor: 'pointer',
+                        textDecoration: 'none',
+                        transition: 'all 0.2s ease',
+                        transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
+                        boxShadow: isHovered 
+                          ? `0 6px 20px ${app.color}25`
+                          : '0 2px 8px rgba(148, 163, 184, 0.08)',
+                      }}
+                      data-testid={`quick-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
+                    >
+                      <div style={{
+                        width: '28px',
+                        height: '28px',
+                        borderRadius: '8px',
+                        background: app.bgGradient,
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                      }}>
+                        <Icon size={16} style={{ color: app.color }} />
+                      </div>
+                      <span style={{
+                        fontSize: '13px',
+                        fontWeight: '600',
+                        color: isHovered ? app.color : '#475569',
+                      }}>
+                        {app.label}
+                      </span>
+                    </Link>
+                  );
+                })}
+              </div>
+            </div>
           </div>
         </div>
 
