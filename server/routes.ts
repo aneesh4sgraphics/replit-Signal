@@ -41,7 +41,8 @@ import {
   JOURNEY_STAGES,
   JOURNEY_TYPES,
   PRESS_TEST_STEPS,
-  PRODUCT_LINES
+  PRODUCT_LINES,
+  PRICING_TIERS
 } from "@shared/schema";
 import { setupAuth, isAuthenticated, requireApproval, requireAdmin } from "./replitAuth";
 import { 
@@ -9619,6 +9620,100 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Failed to log admin audit:", e);
     }
   }
+
+  // --- Tags Management ---
+  app.get("/api/admin/tags", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      // Get all customers and extract unique tags with usage counts
+      const allCustomers = await db.select({ tags: customers.tags }).from(customers);
+      
+      // Count tags
+      const tagCounts: Record<string, number> = {};
+      const pricingTierSet = new Set(PRICING_TIERS.map(t => t.toLowerCase()));
+      
+      for (const customer of allCustomers) {
+        if (customer.tags) {
+          const customerTags = customer.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+          for (const tag of customerTags) {
+            tagCounts[tag] = (tagCounts[tag] || 0) + 1;
+          }
+        }
+      }
+      
+      // Separate pricing tiers from custom tags
+      const customTags = Object.entries(tagCounts)
+        .filter(([tag]) => !pricingTierSet.has(tag.toLowerCase()))
+        .map(([tag, usageCount]) => ({ tag, usageCount }))
+        .sort((a, b) => b.usageCount - a.usageCount);
+      
+      res.json({
+        pricingTiers: PRICING_TIERS,
+        customTags,
+      });
+    } catch (error) {
+      console.error("Error fetching tags:", error);
+      res.status(500).json({ error: "Failed to fetch tags" });
+    }
+  });
+
+  app.delete("/api/admin/tags/:tag", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const tagToDelete = decodeURIComponent(req.params.tag);
+      
+      // Get all customers with this tag
+      const allCustomers = await db.select().from(customers);
+      let updatedCount = 0;
+      
+      for (const customer of allCustomers) {
+        if (customer.tags) {
+          const customerTags = customer.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+          if (customerTags.includes(tagToDelete)) {
+            const newTags = customerTags.filter(t => t !== tagToDelete).join(', ');
+            await db.update(customers).set({ tags: newTags || null }).where(eq(customers.id, customer.id));
+            updatedCount++;
+          }
+        }
+      }
+      
+      await logAdminAudit("tags", "delete", tagToDelete, tagToDelete, { tag: tagToDelete }, null, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true, updatedCount });
+    } catch (error) {
+      console.error("Error deleting tag:", error);
+      res.status(500).json({ error: "Failed to delete tag" });
+    }
+  });
+
+  app.patch("/api/admin/tags/:tag", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const oldTag = decodeURIComponent(req.params.tag);
+      const { newTag } = req.body;
+      
+      if (!newTag || typeof newTag !== 'string') {
+        return res.status(400).json({ error: "New tag name is required" });
+      }
+      
+      // Get all customers with this tag
+      const allCustomers = await db.select().from(customers);
+      let updatedCount = 0;
+      
+      for (const customer of allCustomers) {
+        if (customer.tags) {
+          const customerTags = customer.tags.split(',').map(t => t.trim()).filter(t => t.length > 0);
+          if (customerTags.includes(oldTag)) {
+            const newTags = customerTags.map(t => t === oldTag ? newTag.trim() : t).join(', ');
+            await db.update(customers).set({ tags: newTags }).where(eq(customers.id, customer.id));
+            updatedCount++;
+          }
+        }
+      }
+      
+      await logAdminAudit("tags", "rename", oldTag, newTag, { oldTag }, { newTag }, req.user?.claims?.sub || "unknown", req.user?.claims?.email);
+      res.json({ success: true, updatedCount });
+    } catch (error) {
+      console.error("Error renaming tag:", error);
+      res.status(500).json({ error: "Failed to rename tag" });
+    }
+  });
 
   // --- Machine Types ---
   app.get("/api/admin/config/machine-types", isAuthenticated, requireAdmin, async (req, res) => {

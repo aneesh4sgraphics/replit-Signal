@@ -13,7 +13,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, CheckCircle2, Printer, Zap, Sparkles, Droplet, Maximize, Info, AlertTriangle, Check, Home, User, PlayCircle, GripVertical, ChevronRight, RotateCcw, Eye, Package, X, Search } from "lucide-react";
+import { ArrowLeft, Plus, Pencil, Trash2, Save, Settings, Layers, Clock, Bell, MessageSquare, History, RefreshCw, Database, AlertCircle, CheckCircle, CheckCircle2, Printer, Zap, Sparkles, Droplet, Maximize, Info, AlertTriangle, Check, Home, User, PlayCircle, GripVertical, ChevronRight, RotateCcw, Eye, Package, X, Search, Tag } from "lucide-react";
+import { PRICING_TIERS } from "@shared/schema";
 import { Link } from "wouter";
 
 type AdminMachineType = {
@@ -458,6 +459,179 @@ interface PreviewImpactResult {
     pricingItems: { itemCode: string; productName: string; productType: string }[];
     unmappedItems: { sku: string; productTitle: string }[];
   };
+}
+
+function TagsManagementTab() {
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
+  
+  const { data: tagsData, isLoading } = useQuery<{ pricingTiers: string[]; customTags: { tag: string; usageCount: number }[] }>({
+    queryKey: ['/api/admin/tags'],
+  });
+
+  const deleteTagMutation = useMutation({
+    mutationFn: async (tag: string) => {
+      return apiRequest('DELETE', `/api/admin/tags/${encodeURIComponent(tag)}`);
+    },
+    onSuccess: () => {
+      toast({ title: 'Tag deleted successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tags'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+    },
+    onError: () => {
+      toast({ title: 'Failed to delete tag', variant: 'destructive' });
+    },
+  });
+
+  const renameTagMutation = useMutation({
+    mutationFn: async ({ oldTag, newTag }: { oldTag: string; newTag: string }) => {
+      return apiRequest('PATCH', `/api/admin/tags/${encodeURIComponent(oldTag)}`, { newTag });
+    },
+    onSuccess: () => {
+      toast({ title: 'Tag renamed successfully' });
+      queryClient.invalidateQueries({ queryKey: ['/api/admin/tags'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+    },
+    onError: () => {
+      toast({ title: 'Failed to rename tag', variant: 'destructive' });
+    },
+  });
+
+  const [editingTag, setEditingTag] = useState<string | null>(null);
+  const [newTagName, setNewTagName] = useState('');
+
+  if (isLoading) return <div className="text-center py-8">Loading tags...</div>;
+
+  const pricingTiers = tagsData?.pricingTiers || PRICING_TIERS;
+  const customTags = tagsData?.customTags || [];
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <div>
+          <h2 className="text-xl font-semibold">Tags Management</h2>
+          <p className="text-sm text-muted-foreground">Manage pricing tiers and custom tags used across customers</p>
+        </div>
+      </div>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Badge variant="outline" className="border-purple-300 text-purple-700">System</Badge>
+            Pricing Tiers
+          </CardTitle>
+          <CardDescription>
+            These pricing tiers are predefined and cannot be modified. They determine customer pricing levels.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex flex-wrap gap-2">
+            {pricingTiers.map((tier) => (
+              <Badge key={tier} variant="outline" className="border-purple-300 text-purple-700 bg-purple-50">
+                {tier}
+              </Badge>
+            ))}
+          </div>
+        </CardContent>
+      </Card>
+
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Badge variant="secondary">Custom</Badge>
+            Custom Tags ({customTags.length})
+          </CardTitle>
+          <CardDescription>
+            These tags are created by users and can be edited or deleted.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {customTags.length === 0 ? (
+            <p className="text-sm text-muted-foreground text-center py-4">No custom tags found</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Tag Name</TableHead>
+                  <TableHead className="text-right">Usage Count</TableHead>
+                  <TableHead className="w-32">Actions</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {customTags.map((item) => (
+                  <TableRow key={item.tag}>
+                    <TableCell>
+                      {editingTag === item.tag ? (
+                        <div className="flex items-center gap-2">
+                          <Input
+                            value={newTagName}
+                            onChange={(e) => setNewTagName(e.target.value)}
+                            className="h-8 w-48"
+                            autoFocus
+                          />
+                          <Button
+                            size="sm"
+                            onClick={() => {
+                              if (newTagName.trim() && newTagName !== item.tag) {
+                                renameTagMutation.mutate({ oldTag: item.tag, newTag: newTagName.trim() });
+                              }
+                              setEditingTag(null);
+                            }}
+                          >
+                            <Check className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => setEditingTag(null)}
+                          >
+                            <X className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <Badge variant="secondary">{item.tag}</Badge>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right">
+                      <Badge variant="outline">{item.usageCount} customers</Badge>
+                    </TableCell>
+                    <TableCell>
+                      {editingTag !== item.tag && (
+                        <div className="flex items-center gap-1">
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            onClick={() => {
+                              setEditingTag(item.tag);
+                              setNewTagName(item.tag);
+                            }}
+                          >
+                            <Pencil className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            variant="ghost"
+                            className="text-red-600 hover:text-red-700"
+                            onClick={() => {
+                              if (confirm(`Delete tag "${item.tag}"? This will remove it from ${item.usageCount} customers.`)) {
+                                deleteTagMutation.mutate(item.tag);
+                              }
+                            }}
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
+                    </TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
 }
 
 function MappingAuditTab({ categories }: { categories: AdminCategory[] }) {
@@ -1127,7 +1301,7 @@ export default function AdminConfig() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-9 w-full max-w-6xl">
+          <TabsList className="grid grid-cols-10 w-full max-w-7xl">
             <TabsTrigger value="home" className="flex items-center gap-1" data-testid="tab-home">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Home</span>
@@ -1147,6 +1321,10 @@ export default function AdminConfig() {
             <TabsTrigger value="mapping-audit" className="flex items-center gap-1" data-testid="tab-mapping-audit">
               <CheckCircle className="h-4 w-4" />
               <span className="hidden sm:inline">Mapping Audit</span>
+            </TabsTrigger>
+            <TabsTrigger value="tags" className="flex items-center gap-1" data-testid="tab-tags">
+              <Tag className="h-4 w-4" />
+              <span className="hidden sm:inline">Tags</span>
             </TabsTrigger>
             <TabsTrigger value="timers" className="flex items-center gap-1" data-testid="tab-timers">
               <Clock className="h-4 w-4" />
@@ -1205,6 +1383,10 @@ export default function AdminConfig() {
 
           <TabsContent value="mapping-audit">
             <MappingAuditTab categories={categories} />
+          </TabsContent>
+
+          <TabsContent value="tags">
+            <TagsManagementTab />
           </TabsContent>
 
           <TabsContent value="timers">

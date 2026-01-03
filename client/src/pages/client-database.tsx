@@ -257,11 +257,19 @@ export default function ClientDatabase() {
   const weekStart = getWeekStart();
 
   // Extract unique tags from all customers for suggestions
-  const uniqueTags = Array.from(new Set(
+  // Show pricing tiers first, then other custom tags
+  const customTags = Array.from(new Set(
     customers
       .flatMap(c => (c.tags || '').split(',').map(t => t.trim()))
       .filter(t => t.length > 0)
   )).sort();
+  
+  // Pricing tiers come first, then custom tags (excluding any that match pricing tiers)
+  const pricingTierSet = new Set(PRICING_TIERS.map(t => t.toLowerCase()));
+  const uniqueTags = [
+    ...PRICING_TIERS,
+    ...customTags.filter(t => !pricingTierSet.has(t.toLowerCase()))
+  ];
 
   // Helper to add a tag to the current tags string
   const addTagToCustomer = (existingTags: string, newTag: string): string => {
@@ -1560,14 +1568,14 @@ export default function ClientDatabase() {
                       placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
                     />
                     {showTagSuggestions && uniqueTags.length > 0 && (
-                      <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                        <p className="text-xs text-muted-foreground mb-2">Click to add existing tags:</p>
-                        <div className="flex flex-wrap gap-1">
-                          {uniqueTags.map(tag => (
+                      <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                        <p className="text-xs font-medium text-purple-700 mb-1">Pricing Tiers:</p>
+                        <div className="flex flex-wrap gap-1 mb-2">
+                          {PRICING_TIERS.map(tag => (
                             <Badge
                               key={tag}
-                              variant="secondary"
-                              className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                              variant="outline"
+                              className="cursor-pointer border-purple-300 text-purple-700 hover:bg-purple-100 transition-colors"
                               onClick={() => {
                                 setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
                               }}
@@ -1576,6 +1584,25 @@ export default function ClientDatabase() {
                             </Badge>
                           ))}
                         </div>
+                        {customTags.filter(t => !pricingTierSet.has(t.toLowerCase())).length > 0 && (
+                          <>
+                            <p className="text-xs font-medium text-gray-600 mb-1">Other Tags:</p>
+                            <div className="flex flex-wrap gap-1">
+                              {customTags.filter(t => !pricingTierSet.has(t.toLowerCase())).map(tag => (
+                                <Badge
+                                  key={tag}
+                                  variant="secondary"
+                                  className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                                  onClick={() => {
+                                    setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
+                                  }}
+                                >
+                                  {tag}
+                                </Badge>
+                              ))}
+                            </div>
+                          </>
+                        )}
                       </div>
                     )}
                   </div>
@@ -3481,14 +3508,14 @@ export default function ClientDatabase() {
                     placeholder="Enter tags separated by commas (e.g., VIP, Wholesale, Priority)"
                   />
                   {showTagSuggestions && uniqueTags.length > 0 && (
-                    <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-32 overflow-y-auto">
-                      <p className="text-xs text-muted-foreground mb-2">Click to add existing tags:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {uniqueTags.map(tag => (
+                    <div className="absolute z-50 top-full left-0 right-0 mt-1 p-2 bg-white border rounded-md shadow-lg max-h-48 overflow-y-auto">
+                      <p className="text-xs font-medium text-purple-700 mb-1">Pricing Tiers:</p>
+                      <div className="flex flex-wrap gap-1 mb-2">
+                        {PRICING_TIERS.map(tag => (
                           <Badge
                             key={tag}
-                            variant="secondary"
-                            className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                            variant="outline"
+                            className="cursor-pointer border-purple-300 text-purple-700 hover:bg-purple-100 transition-colors"
                             onClick={() => {
                               setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
                             }}
@@ -3497,6 +3524,25 @@ export default function ClientDatabase() {
                           </Badge>
                         ))}
                       </div>
+                      {customTags.filter(t => !pricingTierSet.has(t.toLowerCase())).length > 0 && (
+                        <>
+                          <p className="text-xs font-medium text-gray-600 mb-1">Other Tags:</p>
+                          <div className="flex flex-wrap gap-1">
+                            {customTags.filter(t => !pricingTierSet.has(t.toLowerCase())).map(tag => (
+                              <Badge
+                                key={tag}
+                                variant="secondary"
+                                className="cursor-pointer hover:bg-primary hover:text-white transition-colors"
+                                onClick={() => {
+                                  setEditingCustomer(prev => prev ? {...prev, tags: addTagToCustomer(prev.tags || '', tag)} : null);
+                                }}
+                              >
+                                {tag}
+                              </Badge>
+                            ))}
+                          </div>
+                        </>
+                      )}
                     </div>
                   )}
                 </div>
