@@ -463,6 +463,140 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Critical clients to work on today - AI-guided daily focus
+  app.get("/api/dashboard/critical-clients", isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.email;
+      const isAdmin = req.user?.role === 'admin';
+      
+      // Get all relevant data for scoring
+      const [allTasks, customers, hotProspects] = await Promise.all([
+        storage.getAllFollowUpTasks(),
+        storage.getAllCustomers(),
+        storage.getAllCustomers().then(c => c.filter(cust => cust.isHotProspect))
+      ]);
+      
+      const now = new Date();
+      const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+      
+      // Score each customer based on multiple signals
+      const customerScores: Array<{
+        customerId: string;
+        displayName: string;
+        score: number;
+        reasonCode: string;
+        reasonText: string;
+        recommendedAction: string;
+        priority: 'critical' | 'high' | 'medium';
+      }> = [];
+      
+      // Build a map of customer tasks
+      const customerTaskMap = new Map<string, typeof allTasks>();
+      for (const task of allTasks) {
+        if (task.status !== 'completed') {
+          const tasks = customerTaskMap.get(task.customerId) || [];
+          tasks.push(task);
+          customerTaskMap.set(task.customerId, tasks);
+        }
+      }
+      
+      for (const customer of customers) {
+        // Filter by sales rep assignment (unless admin)
+        if (!isAdmin && customer.salesRepId && customer.salesRepId !== userEmail) {
+          continue;
+        }
+        
+        let score = 0;
+        let reasonCode = '';
+        let reasonText = '';
+        let recommendedAction = '';
+        let priority: 'critical' | 'high' | 'medium' = 'medium';
+        
+        const tasks = customerTaskMap.get(customer.id) || [];
+        const displayName = customer.company || 
+          `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 
+          customer.email || customer.id;
+        
+        // 1. High-priority overdue tasks (critical - highest score)
+        const overdueTasks = tasks.filter(t => {
+          const dueDate = new Date(t.dueDate);
+          return dueDate < today && t.priority === 'high';
+        });
+        if (overdueTasks.length > 0) {
+          score += 100 + (overdueTasks.length * 10);
+          reasonCode = 'overdue_high_priority';
+          reasonText = `${overdueTasks.length} overdue high-priority task${overdueTasks.length > 1 ? 's' : ''}`;
+          recommendedAction = 'Complete overdue tasks';
+          priority = 'critical';
+        }
+        
+        // 2. Any overdue tasks (high score)
+        const anyOverdueTasks = tasks.filter(t => new Date(t.dueDate) < today);
+        if (!reasonCode && anyOverdueTasks.length > 0) {
+          score += 80 + (anyOverdueTasks.length * 5);
+          reasonCode = 'overdue_tasks';
+          reasonText = `${anyOverdueTasks.length} overdue task${anyOverdueTasks.length > 1 ? 's' : ''}`;
+          recommendedAction = 'Follow up on pending tasks';
+          priority = 'high';
+        }
+        
+        // 3. Hot prospect without recent activity (high score)
+        if (!reasonCode && customer.isHotProspect) {
+          score += 70;
+          reasonCode = 'hot_prospect';
+          reasonText = 'Hot prospect - prioritize engagement';
+          recommendedAction = 'Reach out to close deal';
+          priority = 'high';
+        }
+        
+        // 4. Tasks due today (medium-high score)
+        const todayTasks = tasks.filter(t => {
+          const dueDate = new Date(t.dueDate);
+          return dueDate.toDateString() === today.toDateString();
+        });
+        if (!reasonCode && todayTasks.length > 0) {
+          score += 60 + (todayTasks.length * 5);
+          reasonCode = 'tasks_due_today';
+          reasonText = `${todayTasks.length} task${todayTasks.length > 1 ? 's' : ''} due today`;
+          recommendedAction = 'Complete scheduled follow-ups';
+          priority = 'medium';
+        }
+        
+        // 5. Missing required info (pricing tier or sales rep)
+        if (!reasonCode && (!customer.pricingTier || !customer.salesRepId)) {
+          score += 40;
+          reasonCode = 'missing_info';
+          reasonText = 'Missing pricing tier or sales rep';
+          recommendedAction = 'Update customer profile';
+          priority = 'medium';
+        }
+        
+        // Only include customers with a reason
+        if (reasonCode) {
+          customerScores.push({
+            customerId: customer.id,
+            displayName,
+            score,
+            reasonCode,
+            reasonText,
+            recommendedAction,
+            priority
+          });
+        }
+      }
+      
+      // Sort by score (highest first) and take top 5
+      const topClients = customerScores
+        .sort((a, b) => b.score - a.score)
+        .slice(0, 5);
+      
+      res.json(topClients);
+    } catch (error) {
+      console.error("Critical clients error:", error);
+      res.status(500).json({ error: "Failed to fetch critical clients" });
+    }
+  });
+
   // --- Health check (for debugging connectivity quickly) ---
   app.get('/api/health', (_req, res) => {
     res.json({ 
