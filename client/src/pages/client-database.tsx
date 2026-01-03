@@ -213,6 +213,21 @@ export default function ClientDatabase() {
     }
   }, [customers, selectedCustomer]);
   
+  // Handle customer query parameter to auto-select customer from URL
+  useEffect(() => {
+    const customerId = urlParams.get('customer');
+    if (customerId && customers.length > 0 && !selectedCustomer) {
+      const customer = customers.find(c => c.id === customerId);
+      if (customer) {
+        const companyContacts = customer.company 
+          ? customers.filter(c => c.company === customer.company && c.id !== customer.id)
+          : [];
+        setSelectedCustomer(customer);
+        setSelectedCompanyContacts(companyContacts);
+      }
+    }
+  }, [customers, urlParams]);
+  
   // Fetch quote counts per customer (for individual customer badges)
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],

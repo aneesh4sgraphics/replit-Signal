@@ -551,7 +551,7 @@ export default function StartYourDayDashboard() {
               {criticalClients.map((client, index) => (
                 <Link 
                   key={client.customerId} 
-                  href={`/crm/customers/${client.customerId}`}
+                  href={`/clients?customer=${client.customerId}`}
                   data-testid={`critical-client-${client.customerId}`}
                 >
                   <div className="flex items-center justify-between p-3 bg-white rounded-lg border hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer">
