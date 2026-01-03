@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Checkbox } from "@/components/ui/checkbox";
 import { Skeleton } from "@/components/ui/skeleton";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -70,6 +71,9 @@ export default function StartYourDayDashboard() {
   const queryClient = useQueryClient();
   const [showCompleted, setShowCompleted] = useState(false);
   const [taskView, setTaskView] = useState<'my' | 'team'>('my');
+  const [completedCriticalClients, setCompletedCriticalClients] = useState<Set<string>>(new Set());
+  const [showCelebration, setShowCelebration] = useState(false);
+  const [celebrationShown, setCelebrationShown] = useState(false);
 
   // Get current user to determine if admin and to filter tasks
   const { data: currentUser } = useQuery<AuthUser>({
@@ -151,6 +155,39 @@ export default function StartYourDayDashboard() {
       });
     },
   });
+
+  // Handle marking a critical client as worked on
+  const handleCompleteCriticalClient = (customerId: string) => {
+    setCompletedCriticalClients(prev => {
+      const newSet = new Set(prev);
+      newSet.add(customerId);
+      return newSet;
+    });
+    toast({
+      title: "Great work!",
+      description: "Client marked as worked on for today.",
+    });
+  };
+
+  // Show celebration when 5 critical clients are completed
+  useEffect(() => {
+    if (completedCriticalClients.size >= 5 && !celebrationShown) {
+      setShowCelebration(true);
+      setCelebrationShown(true);
+    }
+  }, [completedCriticalClients, celebrationShown]);
+
+  // Handle loading more tasks after celebration
+  const handleLoadMoreTasks = () => {
+    setCompletedCriticalClients(new Set());
+    setCelebrationShown(false);
+    setShowCelebration(false);
+    queryClient.invalidateQueries({ queryKey: ["/api/dashboard/critical-clients"] });
+    toast({
+      title: "New clients loaded!",
+      description: "5 more clients to work on. Keep up the great work!",
+    });
+  };
 
   const getCustomerName = (customerId: string) => {
     const customer = customers?.find(c => c.id === customerId);
@@ -523,10 +560,15 @@ export default function StartYourDayDashboard() {
               </CardTitle>
               <CardDescription>
                 Based on your tasks, follow-ups, and customer activity
+                {completedCriticalClients.size > 0 && (
+                  <span className="ml-2 text-green-600 font-medium">
+                    ({completedCriticalClients.size}/5 completed)
+                  </span>
+                )}
               </CardDescription>
             </div>
             <Badge variant="secondary" className="bg-purple-100 text-purple-700">
-              {criticalClients?.length || 0} clients
+              {criticalClients?.filter(c => !completedCriticalClients.has(c.customerId)).length || 0} remaining
             </Badge>
           </div>
         </CardHeader>
@@ -548,43 +590,78 @@ export default function StartYourDayDashboard() {
             </div>
           ) : criticalClients && criticalClients.length > 0 ? (
             <div className="space-y-3">
-              {criticalClients.map((client, index) => (
-                <Link 
-                  key={client.customerId} 
-                  href={`/clients?customer=${client.customerId}`}
+              {criticalClients
+                .filter(client => !completedCriticalClients.has(client.customerId))
+                .map((client, index) => (
+                <div 
+                  key={client.customerId}
+                  className="flex items-center justify-between p-3 bg-white rounded-lg border hover:border-purple-300 hover:shadow-sm transition-all"
                   data-testid={`critical-client-${client.customerId}`}
                 >
-                  <div className="flex items-center justify-between p-3 bg-white rounded-lg border hover:border-purple-300 hover:shadow-sm transition-all cursor-pointer">
-                    <div className="flex items-center gap-3">
-                      <div className={`p-2 rounded-full ${
-                        client.priority === 'critical' ? 'bg-red-100' :
-                        client.priority === 'high' ? 'bg-orange-100' : 'bg-blue-100'
-                      }`}>
-                        <span className="text-lg font-bold text-gray-600">#{index + 1}</span>
-                      </div>
-                      <div>
-                        <p className="font-medium text-gray-900">{client.displayName}</p>
-                        <div className="flex items-center gap-2">
-                          <Badge 
-                            variant="outline" 
-                            className={`text-xs ${
-                              client.priority === 'critical' ? 'border-red-300 text-red-700 bg-red-50' :
-                              client.priority === 'high' ? 'border-orange-300 text-orange-700 bg-orange-50' : 
-                              'border-blue-300 text-blue-700 bg-blue-50'
-                            }`}
-                          >
-                            {client.priority}
-                          </Badge>
-                          <span className="text-sm text-muted-foreground">{client.reasonText}</span>
-                        </div>
+                  <Link 
+                    href={`/clients?customer=${client.customerId}`}
+                    className="flex items-center gap-3 flex-1"
+                  >
+                    <div className={`p-2 rounded-full ${
+                      client.priority === 'critical' ? 'bg-red-100' :
+                      client.priority === 'high' ? 'bg-orange-100' : 'bg-blue-100'
+                    }`}>
+                      <span className="text-lg font-bold text-gray-600">#{index + 1}</span>
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-900">{client.displayName}</p>
+                      <div className="flex items-center gap-2">
+                        <Badge 
+                          variant="outline" 
+                          className={`text-xs ${
+                            client.priority === 'critical' ? 'border-red-300 text-red-700 bg-red-50' :
+                            client.priority === 'high' ? 'border-orange-300 text-orange-700 bg-orange-50' : 
+                            'border-blue-300 text-blue-700 bg-blue-50'
+                          }`}
+                        >
+                          {client.priority}
+                        </Badge>
+                        <span className="text-sm text-muted-foreground">{client.reasonText}</span>
                       </div>
                     </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-sm text-purple-600 font-medium">{client.recommendedAction}</span>
-                      <ArrowRight className="h-4 w-4 text-purple-600" />
+                  </Link>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-purple-600 font-medium hidden sm:inline">{client.recommendedAction}</span>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      className="border-green-300 text-green-700 hover:bg-green-50"
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        handleCompleteCriticalClient(client.customerId);
+                      }}
+                      data-testid={`complete-critical-client-${client.customerId}`}
+                    >
+                      <CheckCircle2 className="h-4 w-4 mr-1" />
+                      Done
+                    </Button>
+                  </div>
+                </div>
+              ))}
+              {/* Show completed clients with strikethrough */}
+              {criticalClients
+                .filter(client => completedCriticalClients.has(client.customerId))
+                .map((client) => (
+                <div 
+                  key={client.customerId}
+                  className="flex items-center justify-between p-3 bg-green-50 rounded-lg border border-green-200 opacity-60"
+                >
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-full bg-green-100">
+                      <CheckCircle2 className="h-5 w-5 text-green-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium text-gray-500 line-through">{client.displayName}</p>
+                      <span className="text-sm text-green-600">Completed</span>
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           ) : (
@@ -596,6 +673,43 @@ export default function StartYourDayDashboard() {
           )}
         </CardContent>
       </Card>
+
+      {/* Celebration Dialog */}
+      <Dialog open={showCelebration} onOpenChange={setShowCelebration}>
+        <DialogContent className="sm:max-w-md text-center">
+          <DialogHeader>
+            <DialogTitle className="text-2xl flex items-center justify-center gap-2">
+              <span className="text-4xl animate-bounce">🍾</span>
+              Congratulations!
+              <span className="text-4xl animate-bounce" style={{ animationDelay: '0.1s' }}>🎉</span>
+            </DialogTitle>
+            <DialogDescription className="text-lg pt-4">
+              You've completed 5 client tasks today! Amazing work keeping your clients happy!
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex flex-col items-center py-6">
+            <div className="text-6xl mb-4">🏆</div>
+            <p className="text-muted-foreground">
+              Would you like to take on 5 more clients today?
+            </p>
+          </div>
+          <DialogFooter className="flex-col sm:flex-row gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setShowCelebration(false)}
+              className="w-full sm:w-auto"
+            >
+              I'm done for today
+            </Button>
+            <Button
+              onClick={handleLoadMoreTasks}
+              className="w-full sm:w-auto bg-purple-600 hover:bg-purple-700"
+            >
+              Load 5 more clients
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {displayedOverdueTasks && displayedOverdueTasks.length > 0 && (
         <Card className="border-red-200">
