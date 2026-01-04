@@ -390,8 +390,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
       const allUsers = await storage.getAllUsers();
+      // Exclude info@4sgraphics.com (duplicate Aneesh Prabhu - use aneesh@4sgraphics.com instead)
       const approvedUsers = allUsers
-        .filter(u => u.status === 'approved')
+        .filter(u => u.status === 'approved' && u.email !== 'info@4sgraphics.com')
         .map(u => ({
           id: u.id,
           email: u.email,
