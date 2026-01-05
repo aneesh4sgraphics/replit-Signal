@@ -6,8 +6,10 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { FileText, Download, FileSpreadsheet, ArrowUpDown, RefreshCw } from "lucide-react";
+import { FileText, Download, FileSpreadsheet, ArrowUpDown, RefreshCw, Truck } from "lucide-react";
 import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Switch } from "@/components/ui/switch";
 import { useToast } from "@/hooks/use-toast";
 import { getUserRoleFromEmail, canAccessTier } from "@/utils/roleBasedTiers";
 import { useAuth } from "@/hooks/useAuth";
@@ -106,6 +108,31 @@ export default function PriceList() {
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
   const [orderedItems, setOrderedItems] = useState<PriceListItem[]>([]);
   const [filtersInitialized, setFiltersInitialized] = useState<boolean>(false);
+  const [includeShipping, setIncludeShipping] = useState<boolean>(false);
+  const [shippingCosts, setShippingCosts] = useState<Record<string, number>>({});
+  
+  // Helper to update shipping cost for an item
+  const updateShippingCost = (itemCode: string, cost: number) => {
+    setShippingCosts(prev => ({
+      ...prev,
+      [itemCode]: cost
+    }));
+  };
+
+  // Calculate adjusted prices with shipping included
+  const getAdjustedItems = (items: PriceListItem[]): PriceListItem[] => {
+    if (!includeShipping) return items;
+    return items.map(item => {
+      const shippingCost = shippingCosts[item.itemCode] || 0;
+      const adjustedPricePerSheet = item.pricePerSheet + shippingCost;
+      const adjustedPricePerPack = adjustedPricePerSheet * item.minQty;
+      return {
+        ...item,
+        pricePerSheet: adjustedPricePerSheet,
+        pricePerPack: adjustedPricePerPack
+      };
+    });
+  };
   
   const { toast } = useToast();
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
@@ -137,6 +164,10 @@ export default function PriceList() {
         ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` 
         : 'Customer';
 
+      // Use adjusted items with shipping costs applied
+      const itemsToUse = orderedItems.length > 0 ? orderedItems : priceListItems;
+      const adjustedItems = getAdjustedItems(itemsToUse);
+
       const response = await fetch('/api/generate-price-list-pdf', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -144,14 +175,16 @@ export default function PriceList() {
           customerName,
           selectedCategory,
           selectedTier,
-          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
+          includeShipping,
+          priceListItems: adjustedItems.map(item => ({
             itemCode: item.itemCode,
             productType: item.productType,
             size: item.size,
             minOrderQty: item.minQty,
             pricePerSheet: item.pricePerSheet,
             total: item.pricePerPack,
-            sortOrder: item.sortOrder
+            sortOrder: item.sortOrder,
+            shippingCost: includeShipping ? (shippingCosts[item.itemCode] || 0) : undefined
           }))
         })
       });
@@ -202,6 +235,11 @@ export default function PriceList() {
   const downloadCSVMutation = useMutation({
     mutationFn: async () => {
       const tierLabel = pricingTiers.find(t => t.key === selectedTier)?.label || selectedTier;
+      
+      // Use adjusted items with shipping costs applied
+      const itemsToUse = orderedItems.length > 0 ? orderedItems : priceListItems;
+      const adjustedItems = getAdjustedItems(itemsToUse);
+      
       const response = await fetch('/api/generate-price-list-csv-odoo', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -209,7 +247,8 @@ export default function PriceList() {
           selectedCategory,
           selectedTier,
           tierLabel,
-          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
+          includeShipping,
+          priceListItems: adjustedItems.map(item => ({
             itemCode: item.itemCode,
             productName: item.productName,
             price: item.pricePerSheet,
@@ -251,20 +290,26 @@ export default function PriceList() {
   // Excel Download Mutation (All visible columns)
   const downloadExcelMutation = useMutation({
     mutationFn: async () => {
+      // Use adjusted items with shipping costs applied
+      const itemsToUse = orderedItems.length > 0 ? orderedItems : priceListItems;
+      const adjustedItems = getAdjustedItems(itemsToUse);
+      
       const response = await fetch('/api/generate-price-list-excel', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           selectedCategory,
           selectedTier,
-          priceListItems: (orderedItems.length > 0 ? orderedItems : priceListItems).map(item => ({
+          includeShipping,
+          priceListItems: adjustedItems.map(item => ({
             itemCode: item.itemCode,
             productType: item.productType,
             size: item.size,
             minQty: item.minQty,
             pricePerSqM: item.pricePerSqM,
             pricePerSheet: item.pricePerSheet,
-            pricePerPack: item.pricePerPack
+            pricePerPack: item.pricePerPack,
+            shippingCost: includeShipping ? (shippingCosts[item.itemCode] || 0) : undefined
           })),
           userRole: (user as any)?.role
         })
@@ -676,6 +721,29 @@ export default function PriceList() {
                 />
               </div>
             </div>
+            
+            {/* Shipping Costs Toggle */}
+            <div className="mt-4 pt-4 border-t border-gray-200">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <Truck className="h-5 w-5 text-gray-600" />
+                  <div>
+                    <label className="block label-medium text-gray-800">Add Shipping Costs</label>
+                    <p className="text-xs text-gray-500">Enable to add per-unit shipping costs to prices</p>
+                  </div>
+                </div>
+                <Switch
+                  checked={includeShipping}
+                  onCheckedChange={(checked) => {
+                    setIncludeShipping(checked);
+                    if (!checked) {
+                      setShippingCosts({});
+                    }
+                  }}
+                  data-testid="switch-include-shipping"
+                />
+              </div>
+            </div>
           </div>
         </div>
 
@@ -779,11 +847,19 @@ export default function PriceList() {
                 minWidth: 90,
                 align: 'right' as const
               }] : []),
+              // Show Shipping Cost column when enabled
+              ...(includeShipping ? [{ 
+                key: 'shippingCost', 
+                title: 'Shipping/Unit', 
+                weight: 1,
+                minWidth: 100,
+                align: 'center' as const
+              }] : []),
               { 
                 key: 'pricePerSheet', 
-                title: 'Price/Unit', 
+                title: includeShipping ? 'Price/Unit (incl. shipping)' : 'Price/Unit', 
                 weight: 1.2,
-                minWidth: 100,
+                minWidth: includeShipping ? 140 : 100,
                 align: 'right' 
               },
               { 
@@ -796,6 +872,10 @@ export default function PriceList() {
             ]}
             data={priceListItems}
             renderCell={(item, column) => {
+              const shippingCost = shippingCosts[item.itemCode] || 0;
+              const adjustedPricePerSheet = includeShipping ? item.pricePerSheet + shippingCost : item.pricePerSheet;
+              const adjustedPricePerPack = adjustedPricePerSheet * item.minQty;
+              
               switch (column.key) {
                 case 'itemCode':
                   return <span className="font-mono text-sm text-gray-600">{item.itemCode}</span>;
@@ -807,16 +887,41 @@ export default function PriceList() {
                   return <span className="text-sm text-gray-600">{item.minQty}</span>;
                 case 'pricePerSqM':
                   return <span className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</span>;
+                case 'shippingCost':
+                  return (
+                    <div className="flex items-center justify-center">
+                      <span className="text-gray-500 mr-1">$</span>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={shippingCost || ''}
+                        onChange={(e) => updateShippingCost(item.itemCode, parseFloat(e.target.value) || 0)}
+                        className="w-20 h-8 text-sm text-center px-2"
+                        placeholder="0.00"
+                        data-testid={`input-shipping-${item.itemCode}`}
+                      />
+                    </div>
+                  );
                 case 'pricePerSheet':
                   const unitLabel = item.minQty === 1 ? 'roll' : 'sheet';
                   return (
                     <div className="text-right">
-                      <span className="text-sm text-gray-600">${item.pricePerSheet.toFixed(2)}</span>
+                      <span className={`text-sm ${includeShipping && shippingCost > 0 ? 'text-blue-600 font-medium' : 'text-gray-600'}`}>
+                        ${adjustedPricePerSheet.toFixed(2)}
+                      </span>
                       <div className="text-xs text-gray-400">/{unitLabel}</div>
+                      {includeShipping && shippingCost > 0 && (
+                        <div className="text-xs text-gray-400">(+${shippingCost.toFixed(2)} ship)</div>
+                      )}
                     </div>
                   );
                 case 'pricePerPack':
-                  return <span className="text-sm text-gray-800 font-medium text-green-600">${item.pricePerPack.toFixed(2)}</span>;
+                  return (
+                    <span className={`text-sm font-medium ${includeShipping && shippingCost > 0 ? 'text-blue-600' : 'text-green-600'}`}>
+                      ${adjustedPricePerPack.toFixed(2)}
+                    </span>
+                  );
                 default:
                   return null;
               }
