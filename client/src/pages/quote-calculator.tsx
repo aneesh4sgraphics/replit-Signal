@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -110,6 +111,24 @@ export default function QuoteCalculator() {
   const { user, isLoading: isAuthLoading, isAuthenticated } = useAuth();
   const { logPageView, logQuoteGeneration, logQuoteDownload, logUserAction } = useActivityLogger();
   const { open: openEmailComposer } = useEmailComposer();
+  const [location] = useLocation();
+
+  // Pre-fill customer from URL parameter if provided
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const customerId = urlParams.get('customerId');
+    if (customerId && !selectedCustomer) {
+      // Fetch customer by ID and set as selected
+      fetch(`/api/customers/${customerId}`)
+        .then(res => res.ok ? res.json() : null)
+        .then(customer => {
+          if (customer) {
+            setSelectedCustomer(customer);
+          }
+        })
+        .catch(() => {});
+    }
+  }, [location]);
 
   // Log page view on mount
   useEffect(() => {

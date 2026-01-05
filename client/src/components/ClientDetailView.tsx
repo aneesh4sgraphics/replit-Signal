@@ -1955,7 +1955,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 <div className="text-center py-8">
                   <FileText className="h-12 w-12 text-gray-300 mx-auto mb-3" />
                   <p className="text-gray-500">No quotes or price lists sent to this customer yet</p>
-                  <Link href="/quote-calculator">
+                  <Link href={`/quote-calculator?customerId=${customer.id}`}>
                     <Button className="mt-4" data-testid="btn-create-first-quote">
                       <Plus className="h-4 w-4 mr-2" />
                       Create First Quote
