@@ -311,6 +311,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     queryKey: ['/api/product-categories'],
   });
 
+  // Fetch quote events
   const { data: quoteEvents = [] } = useQuery<QuoteEvent[]>({
     queryKey: ['/api/crm/quote-events', customer.id],
     queryFn: async () => {
@@ -319,8 +320,10 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       return res.json();
     },
     enabled: activeTab === 'quotes-prices',
+    staleTime: 2 * 60 * 1000,
   });
 
+  // Fetch price list events for this customer
   const { data: priceListEvents = [] } = useQuery<PriceListEvent[]>({
     queryKey: ['/api/crm/price-list-events', customer.id],
     queryFn: async () => {
@@ -328,7 +331,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'quotes-prices',
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: sentQuotes = [] } = useQuery<SentQuote[]>({
@@ -790,6 +793,19 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 <h1 className="text-lg font-bold text-gray-900" data-testid="client-name">{customerName}</h1>
                 {countryFlag && (
                   <span className="text-lg" data-testid="country-flag">{countryFlag}</span>
+                )}
+                {priceListEvents.length > 0 && (
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center gap-0.5 text-red-600" data-testid="price-list-indicator">
+                        <FileText className="h-4 w-4" />
+                        <span className="text-xs font-medium">{priceListEvents.length}</span>
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent>
+                      <p>{priceListEvents.length} price list{priceListEvents.length !== 1 ? 's' : ''} sent</p>
+                    </TooltipContent>
+                  </Tooltip>
                 )}
                 {journey && (
                   <Badge className={`${JOURNEY_STAGE_CONFIG[currentStageIndex]?.color || 'bg-gray-500'} text-white text-xs`}>

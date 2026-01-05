@@ -1376,6 +1376,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get price list counts per customer ID
+  app.get("/api/customers/price-list-counts", isAuthenticated, async (req, res) => {
+    try {
+      const counts = await storage.getPriceListCountsByCustomerId();
+      res.json(counts);
+    } catch (error) {
+      console.error("Error fetching price list counts:", error);
+      res.status(500).json({ error: "Failed to fetch price list counts" });
+    }
+  });
+
   // Get customer by ID
   app.get("/api/customers/:id", async (req, res) => {
     try {

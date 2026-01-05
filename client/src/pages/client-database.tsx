@@ -246,6 +246,13 @@ export default function ClientDatabase() {
     staleTime: 2 * 60 * 1000, // 2 minutes
   });
 
+  // Fetch price list counts per customer - only after customers are loaded
+  const { data: priceListCounts = {} } = useQuery<Record<string, number>>({
+    queryKey: ['/api/customers/price-list-counts'],
+    enabled: customers.length > 0,
+    staleTime: 2 * 60 * 1000, // 2 minutes
+  });
+
   // Fetch total sent quotes - only after customers are loaded  
   const { data: sentQuotes = [] } = useQuery<any[]>({
     queryKey: ['/api/sent-quotes'],
@@ -349,6 +356,11 @@ export default function ClientDatabase() {
   const getQuoteCount = (email: string | null | undefined): number => {
     if (!email) return 0;
     return quoteCounts[email.toLowerCase()] || 0;
+  };
+
+  // Get price list count for a customer by ID
+  const getPriceListCount = (customerId: string): number => {
+    return priceListCounts[customerId] || 0;
   };
   
   // Get sample count for a customer by ID
@@ -2614,6 +2626,23 @@ export default function ClientDatabase() {
                           >
                             {group.companyName}
                           </span>
+                          
+                          {/* Price List sent indicator */}
+                          {getPriceListCount(primary.id) > 0 && (
+                            <TooltipProvider>
+                              <Tooltip>
+                                <TooltipTrigger asChild>
+                                  <div className="flex items-center gap-0.5">
+                                    <FileText className="h-4 w-4 text-red-500" />
+                                    <span className="text-[10px] font-medium text-red-600">{getPriceListCount(primary.id)}</span>
+                                  </div>
+                                </TooltipTrigger>
+                                <TooltipContent>
+                                  {getPriceListCount(primary.id)} Price List{getPriceListCount(primary.id) > 1 ? 's' : ''} sent
+                                </TooltipContent>
+                              </Tooltip>
+                            </TooltipProvider>
+                          )}
                           
                           {/* Quick Actions Dropdown - Ellipsis menu */}
                           <DropdownMenu>

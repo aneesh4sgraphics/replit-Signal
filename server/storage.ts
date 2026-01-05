@@ -406,6 +406,7 @@ export interface IStorage {
   // Price List Events
   getPriceListEvents(customerId?: string): Promise<PriceListEvent[]>;
   createPriceListEvent(data: InsertPriceListEvent): Promise<PriceListEvent>;
+  getPriceListCountsByCustomerId(): Promise<Record<string, number>>;
 
   // Customer Journey Instances (unified journey tracking)
   getJourneyInstances(customerId?: string): Promise<CustomerJourneyInstance[]>;
@@ -2103,6 +2104,25 @@ export class DatabaseStorage implements IStorage {
       }
     }
     return event;
+  }
+
+  async getPriceListCountsByCustomerId(): Promise<Record<string, number>> {
+    const results = await db
+      .select({
+        customerId: priceListEvents.customerId,
+        count: sql<number>`count(*)::int`
+      })
+      .from(priceListEvents)
+      .where(sql`${priceListEvents.customerId} IS NOT NULL`)
+      .groupBy(priceListEvents.customerId);
+    
+    const counts: Record<string, number> = {};
+    for (const row of results) {
+      if (row.customerId) {
+        counts[row.customerId] = row.count;
+      }
+    }
+    return counts;
   }
 
   // Customer Journey Instances
