@@ -77,6 +77,7 @@ import {
   Printer,
   ExternalLink,
   Flame,
+  UserX,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import {
@@ -151,6 +152,7 @@ export default function ClientDatabase() {
     source: "all", // New: Shopify, Odoo, or All
     clientValue: "all", // New: high (5+), medium (1-4), low (0)
     pricingTier: "all", // Filter by pricing tier
+    salesRep: "", // Filter by sales rep assignment: 'unassigned' for no rep
   });
   const [missingDataFilters, setMissingDataFilters] = useState({
     noEmail: false,
@@ -686,7 +688,11 @@ export default function ClientDatabase() {
       (filters.pricingTier === "missing" && !customer.pricingTier) ||
       customer.pricingTier === filters.pricingTier;
 
-    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter && matchesPricingTier;
+    // Sales rep filter
+    const matchesSalesRep = !filters.salesRep || 
+      (filters.salesRep === "unassigned" && (!customer.salesRepId || customer.salesRepId.trim() === ''));
+
+    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter && matchesPricingTier && matchesSalesRep;
   }).sort((a, b) => {
     // Sort by company name (case-insensitive)
     const companyA = getCompanyDisplayName(a).toLowerCase();
@@ -1365,6 +1371,7 @@ export default function ClientDatabase() {
       source: "all",
       clientValue: "all",
       pricingTier: "all",
+      salesRep: "",
     });
     setMissingDataFilters({
       noEmail: false,
@@ -1978,6 +1985,24 @@ export default function ClientDatabase() {
               >
                 {showDataCleanupFilter ? 'Show All' : 'Fix Now'}
               </Button>
+            </CardContent>
+          </Card>
+
+          {/* Missing Sales Rep */}
+          <Card 
+            className={`glass-card border-0 cursor-pointer transition-all hover:shadow-md ${filters.salesRep === 'unassigned' ? 'ring-2 ring-red-500' : ''}`}
+            onClick={() => setFilters({...filters, salesRep: filters.salesRep === 'unassigned' ? '' : 'unassigned'})}
+            data-testid="card-missing-sales-rep"
+          >
+            <CardContent className="p-3">
+              <div className="flex items-center justify-between mb-1">
+                <p className="text-xs font-medium text-gray-500">No Sales Rep</p>
+                <UserX className="h-4 w-4 text-red-500" />
+              </div>
+              <p className="text-2xl font-bold text-red-600" data-testid="text-missing-sales-rep-count">
+                {customers.filter(c => !c.salesRepId || c.salesRepId.trim() === '').length}
+              </p>
+              <p className="text-[10px] text-gray-400 mt-1">Click to filter</p>
             </CardContent>
           </Card>
         </div>
