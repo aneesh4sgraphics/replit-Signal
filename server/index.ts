@@ -4,6 +4,7 @@ import cookieParser from 'cookie-parser';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startDripEmailWorker } from "./drip-email-worker";
+import { startQuoteFollowUpWorker } from "./quote-followup-worker";
 
 // Configure Puppeteer to use system Chromium for PDF generation
 if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -194,7 +195,8 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     
-    // Start background worker for drip email campaigns
+    // Start background workers
     startDripEmailWorker();
+    startQuoteFollowUpWorker();
   });
 })();

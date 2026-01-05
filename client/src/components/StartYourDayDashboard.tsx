@@ -35,6 +35,7 @@ import {
 import { Link } from "wouter";
 import { format, formatDistanceToNow, isToday, isPast, isFuture, addDays } from "date-fns";
 import type { FollowUpTask, CustomerActivityEvent, Customer } from "@shared/schema";
+import { QuoteFollowUpNotifications, QuoteFollowUpReminders } from "./QuoteFollowUpNotifications";
 
 interface AuthUser {
   email: string;
@@ -486,6 +487,12 @@ export default function StartYourDayDashboard() {
             </div>
           </CardContent>
         </Card>
+      </div>
+
+      {/* Quote Follow-up Notifications */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <QuoteFollowUpNotifications />
+        <QuoteFollowUpReminders />
       </div>
 
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -205,9 +205,23 @@ export const sentQuotes = pgTable("sent_quotes", {
   createdAt: timestamp("created_at").defaultNow().notNull(),
   sentVia: varchar("sent_via", { length: 20 }).notNull(), // 'email' or 'pdf'
   status: varchar("status", { length: 20 }).notNull().default("sent"), // 'sent', 'viewed', 'accepted'
+  // Quote follow-up and outcome tracking
+  ownerEmail: varchar("owner_email", { length: 255 }), // User who created the quote
+  followUpDueAt: timestamp("follow_up_due_at"), // 10 days after creation
+  outcome: varchar("outcome", { length: 20 }).default("pending"), // 'pending', 'won', 'lost'
+  outcomeNotes: text("outcome_notes"), // Why won/lost
+  competitorName: varchar("competitor_name", { length: 255 }), // If lost to competitor
+  objectionSummary: text("objection_summary"), // Objection details
+  outcomeUpdatedAt: timestamp("outcome_updated_at"),
+  outcomeUpdatedBy: varchar("outcome_updated_by", { length: 255 }),
+  reminderCount: integer("reminder_count").default(0), // How many reminders sent
+  lostNotificationSent: boolean("lost_notification_sent").default(false),
 }, (table) => [
   index("IDX_sent_quotes_created_at").on(table.createdAt),
   index("IDX_sent_quotes_customer_email").on(table.customerEmail),
+  index("IDX_sent_quotes_follow_up_due").on(table.followUpDueAt),
+  index("IDX_sent_quotes_outcome").on(table.outcome),
+  index("IDX_sent_quotes_owner").on(table.ownerEmail),
 ]);
 
 export const competitorPricing = pgTable("competitor_pricing", {

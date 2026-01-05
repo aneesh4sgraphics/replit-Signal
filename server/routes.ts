@@ -2806,6 +2806,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const totalAmount = quoteItems.reduce((sum: number, item: any) => sum + item.total, 0);
       
       // Save quote to database SYNCHRONOUSLY before generating PDF
+      // Set follow-up due date to 10 days from now
+      const followUpDueAt = new Date();
+      followUpDueAt.setDate(followUpDueAt.getDate() + 10);
+      
       let savedQuote: any = null;
       try {
         console.log(`[Quote Save] Saving quote ${finalQuoteNumber} for ${customerName}`);
@@ -2816,9 +2820,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
           quoteItems: JSON.stringify(quoteItems),
           totalAmount: totalAmount.toString(),
           sentVia: sentVia || 'pdf',
-          status: 'sent'
+          status: 'sent',
+          ownerEmail: currentUserEmail,
+          followUpDueAt,
+          outcome: 'pending',
+          reminderCount: 0,
+          lostNotificationSent: false
         });
-        console.log(`[Quote Save] Quote saved successfully with ID: ${savedQuote?.id}`);
+        console.log(`[Quote Save] Quote saved successfully with ID: ${savedQuote?.id}, follow-up due: ${followUpDueAt.toISOString()}`);
       } catch (saveError) {
         console.error('[Quote Save] FAILED to save quote:', saveError);
       }
@@ -3681,6 +3690,116 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(quote);
     } catch (error) {
       res.status(500).json({ error: "Failed to fetch quote" });
+    }
+  });
+
+  // ========================================
+  // QUOTE FOLLOW-UP & OUTCOME APIs
+  // ========================================
+
+  // Get pending quote follow-ups for a user (or all if admin)
+  app.get("/api/quotes/follow-ups/pending", isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.claims?.email;
+      const isAdmin = req.user?.role === 'admin';
+      
+      // Get quotes with pending outcome that are due for follow-up
+      const now = new Date();
+      const pendingQuotes = await db.select().from(sentQuotes)
+        .where(sql`${sentQuotes.outcome} = 'pending' AND ${sentQuotes.followUpDueAt} IS NOT NULL`)
+        .orderBy(sentQuotes.followUpDueAt);
+      
+      // Filter by owner if not admin
+      const filteredQuotes = isAdmin ? pendingQuotes : pendingQuotes.filter(q => q.ownerEmail === userEmail);
+      
+      // Categorize by urgency
+      const result = filteredQuotes.map(q => ({
+        ...q,
+        isOverdue: q.followUpDueAt && new Date(q.followUpDueAt) < now,
+        daysUntilDue: q.followUpDueAt ? Math.ceil((new Date(q.followUpDueAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+      }));
+      
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching pending quote follow-ups:", error);
+      res.status(500).json({ error: "Failed to fetch pending follow-ups" });
+    }
+  });
+
+  // Get quotes that were auto-marked as lost (for notification popup)
+  app.get("/api/quotes/lost-notifications", isAuthenticated, async (req: any, res) => {
+    try {
+      const userEmail = req.user?.claims?.email;
+      
+      // Get quotes marked as lost that haven't had notification dismissed
+      const lostQuotes = await db.select().from(sentQuotes)
+        .where(sql`${sentQuotes.outcome} = 'lost' AND ${sentQuotes.ownerEmail} = ${userEmail} AND ${sentQuotes.lostNotificationSent} = true`)
+        .orderBy(sql`${sentQuotes.outcomeUpdatedAt} DESC`)
+        .limit(10);
+      
+      res.json(lostQuotes);
+    } catch (error) {
+      console.error("Error fetching lost quote notifications:", error);
+      res.status(500).json({ error: "Failed to fetch notifications" });
+    }
+  });
+
+  // Update quote outcome (won/lost with details)
+  app.put("/api/quotes/:id/outcome", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
+      const { outcome, outcomeNotes, competitorName, objectionSummary } = req.body;
+      const userEmail = req.user?.claims?.email;
+      
+      if (!['won', 'lost', 'pending'].includes(outcome)) {
+        return res.status(400).json({ error: "Invalid outcome. Must be 'won', 'lost', or 'pending'" });
+      }
+      
+      const updatedQuote = await db.update(sentQuotes)
+        .set({
+          outcome,
+          outcomeNotes: outcomeNotes || null,
+          competitorName: competitorName || null,
+          objectionSummary: objectionSummary || null,
+          outcomeUpdatedAt: new Date(),
+          outcomeUpdatedBy: userEmail
+        })
+        .where(eq(sentQuotes.id, id))
+        .returning();
+      
+      if (updatedQuote.length === 0) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      console.log(`[Quote Outcome] Quote ${updatedQuote[0].quoteNumber} marked as ${outcome} by ${userEmail}`);
+      
+      res.json(updatedQuote[0]);
+    } catch (error) {
+      console.error("Error updating quote outcome:", error);
+      res.status(500).json({ error: "Failed to update quote outcome" });
+    }
+  });
+
+  // Dismiss lost notification (mark as seen)
+  app.post("/api/quotes/:id/dismiss-notification", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) {
+        return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
+      await db.update(sentQuotes)
+        .set({ lostNotificationSent: false }) // Reset to hide notification
+        .where(eq(sentQuotes.id, id));
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error dismissing notification:", error);
+      res.status(500).json({ error: "Failed to dismiss notification" });
     }
   });
 
