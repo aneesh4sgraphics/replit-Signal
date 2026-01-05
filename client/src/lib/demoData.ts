@@ -118,8 +118,24 @@ export const DEMO_LOST_NOTIFICATIONS: any[] = [];
 export const DEMO_ACTIVITY_EVENTS: any[] = [];
 
 export const DEMO_USAGE = {
-  database: { size: "1028 MB", sizeBytes: 1077936128, maxSize: "10 GB", usagePercent: 10.28 },
-  api: { requestsToday: 1250, requestsThisMonth: 28500 }
+  database: { 
+    size: "1028 MB", 
+    sizeBytes: 1077936128, 
+    tables: [
+      { table_name: "customers", total_size: "450 MB", size_bytes: 471859200 },
+      { table_name: "products", total_size: "125 MB", size_bytes: 131072000 },
+      { table_name: "sent_quotes", total_size: "85 MB", size_bytes: 89128960 },
+      { table_name: "activity_logs", total_size: "368 MB", size_bytes: 385875968 }
+    ]
+  },
+  records: {
+    customers: 3257,
+    products: 211,
+    quotes: 128,
+    activityLogs: 45892
+  },
+  limits: { dbMaxSize: "10 GB", dbMaxSizeBytes: 10737418240 },
+  timestamp: new Date().toISOString()
 };
 
 export const DEMO_API_RESPONSES: Record<string, any> = {

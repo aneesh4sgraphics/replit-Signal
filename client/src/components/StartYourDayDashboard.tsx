@@ -211,7 +211,8 @@ export default function StartYourDayDashboard() {
     }
   };
 
-  const getTaskTypeIcon = (taskType: string) => {
+  const getTaskTypeIcon = (taskType: string | undefined | null) => {
+    if (!taskType) return Clock;
     if (taskType.includes('quote')) return FileText;
     if (taskType.includes('sample')) return Package;
     if (taskType.includes('call')) return Phone;
