@@ -566,6 +566,21 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
     }
   };
 
+  const getDefaultConsequence = (action: string): string => {
+    const consequences: Record<string, string> = {
+      confirm_machine: 'Cannot recommend products without knowing their equipment',
+      check_reorder: 'May lose repeat business if product runs out',
+      follow_up: 'Deal may go cold - competitor could win',
+      send_sample: 'Customer waiting - delays hurt trust',
+      introduce_category: 'Missing expansion opportunity',
+      cross_sell: 'Revenue growth opportunity missed',
+      relationship: 'Risk of customer feeling neglected',
+      call_customer: 'Opportunity may slip away',
+      press_kit_followup: 'Press kit investment wasted without follow-up',
+    };
+    return consequences[action] || 'Opportunity may be missed';
+  };
+
   const adoptedCount = categoryTrusts.filter(t => t.trustLevel === 'adopted' || t.trustLevel === 'habitual').length;
   const trustProgress = compatibleCategories.length > 0 ? (adoptedCount / compatibleCategories.length) * 100 : 0;
 
@@ -599,11 +614,20 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
       </div>
 
       {nextMove && (
-        <Card className="border-2 border-purple-200 bg-purple-50/50">
-          <CardContent className="py-3">
-            <p className="text-xs text-gray-500 mb-1">Next Best Move</p>
+        <Card className="border-2 border-purple-300 bg-gradient-to-r from-purple-50 to-indigo-50 shadow-sm" data-testid="next-best-move-card">
+          <CardContent className="py-4">
+            <div className="flex items-center gap-2 mb-3">
+              <div className="p-2 rounded-full bg-purple-100">
+                <Zap className="h-5 w-5 text-purple-600" />
+              </div>
+              <div>
+                <h4 className="font-semibold text-purple-800 text-base">Next Best Move</h4>
+                <p className="text-xs text-gray-600">{nextMove.reason}</p>
+              </div>
+            </div>
+            
             <Button
-              className={`w-full ${getPriorityStyles(nextMove.priority)}`}
+              className={`w-full h-12 text-base font-semibold ${getPriorityStyles(nextMove.priority)}`}
               data-testid="next-best-move-button"
               onClick={() => {
                 if (nextMove.action === 'call_customer') {
@@ -612,15 +636,24 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
               }}
             >
               {nextMove.action === 'call_customer' ? (
-                <Phone className="h-4 w-4 mr-2" />
+                <Phone className="h-5 w-5 mr-2" />
               ) : (
-                <Zap className="h-4 w-4 mr-2" />
+                <Zap className="h-5 w-5 mr-2" />
               )}
               {getActionLabel(nextMove.action)}
-              <ChevronRight className="h-4 w-4 ml-auto" />
+              <ChevronRight className="h-5 w-5 ml-auto" />
             </Button>
-            <p className="text-xs text-gray-600 mt-1 text-center">{nextMove.reason}</p>
-            <p className="text-xs text-purple-600 font-medium mt-0.5 text-center italic">Why now: {nextMove.whyNow}</p>
+            
+            <div className="mt-3 space-y-1.5">
+              <div className="flex items-start gap-2 text-sm">
+                <Clock className="h-4 w-4 text-purple-500 mt-0.5 flex-shrink-0" />
+                <span className="text-purple-700 font-medium">Why now: {nextMove.whyNow}</span>
+              </div>
+              <div className="flex items-start gap-2 text-sm bg-amber-50 p-2 rounded border border-amber-200">
+                <AlertTriangle className="h-4 w-4 text-amber-500 mt-0.5 flex-shrink-0" />
+                <span className="text-amber-700">If ignored: {getDefaultConsequence(nextMove.action)}</span>
+              </div>
+            </div>
           </CardContent>
         </Card>
       )}

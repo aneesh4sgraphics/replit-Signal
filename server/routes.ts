@@ -883,6 +883,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  app.post('/api/auth/ping', async (req: any, res) => {
+    if (APP_CONFIG.DEV_MODE) {
+      return res.json({ ok: true });
+    }
+    if (!req.isAuthenticated || !req.isAuthenticated() || !req.user) {
+      return res.status(401).json({ ok: false });
+    }
+    if (req.session) {
+      req.session.touch();
+    }
+    res.json({ ok: true });
+  });
+
   // User management endpoints (Admin only)
   app.get('/api/admin/users', requireAdmin, async (req, res) => {
     try {
@@ -1498,6 +1511,90 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error fetching price list counts:", error);
       res.status(500).json({ error: "Failed to fetch price list counts" });
+    }
+  });
+
+  // Get urgency indicators for all customers (for client list badges)
+  app.get("/api/customers/urgency-indicators", isAuthenticated, async (req, res) => {
+    try {
+      const [pendingTasks, overdueTasks, customers] = await Promise.all([
+        storage.getPendingFollowUpTasks(),
+        storage.getOverdueFollowUpTasks(),
+        storage.getAllCustomers()
+      ]);
+      
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // Build urgency map per customer
+      const urgencyMap: Record<string, {
+        hasOverdueTasks: boolean;
+        hasQuoteAtRisk: boolean;
+        hasSamplePending: boolean;
+        hasMachineNotConfirmed: boolean;
+        urgencyLevel: 'critical' | 'high' | 'medium' | 'none';
+      }> = {};
+      
+      // Process tasks to identify urgency
+      const allTasks = [...pendingTasks, ...overdueTasks];
+      for (const task of allTasks) {
+        if (task.status === 'completed') continue;
+        
+        if (!urgencyMap[task.customerId]) {
+          urgencyMap[task.customerId] = {
+            hasOverdueTasks: false,
+            hasQuoteAtRisk: false,
+            hasSamplePending: false,
+            hasMachineNotConfirmed: false,
+            urgencyLevel: 'none'
+          };
+        }
+        
+        const dueDate = new Date(task.dueDate);
+        const isOverdue = dueDate < today;
+        const taskType = task.taskType || '';
+        
+        if (isOverdue) {
+          urgencyMap[task.customerId].hasOverdueTasks = true;
+          urgencyMap[task.customerId].urgencyLevel = 'critical';
+        }
+        
+        if (taskType.includes('quote')) {
+          // Check if quote is at risk (more than 7 days old)
+          const daysSinceDue = Math.floor((today.getTime() - dueDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (daysSinceDue >= 7) {
+            urgencyMap[task.customerId].hasQuoteAtRisk = true;
+            if (urgencyMap[task.customerId].urgencyLevel !== 'critical') {
+              urgencyMap[task.customerId].urgencyLevel = 'high';
+            }
+          }
+        }
+        
+        if (taskType.includes('sample') || taskType.includes('test')) {
+          urgencyMap[task.customerId].hasSamplePending = true;
+          if (urgencyMap[task.customerId].urgencyLevel === 'none') {
+            urgencyMap[task.customerId].urgencyLevel = 'medium';
+          }
+        }
+      }
+      
+      // Initialize urgency entries for all customers (even those without tasks)
+      for (const customer of customers) {
+        if (!urgencyMap[customer.id]) {
+          urgencyMap[customer.id] = {
+            hasOverdueTasks: false,
+            hasQuoteAtRisk: false,
+            hasSamplePending: false,
+            hasMachineNotConfirmed: false,
+            urgencyLevel: 'none'
+          };
+        }
+      }
+      
+      res.json(urgencyMap);
+    } catch (error) {
+      console.error("Error fetching urgency indicators:", error);
+      res.status(500).json({ error: "Failed to fetch urgency indicators" });
     }
   });
 

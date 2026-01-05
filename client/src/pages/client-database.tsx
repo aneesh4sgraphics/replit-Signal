@@ -160,6 +160,7 @@ export default function ClientDatabase() {
     noTags: false,
     noCompany: false,
   });
+  const [showUrgentOnly, setShowUrgentOnly] = useState(false);
   const [showFilters, setShowFilters] = useState(false);
   const [viewMode, setViewMode] = useState<'table' | 'cards' | 'kanban'>('table');
   const [editingRowId, setEditingRowId] = useState<string | null>(null);
@@ -333,6 +334,30 @@ export default function ClientDatabase() {
     enabled: customers.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Fetch urgency indicators for all customers
+  const { data: urgencyIndicators = {} } = useQuery<Record<string, {
+    hasOverdueTasks: boolean;
+    hasQuoteAtRisk: boolean;
+    hasSamplePending: boolean;
+    hasMachineNotConfirmed: boolean;
+    urgencyLevel: 'critical' | 'high' | 'medium' | 'none';
+  }>>({
+    queryKey: ['/api/customers/urgency-indicators'],
+    enabled: customers.length > 0,
+    staleTime: 1 * 60 * 1000, // 1 minute - more frequent updates for urgency
+  });
+
+  // Helper to get customer urgency
+  const getCustomerUrgency = (customerId: string) => {
+    return urgencyIndicators[customerId] || {
+      hasOverdueTasks: false,
+      hasQuoteAtRisk: false,
+      hasSamplePending: false,
+      hasMachineNotConfirmed: false,
+      urgencyLevel: 'none' as const
+    };
+  };
 
   // Fetch email sends for mailer count - lazy load after main data
   const { data: emailSends = [] } = useQuery<any[]>({
@@ -692,7 +717,13 @@ export default function ClientDatabase() {
     const matchesSalesRep = !filters.salesRep || 
       (filters.salesRep === "unassigned" && (!customer.salesRepId || customer.salesRepId.trim() === ''));
 
-    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter && matchesPricingTier && matchesSalesRep;
+    // Urgency filter - show only customers with urgency indicators
+    const matchesUrgency = !showUrgentOnly || (() => {
+      const urgency = urgencyIndicators[customer.id];
+      return urgency && (urgency.hasOverdueTasks || urgency.hasQuoteAtRisk || urgency.hasSamplePending);
+    })();
+
+    return matchesSearch && matchesCity && matchesProvince && matchesCountry && matchesTaxExempt && matchesEmailMarketing && matchesMissingEmail && matchesMissingPhone && matchesMissingTags && matchesMissingCompany && matchesHotFilter && matchesPricingTier && matchesSalesRep && matchesUrgency;
   }).sort((a, b) => {
     // Sort by company name (case-insensitive)
     const companyA = getCompanyDisplayName(a).toLowerCase();
@@ -2699,6 +2730,54 @@ export default function ClientDatabase() {
                           >
                             {group.companyName}
                           </span>
+                          
+                          {/* Urgency Badges */}
+                          {(() => {
+                            const urgency = getCustomerUrgency(primary.id);
+                            return (
+                              <>
+                                {urgency.hasOverdueTasks && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-red-100 text-red-700 border border-red-300">
+                                          <AlertTriangle className="h-3 w-3" />
+                                          Overdue
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Has overdue tasks - needs immediate attention</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {urgency.hasQuoteAtRisk && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-orange-100 text-orange-700 border border-orange-300">
+                                          <FileText className="h-3 w-3" />
+                                          Quote at Risk
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Quote follow-up overdue - may auto-close as lost</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                                {urgency.hasSamplePending && (
+                                  <TooltipProvider>
+                                    <Tooltip>
+                                      <TooltipTrigger asChild>
+                                        <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] font-semibold bg-blue-100 text-blue-700 border border-blue-300">
+                                          <Package className="h-3 w-3" />
+                                          Sample
+                                        </span>
+                                      </TooltipTrigger>
+                                      <TooltipContent>Sample or test pending follow-up</TooltipContent>
+                                    </Tooltip>
+                                  </TooltipProvider>
+                                )}
+                              </>
+                            );
+                          })()}
                           
                           {/* Price List sent indicator - Warning to avoid conflicting pricing */}
                           {getPriceListCount(primary.id) > 0 && (

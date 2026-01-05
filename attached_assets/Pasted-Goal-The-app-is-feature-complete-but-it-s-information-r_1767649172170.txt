@@ -1,0 +1,177 @@
+Goal
+
+The app is feature-complete, but it’s information-rich and decision-poor. We need to improve speed of action + clarity of urgency for reps, and reduce cognitive load. This is not a redesign; it’s a hierarchy + workflow + performance pass.
+
+Primary principle
+
+Every key screen must answer in <3 seconds:
+
+What should I do next?
+
+Why now?
+
+What happens if I ignore this?
+
+And provide one obvious click to act.
+
+Phase 1 (Highest priority changes)
+1) Dashboard becomes “Top 3 Actions” command center
+
+Current dashboard has too many sections competing. Replace top of dashboard with:
+
+A) Top 3 Things You Must Do Today (cards)
+Each card shows: client name + reason + one CTA.
+Examples:
+
+“Press test stalled 10 days → Call + log outcome”
+
+“Quote at risk (day 8) → Follow-up”
+
+“Machine not confirmed → Confirm to unlock categories”
+
+B) At-Risk Revenue / At-Risk Deals (count + list)
+
+Quotes at risk, samples stalled, reorders due (later)
+
+Everything else (tools, recent activity, pipeline stats) goes below fold or collapsible.
+
+Acceptance
+
+User sees actionable clients immediately without scrolling.
+
+All 3 cards deep-link to the client and the exact action modal.
+
+2) Client List view needs urgency + ownership
+
+Problems: 2606 clients unassigned, list doesn’t show urgency.
+
+Changes
+
+Default view = My Clients
+
+Add quick filter: Unassigned clients
+
+Add row badges/icons for urgency:
+
+Quote at risk
+
+Sample/test pending
+
+Reorder due (once Shopify live)
+
+Machine not confirmed
+
+Acceptance
+
+Rep can instantly see who needs action from list view.
+
+List loads fast with pagination and server-side search.
+
+3) Client Detail: make “Next Best Move” the hero
+
+Next Best Move is correct but not dominant enough.
+
+Changes
+
+Make Next Best Move the largest element above fold.
+
+Add “Why now” + “If ignored” consequence line.
+
+Ensure one primary CTA per nudge (no competing buttons).
+
+Also remove or replace “Journey Progress 1/10 complete”:
+
+It’s unclear and implies a linear funnel.
+
+Replace with Category Expansion progress only (adopted/compatible categories).
+
+Acceptance
+
+Next Best Move is visible without scrolling.
+
+Journey metaphor is consistent (category trust + adoption).
+
+4) QuickQuotes must be connected to client + journey
+
+Current QuickQuotes is a calculator, not a sales action engine.
+
+Changes
+
+If opened from a client, auto-select that customer.
+
+Display customer context panel (last purchase date, adopted categories, expansion opportunity).
+
+Add “Send & Log Quote” action that:
+
+creates Quote record linked to account + category_code
+
+updates Category Trust NotIntroduced → Introduced
+
+starts quote follow-up coaching timer
+
+Show confirmation: “Follow-up suggested in 5 days.”
+
+Acceptance
+
+Quote always appears in client record automatically.
+
+Quote follow-up nudges trigger without manual logging.
+
+5) Fix session expiry & perceived slowness
+
+We’re seeing session expired warnings during normal use.
+
+Changes
+
+Implement session refresh / keep-alive for active users.
+
+Add instrumentation: endpoint timings + slow query logs.
+
+Lazy-load tabs on client detail (Quotes, Samples, Press) only when opened.
+
+Add pagination to long lists and avoid loading full history by default.
+
+Acceptance
+
+No session expired while actively navigating.
+
+Client detail loads under ~1.5s typical (summary first, details lazy).
+
+Phase 2 (Quality improvements)
+6) Objections: turn into action system
+
+Issues: Unknown customers, no suggested responses, no closure.
+
+Changes
+
+Objections must always link to a customer (fix “Unknown” mapping).
+
+Add “Suggested response” snippets per objection type.
+
+Add one-click outcomes: Resolved / Lost / Postponed.
+
+Add “Next Best Move” tie-in (if open objection exists, it can drive nudges).
+
+7) Admin Config: reduce intimidation, add wizard + preview
+
+Admin is powerful but scary.
+
+Changes
+
+Replace “0% complete” with guided setup: “Setup in ~15 minutes.”
+
+Merge “Seed Initial Config” vs “Seed Default Config” into one clear action with preview.
+
+Add wizard flow for setup checklist.
+
+Add preview simulator: select customer → show computed Next Best Move + why.
+
+Add rollback/undo for last config version.
+
+Guardrails
+
+Do NOT add generic task lists.
+
+Keep “one nudge at a time.”
+
+Keep trust states semantic; purchases advance adoption automatically when Shopify is connected.
