@@ -28,6 +28,7 @@ import {
 } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -60,6 +61,7 @@ import {
   MoreHorizontal,
   AlertTriangle,
   Settings,
+  X,
 } from "lucide-react";
 import type { Customer, CustomerMachineProfile, CategoryTrust, CategoryObjection } from "@shared/schema";
 import JourneyProgress from "./JourneyProgress";
@@ -305,10 +307,32 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/crm/objections', customer.id] });
       setObjectionDialog({ open: false, categoryName: '' });
-      toast({ title: "Objection logged", description: "Objection recorded" });
+      toast({ title: "Issue logged", description: "Issue recorded" });
     },
     onError: (error: any) => {
-      toast({ title: "Error", description: error.message || "Failed to log objection", variant: "destructive" });
+      toast({ title: "Error", description: error.message || "Failed to log issue", variant: "destructive" });
+    },
+  });
+
+  const [resolveDialog, setResolveDialog] = useState<{ open: boolean; issueId: number | null; objectionType: string }>({ open: false, issueId: null, objectionType: '' });
+  const [resolutionNote, setResolutionNote] = useState('');
+
+  const resolveObjectionMutation = useMutation({
+    mutationFn: async ({ issueId, resolutionNote }: { issueId: number; resolutionNote: string }) => {
+      const res = await apiRequest('POST', `/api/crm/objections/${issueId}/resolve`, {
+        status: 'won',
+        resolutionNote,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/objections', customer.id] });
+      setResolveDialog({ open: false, issueId: null, objectionType: '' });
+      setResolutionNote('');
+      toast({ title: "Issue closed", description: "Issue marked as resolved" });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to close issue", variant: "destructive" });
     },
   });
 
@@ -800,18 +824,19 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
                       <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
                           <span className="text-sm font-medium truncate">{category}</span>
-                          {categoryObjections.length > 0 && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger>
-                                  <AlertTriangle className="h-3 w-3 text-orange-500" />
-                                </TooltipTrigger>
-                                <TooltipContent>
-                                  {categoryObjections.map(o => o.objectionType).join(', ')}
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
+                          {categoryObjections.length > 0 && categoryObjections.map(objection => (
+                            <Badge 
+                              key={objection.id}
+                              variant="outline" 
+                              className="text-xs border-red-500 text-red-600 bg-red-50 cursor-pointer hover:bg-red-100"
+                              onClick={() => setResolveDialog({ open: true, issueId: objection.id, objectionType: objection.objectionType })}
+                              data-testid={`close-issue-${objection.id}`}
+                            >
+                              <AlertTriangle className="h-3 w-3 mr-1" />
+                              Issue: {objection.objectionType}
+                              <X className="h-3 w-3 ml-1" />
+                            </Badge>
+                          ))}
                           {isAdopted && trust?.reorderStatus && (
                             <Badge
                               variant="outline"
@@ -980,6 +1005,61 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
               data-testid="btn-save-machine-note"
             >
               Save
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Resolve Issue Dialog */}
+      <Dialog open={resolveDialog.open} onOpenChange={(open) => {
+        if (!open) {
+          setResolveDialog({ open: false, issueId: null, objectionType: '' });
+          setResolutionNote('');
+        }
+      }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Close Issue: {resolveDialog.objectionType}</DialogTitle>
+            <DialogDescription>
+              Please describe what was changed or resolved to close this issue.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label htmlFor="resolution-note">Resolution Note (required)</Label>
+              <Textarea
+                id="resolution-note"
+                placeholder="Describe what changed to resolve this issue..."
+                value={resolutionNote}
+                onChange={(e) => setResolutionNote(e.target.value)}
+                rows={3}
+                data-testid="input-resolution-note"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setResolveDialog({ open: false, issueId: null, objectionType: '' });
+                setResolutionNote('');
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                if (resolveDialog.issueId && resolutionNote.trim()) {
+                  resolveObjectionMutation.mutate({ 
+                    issueId: resolveDialog.issueId, 
+                    resolutionNote: resolutionNote.trim() 
+                  });
+                }
+              }}
+              disabled={!resolutionNote.trim() || resolveObjectionMutation.isPending}
+              data-testid="btn-close-issue"
+            >
+              {resolveObjectionMutation.isPending ? 'Closing...' : 'Close Issue'}
             </Button>
           </DialogFooter>
         </DialogContent>

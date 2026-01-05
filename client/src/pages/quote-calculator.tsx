@@ -300,6 +300,33 @@ export default function QuoteCalculator() {
     enabled: !isAuthLoading && isAuthenticated && !!selectedCustomer?.id,
   });
 
+  // Fetch active issues (objections) for the selected customer
+  const { data: customerIssues } = useQuery<Array<{
+    id: number;
+    categoryName: string;
+    objectionType: string;
+    status: string;
+    details: string | null;
+    createdAt: string;
+  }>>({
+    queryKey: ['/api/crm/objections', selectedCustomer?.id],
+    queryFn: async () => {
+      if (!selectedCustomer?.id) return [];
+      const response = await fetch(`/api/crm/objections?customerId=${selectedCustomer.id}`, {
+        credentials: 'include'
+      });
+      if (!response.ok) throw new Error('Failed to fetch customer issues');
+      return response.json();
+    },
+    enabled: !isAuthLoading && isAuthenticated && !!selectedCustomer?.id,
+  });
+
+  // Filter for active (open) price or compatibility issues
+  const activeIssues = customerIssues?.filter(issue => 
+    issue.status === 'open' && 
+    (issue.objectionType === 'price' || issue.objectionType === 'compatibility')
+  ) || [];
+
   // Get unique categories (filter out empty/null values)
   const categories = Array.from(new Set(productData.map(item => item.productName).filter(Boolean))).sort();
   
@@ -1334,6 +1361,31 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               </div>
             )}
           </div>
+
+          {/* Active Issues Warning Bar */}
+          {selectedCustomer && activeIssues.length > 0 && (
+            <div className="mb-4 p-4 bg-red-50 border-2 border-red-500 rounded-lg" data-testid="issue-warning-bar">
+              <div className="flex items-start gap-3">
+                <AlertTriangle className="h-5 w-5 text-red-600 flex-shrink-0 mt-0.5" />
+                <div className="flex-1">
+                  <h3 className="font-semibold text-red-700 mb-1">Active Issues - Tread Carefully</h3>
+                  <div className="space-y-1">
+                    {activeIssues.map(issue => (
+                      <div key={issue.id} className="flex items-center gap-2 text-sm text-red-600">
+                        <span className="font-medium uppercase">ISSUE: {issue.objectionType}</span>
+                        {issue.categoryName && (
+                          <span className="text-red-500">({issue.categoryName})</span>
+                        )}
+                        {issue.details && (
+                          <span className="text-red-400">- {issue.details}</span>
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
           {/* Quote Summary Card */}
           <div className="glass-card mb-6">

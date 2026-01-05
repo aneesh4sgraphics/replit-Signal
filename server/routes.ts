@@ -7699,15 +7699,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Create or update category trust (click-based progression)
   app.post("/api/crm/category-trust", isAuthenticated, async (req: any, res) => {
     try {
-      const { customerId, categoryName, machineType, trustLevel, notes } = req.body;
+      const { customerId, categoryName, categoryCode, machineType, trustLevel, notes } = req.body;
       
-      if (!customerId || !categoryName) {
-        return res.status(400).json({ error: "customerId and categoryName are required" });
+      if (!customerId || (!categoryName && !categoryCode)) {
+        return res.status(400).json({ error: "customerId and categoryName or categoryCode are required" });
+      }
+
+      // Generate categoryCode from categoryName if not provided, or vice versa
+      const finalCategoryCode = categoryCode || (categoryName ? categoryName.toUpperCase().replace(/[^A-Z0-9]/g, '_') : '');
+      const finalCategoryName = categoryName || categoryCode || '';
+      
+      if (!finalCategoryCode) {
+        return res.status(400).json({ error: "Unable to determine category code" });
       }
 
       // Check if trust record exists
       const existing = await db.select().from(categoryTrust)
-        .where(sql`${categoryTrust.customerId} = ${customerId} AND ${categoryTrust.categoryName} = ${categoryName} AND COALESCE(${categoryTrust.machineType}, '') = COALESCE(${machineType || ''}, '')`);
+        .where(sql`${categoryTrust.customerId} = ${customerId} AND (${categoryTrust.categoryCode} = ${finalCategoryCode} OR ${categoryTrust.categoryName} = ${finalCategoryName}) AND COALESCE(${categoryTrust.machineType}, '') = COALESCE(${machineType || ''}, '')`);
 
       let result;
       if (existing.length > 0) {
@@ -7725,7 +7733,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Create new
         result = await db.insert(categoryTrust).values({
           customerId,
-          categoryName,
+          categoryCode: finalCategoryCode,
+          categoryName: finalCategoryName,
           machineType: machineType || null,
           trustLevel: trustLevel || 'unknown',
           notes,
@@ -8593,15 +8602,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Resolve objection
+  // Resolve objection with required note
   app.post("/api/crm/objections/:id/resolve", isAuthenticated, async (req: any, res) => {
     try {
       const { id } = req.params;
-      const { status } = req.body; // addressed, won, lost
+      const { status, resolutionNote } = req.body; // addressed, won, lost
+      
+      // Require a note when closing an issue
+      if (!resolutionNote || resolutionNote.trim() === '') {
+        return res.status(400).json({ error: "A resolution note is required to close an issue" });
+      }
       
       const result = await db.update(categoryObjections)
         .set({ 
-          status: status || 'addressed',
+          status: status || 'won',
+          details: resolutionNote.trim(), // Store the resolution note in details
           resolvedAt: new Date(),
           resolvedBy: req.user?.email,
         })
