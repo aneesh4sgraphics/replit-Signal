@@ -866,7 +866,7 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
                                 onClick={() => logObjectionMutation.mutate({ categoryName: category, objectionType: obj.id })}
                               >
                                 <obj.icon className="h-4 w-4 mr-2" />
-                                Log: {obj.label}
+                                Issue: {obj.label}
                               </DropdownMenuItem>
                             ))}
                           </DropdownMenuContent>
