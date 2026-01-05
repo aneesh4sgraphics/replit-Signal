@@ -999,12 +999,14 @@ export default function ClientDatabase() {
 
   const autoAssignSalesRepsMutation = useMutation({
     mutationFn: async () => {
-      return await apiRequest("POST", "/api/admin/auto-assign-sales-reps");
+      const response = await apiRequest("POST", "/api/admin/auto-assign-sales-reps");
+      return await response.json();
     },
     onSuccess: (data: any) => {
+      const r = data.results || {};
       toast({
         title: "Auto-Assignment Complete",
-        description: `Assigned: Santiago=${data.results?.santiago || 0}, Patricio=${data.results?.patricio || 0}, Aneesh=${data.results?.aneesh || 0}. Skipped: ${data.results?.skipped || 0}`,
+        description: `Santiago: ${r.santiago || 0}, Patricio: ${r.patricio || 0}, Aneesh: ${r.aneesh || 0}. Skipped: ${r.skipped || 0}`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
     },
