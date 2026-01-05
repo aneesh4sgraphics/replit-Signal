@@ -69,6 +69,7 @@ import {
   pressProfiles, 
   testOutcomes,
   categoryTrust,
+  sentQuotes,
   customerCoachState,
   customerMachineProfiles,
   categoryObjections,
@@ -3754,9 +3755,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const { outcome, outcomeNotes, competitorName, objectionSummary } = req.body;
       const userEmail = req.user?.claims?.email;
+      const isAdmin = req.user?.role === 'admin';
       
       if (!['won', 'lost', 'pending'].includes(outcome)) {
         return res.status(400).json({ error: "Invalid outcome. Must be 'won', 'lost', or 'pending'" });
+      }
+      
+      // Authorization check: Only owner or admin can update outcome
+      const existingQuote = await db.select().from(sentQuotes).where(eq(sentQuotes.id, id)).limit(1);
+      if (existingQuote.length === 0) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      if (!isAdmin && existingQuote[0].ownerEmail !== userEmail) {
+        return res.status(403).json({ error: "You don't have permission to update this quote" });
       }
       
       const updatedQuote = await db.update(sentQuotes)
@@ -3790,6 +3802,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
         return res.status(400).json({ error: "Invalid quote ID" });
+      }
+      
+      const userEmail = req.user?.claims?.email;
+      const isAdmin = req.user?.role === 'admin';
+      
+      // Authorization check: Only owner or admin can dismiss notification
+      const existingQuote = await db.select().from(sentQuotes).where(eq(sentQuotes.id, id)).limit(1);
+      if (existingQuote.length === 0) {
+        return res.status(404).json({ error: "Quote not found" });
+      }
+      
+      if (!isAdmin && existingQuote[0].ownerEmail !== userEmail) {
+        return res.status(403).json({ error: "You don't have permission to dismiss this notification" });
       }
       
       await db.update(sentQuotes)
