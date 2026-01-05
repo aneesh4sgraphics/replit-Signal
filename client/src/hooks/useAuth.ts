@@ -1,5 +1,5 @@
-import { useQuery, useQueryClient } from "@tanstack/react-query";
-import { useEffect, useState, useRef } from "react";
+import { useQuery } from "@tanstack/react-query";
+import { useEffect, useState } from "react";
 
 interface AuthUser {
   id: string;
@@ -32,22 +32,8 @@ async function fetchAuthUser(): Promise<AuthUser | null> {
   return res.json();
 }
 
-async function pingSession(): Promise<boolean> {
-  try {
-    const res = await fetch("/api/auth/ping", {
-      method: "POST",
-      credentials: "include",
-    });
-    return res.ok;
-  } catch {
-    return false;
-  }
-}
-
 export function useAuth() {
   const [isInitializing, setIsInitializing] = useState(true);
-  const keepAliveRef = useRef<ReturnType<typeof setInterval> | null>(null);
-  const queryClient = useQueryClient();
 
   const wasJustAuthenticated = typeof window !== "undefined" && 
     sessionStorage.getItem("authComplete") === "true";
@@ -62,24 +48,6 @@ export function useAuth() {
     refetchOnWindowFocus: false,
     refetchOnMount: false,
   });
-
-  useEffect(() => {
-    if (user && !keepAliveRef.current) {
-      keepAliveRef.current = setInterval(async () => {
-        const success = await pingSession();
-        if (!success) {
-          queryClient.invalidateQueries({ queryKey: ["/api/auth/user"] });
-        }
-      }, 4 * 60 * 1000);
-    }
-
-    return () => {
-      if (keepAliveRef.current) {
-        clearInterval(keepAliveRef.current);
-        keepAliveRef.current = null;
-      }
-    };
-  }, [user, queryClient]);
 
   useEffect(() => {
     if (wasJustAuthenticated) {

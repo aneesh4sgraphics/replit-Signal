@@ -1287,76 +1287,77 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
 
         {/* Right Panel - Customer Details & Quote Summary */}
         <div className="xl:col-span-3 lg:col-span-3">
-          {/* Customer Context Card */}
+          {/* Customer Details Card */}
           <div className="glass-card mb-6">
             <h2 className="text-lg font-medium text-gray-800 mb-3 flex items-center gap-2">
               <User className="h-5 w-5 text-indigo-600" />
-              Customer Context
+              Customer Details
             </h2>
             {selectedCustomer ? (
-              <div className="space-y-4">
-                <div className="flex items-center justify-between">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div className="space-y-2">
                   <div className="flex items-center gap-2">
-                    <span className="text-base font-semibold text-gray-900">
-                      {selectedCustomer.company || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`}
+                    <User className="h-4 w-4 text-gray-500" />
+                    <span className="text-sm font-medium text-gray-800">
+                      {selectedCustomer.firstName} {selectedCustomer.lastName}
                     </span>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {(selectedCustomer as any).pricingTier && (
-                      <Badge className="bg-indigo-100 text-indigo-700 border-0">
-                        {(selectedCustomer as any).pricingTier}
-                      </Badge>
-                    )}
-                    {(selectedCustomer as any).accountState && (
-                      <Badge variant="outline" className="text-xs">
-                        {(selectedCustomer as any).accountState}
-                      </Badge>
-                    )}
-                  </div>
+                  {selectedCustomer.company && (
+                    <div className="flex items-center gap-2">
+                      <Building className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{selectedCustomer.company}</span>
+                    </div>
+                  )}
+                  {selectedCustomer.email && (
+                    <div className="flex items-center gap-2">
+                      <Mail className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{selectedCustomer.email}</span>
+                    </div>
+                  )}
                 </div>
-                
-                <div className="grid grid-cols-2 gap-3 text-sm">
-                  <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-600 truncate">{selectedCustomer.email || 'No email'}</span>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span className="text-gray-600">{selectedCustomer.phone || 'No phone'}</span>
-                  </div>
-                </div>
-
-                {sentPricesData?.event && (
-                  <div className="p-2 bg-blue-50 rounded-md border border-blue-100">
-                    <div className="flex items-center gap-2 text-sm">
-                      <FileText className="h-4 w-4 text-blue-500" />
-                      <span className="text-blue-700 font-medium">Last PDF Sent:</span>
-                      <span className="text-blue-600">
-                        {new Date(sentPricesData.event.eventDate).toLocaleDateString()} at {sentPricesData.event.priceTier}
+                <div className="space-y-2">
+                  {selectedCustomer.phone && (
+                    <div className="flex items-center gap-2">
+                      <Phone className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">{selectedCustomer.phone}</span>
+                    </div>
+                  )}
+                  {(selectedCustomer.address1 || selectedCustomer.city || selectedCustomer.province) && (
+                    <div className="flex items-center gap-2">
+                      <MapPin className="h-4 w-4 text-gray-500" />
+                      <span className="text-sm text-gray-600">
+                        {[selectedCustomer.address1, selectedCustomer.city, selectedCustomer.province].filter(Boolean).join(', ')}
                       </span>
                     </div>
-                  </div>
-                )}
-
-                {(selectedCustomer as any).sources && (selectedCustomer as any).sources.length > 0 && (
-                  <div className="flex items-center gap-2">
-                    {(selectedCustomer as any).sources.includes('odoo') && (
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full flex items-center gap-1">
-                        <Database className="h-3 w-3" /> Odoo
+                  )}
+                  {selectedCustomer.tags && (
+                    <div className="flex items-center gap-2">
+                      <Tag className="h-4 w-4 text-indigo-600" />
+                      <span className="px-3 py-1 bg-indigo-600 text-white text-sm font-semibold rounded-md shadow-sm">
+                        {selectedCustomer.tags}
                       </span>
-                    )}
-                    {(selectedCustomer as any).sources.includes('shopify') && (
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1">
-                        <ShoppingCart className="h-3 w-3" /> Shopify
-                      </span>
-                    )}
-                  </div>
-                )}
+                    </div>
+                  )}
+                  {(selectedCustomer as any).sources && (selectedCustomer as any).sources.length > 0 && (
+                    <div className="flex items-center gap-3">
+                      {(selectedCustomer as any).sources.includes('odoo') && (
+                        <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded-full flex items-center gap-1">
+                          <Database className="h-3 w-3" /> Odoo
+                        </span>
+                      )}
+                      {(selectedCustomer as any).sources.includes('shopify') && (
+                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded-full flex items-center gap-1">
+                          <ShoppingCart className="h-3 w-3" /> Shopify
+                        </span>
+                      )}
+                    </div>
+                  )}
+                </div>
               </div>
             ) : (
               <div className="text-center py-4 text-gray-500">
                 <User className="h-8 w-8 mx-auto mb-2 text-gray-400" />
-                <p className="text-sm">Select a customer to view context</p>
+                <p className="text-sm">Select a customer to view details</p>
               </div>
             )}
           </div>
