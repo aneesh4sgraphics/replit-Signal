@@ -867,6 +867,30 @@ export const insertPriceListEventSchema = createInsertSchema(priceListEvents).om
 export type PriceListEvent = typeof priceListEvents.$inferSelect;
 export type InsertPriceListEvent = z.infer<typeof insertPriceListEventSchema>;
 
+// Price List Event Items - normalized line items with actual prices sent
+export const priceListEventItems = pgTable("price_list_event_items", {
+  id: serial("id").primaryKey(),
+  eventId: integer("event_id").notNull().references(() => priceListEvents.id, { onDelete: "cascade" }),
+  itemCode: varchar("item_code", { length: 50 }).notNull(),
+  productType: varchar("product_type", { length: 255 }),
+  size: varchar("size", { length: 100 }),
+  minQty: integer("min_qty"),
+  pricePerUnit: decimal("price_per_unit", { precision: 10, scale: 4 }),
+  pricePerPack: decimal("price_per_pack", { precision: 10, scale: 4 }),
+  shippingCost: decimal("shipping_cost", { precision: 10, scale: 4 }),
+  priceTier: varchar("price_tier", { length: 50 }),
+  category: varchar("category", { length: 100 }),
+}, (table) => [
+  index("IDX_price_list_event_items_event_id").on(table.eventId),
+  index("IDX_price_list_event_items_item_code").on(table.itemCode),
+]);
+
+export const insertPriceListEventItemSchema = createInsertSchema(priceListEventItems).omit({
+  id: true,
+});
+export type PriceListEventItem = typeof priceListEventItems.$inferSelect;
+export type InsertPriceListEventItem = z.infer<typeof insertPriceListEventItemSchema>;
+
 // Journey Types enum
 export const JOURNEY_TYPES = ['press_test', 'swatch_book', 'quote_sent'] as const;
 export type JourneyType = typeof JOURNEY_TYPES[number];
