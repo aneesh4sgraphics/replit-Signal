@@ -673,35 +673,43 @@ export async function registerRoutes(app: Express): Promise<Server> {
           let reasonText = '';
           let recommendedAction = '';
           
-          // Check various hygiene issues
+          // Check various hygiene issues and outreach opportunities
           const isUnassigned = !customer.salesRepId || customer.salesRepId.trim() === '';
+          const hasPhone = customer.phone || customer.phone2 || customer.cell || customer.defaultAddressPhone;
+          const hasAddress = customer.address1 && customer.city;
+          
+          // Rotate through different types of tasks based on customer ID hash + date
+          // This ensures variety across the week
+          const taskTypes = [];
           
           if (isUnassigned) {
-            reasonCode = 'team_opportunity';
-            reasonText = 'Unassigned - available to claim';
-            recommendedAction = 'Claim this customer';
-          } else if (!customer.pricingTier) {
-            reasonCode = 'hygiene_pricing_tier';
-            reasonText = 'Missing pricing tier';
-            recommendedAction = 'Assign a pricing tier';
-          } else if (!customer.phone && !customer.phone2 && !customer.cell) {
-            reasonCode = 'hygiene_phone';
-            reasonText = 'Missing phone number';
-            recommendedAction = 'Add contact phone number';
-          } else if (!customer.address1 || !customer.city) {
-            reasonCode = 'hygiene_address';
-            reasonText = 'Incomplete address';
-            recommendedAction = 'Complete mailing address';
-          } else if (!customer.email) {
-            reasonCode = 'hygiene_email';
-            reasonText = 'Missing email address';
-            recommendedAction = 'Add email for communication';
-          } else if (!customer.tags) {
-            reasonCode = 'hygiene_tags';
-            reasonText = 'No tags assigned';
-            recommendedAction = 'Add customer tags';
+            taskTypes.push({ code: 'team_opportunity', text: 'Unassigned - available to claim', action: 'Claim this customer' });
+          }
+          if (!customer.pricingTier) {
+            taskTypes.push({ code: 'hygiene_pricing_tier', text: 'Missing pricing tier', action: 'Assign a pricing tier' });
+          }
+          if (!hasPhone) {
+            taskTypes.push({ code: 'hygiene_phone', text: 'Missing phone number', action: 'Add contact phone number' });
+          }
+          if (!hasAddress) {
+            taskTypes.push({ code: 'hygiene_address', text: 'Incomplete address', action: 'Complete mailing address' });
+          }
+          if (!customer.email) {
+            taskTypes.push({ code: 'hygiene_email', text: 'Missing email address', action: 'Add email for communication' });
+          }
+          // Outreach tasks - always available for any customer
+          taskTypes.push({ code: 'outreach_sample', text: 'Sample opportunity', action: 'Send product samples' });
+          taskTypes.push({ code: 'outreach_swatchbook', text: 'SwatchBook opportunity', action: 'Send a SwatchBook' });
+          taskTypes.push({ code: 'engage_customer', text: 'Customer engagement opportunity', action: 'Schedule a check-in call' });
+          
+          // Pick the first available task type for this customer
+          if (taskTypes.length > 0) {
+            const task = taskTypes[0];
+            reasonCode = task.code;
+            reasonText = task.text;
+            recommendedAction = task.action;
           } else {
-            // General engagement - always provide something
+            // Fallback
             reasonCode = 'engage_customer';
             reasonText = 'Customer review opportunity';
             recommendedAction = 'Check in with customer';
