@@ -6316,8 +6316,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   app.post("/api/crm/price-list-events", isAuthenticated, async (req, res) => {
     try {
-      const validatedData = insertPriceListEventSchema.parse(req.body);
+      const { items, ...eventData } = req.body;
+      const validatedData = insertPriceListEventSchema.parse(eventData);
       const event = await storage.createPriceListEvent(validatedData);
+      
+      // If line items were provided, save them too
+      if (items && Array.isArray(items) && items.length > 0) {
+        await storage.createPriceListEventItems(event.id, items);
+      }
+      
       res.status(201).json(event);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -6325,6 +6332,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       console.error("Error creating price list event:", error);
       res.status(500).json({ error: "Failed to create price list event" });
+    }
+  });
+
+  // Get latest price list items for a customer (for QuickQuotes reference)
+  app.get("/api/crm/price-list-items/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const customerId = req.params.customerId;
+      const result = await storage.getLatestPriceListItemsForCustomer(customerId);
+      if (!result) {
+        return res.json({ event: null, items: [] });
+      }
+      res.json(result);
+    } catch (error) {
+      console.error("Error fetching price list items:", error);
+      res.status(500).json({ error: "Failed to fetch price list items" });
     }
   });
 
