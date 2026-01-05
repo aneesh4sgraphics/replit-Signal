@@ -426,7 +426,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
   // Mutation to assign customer to drip campaign
   const assignToDripCampaignMutation = useMutation({
     mutationFn: async ({ campaignId, customerId }: { campaignId: number; customerId: string }) => {
-      return await apiRequest('POST', `/api/drip-campaigns/${campaignId}/assignments`, { customerId });
+      return await apiRequest('POST', `/api/drip-campaigns/${campaignId}/assignments`, { customerIds: [customerId] });
     },
     onSuccess: () => {
       setIsDripCampaignDialogOpen(false);
