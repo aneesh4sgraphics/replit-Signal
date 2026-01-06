@@ -326,7 +326,7 @@ class OdooClient {
     }
 
     return this.searchRead('res.partner', domain, [
-      'id', 'name', 'email', 'phone', 'mobile', 'street', 'street2', 'city',
+      'id', 'name', 'email', 'phone', 'street', 'street2', 'city',
       'state_id', 'zip', 'country_id', 'is_company', 'company_type', 'parent_id',
       'child_ids', 'user_id', 'category_id', 'comment', 'website', 'function',
       'title', 'property_product_pricelist',
@@ -335,7 +335,7 @@ class OdooClient {
 
   async getPartnerById(id: number): Promise<OdooPartner | null> {
     const partners = await this.read('res.partner', [id], [
-      'id', 'name', 'email', 'phone', 'mobile', 'street', 'street2', 'city',
+      'id', 'name', 'email', 'phone', 'street', 'street2', 'city',
       'state_id', 'zip', 'country_id', 'is_company', 'company_type', 'parent_id',
       'child_ids', 'user_id', 'category_id', 'comment', 'website', 'function',
       'title', 'property_product_pricelist',
