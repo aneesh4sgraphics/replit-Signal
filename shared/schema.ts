@@ -69,6 +69,39 @@ export const productPricingMaster = pgTable("product_pricing_master", {
   updatedAt: timestamp("updated_at").defaultNow(),
 });
 
+// Product to Odoo mapping table - links QuickQuotes products to Odoo products
+export const productOdooMappings = pgTable("product_odoo_mappings", {
+  id: serial("id").primaryKey(),
+  itemCode: varchar("item_code", { length: 100 }).notNull().unique(), // QuickQuotes product item code
+  odooProductId: integer("odoo_product_id").notNull(), // Odoo product.template ID
+  odooDefaultCode: varchar("odoo_default_code", { length: 100 }), // Odoo product SKU/reference
+  odooProductName: varchar("odoo_product_name", { length: 255 }), // Cached Odoo product name
+  syncStatus: varchar("sync_status", { length: 20 }).notNull().default("mapped"), // 'mapped', 'pending_sync', 'synced', 'error'
+  lastSyncedAt: timestamp("last_synced_at"),
+  lastSyncError: text("last_sync_error"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  createdBy: varchar("created_by", { length: 255 }),
+});
+
+// Odoo price sync queue - pending price updates awaiting approval
+export const odooPriceSyncQueue = pgTable("odoo_price_sync_queue", {
+  id: serial("id").primaryKey(),
+  mappingId: integer("mapping_id").notNull().references(() => productOdooMappings.id, { onDelete: "cascade" }),
+  itemCode: varchar("item_code", { length: 100 }).notNull(),
+  odooProductId: integer("odoo_product_id").notNull(),
+  priceTier: varchar("price_tier", { length: 50 }).notNull(), // Which price tier to sync (e.g., 'dealerPrice', 'retailPrice')
+  currentOdooPrice: decimal("current_odoo_price", { precision: 10, scale: 2 }),
+  newPrice: decimal("new_price", { precision: 10, scale: 2 }).notNull(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'approved', 'rejected', 'synced', 'error'
+  requestedBy: varchar("requested_by", { length: 255 }),
+  requestedAt: timestamp("requested_at").defaultNow(),
+  approvedBy: varchar("approved_by", { length: 255 }),
+  approvedAt: timestamp("approved_at"),
+  syncedAt: timestamp("synced_at"),
+  syncError: text("sync_error"),
+});
+
 // Removed: pricingData table - legacy table replaced by productPricingMaster
 
 // Session storage table for authentication
@@ -299,6 +332,17 @@ export const insertProductPricingMasterSchema = createInsertSchema(productPricin
   updatedAt: true,
 });
 
+export const insertProductOdooMappingSchema = createInsertSchema(productOdooMappings).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+
+export const insertOdooPriceSyncQueueSchema = createInsertSchema(odooPriceSyncQueue).omit({
+  id: true,
+  requestedAt: true,
+});
+
 export const upsertUserSchema = createInsertSchema(users).omit({
   createdAt: true,
   updatedAt: true,
@@ -335,6 +379,8 @@ export type ProductType = typeof productTypes.$inferSelect;
 export type ProductSize = typeof productSizes.$inferSelect;
 export type PricingTier = typeof pricingTiers.$inferSelect;
 export type ProductPricingMaster = typeof productPricingMaster.$inferSelect;
+export type ProductOdooMapping = typeof productOdooMappings.$inferSelect;
+export type OdooPriceSyncQueue = typeof odooPriceSyncQueue.$inferSelect;
 export type User = typeof users.$inferSelect;
 export type Customer = typeof customers.$inferSelect;
 export type SentQuote = typeof sentQuotes.$inferSelect;
@@ -346,6 +392,8 @@ export type InsertProductType = z.infer<typeof insertProductTypeSchema>;
 export type InsertProductSize = z.infer<typeof insertProductSizeSchema>;
 export type InsertPricingTier = z.infer<typeof insertPricingTierSchema>;
 export type InsertProductPricingMaster = z.infer<typeof insertProductPricingMasterSchema>;
+export type InsertProductOdooMapping = z.infer<typeof insertProductOdooMappingSchema>;
+export type InsertOdooPriceSyncQueue = z.infer<typeof insertOdooPriceSyncQueueSchema>;
 export type InsertUser = z.infer<typeof insertUserSchema>;
 export type UpsertUser = z.infer<typeof upsertUserSchema>;
 export type InsertCustomer = z.infer<typeof insertCustomerSchema>;
