@@ -8894,6 +8894,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Odoo quotes (draft/sent sale orders) for a customer by their odooPartnerId
+  app.get("/api/odoo/customer/:customerId/quotes", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json([]);
+      }
+      
+      const quotes = await odooClient.getQuotesByPartner(customer[0].odooPartnerId);
+      res.json(quotes);
+    } catch (error: any) {
+      console.error("Error fetching Odoo quotes for customer:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch quotes from Odoo" });
+    }
+  });
+
+  // Get Odoo invoices for a customer by their odooPartnerId
+  app.get("/api/odoo/customer/:customerId/invoices", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json([]);
+      }
+      
+      const invoices = await odooClient.getInvoicesByPartner(customer[0].odooPartnerId);
+      res.json(invoices);
+    } catch (error: any) {
+      console.error("Error fetching Odoo invoices for customer:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch invoices from Odoo" });
+    }
+  });
+
+  // Get Odoo confirmed orders for a customer by their odooPartnerId
+  app.get("/api/odoo/customer/:customerId/orders", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json([]);
+      }
+      
+      const orders = await odooClient.getSaleOrdersByPartner(customer[0].odooPartnerId);
+      res.json(orders);
+    } catch (error: any) {
+      console.error("Error fetching Odoo orders for customer:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch orders from Odoo" });
+    }
+  });
+
   // Import all partners from Odoo as customers (READ-ONLY: only reads from Odoo, writes to local DB)
   app.post("/api/odoo/import/partners", requireAdmin, async (req: any, res) => {
     try {

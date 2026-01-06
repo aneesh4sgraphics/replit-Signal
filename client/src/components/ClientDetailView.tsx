@@ -71,6 +71,7 @@ import {
   UserCog,
   RefreshCw,
   Link2,
+  Receipt,
 } from "lucide-react";
 import {
   Tooltip,
@@ -378,6 +379,39 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       return res.json();
     },
     enabled: activeTab === 'orders',
+  });
+
+  // Fetch Odoo confirmed orders for this customer
+  const { data: odooOrders = [] } = useQuery<any[]>({
+    queryKey: ['/api/odoo/customer', customer.id, 'orders'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/customer/${customer.id}/orders`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: activeTab === 'orders' && !!(customer as any).odooPartnerId,
+  });
+
+  // Fetch Odoo invoices for this customer
+  const { data: odooInvoices = [] } = useQuery<any[]>({
+    queryKey: ['/api/odoo/customer', customer.id, 'invoices'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/customer/${customer.id}/invoices`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: activeTab === 'orders' && !!(customer as any).odooPartnerId,
+  });
+
+  // Fetch Odoo quotes for this customer
+  const { data: odooQuotes = [] } = useQuery<any[]>({
+    queryKey: ['/api/odoo/customer', customer.id, 'quotes'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/customer/${customer.id}/quotes`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: activeTab === 'quotes-prices' && !!(customer as any).odooPartnerId,
   });
 
   // Fetch email sends for this customer
@@ -1690,12 +1724,126 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               ) : (
                 <div className="text-center py-8">
                   <ShoppingCart className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-                  <p className="text-gray-500">No orders matched to this customer yet</p>
-                  <p className="text-xs text-gray-400 mt-1">Orders from Shopify will appear here when matched</p>
+                  <p className="text-gray-500">No Shopify orders matched to this customer yet</p>
                 </div>
               )}
             </CardContent>
           </Card>
+
+          {/* Odoo Orders Section */}
+          {(customer as any).odooPartnerId && (
+            <Card className="glass-card mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <FileText className="h-5 w-5 text-purple-600" />
+                  Orders from Odoo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 pt-2">
+                {odooOrders.length > 0 ? (
+                  <div className="space-y-3">
+                    {odooOrders.map((order: any) => (
+                      <div key={order.id} className="border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{order.name}</span>
+                              <Badge variant={order.state === 'done' ? 'default' : 'secondary'}>
+                                {order.state === 'sale' ? 'Confirmed' : order.state === 'done' ? 'Done' : order.state}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              {order.date_order ? new Date(order.date_order).toLocaleDateString('en-US', { 
+                                year: 'numeric', month: 'short', day: 'numeric' 
+                              }) : 'Unknown date'}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-lg text-green-600">${parseFloat(order.amount_total || 0).toLocaleString()}</p>
+                            <a 
+                              href={`https://4sgraphics.odoo.com/web#id=${order.id}&model=sale.order&view_type=form`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 justify-end mt-1"
+                            >
+                              View in Odoo <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <FileText className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm">No confirmed orders in Odoo</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Odoo Invoices Section */}
+          {(customer as any).odooPartnerId && (
+            <Card className="glass-card mt-4">
+              <CardHeader className="pb-2">
+                <CardTitle className="text-base flex items-center gap-2">
+                  <Receipt className="h-5 w-5 text-blue-600" />
+                  Invoices from Odoo
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="p-6 pt-2">
+                {odooInvoices.length > 0 ? (
+                  <div className="space-y-3">
+                    {odooInvoices.map((invoice: any) => (
+                      <div key={invoice.id} className="border rounded-lg p-4 bg-white hover:shadow-sm transition-shadow">
+                        <div className="flex items-start justify-between">
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <span className="font-semibold">{invoice.name}</span>
+                              <Badge variant={
+                                invoice.payment_state === 'paid' ? 'default' : 
+                                invoice.payment_state === 'partial' ? 'outline' : 'secondary'
+                              }>
+                                {invoice.payment_state === 'paid' ? 'Paid' : 
+                                 invoice.payment_state === 'partial' ? 'Partial' : 
+                                 invoice.payment_state === 'not_paid' ? 'Not Paid' : invoice.payment_state}
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-gray-500">
+                              {invoice.invoice_date ? new Date(invoice.invoice_date).toLocaleDateString('en-US', { 
+                                year: 'numeric', month: 'short', day: 'numeric' 
+                              }) : 'Unknown date'}
+                              {invoice.invoice_origin && <span className="ml-2">• From: {invoice.invoice_origin}</span>}
+                            </p>
+                          </div>
+                          <div className="text-right">
+                            <p className="font-bold text-lg text-blue-600">${parseFloat(invoice.amount_total || 0).toLocaleString()}</p>
+                            {invoice.amount_residual > 0 && (
+                              <p className="text-xs text-orange-600">Due: ${parseFloat(invoice.amount_residual).toLocaleString()}</p>
+                            )}
+                            <a 
+                              href={`https://4sgraphics.odoo.com/web#id=${invoice.id}&model=account.move&view_type=form`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-xs text-purple-600 hover:text-purple-800 flex items-center gap-1 justify-end mt-1"
+                            >
+                              View in Odoo <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6">
+                    <Receipt className="h-10 w-10 text-gray-300 mx-auto mb-2" />
+                    <p className="text-gray-500 text-sm">No invoices in Odoo</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="emails" className="mt-4">
@@ -1913,8 +2061,50 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               <CardTitle className="text-base">Quotes & Price Lists Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              {sentQuotes.length > 0 || quoteEvents.length > 0 || priceListEvents.length > 0 ? (
+              {sentQuotes.length > 0 || quoteEvents.length > 0 || priceListEvents.length > 0 || odooQuotes.length > 0 ? (
                 <div className="space-y-4">
+                  {/* Odoo Quotes Section */}
+                  {odooQuotes.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm text-purple-600 mb-2 flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Quotes from Odoo
+                      </h4>
+                      <div className="space-y-2">
+                        {odooQuotes.map((quote: any) => (
+                          <div 
+                            key={quote.id} 
+                            className="flex items-center justify-between p-3 bg-purple-50 rounded-lg hover:bg-purple-100 transition-colors"
+                          >
+                            <div>
+                              <p className="font-medium">{quote.name}</p>
+                              <p className="text-sm text-gray-500">
+                                ${parseFloat(quote.amount_total || 0).toLocaleString()}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {quote.date_order ? new Date(quote.date_order).toLocaleDateString() : ''}
+                                {quote.validity_date && ` • Valid until: ${new Date(quote.validity_date).toLocaleDateString()}`}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={quote.state === 'sent' ? 'outline' : 'secondary'}>
+                                {quote.state === 'draft' ? 'Draft' : quote.state === 'sent' ? 'Sent' : quote.state}
+                              </Badge>
+                              <a 
+                                href={`https://4sgraphics.odoo.com/web#id=${quote.id}&model=sale.order&view_type=form`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="text-purple-600 hover:text-purple-800"
+                              >
+                                <ExternalLink className="h-4 w-4" />
+                              </a>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {sentQuotes.length > 0 && (
                     <div>
                       <h4 className="font-medium text-sm text-gray-600 mb-2">Quotes from QuickQuotes</h4>

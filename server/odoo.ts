@@ -438,6 +438,39 @@ class OdooClient {
   }): Promise<number> {
     return this.create('mail.activity', values);
   }
+
+  async getQuotesByPartner(partnerId: number): Promise<OdooSaleOrder[]> {
+    // Get sale orders in 'draft' or 'sent' state (quotes)
+    return this.searchRead('sale.order', [
+      ['partner_id', '=', partnerId],
+      ['state', 'in', ['draft', 'sent']]
+    ], [
+      'id', 'name', 'partner_id', 'state', 'date_order', 'amount_total',
+      'amount_untaxed', 'order_line', 'user_id', 'note', 'validity_date',
+    ], { limit: 100, order: 'date_order desc' });
+  }
+
+  async getSaleOrdersByPartner(partnerId: number): Promise<OdooSaleOrder[]> {
+    // Get confirmed sale orders (not quotes)
+    return this.searchRead('sale.order', [
+      ['partner_id', '=', partnerId],
+      ['state', 'in', ['sale', 'done']]
+    ], [
+      'id', 'name', 'partner_id', 'state', 'date_order', 'amount_total',
+      'amount_untaxed', 'order_line', 'user_id', 'note',
+    ], { limit: 100, order: 'date_order desc' });
+  }
+
+  async getInvoicesByPartner(partnerId: number): Promise<any[]> {
+    // Get customer invoices from account.move
+    return this.searchRead('account.move', [
+      ['partner_id', '=', partnerId],
+      ['move_type', 'in', ['out_invoice', 'out_refund']]
+    ], [
+      'id', 'name', 'partner_id', 'state', 'invoice_date', 'amount_total',
+      'amount_residual', 'payment_state', 'invoice_origin', 'ref',
+    ], { limit: 100, order: 'invoice_date desc' });
+  }
 }
 
 export const odooClient = new OdooClient();
