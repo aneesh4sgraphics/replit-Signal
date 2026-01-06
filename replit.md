@@ -70,6 +70,16 @@ Preferred communication style: Simple, everyday language.
   - Tracking data accessible via `/api/email/tracking/:customerId`
   - Works for both manual email sends and drip campaign emails
   - Tables: `emailTrackingTokens`, `emailTrackingEvents`
+- **Odoo V19 Enterprise Integration**: Full CRM-to-Odoo connectivity as a specialized front-end:
+  - JSON-RPC API client (`server/odoo.ts`) for Odoo V19 Enterprise
+  - Authentication via API key stored in environment secrets (ODOO_URL, ODOO_DATABASE, ODOO_USERNAME, ODOO_API_KEY)
+  - Customer sync: Push local CRM customers to Odoo as `res.partner` records
+  - `odooPartnerId` field on customers table links to Odoo partner ID
+  - Bidirectional data access: Read products, pricelists, sale orders, and users from Odoo
+  - Bulk sync capability for mass customer migration
+  - Per-customer sync button in ClientDetailView with visual status indicator
+  - Admin settings page at `/odoo-settings` with connection testing, partner browsing, product viewing, and order viewing
+  - API endpoints: `/api/odoo/test-connection`, `/api/odoo/partners`, `/api/odoo/products`, `/api/odoo/pricelists`, `/api/odoo/orders`, `/api/odoo/users`, `/api/odoo/sync/customer/:id`, `/api/odoo/sync/customers` (bulk)
 - **Shopify Integration**: Embedded Shopify Admin app for single-store internal use:
   - OAuth flow: `/shopify/auth?shop=...` initiates install, `/shopify/callback` handles token exchange
   - Automatic webhook registration for orders/paid, orders/updated, customers/create, customers/update

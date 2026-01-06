@@ -8779,6 +8779,303 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // ODOO INTEGRATION APIs
+  // ========================================
+
+  const { odooClient } = await import('./odoo');
+
+  // Test Odoo connection
+  app.get("/api/odoo/test-connection", requireAdmin, async (req: any, res) => {
+    try {
+      const result = await odooClient.testConnection();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Odoo connection test error:", error);
+      res.status(500).json({ 
+        success: false, 
+        message: error.message || "Failed to connect to Odoo" 
+      });
+    }
+  });
+
+  // Get Odoo connection status
+  app.get("/api/odoo/status", requireAdmin, async (req: any, res) => {
+    try {
+      const status = odooClient.getConnectionStatus();
+      res.json(status);
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
+  // Get partners (customers/companies) from Odoo
+  app.get("/api/odoo/partners", requireApproval, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const isCompany = req.query.is_company === 'true' ? true : req.query.is_company === 'false' ? false : undefined;
+      
+      const partners = await odooClient.getPartners({ limit, offset, isCompany });
+      res.json(partners);
+    } catch (error: any) {
+      console.error("Error fetching Odoo partners:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch partners from Odoo" });
+    }
+  });
+
+  // Get single partner by ID
+  app.get("/api/odoo/partners/:id", requireApproval, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const partner = await odooClient.getPartnerById(id);
+      if (!partner) {
+        return res.status(404).json({ error: "Partner not found" });
+      }
+      res.json(partner);
+    } catch (error: any) {
+      console.error("Error fetching Odoo partner:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch partner from Odoo" });
+    }
+  });
+
+  // Zod schema for Odoo partner data (whitelist allowed fields)
+  const odooPartnerSchema = z.object({
+    name: z.string().min(1).max(255),
+    email: z.string().email().optional().nullable(),
+    phone: z.string().max(50).optional().nullable(),
+    mobile: z.string().max(50).optional().nullable(),
+    street: z.string().max(255).optional().nullable(),
+    street2: z.string().max(255).optional().nullable(),
+    city: z.string().max(100).optional().nullable(),
+    zip: z.string().max(20).optional().nullable(),
+    is_company: z.boolean().optional(),
+    comment: z.string().max(2000).optional().nullable(),
+    website: z.string().max(255).optional().nullable(),
+  }).strict();
+
+  // Create partner in Odoo
+  app.post("/api/odoo/partners", requireApproval, async (req: any, res) => {
+    try {
+      const validated = odooPartnerSchema.parse(req.body);
+      const cleanData = Object.fromEntries(
+        Object.entries(validated).filter(([_, v]) => v !== null && v !== undefined && v !== '')
+      );
+      const id = await odooClient.createPartner(cleanData);
+      res.json({ id, message: "Partner created successfully in Odoo" });
+    } catch (error: any) {
+      console.error("Error creating Odoo partner:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid partner data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Failed to create partner in Odoo" });
+    }
+  });
+
+  // Update partner in Odoo
+  app.patch("/api/odoo/partners/:id", requireApproval, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id) || id <= 0) {
+        return res.status(400).json({ error: "Invalid partner ID" });
+      }
+      const validated = odooPartnerSchema.partial().parse(req.body);
+      const cleanData = Object.fromEntries(
+        Object.entries(validated).filter(([_, v]) => v !== null && v !== undefined)
+      );
+      await odooClient.updatePartner(id, cleanData);
+      res.json({ success: true, message: "Partner updated successfully in Odoo" });
+    } catch (error: any) {
+      console.error("Error updating Odoo partner:", error);
+      if (error.name === 'ZodError') {
+        return res.status(400).json({ error: "Invalid partner data", details: error.errors });
+      }
+      res.status(500).json({ error: error.message || "Failed to update partner in Odoo" });
+    }
+  });
+
+  // Get products from Odoo
+  app.get("/api/odoo/products", requireApproval, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const products = await odooClient.getProducts({ limit, offset });
+      res.json(products);
+    } catch (error: any) {
+      console.error("Error fetching Odoo products:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch products from Odoo" });
+    }
+  });
+
+  // Get pricelists from Odoo
+  app.get("/api/odoo/pricelists", requireApproval, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      const pricelists = await odooClient.getPricelists({ limit, offset });
+      res.json(pricelists);
+    } catch (error: any) {
+      console.error("Error fetching Odoo pricelists:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch pricelists from Odoo" });
+    }
+  });
+
+  // Get sale orders from Odoo
+  app.get("/api/odoo/orders", requireApproval, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      const state = req.query.state as string;
+      
+      const orders = await odooClient.getSaleOrders({ limit, offset, state });
+      res.json(orders);
+    } catch (error: any) {
+      console.error("Error fetching Odoo orders:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch orders from Odoo" });
+    }
+  });
+
+  // Create sale order (quote) in Odoo
+  app.post("/api/odoo/orders", requireApproval, async (req: any, res) => {
+    try {
+      const orderData = req.body;
+      const id = await odooClient.createSaleOrder(orderData);
+      res.json({ id, message: "Sale order created successfully in Odoo" });
+    } catch (error: any) {
+      console.error("Error creating Odoo order:", error);
+      res.status(500).json({ error: error.message || "Failed to create order in Odoo" });
+    }
+  });
+
+  // Get Odoo users (sales reps)
+  app.get("/api/odoo/users", requireApproval, async (req: any, res) => {
+    try {
+      const users = await odooClient.getUsers();
+      res.json(users);
+    } catch (error: any) {
+      console.error("Error fetching Odoo users:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch users from Odoo" });
+    }
+  });
+
+  // Sync customer to Odoo - push local customer to Odoo
+  app.post("/api/odoo/sync/customer/:customerId", requireApproval, async (req: any, res) => {
+    try {
+      const customerId = req.params.customerId;
+      const customer = await storage.getCustomerById(customerId);
+      
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+
+      // Build Odoo partner data from local customer
+      const partnerData: any = {
+        name: customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown',
+        email: customer.email || undefined,
+        phone: customer.phone || undefined,
+        street: customer.address || undefined,
+        city: customer.city || undefined,
+        zip: customer.zip || undefined,
+        is_company: !!customer.company,
+        comment: customer.notes || undefined,
+      };
+
+      // Check if customer already has Odoo ID stored
+      const existingOdooId = customer.odooPartnerId;
+
+      let odooId: number;
+      if (existingOdooId) {
+        // Update existing partner in Odoo
+        await odooClient.updatePartner(existingOdooId, partnerData);
+        odooId = existingOdooId;
+        res.json({ 
+          success: true, 
+          odooId, 
+          action: 'updated',
+          message: "Customer updated in Odoo" 
+        });
+      } else {
+        // Create new partner in Odoo
+        odooId = await odooClient.createPartner(partnerData);
+        
+        // Store Odoo partner ID in local customer record
+        await db.update(customers)
+          .set({ odooPartnerId: odooId })
+          .where(eq(customers.id, customerId));
+        
+        res.json({ 
+          success: true, 
+          odooId, 
+          action: 'created',
+          message: "Customer synced to Odoo" 
+        });
+      }
+    } catch (error: any) {
+      console.error("Error syncing customer to Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to sync customer to Odoo" });
+    }
+  });
+
+  // Bulk sync customers to Odoo
+  app.post("/api/odoo/sync/customers", requireAdmin, async (req: any, res) => {
+    try {
+      const { customerIds } = req.body;
+      
+      if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({ error: "customerIds array is required" });
+      }
+
+      const results = {
+        created: 0,
+        updated: 0,
+        failed: 0,
+        errors: [] as string[]
+      };
+
+      for (const customerId of customerIds) {
+        try {
+          const customer = await storage.getCustomerById(customerId);
+          if (!customer) {
+            results.failed++;
+            results.errors.push(`Customer ${customerId} not found`);
+            continue;
+          }
+
+          const partnerData: any = {
+            name: customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown',
+            email: customer.email || undefined,
+            phone: customer.phone || undefined,
+            street: customer.address || undefined,
+            city: customer.city || undefined,
+            zip: customer.zip || undefined,
+            is_company: !!customer.company,
+          };
+
+          if (customer.odooPartnerId) {
+            await odooClient.updatePartner(customer.odooPartnerId, partnerData);
+            results.updated++;
+          } else {
+            const odooId = await odooClient.createPartner(partnerData);
+            await db.update(customers)
+              .set({ odooPartnerId: odooId })
+              .where(eq(customers.id, customerId));
+            results.created++;
+          }
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`Customer ${customerId}: ${error.message}`);
+        }
+      }
+
+      res.json(results);
+    } catch (error: any) {
+      console.error("Error bulk syncing customers to Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to bulk sync customers" });
+    }
+  });
+
+  // ========================================
   // SHOPIFY INTEGRATION APIs
   // ========================================
 

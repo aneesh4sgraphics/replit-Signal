@@ -69,6 +69,8 @@ import {
   Flame,
   Tag,
   UserCog,
+  RefreshCw,
+  Link2,
 } from "lucide-react";
 import {
   Tooltip,
@@ -519,6 +521,23 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to update hot prospect status", variant: "destructive" });
+    },
+  });
+
+  const syncToOdooMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/odoo/sync/customer/${customer.id}`, {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      toast({ 
+        title: data.action === 'created' ? "Synced to Odoo" : "Updated in Odoo",
+        description: `Partner ID: ${data.odooId}`
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Odoo Sync Failed", description: error.message || "Failed to sync to Odoo", variant: "destructive" });
     },
   });
 
@@ -973,6 +992,36 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 </TooltipTrigger>
                 <TooltipContent>
                   {customer.isHotProspect ? 'Remove hot prospect status' : 'Mark as hot prospect for priority follow-up'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={(customer as any).odooPartnerId ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => syncToOdooMutation.mutate()} 
+                    className={`gap-1 h-8 ${(customer as any).odooPartnerId ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}`}
+                    data-testid="btn-sync-odoo"
+                    disabled={syncToOdooMutation.isPending}
+                  >
+                    {syncToOdooMutation.isPending ? (
+                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
+                    ) : (customer as any).odooPartnerId ? (
+                      <Link2 className="h-3.5 w-3.5" />
+                    ) : (
+                      <Building2 className="h-3.5 w-3.5" />
+                    )}
+                    <span className="hidden sm:inline">
+                      {(customer as any).odooPartnerId ? `Odoo #${(customer as any).odooPartnerId}` : 'Sync Odoo'}
+                    </span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {(customer as any).odooPartnerId 
+                    ? `Linked to Odoo Partner #${(customer as any).odooPartnerId}. Click to update.` 
+                    : 'Sync this customer to Odoo as a partner'}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>

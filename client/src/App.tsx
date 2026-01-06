@@ -33,6 +33,7 @@ import CRMJourneyDashboard from "@/pages/crm-journey";
 import EmailApp from "@/pages/email-app";
 import ObjectionsPage from "@/pages/objections";
 import ShopifySettingsPage from "@/pages/shopify-settings";
+import OdooSettingsPage from "@/pages/odoo-settings";
 
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
@@ -90,6 +91,7 @@ const AppRoutes = () => (
     <Route path="/email-app" component={EmailApp} />
     <Route path="/objections" component={ObjectionsPage} />
     <Route path="/shopify-settings" component={ShopifySettingsPage} />
+    <Route path="/odoo-settings" component={OdooSettingsPage} />
     <Route><Redirect to="/" /></Route>
   </Switch>
 );

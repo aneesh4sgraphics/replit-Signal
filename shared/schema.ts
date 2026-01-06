@@ -146,6 +146,7 @@ export const customers = pgTable("customers", {
   salesRepId: varchar("sales_rep_id"), // Assigned sales rep user ID
   salesRepName: varchar("sales_rep_name", { length: 255 }), // Assigned sales rep display name
   pricingTier: varchar("pricing_tier", { length: 50 }), // Mandatory pricing tier for quotes
+  odooPartnerId: integer("odoo_partner_id"), // Linked Odoo res.partner ID
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
