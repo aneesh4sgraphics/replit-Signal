@@ -1786,35 +1786,6 @@ export default function ClientDatabase() {
             {viewMode === 'cards' ? <List className="h-4 w-4 mr-2" /> : <Grid3X3 className="h-4 w-4 mr-2" />}
             {viewMode === 'cards' ? 'Table View' : 'Card View'}
           </Button>
-          {isAdmin && (
-            <>
-              <Button onClick={() => setShowUploadDialog(true)} variant="outline" data-testid="button-upload-shopify">
-                <Upload className="h-4 w-4 mr-2" />
-                Import from Shopify
-              </Button>
-              <Button onClick={() => setShowOdooUploadDialog(true)} variant="outline" data-testid="button-upload-odoo">
-                <Upload className="h-4 w-4 mr-2" />
-                Import from Odoo
-              </Button>
-            </>
-          )}
-          <Button 
-            onClick={() => {
-              if (selectedForMerge.size > 0) {
-                setSelectedForMerge(new Set());
-              } else {
-                toast({
-                  title: "Merge Mode",
-                  description: "Select 2 clients from the list to merge them together",
-                });
-              }
-            }} 
-            variant={selectedForMerge.size > 0 ? "secondary" : "outline"}
-            data-testid="button-merge-mode"
-          >
-            <GitMerge className="h-4 w-4 mr-2" />
-            {selectedForMerge.size > 0 ? `Merging (${selectedForMerge.size}/2)` : 'Merge Clients'}
-          </Button>
           <Button onClick={handleCreateCustomer} data-testid="button-create-client">
             <Plus className="h-4 w-4 mr-2" />
             Add Client
