@@ -6,9 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
-import { Checkbox } from "@/components/ui/checkbox";
 import { 
-  Settings, 
   Link2, 
   CheckCircle, 
   XCircle,
@@ -16,11 +14,10 @@ import {
   Users,
   Package,
   FileText,
-  Upload,
   Download,
   Search,
   Building2,
-  ArrowUpRight
+  Eye
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -28,8 +25,6 @@ import { format } from "date-fns";
 
 export default function OdooSettingsPage() {
   const { toast } = useToast();
-  const [selectedCustomers, setSelectedCustomers] = useState<string[]>([]);
-  const [customerSearchTerm, setCustomerSearchTerm] = useState("");
   const [partnerSearchTerm, setPartnerSearchTerm] = useState("");
 
   const { data: connectionTest, refetch: testConnection, isFetching: testingConnection } = useQuery<{
@@ -74,47 +69,6 @@ export default function OdooSettingsPage() {
     enabled: !!connectionTest?.success,
   });
 
-  const { data: localCustomers = [] } = useQuery<any[]>({
-    queryKey: ['/api/customers'],
-  });
-
-  const syncCustomerMutation = useMutation({
-    mutationFn: async (customerId: string) => {
-      const res = await apiRequest('POST', `/api/odoo/sync/customer/${customerId}`, {});
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/odoo/partners'] });
-      toast({ 
-        title: data.action === 'created' ? "Customer synced to Odoo" : "Customer updated in Odoo",
-        description: `Odoo Partner ID: ${data.odooId}`
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Sync failed", description: error.message, variant: "destructive" });
-    },
-  });
-
-  const bulkSyncMutation = useMutation({
-    mutationFn: async (customerIds: string[]) => {
-      const res = await apiRequest('POST', '/api/odoo/sync/customers', { customerIds });
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/odoo/partners'] });
-      setSelectedCustomers([]);
-      toast({ 
-        title: "Bulk sync complete",
-        description: `Created: ${data.created}, Updated: ${data.updated}, Failed: ${data.failed}`
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Bulk sync failed", description: error.message, variant: "destructive" });
-    },
-  });
-
   const importFromOdooMutation = useMutation({
     mutationFn: async (deleteExisting: boolean) => {
       const res = await apiRequest('POST', '/api/odoo/import/partners', { deleteExisting });
@@ -135,17 +89,6 @@ export default function OdooSettingsPage() {
 
   const [showImportConfirm, setShowImportConfirm] = useState(false);
 
-  const filteredCustomers = localCustomers.filter((c: any) => {
-    if (!customerSearchTerm) return true;
-    const searchLower = customerSearchTerm.toLowerCase();
-    return (
-      (c.company || '').toLowerCase().includes(searchLower) ||
-      (c.email || '').toLowerCase().includes(searchLower) ||
-      (c.firstName || '').toLowerCase().includes(searchLower) ||
-      (c.lastName || '').toLowerCase().includes(searchLower)
-    );
-  });
-
   const filteredPartners = odooPartners.filter((p: any) => {
     if (!partnerSearchTerm) return true;
     const searchLower = partnerSearchTerm.toLowerCase();
@@ -154,21 +97,6 @@ export default function OdooSettingsPage() {
       (p.email || '').toLowerCase().includes(searchLower)
     );
   });
-
-  const unsyncedCustomers = filteredCustomers.filter((c: any) => !c.odooPartnerId);
-  const syncedCustomers = filteredCustomers.filter((c: any) => c.odooPartnerId);
-
-  const toggleCustomerSelection = (customerId: string) => {
-    setSelectedCustomers(prev => 
-      prev.includes(customerId) 
-        ? prev.filter(id => id !== customerId)
-        : [...prev, customerId]
-    );
-  };
-
-  const selectAllUnsynced = () => {
-    setSelectedCustomers(unsyncedCustomers.map((c: any) => c.id));
-  };
 
   return (
     <div className="p-6 space-y-6">
@@ -179,10 +107,14 @@ export default function OdooSettingsPage() {
             Odoo Integration
           </h1>
           <p className="text-muted-foreground mt-1">
-            Connect and sync your CRM data with Odoo V19 Enterprise
+            View and import data from Odoo V19 Enterprise (Read-Only)
           </p>
         </div>
         <div className="flex items-center gap-2">
+          <Badge className="bg-blue-100 text-blue-700 gap-1">
+            <Eye className="h-3 w-3" />
+            Read-Only
+          </Badge>
           {connectionTest?.success ? (
             <Badge className="bg-green-100 text-green-700 gap-1">
               <CheckCircle className="h-3 w-3" />
@@ -273,10 +205,6 @@ export default function OdooSettingsPage() {
           <TabsTrigger value="import" data-testid="tab-import">
             <Download className="h-4 w-4 mr-2" />
             Import from Odoo
-          </TabsTrigger>
-          <TabsTrigger value="sync" data-testid="tab-sync">
-            <Upload className="h-4 w-4 mr-2" />
-            Sync to Odoo
           </TabsTrigger>
           <TabsTrigger value="partners" data-testid="tab-partners">
             <Users className="h-4 w-4 mr-2" />
@@ -387,127 +315,6 @@ export default function OdooSettingsPage() {
                       Test Connection
                     </Button>
                   </div>
-                )}
-              </div>
-            </CardContent>
-          </Card>
-        </TabsContent>
-
-        <TabsContent value="sync">
-          <Card>
-            <CardHeader>
-              <CardTitle>Sync Customers to Odoo</CardTitle>
-              <CardDescription>
-                Push your local CRM customers to Odoo as partners. Customers already synced will be updated.
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <div className="space-y-4">
-                <div className="flex items-center gap-4">
-                  <div className="relative flex-1 max-w-md">
-                    <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
-                    <Input
-                      placeholder="Search customers..."
-                      value={customerSearchTerm}
-                      onChange={(e) => setCustomerSearchTerm(e.target.value)}
-                      className="pl-10"
-                      data-testid="input-customer-search"
-                    />
-                  </div>
-                  <Button 
-                    variant="outline" 
-                    onClick={selectAllUnsynced}
-                    disabled={unsyncedCustomers.length === 0}
-                    data-testid="btn-select-all-unsynced"
-                  >
-                    Select All Unsynced ({unsyncedCustomers.length})
-                  </Button>
-                  <Button 
-                    onClick={() => bulkSyncMutation.mutate(selectedCustomers)}
-                    disabled={selectedCustomers.length === 0 || bulkSyncMutation.isPending}
-                    data-testid="btn-bulk-sync"
-                  >
-                    {bulkSyncMutation.isPending && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
-                    Sync Selected ({selectedCustomers.length})
-                  </Button>
-                </div>
-
-                <div className="flex gap-2 mb-4">
-                  <Badge variant="outline">
-                    Total: {filteredCustomers.length}
-                  </Badge>
-                  <Badge className="bg-green-100 text-green-700">
-                    Synced: {syncedCustomers.length}
-                  </Badge>
-                  <Badge className="bg-orange-100 text-orange-700">
-                    Unsynced: {unsyncedCustomers.length}
-                  </Badge>
-                </div>
-
-                <div className="border rounded-lg max-h-[500px] overflow-auto">
-                  <Table>
-                    <TableHeader>
-                      <TableRow>
-                        <TableHead className="w-12"></TableHead>
-                        <TableHead>Customer</TableHead>
-                        <TableHead>Email</TableHead>
-                        <TableHead>Phone</TableHead>
-                        <TableHead>Odoo ID</TableHead>
-                        <TableHead>Actions</TableHead>
-                      </TableRow>
-                    </TableHeader>
-                    <TableBody>
-                      {filteredCustomers.slice(0, 100).map((customer: any) => (
-                        <TableRow key={customer.id} data-testid={`row-customer-${customer.id}`}>
-                          <TableCell>
-                            <Checkbox 
-                              checked={selectedCustomers.includes(customer.id)}
-                              onCheckedChange={() => toggleCustomerSelection(customer.id)}
-                              data-testid={`checkbox-customer-${customer.id}`}
-                            />
-                          </TableCell>
-                          <TableCell>
-                            <div className="font-medium">
-                              {customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown'}
-                            </div>
-                            {customer.company && customer.firstName && (
-                              <div className="text-sm text-muted-foreground">
-                                {customer.firstName} {customer.lastName}
-                              </div>
-                            )}
-                          </TableCell>
-                          <TableCell>{customer.email}</TableCell>
-                          <TableCell>{customer.phone}</TableCell>
-                          <TableCell>
-                            {customer.odooPartnerId ? (
-                              <Badge className="bg-green-100 text-green-700">
-                                #{customer.odooPartnerId}
-                              </Badge>
-                            ) : (
-                              <Badge variant="outline">Not synced</Badge>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            <Button 
-                              size="sm" 
-                              variant="outline"
-                              onClick={() => syncCustomerMutation.mutate(customer.id)}
-                              disabled={syncCustomerMutation.isPending}
-                              data-testid={`btn-sync-customer-${customer.id}`}
-                            >
-                              {customer.odooPartnerId ? 'Update' : 'Sync'}
-                              <ArrowUpRight className="h-3 w-3 ml-1" />
-                            </Button>
-                          </TableCell>
-                        </TableRow>
-                      ))}
-                    </TableBody>
-                  </Table>
-                </div>
-                {filteredCustomers.length > 100 && (
-                  <p className="text-sm text-muted-foreground text-center">
-                    Showing first 100 of {filteredCustomers.length} customers. Use search to find specific customers.
-                  </p>
                 )}
               </div>
             </CardContent>

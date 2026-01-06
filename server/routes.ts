@@ -8838,59 +8838,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Zod schema for Odoo partner data (whitelist allowed fields)
-  const odooPartnerSchema = z.object({
-    name: z.string().min(1).max(255),
-    email: z.string().email().optional().nullable(),
-    phone: z.string().max(50).optional().nullable(),
-    street: z.string().max(255).optional().nullable(),
-    street2: z.string().max(255).optional().nullable(),
-    city: z.string().max(100).optional().nullable(),
-    zip: z.string().max(20).optional().nullable(),
-    is_company: z.boolean().optional(),
-    comment: z.string().max(2000).optional().nullable(),
-    website: z.string().max(255).optional().nullable(),
-  }).strict();
-
-  // Create partner in Odoo
-  app.post("/api/odoo/partners", requireApproval, async (req: any, res) => {
-    try {
-      const validated = odooPartnerSchema.parse(req.body);
-      const cleanData = Object.fromEntries(
-        Object.entries(validated).filter(([_, v]) => v !== null && v !== undefined && v !== '')
-      );
-      const id = await odooClient.createPartner(cleanData);
-      res.json({ id, message: "Partner created successfully in Odoo" });
-    } catch (error: any) {
-      console.error("Error creating Odoo partner:", error);
-      if (error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid partner data", details: error.errors });
-      }
-      res.status(500).json({ error: error.message || "Failed to create partner in Odoo" });
-    }
-  });
-
-  // Update partner in Odoo
-  app.patch("/api/odoo/partners/:id", requireApproval, async (req: any, res) => {
-    try {
-      const id = parseInt(req.params.id);
-      if (isNaN(id) || id <= 0) {
-        return res.status(400).json({ error: "Invalid partner ID" });
-      }
-      const validated = odooPartnerSchema.partial().parse(req.body);
-      const cleanData = Object.fromEntries(
-        Object.entries(validated).filter(([_, v]) => v !== null && v !== undefined)
-      );
-      await odooClient.updatePartner(id, cleanData);
-      res.json({ success: true, message: "Partner updated successfully in Odoo" });
-    } catch (error: any) {
-      console.error("Error updating Odoo partner:", error);
-      if (error.name === 'ZodError') {
-        return res.status(400).json({ error: "Invalid partner data", details: error.errors });
-      }
-      res.status(500).json({ error: error.message || "Failed to update partner in Odoo" });
-    }
-  });
+  // NOTE: This is a READ-ONLY integration - no write operations to Odoo
 
   // Get products from Odoo
   app.get("/api/odoo/products", requireApproval, async (req: any, res) => {
@@ -8935,18 +8883,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Create sale order (quote) in Odoo
-  app.post("/api/odoo/orders", requireApproval, async (req: any, res) => {
-    try {
-      const orderData = req.body;
-      const id = await odooClient.createSaleOrder(orderData);
-      res.json({ id, message: "Sale order created successfully in Odoo" });
-    } catch (error: any) {
-      console.error("Error creating Odoo order:", error);
-      res.status(500).json({ error: error.message || "Failed to create order in Odoo" });
-    }
-  });
-
   // Get Odoo users (sales reps)
   app.get("/api/odoo/users", requireApproval, async (req: any, res) => {
     try {
@@ -8958,123 +8894,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Sync customer to Odoo - push local customer to Odoo
-  app.post("/api/odoo/sync/customer/:customerId", requireApproval, async (req: any, res) => {
-    try {
-      const customerId = req.params.customerId;
-      const customer = await storage.getCustomerById(customerId);
-      
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-
-      // Build Odoo partner data from local customer
-      const partnerData: any = {
-        name: customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown',
-        email: customer.email || undefined,
-        phone: customer.phone || undefined,
-        street: customer.address || undefined,
-        city: customer.city || undefined,
-        zip: customer.zip || undefined,
-        is_company: !!customer.company,
-        comment: customer.notes || undefined,
-      };
-
-      // Check if customer already has Odoo ID stored
-      const existingOdooId = customer.odooPartnerId;
-
-      let odooId: number;
-      if (existingOdooId) {
-        // Update existing partner in Odoo
-        await odooClient.updatePartner(existingOdooId, partnerData);
-        odooId = existingOdooId;
-        res.json({ 
-          success: true, 
-          odooId, 
-          action: 'updated',
-          message: "Customer updated in Odoo" 
-        });
-      } else {
-        // Create new partner in Odoo
-        odooId = await odooClient.createPartner(partnerData);
-        
-        // Store Odoo partner ID in local customer record
-        await db.update(customers)
-          .set({ odooPartnerId: odooId })
-          .where(eq(customers.id, customerId));
-        
-        res.json({ 
-          success: true, 
-          odooId, 
-          action: 'created',
-          message: "Customer synced to Odoo" 
-        });
-      }
-    } catch (error: any) {
-      console.error("Error syncing customer to Odoo:", error);
-      res.status(500).json({ error: error.message || "Failed to sync customer to Odoo" });
-    }
-  });
-
-  // Bulk sync customers to Odoo
-  app.post("/api/odoo/sync/customers", requireAdmin, async (req: any, res) => {
-    try {
-      const { customerIds } = req.body;
-      
-      if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
-        return res.status(400).json({ error: "customerIds array is required" });
-      }
-
-      const results = {
-        created: 0,
-        updated: 0,
-        failed: 0,
-        errors: [] as string[]
-      };
-
-      for (const customerId of customerIds) {
-        try {
-          const customer = await storage.getCustomerById(customerId);
-          if (!customer) {
-            results.failed++;
-            results.errors.push(`Customer ${customerId} not found`);
-            continue;
-          }
-
-          const partnerData: any = {
-            name: customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown',
-            email: customer.email || undefined,
-            phone: customer.phone || undefined,
-            street: customer.address || undefined,
-            city: customer.city || undefined,
-            zip: customer.zip || undefined,
-            is_company: !!customer.company,
-          };
-
-          if (customer.odooPartnerId) {
-            await odooClient.updatePartner(customer.odooPartnerId, partnerData);
-            results.updated++;
-          } else {
-            const odooId = await odooClient.createPartner(partnerData);
-            await db.update(customers)
-              .set({ odooPartnerId: odooId })
-              .where(eq(customers.id, customerId));
-            results.created++;
-          }
-        } catch (error: any) {
-          results.failed++;
-          results.errors.push(`Customer ${customerId}: ${error.message}`);
-        }
-      }
-
-      res.json(results);
-    } catch (error: any) {
-      console.error("Error bulk syncing customers to Odoo:", error);
-      res.status(500).json({ error: error.message || "Failed to bulk sync customers" });
-    }
-  });
-
-  // Import all partners from Odoo as customers (replaces local data)
+  // Import all partners from Odoo as customers (READ-ONLY: only reads from Odoo, writes to local DB)
   app.post("/api/odoo/import/partners", requireAdmin, async (req: any, res) => {
     try {
       const { deleteExisting = false } = req.body;

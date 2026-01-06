@@ -524,23 +524,6 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     },
   });
 
-  const syncToOdooMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest('POST', `/api/odoo/sync/customer/${customer.id}`, {});
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
-      toast({ 
-        title: data.action === 'created' ? "Synced to Odoo" : "Updated in Odoo",
-        description: `Partner ID: ${data.odooId}`
-      });
-    },
-    onError: (error: any) => {
-      toast({ title: "Odoo Sync Failed", description: error.message || "Failed to sync to Odoo", variant: "destructive" });
-    },
-  });
-
   const createJourneyMutation = useMutation({
     mutationFn: async (data: any) => {
       const res = await apiRequest('POST', '/api/crm/journeys', data);
@@ -995,36 +978,24 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
-            <TooltipProvider delayDuration={200}>
-              <Tooltip>
-                <TooltipTrigger asChild>
-                  <Button 
-                    variant={(customer as any).odooPartnerId ? "default" : "outline"}
-                    size="sm"
-                    onClick={() => syncToOdooMutation.mutate()} 
-                    className={`gap-1 h-8 ${(customer as any).odooPartnerId ? 'bg-purple-600 hover:bg-purple-700 text-white' : ''}`}
-                    data-testid="btn-sync-odoo"
-                    disabled={syncToOdooMutation.isPending}
-                  >
-                    {syncToOdooMutation.isPending ? (
-                      <RefreshCw className="h-3.5 w-3.5 animate-spin" />
-                    ) : (customer as any).odooPartnerId ? (
+            {(customer as any).odooPartnerId && (
+              <TooltipProvider delayDuration={200}>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Badge 
+                      className="bg-purple-100 text-purple-700 gap-1 h-8 px-3 flex items-center"
+                      data-testid="badge-odoo-id"
+                    >
                       <Link2 className="h-3.5 w-3.5" />
-                    ) : (
-                      <Building2 className="h-3.5 w-3.5" />
-                    )}
-                    <span className="hidden sm:inline">
-                      {(customer as any).odooPartnerId ? `Odoo #${(customer as any).odooPartnerId}` : 'Sync Odoo'}
-                    </span>
-                  </Button>
-                </TooltipTrigger>
-                <TooltipContent>
-                  {(customer as any).odooPartnerId 
-                    ? `Linked to Odoo Partner #${(customer as any).odooPartnerId}. Click to update.` 
-                    : 'Sync this customer to Odoo as a partner'}
-                </TooltipContent>
-              </Tooltip>
-            </TooltipProvider>
+                      <span>Odoo #{(customer as any).odooPartnerId}</span>
+                    </Badge>
+                  </TooltipTrigger>
+                  <TooltipContent>
+                    Linked to Odoo Partner #{(customer as any).odooPartnerId} (Read-Only)
+                  </TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             <Button 
               variant="outline" 
               size="sm"
