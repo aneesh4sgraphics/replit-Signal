@@ -85,6 +85,9 @@ import {
   shopifyWebhookEvents,
   shopifyVariantMappings,
   shopifyDraftOrders,
+  productOdooMappings,
+  odooPriceSyncQueue,
+  productPricingMaster,
   adminMachineTypes,
   adminCategoryGroups,
   adminCategories,
@@ -9102,6 +9105,336 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error importing partners from Odoo:", error);
       res.status(500).json({ error: error.message || "Failed to import partners from Odoo" });
+    }
+  });
+
+  // ========================================
+  // ODOO PRODUCT MAPPING APIs
+  // ========================================
+
+  // Get all product mappings
+  app.get("/api/odoo/product-mappings", requireApproval, async (req: any, res) => {
+    try {
+      const mappings = await db.select().from(productOdooMappings).orderBy(productOdooMappings.itemCode);
+      res.json(mappings);
+    } catch (error: any) {
+      console.error("Error fetching product mappings:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch product mappings" });
+    }
+  });
+
+  // Get QuickQuotes products for mapping (with mapping status)
+  app.get("/api/odoo/products-for-mapping", requireApproval, async (req: any, res) => {
+    try {
+      const search = (req.query.search as string || '').toLowerCase();
+      const mappedOnly = req.query.mappedOnly === 'true';
+      const unmappedOnly = req.query.unmappedOnly === 'true';
+      
+      // Get all QuickQuotes products
+      let products = await db.select().from(productPricingMaster).orderBy(productPricingMaster.productType, productPricingMaster.itemCode);
+      
+      // Get all mappings
+      const mappings = await db.select().from(productOdooMappings);
+      const mappingsByItemCode = new Map(mappings.map(m => [m.itemCode, m]));
+      
+      // Combine products with their mapping status
+      let result = products.map(product => ({
+        ...product,
+        mapping: mappingsByItemCode.get(product.itemCode) || null,
+        isMapped: mappingsByItemCode.has(product.itemCode)
+      }));
+      
+      // Apply filters
+      if (search) {
+        result = result.filter(p => 
+          p.itemCode.toLowerCase().includes(search) ||
+          p.productName.toLowerCase().includes(search) ||
+          p.productType.toLowerCase().includes(search)
+        );
+      }
+      
+      if (mappedOnly) {
+        result = result.filter(p => p.isMapped);
+      } else if (unmappedOnly) {
+        result = result.filter(p => !p.isMapped);
+      }
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error fetching products for mapping:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch products for mapping" });
+    }
+  });
+
+  // Create a product mapping
+  app.post("/api/odoo/product-mappings", requireAdmin, async (req: any, res) => {
+    try {
+      const { itemCode, odooProductId, odooDefaultCode, odooProductName } = req.body;
+      
+      if (!itemCode || !odooProductId) {
+        return res.status(400).json({ error: "itemCode and odooProductId are required" });
+      }
+      
+      // Check if mapping already exists
+      const existing = await db.select().from(productOdooMappings).where(eq(productOdooMappings.itemCode, itemCode)).limit(1);
+      if (existing.length > 0) {
+        return res.status(400).json({ error: "Mapping already exists for this product" });
+      }
+      
+      const [mapping] = await db.insert(productOdooMappings).values({
+        itemCode,
+        odooProductId,
+        odooDefaultCode,
+        odooProductName,
+        syncStatus: 'mapped',
+        createdBy: req.user?.email || 'system',
+      }).returning();
+      
+      res.json(mapping);
+    } catch (error: any) {
+      console.error("Error creating product mapping:", error);
+      res.status(500).json({ error: error.message || "Failed to create product mapping" });
+    }
+  });
+
+  // Update a product mapping
+  app.patch("/api/odoo/product-mappings/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      const { odooProductId, odooDefaultCode, odooProductName } = req.body;
+      
+      const [mapping] = await db.update(productOdooMappings)
+        .set({
+          odooProductId,
+          odooDefaultCode,
+          odooProductName,
+          updatedAt: new Date(),
+        })
+        .where(eq(productOdooMappings.id, id))
+        .returning();
+      
+      if (!mapping) {
+        return res.status(404).json({ error: "Mapping not found" });
+      }
+      
+      res.json(mapping);
+    } catch (error: any) {
+      console.error("Error updating product mapping:", error);
+      res.status(500).json({ error: error.message || "Failed to update product mapping" });
+    }
+  });
+
+  // Delete a product mapping
+  app.delete("/api/odoo/product-mappings/:id", requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const [deleted] = await db.delete(productOdooMappings)
+        .where(eq(productOdooMappings.id, id))
+        .returning();
+      
+      if (!deleted) {
+        return res.status(404).json({ error: "Mapping not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting product mapping:", error);
+      res.status(500).json({ error: error.message || "Failed to delete product mapping" });
+    }
+  });
+
+  // ========================================
+  // ODOO PRICE SYNC QUEUE APIs
+  // ========================================
+
+  // Get pending price sync requests
+  app.get("/api/odoo/price-sync-queue", requireAdmin, async (req: any, res) => {
+    try {
+      const status = req.query.status as string || 'pending';
+      const queue = await db.select().from(odooPriceSyncQueue)
+        .where(eq(odooPriceSyncQueue.status, status))
+        .orderBy(odooPriceSyncQueue.requestedAt);
+      res.json(queue);
+    } catch (error: any) {
+      console.error("Error fetching price sync queue:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch price sync queue" });
+    }
+  });
+
+  // Request a price push to Odoo (adds to queue, requires approval)
+  app.post("/api/odoo/price-sync-queue", requireApproval, async (req: any, res) => {
+    try {
+      const { itemCode, priceTier, newPrice } = req.body;
+      
+      if (!itemCode || !priceTier || newPrice === undefined) {
+        return res.status(400).json({ error: "itemCode, priceTier, and newPrice are required" });
+      }
+      
+      // Get the product mapping
+      const [mapping] = await db.select().from(productOdooMappings)
+        .where(eq(productOdooMappings.itemCode, itemCode))
+        .limit(1);
+      
+      if (!mapping) {
+        return res.status(400).json({ error: "Product is not mapped to Odoo. Please create a mapping first." });
+      }
+      
+      // Get current Odoo price
+      let currentOdooPrice = null;
+      try {
+        const odooProduct = await odooClient.getProductById(mapping.odooProductId);
+        if (odooProduct) {
+          currentOdooPrice = odooProduct.list_price;
+        }
+      } catch (err) {
+        console.warn("Could not fetch current Odoo price:", err);
+      }
+      
+      const [queueItem] = await db.insert(odooPriceSyncQueue).values({
+        mappingId: mapping.id,
+        itemCode,
+        odooProductId: mapping.odooProductId,
+        priceTier,
+        currentOdooPrice: currentOdooPrice?.toString(),
+        newPrice: newPrice.toString(),
+        status: 'pending',
+        requestedBy: req.user?.email || 'unknown',
+      }).returning();
+      
+      res.json(queueItem);
+    } catch (error: any) {
+      console.error("Error adding to price sync queue:", error);
+      res.status(500).json({ error: error.message || "Failed to add price sync request" });
+    }
+  });
+
+  // Approve and execute a price sync (WRITE to Odoo)
+  app.post("/api/odoo/price-sync-queue/:id/approve", requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      // Get the queue item
+      const [queueItem] = await db.select().from(odooPriceSyncQueue)
+        .where(eq(odooPriceSyncQueue.id, id))
+        .limit(1);
+      
+      if (!queueItem) {
+        return res.status(404).json({ error: "Queue item not found" });
+      }
+      
+      if (queueItem.status !== 'pending') {
+        return res.status(400).json({ error: "Queue item is not pending" });
+      }
+      
+      // Update status to approved
+      await db.update(odooPriceSyncQueue)
+        .set({
+          status: 'approved',
+          approvedBy: req.user?.email || 'admin',
+          approvedAt: new Date(),
+        })
+        .where(eq(odooPriceSyncQueue.id, id));
+      
+      // Execute the price update in Odoo
+      try {
+        const success = await odooClient.updateProductPrice(
+          queueItem.odooProductId,
+          parseFloat(queueItem.newPrice)
+        );
+        
+        if (success) {
+          // Update mapping status
+          await db.update(productOdooMappings)
+            .set({
+              syncStatus: 'synced',
+              lastSyncedAt: new Date(),
+              lastSyncError: null,
+            })
+            .where(eq(productOdooMappings.id, queueItem.mappingId));
+          
+          // Update queue item
+          await db.update(odooPriceSyncQueue)
+            .set({
+              status: 'synced',
+              syncedAt: new Date(),
+            })
+            .where(eq(odooPriceSyncQueue.id, id));
+          
+          res.json({ success: true, message: "Price updated in Odoo" });
+        } else {
+          throw new Error("Odoo returned false for update");
+        }
+      } catch (syncError: any) {
+        // Update with error status
+        await db.update(odooPriceSyncQueue)
+          .set({
+            status: 'error',
+            syncError: syncError.message,
+          })
+          .where(eq(odooPriceSyncQueue.id, id));
+        
+        await db.update(productOdooMappings)
+          .set({
+            syncStatus: 'error',
+            lastSyncError: syncError.message,
+          })
+          .where(eq(productOdooMappings.id, queueItem.mappingId));
+        
+        res.status(500).json({ error: `Failed to update price in Odoo: ${syncError.message}` });
+      }
+    } catch (error: any) {
+      console.error("Error approving price sync:", error);
+      res.status(500).json({ error: error.message || "Failed to approve price sync" });
+    }
+  });
+
+  // Reject a price sync request
+  app.post("/api/odoo/price-sync-queue/:id/reject", requireAdmin, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      
+      const [updated] = await db.update(odooPriceSyncQueue)
+        .set({
+          status: 'rejected',
+          approvedBy: req.user?.email || 'admin',
+          approvedAt: new Date(),
+        })
+        .where(eq(odooPriceSyncQueue.id, id))
+        .returning();
+      
+      if (!updated) {
+        return res.status(404).json({ error: "Queue item not found" });
+      }
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error rejecting price sync:", error);
+      res.status(500).json({ error: error.message || "Failed to reject price sync" });
+    }
+  });
+
+  // Get all Odoo products (with pagination for mapping UI)
+  app.get("/api/odoo/all-products", requireApproval, async (req: any, res) => {
+    try {
+      const search = (req.query.search as string || '').toLowerCase();
+      const limit = parseInt(req.query.limit as string) || 100;
+      const offset = parseInt(req.query.offset as string) || 0;
+      
+      let domain: any[] = [];
+      if (search) {
+        domain = ['|', '|', 
+          ['name', 'ilike', `%${search}%`],
+          ['default_code', 'ilike', `%${search}%`],
+          ['description', 'ilike', `%${search}%`]
+        ];
+      }
+      
+      const products = await odooClient.getProducts({ limit, offset, domain });
+      res.json(products);
+    } catch (error: any) {
+      console.error("Error fetching all Odoo products:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch Odoo products" });
     }
   });
 
