@@ -78,6 +78,9 @@ import {
   ExternalLink,
   Flame,
   UserX,
+  Truck,
+  User,
+  Receipt,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import {
@@ -581,7 +584,7 @@ export default function ClientDatabase() {
     return '#'; // For numbers or special characters
   };
   
-  // Group customers by company name (normalized for comparison)
+  // Group customers by company name (normalized for comparison) - LEGACY fallback
   const normalizeCompanyName = (name: string): string => {
     return name.toLowerCase().trim().replace(/\s+/g, ' ');
   };
@@ -593,6 +596,63 @@ export default function ClientDatabase() {
     primaryCustomer: Customer; // The one with most data
   }
   
+  // NEW: Hierarchical tree structure matching Odoo's format
+  interface HierarchicalNode {
+    customer: Customer;
+    children: HierarchicalNode[];
+    isCompany: boolean;
+    contactType: string; // 'company', 'contact', 'delivery', 'invoice', 'other'
+    displayName: string; // Formatted name like "Parent, Child"
+  }
+  
+  // Build hierarchical tree from parent-child relationships
+  const hierarchicalTree: HierarchicalNode[] = React.useMemo(() => {
+    // Create a map of all customers by their ID
+    const customerMap = new Map<string, Customer>();
+    customers.forEach(c => customerMap.set(c.id, c));
+    
+    // Find all parent companies (no parentCustomerId) and children
+    const rootNodes: HierarchicalNode[] = [];
+    const childrenByParentId: Map<string, Customer[]> = new Map();
+    
+    customers.forEach(customer => {
+      if (customer.parentCustomerId) {
+        // This is a child contact
+        const children = childrenByParentId.get(customer.parentCustomerId) || [];
+        children.push(customer);
+        childrenByParentId.set(customer.parentCustomerId, children);
+      }
+    });
+    
+    // Build tree nodes for root customers (no parent or parent not in list)
+    customers.forEach(customer => {
+      // Root node: has no parent OR parent is not in our customer list
+      if (!customer.parentCustomerId || !customerMap.has(customer.parentCustomerId)) {
+        const children = childrenByParentId.get(customer.id) || [];
+        const parentName = customer.company || getDisplayName(customer);
+        
+        const childNodes: HierarchicalNode[] = children.map(child => ({
+          customer: child,
+          children: [], // No nested children for now (Odoo typically has 2 levels)
+          isCompany: child.isCompany || false,
+          contactType: child.contactType || 'contact',
+          displayName: `${parentName}, ${child.company || getDisplayName(child)}`,
+        })).sort((a, b) => a.displayName.localeCompare(b.displayName));
+        
+        rootNodes.push({
+          customer,
+          children: childNodes,
+          isCompany: customer.isCompany || false,
+          contactType: customer.contactType || 'company',
+          displayName: parentName,
+        });
+      }
+    });
+    
+    return rootNodes.sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [customers]);
+  
+  // LEGACY: Keep groupedByCompany for backward compatibility with cards/kanban views
   const groupedByCompany: CompanyGroup[] = React.useMemo(() => {
     const groups: Record<string, Customer[]> = {};
     
@@ -743,7 +803,60 @@ export default function ClientDatabase() {
     }
   };
 
-  // Filter companies based on search and filters
+  // Filter hierarchical tree based on search and filters
+  const filteredHierarchicalTree: HierarchicalNode[] = React.useMemo(() => {
+    return hierarchicalTree.filter(node => {
+      const customer = node.customer;
+      
+      // Alphabet filter
+      if (selectedLetter && selectedLetter !== 'All') {
+        const firstChar = node.displayName.charAt(0).toUpperCase();
+        if (selectedLetter === '#') {
+          if (/[A-Z]/.test(firstChar)) return false;
+        } else if (firstChar !== selectedLetter) {
+          return false;
+        }
+      }
+      
+      // Search filter - match against parent or any child
+      if (debouncedSearchTerm) {
+        const matchesParent = fuzzyMatch(node.displayName, debouncedSearchTerm) ||
+          fuzzyMatch(customer.email || '', debouncedSearchTerm);
+        const matchesAnyChild = node.children.some(child => 
+          fuzzyMatch(child.displayName, debouncedSearchTerm) ||
+          fuzzyMatch(child.customer.email || '', debouncedSearchTerm)
+        );
+        if (!matchesParent && !matchesAnyChild) return false;
+      }
+      
+      // Source filter
+      if (filters.source !== "all") {
+        const hasSource = customer.sources?.includes(filters.source) ||
+          node.children.some(c => c.customer.sources?.includes(filters.source));
+        if (!hasSource) return false;
+      }
+      
+      // Hot prospect filter
+      if (showHotOnly) {
+        const isHot = customer.isHotProspect || node.children.some(c => c.customer.isHotProspect);
+        if (!isHot) return false;
+      }
+      
+      return true;
+    }).map(node => {
+      // Filter children too if searching
+      if (debouncedSearchTerm) {
+        const filteredChildren = node.children.filter(child =>
+          fuzzyMatch(child.displayName, debouncedSearchTerm) ||
+          fuzzyMatch(child.customer.email || '', debouncedSearchTerm)
+        );
+        return { ...node, children: filteredChildren };
+      }
+      return node;
+    });
+  }, [hierarchicalTree, selectedLetter, debouncedSearchTerm, filters, showHotOnly]);
+
+  // Filter companies based on search and filters (LEGACY - for cards/kanban views)
   const filteredCompanies = React.useMemo(() => {
     return groupedByCompany.filter(group => {
       // Alphabet filter
@@ -2600,366 +2713,187 @@ export default function ClientDatabase() {
               )}
             </div>
           ) : viewMode === 'table' ? (
-            /* TABLE VIEW - Grouped by Company with Sticky Header */
+            /* ODOO-STYLE HIERARCHICAL TREE VIEW */
             <div className="max-h-[600px] overflow-y-auto">
               {/* Sticky Table Header */}
-              <div className="sticky top-0 z-10 bg-gray-100 border-b border-gray-200 px-2 py-2 flex items-center gap-2 text-xs font-medium text-gray-600">
+              <div className="sticky top-0 z-10 bg-gray-100 border-b border-gray-200 px-3 py-2.5 flex items-center gap-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">
                 <Checkbox 
-                  checked={bulkSelected.size === filteredCompanies.length && filteredCompanies.length > 0}
+                  checked={bulkSelected.size === filteredHierarchicalTree.length && filteredHierarchicalTree.length > 0}
                   onCheckedChange={(checked) => checked ? selectAllVisible() : clearBulkSelection()}
                   className="h-4 w-4"
                   data-testid="checkbox-select-all"
                 />
-                <div className="w-5" />
-                <span className="flex-1 min-w-[200px]">Company</span>
-                <span className="w-28 text-left hidden md:block">Source</span>
-                <span className="w-24 text-left hidden lg:block">Tier</span>
-                <span className="w-16 text-center hidden lg:block">Quotes</span>
-                <span className="w-14 text-center hidden lg:block">Swatch</span>
-                <span className="w-14 text-center hidden lg:block">Kit</span>
-                <span className="w-14 text-center hidden lg:block">Mailer</span>
-                <span className="w-44 hidden lg:block">Email</span>
-                <span className="w-28 text-right">Quick Actions</span>
+                <span className="flex-1">Name</span>
+                <span className="w-24 text-center hidden md:block">Actions</span>
               </div>
               
               <div className="divide-y divide-gray-100">
-                {filteredCompanies.map((group) => {
-                  const isExpanded = expandedCompanies.has(group.groupKey);
-                  const hasMultiplePeople = group.customers.length > 1;
-                  const primary = group.primaryCustomer;
-                  const totalQuotes = getCompanyQuoteCount(group);
-                  const totalSamples = group.customers.reduce((sum, c) => sum + getSampleCount(c.id), 0);
-                  const isBulkSelected = bulkSelected.has(primary.id);
-                  const isInlineEditing = editingRowId === primary.id;
-                  const needsDataCleanup = hasIncompleteEmail(primary.email);
+                {/* Render hierarchical tree */}
+                {filteredHierarchicalTree.map((node) => {
+                  const customer = node.customer;
+                  const hasChildren = node.children.length > 0;
+                  const isExpanded = expandedCompanies.has(customer.id);
+                  const isBulkSelected = bulkSelected.has(customer.id);
+                  
+                  // Get company icon - green square with initial for companies
+                  const getCompanyIcon = () => {
+                    if (node.isCompany) {
+                      const initial = node.displayName.charAt(0).toUpperCase();
+                      return (
+                        <div className="w-8 h-8 rounded bg-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                          {initial}
+                        </div>
+                      );
+                    }
+                    return <User className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                  };
+                  
+                  // Get child contact icon based on type
+                  const getContactIcon = (contactType: string) => {
+                    switch (contactType) {
+                      case 'delivery':
+                        return <Truck className="h-5 w-5 text-orange-400 flex-shrink-0" />;
+                      case 'invoice':
+                        return <Receipt className="h-5 w-5 text-blue-400 flex-shrink-0" />;
+                      case 'contact':
+                        return <User className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                      default:
+                        return <Truck className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                    }
+                  };
                   
                   return (
-                    <div key={group.groupKey} data-testid={`company-group-${primary.id}`}>
-                      {/* Company Row with Hover Highlighting */}
+                    <div key={customer.id} data-testid={`tree-node-${customer.id}`}>
+                      {/* Parent/Company Row */}
                       <div 
-                        className={`group flex items-center justify-between py-2.5 px-2 text-sm cursor-pointer transition-colors
-                          ${isBulkSelected ? 'bg-blue-50 border-l-2 border-blue-400' : ''}
-                          ${selectedForMerge.has(primary.id) ? 'bg-purple-50' : ''}
-                          ${needsDataCleanup ? 'bg-amber-50/50 border-l-2 border-amber-400' : ''}
+                        className={`group flex items-center gap-3 py-3 px-3 text-sm cursor-pointer transition-colors border-b border-gray-50
+                          ${isBulkSelected ? 'bg-blue-50' : ''}
                           hover:bg-gray-50`}
-                        onClick={() => hasMultiplePeople && toggleCompanyExpansion(group.groupKey)}
+                        onClick={() => hasChildren && toggleCompanyExpansion(customer.id)}
                       >
-                        <div className="flex items-center gap-2 flex-1 min-w-0">
-                          <Checkbox 
-                            checked={isBulkSelected}
-                            onCheckedChange={() => toggleBulkSelection(primary.id)}
-                            onClick={(e) => e.stopPropagation()}
-                            className="h-4 w-4"
-                            data-testid={`checkbox-bulk-${primary.id}`}
-                          />
-                          {hasMultiplePeople ? (
-                            <button className="p-0.5 hover:bg-gray-200 rounded">
-                              {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />}
-                            </button>
-                          ) : (
-                            <div className="w-5" />
+                        <Checkbox 
+                          checked={isBulkSelected}
+                          onCheckedChange={() => toggleBulkSelection(customer.id)}
+                          onClick={(e) => e.stopPropagation()}
+                          className="h-4 w-4 flex-shrink-0"
+                        />
+                        
+                        {/* Expand/collapse arrow */}
+                        {hasChildren ? (
+                          <button className="p-0.5 hover:bg-gray-200 rounded flex-shrink-0" onClick={(e) => { e.stopPropagation(); toggleCompanyExpansion(customer.id); }}>
+                            {isExpanded ? <ChevronDown className="h-4 w-4 text-gray-500" /> : <ChevronRight className="h-4 w-4 text-gray-500" />}
+                          </button>
+                        ) : (
+                          <div className="w-5 flex-shrink-0" />
+                        )}
+                        
+                        {/* Company/Contact Icon */}
+                        {getCompanyIcon()}
+                        
+                        {/* Name */}
+                        <span 
+                          className="font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex-1 truncate"
+                          onClick={(e) => { e.stopPropagation(); handleSelectCustomer(customer, node.children.map(c => c.customer)); }}
+                          data-testid={`link-client-${customer.id}`}
+                        >
+                          {node.displayName}
+                        </span>
+                        
+                        {/* Child count badge */}
+                        {hasChildren && (
+                          <Badge variant="secondary" className="text-[10px] px-1.5 py-0 flex-shrink-0">
+                            {node.children.length}
+                          </Badge>
+                        )}
+                        
+                        {/* Source badges */}
+                        <div className="flex items-center gap-1 flex-shrink-0">
+                          {customer.sources?.includes('odoo') && (
+                            <SiOdoo className="h-4 w-4 text-purple-600" title="Odoo" />
                           )}
-                          <Building2 className="h-4 w-4 text-gray-400" />
-                          {primary.isHotProspect && (
-                            <Flame className="h-4 w-4 text-orange-500 fill-orange-500" />
+                          {customer.sources?.includes('shopify') && (
+                            <SiShopify className="h-4 w-4 text-green-600" title="Shopify" />
                           )}
-                          <span 
-                            className="font-medium text-gray-900 truncate min-w-[180px] hover:text-blue-600 hover:underline cursor-pointer"
-                            onClick={(e) => { e.stopPropagation(); handleSelectCustomer(primary, group.customers); }}
-                            data-testid={`link-client-${primary.id}`}
+                        </div>
+                        
+                        {/* Quick Actions */}
+                        <div className="w-24 flex items-center justify-end gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                          <Button 
+                            onClick={() => handleSelectCustomer(customer, node.children.map(c => c.customer))} 
+                            size="sm" 
+                            variant="ghost" 
+                            className="h-7 px-2 text-xs"
                           >
-                            {group.companyName}
-                          </span>
-                          
-                          {/* Price List sent indicator - Warning to avoid conflicting pricing */}
-                          {getPriceListCount(primary.id) > 0 && (
-                            <TooltipProvider>
-                              <Tooltip>
-                                <TooltipTrigger asChild>
-                                  <div className="flex items-center gap-0.5 px-1.5 py-0.5 bg-amber-100 border border-amber-400 rounded text-amber-700">
-                                    <AlertTriangle className="h-3 w-3" />
-                                    <FileText className="h-3 w-3" />
-                                    <span className="text-[10px] font-semibold">{getPriceListCount(primary.id)}</span>
-                                  </div>
-                                </TooltipTrigger>
-                                <TooltipContent className="max-w-xs">
-                                  <p className="font-semibold text-amber-600">Price List Already Sent!</p>
-                                  <p className="text-xs">{getPriceListCount(primary.id)} price list{getPriceListCount(primary.id) > 1 ? 's' : ''} previously sent. Check before sending new pricing to avoid customer confusion.</p>
-                                </TooltipContent>
-                              </Tooltip>
-                            </TooltipProvider>
-                          )}
-                          
-                          {/* Quick Actions Dropdown - Ellipsis menu */}
-                          <DropdownMenu>
-                            <DropdownMenuTrigger asChild>
-                              <Button 
-                                variant="ghost" 
-                                size="sm" 
-                                className="h-6 w-6 p-0 opacity-0 group-hover:opacity-100 transition-opacity ml-1"
-                                onClick={(e) => e.stopPropagation()}
-                                data-testid={`button-actions-${primary.id}`}
-                                aria-label="Quick actions"
-                              >
-                                <MoreHorizontal className="h-4 w-4 text-gray-500" />
-                              </Button>
-                            </DropdownMenuTrigger>
-                            <DropdownMenuContent align="start" className="w-48">
-                              <DropdownMenuItem onClick={() => handleSelectCustomer(primary, group.customers)}>
-                                <Eye className="h-4 w-4 mr-2 text-blue-500" /> View Details
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => window.location.href = `/quick-quotes?customerId=${primary.id}`}>
-                                <FileText className="h-4 w-4 mr-2 text-purple-500" /> Send Quote
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => handleSelectCustomer(primary, group.customers)}>
-                                <Package className="h-4 w-4 mr-2 text-green-500" /> Log Sample
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleEditCustomer(primary)}>
-                                <Edit className="h-4 w-4 mr-2" /> Edit
-                              </DropdownMenuItem>
-                              <DropdownMenuItem onClick={() => startInlineEdit(primary, 'email')}>
-                                <Mail className="h-4 w-4 mr-2" /> Edit Email
-                              </DropdownMenuItem>
-                              {needsDataCleanup && (
-                                <DropdownMenuItem onClick={() => startInlineEdit(primary, 'email')} className="text-amber-600">
-                                  <AlertTriangle className="h-4 w-4 mr-2" /> Fix Email
-                                </DropdownMenuItem>
-                              )}
-                              {hasAddress(primary) && (
-                                <DropdownMenuItem onClick={() => printAddressLabel(primary)}>
-                                  <Printer className="h-4 w-4 mr-2" /> Print Address Label
-                                </DropdownMenuItem>
-                              )}
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => toggleMergeSelection(primary.id)} disabled={selectedForMerge.size >= 2 && !selectedForMerge.has(primary.id)}>
-                                <Users className="h-4 w-4 mr-2" /> Select for Merge
-                              </DropdownMenuItem>
-                              <DropdownMenuSeparator />
-                              <DropdownMenuItem onClick={() => handleDeleteCustomer(primary.id)} className="text-red-600">
-                                <Trash2 className="h-4 w-4 mr-2" /> Delete
-                              </DropdownMenuItem>
-                            </DropdownMenuContent>
-                          </DropdownMenu>
-                          
-                          {!hasAddress(primary) && primary.company && (
+                            View
+                          </Button>
+                          {customer.odooPartnerId && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
                                   <Button
                                     variant="ghost"
                                     size="sm"
-                                    className="h-5 w-5 p-0 ml-1"
-                                    onClick={(e) => { e.stopPropagation(); searchCompanyAddress(primary.company || group.companyName, primary.city); }}
-                                    data-testid={`button-search-address-${primary.id}`}
+                                    className="h-7 w-7 p-0"
+                                    onClick={() => window.open(`${import.meta.env.VITE_ODOO_URL || ''}/web#id=${customer.odooPartnerId}&model=res.partner&view_type=form`, '_blank')}
                                   >
-                                    <ExternalLink className="h-3 w-3 text-orange-500 hover:text-orange-700" />
+                                    <ExternalLink className="h-3.5 w-3.5 text-purple-500" />
                                   </Button>
                                 </TooltipTrigger>
-                                <TooltipContent>Search address on Google Maps</TooltipContent>
+                                <TooltipContent>Open in Odoo</TooltipContent>
                               </Tooltip>
                             </TooltipProvider>
                           )}
-                          {hasMultiplePeople && (
-                            <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
-                              {group.customers.length} people
-                            </Badge>
-                          )}
-                        </div>
-                        
-                        {/* Source badges - Left-aligned */}
-                        <div className="w-28 flex items-center justify-start gap-1 hidden md:flex flex-wrap">
-                          {primary.sources?.includes('shopify') && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-green-100 text-green-700 border border-green-200">
-                              <SiShopify className="h-3 w-3" /> Shopify
-                            </span>
-                          )}
-                          {primary.sources?.includes('odoo') && (
-                            <span className="inline-flex items-center gap-1 px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-purple-100 text-purple-700 border border-purple-200">
-                              <SiOdoo className="h-3 w-3" /> Odoo
-                            </span>
-                          )}
-                          {!primary.sources?.length && (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded-full text-[10px] font-medium bg-gray-100 text-gray-500">
-                              Manual
-                            </span>
-                          )}
-                        </div>
-
-                        {/* Pricing Tier */}
-                        <div className="w-24 hidden lg:block">
-                          {primary.tags ? (
-                            <span className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-indigo-100 text-indigo-700 border border-indigo-200 truncate max-w-full">
-                              {primary.tags}
-                            </span>
-                          ) : (
-                            <span className="text-gray-400 text-[10px] italic">No tier</span>
-                          )}
-                        </div>
-                        
-                        {/* Quote/Sample counts - Improved Pills */}
-                        <div className="w-16 flex items-center justify-center gap-1 hidden lg:flex">
-                          {totalQuotes > 0 ? (
-                            <span className="bg-blue-100 text-blue-700 text-[10px] font-semibold px-1.5 py-0.5 rounded-full border border-blue-200">{totalQuotes}</span>
-                          ) : (
-                            <span className="text-gray-300 text-[10px]">-</span>
-                          )}
-                        </div>
-
-                        {/* Swatch Book */}
-                        <div className="w-14 flex items-center justify-center hidden lg:flex">
-                          {hasSwatchBook(primary.id) ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-purple-100 text-purple-700 border border-purple-200">
-                              <BookOpen className="h-3 w-3" />
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-[10px]">-</span>
-                          )}
-                        </div>
-
-                        {/* Press Kit */}
-                        <div className="w-14 flex items-center justify-center hidden lg:flex">
-                          {hasPressKit(primary.id) ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-orange-100 text-orange-700 border border-orange-200">
-                              <Printer className="h-3 w-3" />
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-[10px]">-</span>
-                          )}
-                        </div>
-
-                        {/* Mailer Sent */}
-                        <div className="w-14 flex items-center justify-center hidden lg:flex">
-                          {getMailerCount(primary.id) > 0 ? (
-                            <span className="inline-flex items-center gap-0.5 px-1.5 py-0.5 rounded-full text-[10px] bg-pink-100 text-pink-700 border border-pink-200 font-medium">
-                              <Mail className="h-3 w-3" /> {getMailerCount(primary.id)}
-                            </span>
-                          ) : (
-                            <span className="text-gray-300 text-[10px]">-</span>
-                          )}
-                        </div>
-                        
-                        {/* Inline editable email */}
-                        <div className="w-48 hidden lg:block" onClick={(e) => e.stopPropagation()}>
-                          {isInlineEditing && editingField === 'email' ? (
-                            <div className="flex items-center gap-1">
-                              <Input
-                                value={editingData.email || ''}
-                                onChange={(e) => updateEditingField('email', e.target.value)}
-                                className="h-6 text-xs"
-                                autoFocus
-                                onKeyDown={(e) => e.key === 'Enter' && saveInlineEdit()}
-                              />
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={saveInlineEdit}>
-                                <Save className="h-3 w-3 text-green-600" />
-                              </Button>
-                              <Button size="sm" variant="ghost" className="h-6 w-6 p-0" onClick={cancelEdit}>
-                                <X className="h-3 w-3 text-red-500" />
-                              </Button>
-                            </div>
-                          ) : (
-                            <div className="flex items-center gap-1">
-                              <span 
-                                className="text-gray-400 text-xs truncate cursor-text hover:text-gray-600 flex-1"
-                                onDoubleClick={() => startInlineEdit(primary, 'email')}
-                                title="Double-click to edit"
-                              >
-                                {primary.email || <span className="italic text-gray-300">No email</span>}
-                              </span>
-                              {primary.email && (
-                                <EmailLaunchIcon
-                                  email={primary.email}
-                                  customerId={primary.id}
-                                  customerName={primary.company || `${primary.firstName || ''} ${primary.lastName || ''}`.trim() || primary.email}
-                                  variables={{
-                                    'client.firstName': primary.firstName || '',
-                                    'client.lastName': primary.lastName || '',
-                                    'client.company': primary.company || '',
-                                  }}
-                                />
-                              )}
-                            </div>
-                          )}
-                        </div>
-                        
-                        {/* View button on right side */}
-                        <div className="flex items-center justify-end" onClick={(e) => e.stopPropagation()}>
-                          <Button 
-                            onClick={() => handleSelectCustomer(primary, group.customers)} 
-                            size="sm" 
-                            variant="ghost" 
-                            className="h-7 px-2 text-xs"
-                            data-testid={`button-view-${primary.id}`}
-                          >
-                            View
-                          </Button>
                         </div>
                       </div>
                       
-                      {/* Expanded People List */}
-                      {isExpanded && hasMultiplePeople && (
-                        <div className="bg-gray-50/50 border-l-2 border-gray-200 ml-8 mb-2">
-                          {group.customers.map((customer) => {
-                            const isCustomerEditing = editingRowId === customer.id;
+                      {/* Child Contacts - Indented like Odoo tree */}
+                      {isExpanded && hasChildren && (
+                        <div className="bg-gray-50/50">
+                          {node.children.map((child) => {
+                            const childCustomer = child.customer;
+                            const isChildSelected = bulkSelected.has(childCustomer.id);
+                            
                             return (
                               <div 
-                                key={customer.id}
-                                className="group flex items-center justify-between py-2 px-3 hover:bg-gray-100/50 text-sm border-b border-gray-100 last:border-0"
-                                data-testid={`person-row-${customer.id}`}
+                                key={childCustomer.id}
+                                className={`group flex items-center gap-3 py-2.5 pl-16 pr-3 text-sm cursor-pointer transition-colors border-b border-gray-100
+                                  ${isChildSelected ? 'bg-blue-50' : ''}
+                                  hover:bg-gray-100/50`}
+                                data-testid={`tree-child-${childCustomer.id}`}
+                                onClick={() => handleSelectCustomer(childCustomer, [])}
                               >
-                                <div className="flex items-center gap-2 flex-1 min-w-0">
-                                  <Checkbox 
-                                    checked={bulkSelected.has(customer.id)}
-                                    onCheckedChange={() => toggleBulkSelection(customer.id)}
-                                    className="h-3 w-3"
-                                  />
-                                  <Users className="h-3.5 w-3.5 text-gray-400" />
-                                  <span className="text-gray-700">
-                                    {customer.firstName || customer.lastName 
-                                      ? `${customer.firstName || ''} ${customer.lastName || ''}`.trim()
-                                      : customer.email || 'Contact'}
-                                  </span>
-                                  {isCustomerEditing && editingField === 'email' ? (
-                                    <div className="flex items-center gap-1">
-                                      <Input
-                                        value={editingData.email || ''}
-                                        onChange={(e) => updateEditingField('email', e.target.value)}
-                                        className="h-5 text-xs w-40"
-                                        autoFocus
-                                        onKeyDown={(e) => e.key === 'Enter' && saveInlineEdit()}
-                                      />
-                                      <Button size="sm" variant="ghost" className="h-5 w-5 p-0" onClick={saveInlineEdit}>
-                                        <Save className="h-2.5 w-2.5 text-green-600" />
-                                      </Button>
-                                    </div>
-                                  ) : (
-                                    <span 
-                                      className="text-gray-400 text-xs truncate cursor-text hover:text-gray-600"
-                                      onDoubleClick={() => startInlineEdit(customer, 'email')}
-                                      title="Double-click to edit"
-                                    >
-                                      {customer.email}
-                                    </span>
-                                  )}
-                                  {customer.phone && (
-                                    <span className="text-gray-400 text-xs hidden lg:block">• {customer.phone}</span>
-                                  )}
-                                </div>
-                                <div className="flex items-center gap-0.5" onClick={(e) => e.stopPropagation()}>
-                                  {hasAddress(customer) && (
-                                    <TooltipProvider>
-                                      <Tooltip>
-                                        <TooltipTrigger asChild>
-                                          <Button onClick={() => printAddressLabel(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0">
-                                            <Printer className="h-2.5 w-2.5 text-blue-500 hover:text-blue-700" />
-                                          </Button>
-                                        </TooltipTrigger>
-                                        <TooltipContent>Print Address Label</TooltipContent>
-                                      </Tooltip>
-                                    </TooltipProvider>
-                                  )}
-                                  <Button onClick={() => handleSelectCustomer(customer, [])} size="sm" variant="ghost" className="h-5 px-1.5 text-[10px] opacity-0 group-hover:opacity-100">View</Button>
-                                  <Button onClick={() => handleEditCustomer(customer)} size="sm" variant="ghost" className="h-5 w-5 p-0 opacity-0 group-hover:opacity-100"><Edit className="h-2.5 w-2.5" /></Button>
+                                <Checkbox 
+                                  checked={isChildSelected}
+                                  onCheckedChange={() => toggleBulkSelection(childCustomer.id)}
+                                  onClick={(e) => e.stopPropagation()}
+                                  className="h-4 w-4 flex-shrink-0"
+                                />
+                                
+                                {/* Contact Type Icon */}
+                                {getContactIcon(child.contactType)}
+                                
+                                {/* Formatted Name: "Parent, Child" */}
+                                <span className="text-gray-700 hover:text-blue-600 hover:underline cursor-pointer flex-1 truncate">
+                                  {child.displayName}
+                                </span>
+                                
+                                {/* Contact Type Badge */}
+                                {child.contactType !== 'contact' && child.contactType !== 'company' && (
+                                  <Badge variant="outline" className="text-[9px] px-1 py-0 flex-shrink-0 capitalize">
+                                    {child.contactType}
+                                  </Badge>
+                                )}
+                                
+                                {/* Quick Actions */}
+                                <div className="w-24 flex items-center justify-end gap-1 flex-shrink-0" onClick={(e) => e.stopPropagation()}>
+                                  <Button 
+                                    onClick={() => handleSelectCustomer(childCustomer, [])} 
+                                    size="sm" 
+                                    variant="ghost" 
+                                    className="h-6 px-2 text-xs opacity-0 group-hover:opacity-100"
+                                  >
+                                    View
+                                  </Button>
                                 </div>
                               </div>
                             );
