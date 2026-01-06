@@ -49,14 +49,30 @@ async function getGmailClient() {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
-export async function sendEmail(to: string, subject: string, body: string, htmlBody?: string) {
+export async function sendEmail(to: string, subject: string, body: string, htmlBody?: string, fromName?: string) {
   const gmail = await getGmailClient();
   
+  // Get sender's email address from profile
+  const profile = await gmail.users.getProfile({ userId: 'me' });
+  const senderEmail = profile.data.emailAddress || '';
+  const displayName = fromName || '4SG Quote System';
+  
+  // Generate unique Message-ID for proper threading and spam prevention
+  const messageId = `<${Date.now()}.${Math.random().toString(36).substring(2)}@${senderEmail.split('@')[1] || 'localhost'}>`;
+  
+  // Format date in RFC 2822 format
+  const dateStr = new Date().toUTCString().replace('GMT', '+0000');
+  
   const emailLines = [
+    `From: "${displayName}" <${senderEmail}>`,
     `To: ${to}`,
     `Subject: ${subject}`,
+    `Date: ${dateStr}`,
+    `Message-ID: ${messageId}`,
+    `Reply-To: ${senderEmail}`,
     'MIME-Version: 1.0',
     'Content-Type: text/html; charset=utf-8',
+    'X-Mailer: 4SG-QuoteSystem/1.0',
     '',
     htmlBody || body.replace(/\n/g, '<br>')
   ];
@@ -64,7 +80,7 @@ export async function sendEmail(to: string, subject: string, body: string, htmlB
   const email = emailLines.join('\r\n');
   const encodedEmail = Buffer.from(email).toString('base64').replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '');
   
-  console.log('Sending email to:', to, 'Subject:', subject);
+  console.log('Sending email from:', senderEmail, 'to:', to, 'Subject:', subject);
   
   const result = await gmail.users.messages.send({
     userId: 'me',
