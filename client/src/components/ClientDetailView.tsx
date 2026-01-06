@@ -982,16 +982,22 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               <TooltipProvider delayDuration={200}>
                 <Tooltip>
                   <TooltipTrigger asChild>
-                    <Badge 
-                      className="bg-purple-100 text-purple-700 gap-1 h-8 px-3 flex items-center"
-                      data-testid="badge-odoo-id"
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="bg-purple-100 text-purple-700 hover:bg-purple-200 gap-1 h-8 px-3 border-purple-200"
+                      data-testid="btn-open-odoo"
+                      onClick={() => {
+                        const odooPartnerId = (customer as any).odooPartnerId;
+                        window.open(`https://4sgraphics.odoo.com/web#id=${odooPartnerId}&model=res.partner&view_type=form`, '_blank');
+                      }}
                     >
-                      <Link2 className="h-3.5 w-3.5" />
-                      <span>Odoo #{(customer as any).odooPartnerId}</span>
-                    </Badge>
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      <span>Open in Odoo</span>
+                    </Button>
                   </TooltipTrigger>
                   <TooltipContent>
-                    Linked to Odoo Partner #{(customer as any).odooPartnerId} (Read-Only)
+                    Open this contact in Odoo (Partner #{(customer as any).odooPartnerId})
                   </TooltipContent>
                 </Tooltip>
               </TooltipProvider>

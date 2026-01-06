@@ -385,9 +385,32 @@ class OdooClient {
   }
 
   async getUsers(): Promise<Array<{ id: number; name: string; email: string; login: string }>> {
-    return this.searchRead('res.users', [['active', '=', true]], [
+    // Filter to only internal users (not portal/public users)
+    // share=false means internal user, share=true means portal/external user
+    return this.searchRead('res.users', [['active', '=', true], ['share', '=', false]], [
       'id', 'name', 'email', 'login',
     ], { limit: 200 });
+  }
+
+  async getAllPartners(): Promise<OdooPartner[]> {
+    // Fetch all partners using pagination
+    const allPartners: OdooPartner[] = [];
+    const batchSize = 500;
+    let offset = 0;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const batch = await this.getPartners({ limit: batchSize, offset });
+      allPartners.push(...batch);
+      
+      if (batch.length < batchSize) {
+        hasMore = false;
+      } else {
+        offset += batchSize;
+      }
+    }
+    
+    return allPartners;
   }
 
   async getActivities(options: { userId?: number; limit?: number } = {}): Promise<any[]> {

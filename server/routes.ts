@@ -8908,8 +8908,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         console.log("[Odoo Import] All existing customers deleted");
       }
       
-      // Step 2: Fetch all partners from Odoo (companies and contacts)
-      const partners = await odooClient.getPartners({ limit: 1000 });
+      // Step 2: Fetch ALL partners from Odoo (companies and contacts) using pagination
+      console.log("[Odoo Import] Fetching all partners from Odoo (this may take a moment)...");
+      const partners = await odooClient.getAllPartners();
       console.log(`[Odoo Import] Fetched ${partners.length} partners from Odoo`);
       
       const results = {
