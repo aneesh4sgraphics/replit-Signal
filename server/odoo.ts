@@ -360,6 +360,38 @@ class OdooClient {
     ], { limit: options.limit || 100, offset: options.offset || 0 });
   }
 
+  async getProductById(id: number): Promise<OdooProduct | null> {
+    const products = await this.read('product.template', [id], [
+      'id', 'name', 'default_code', 'list_price', 'standard_price', 'categ_id',
+      'type', 'description', 'description_sale', 'uom_id', 'active',
+    ]);
+    return products.length > 0 ? products[0] : null;
+  }
+
+  async updateProductPrice(productId: number, listPrice: number): Promise<boolean> {
+    return this.write('product.template', [productId], { list_price: listPrice });
+  }
+
+  async getAllProducts(): Promise<OdooProduct[]> {
+    const allProducts: OdooProduct[] = [];
+    const batchSize = 500;
+    let offset = 0;
+    let hasMore = true;
+    
+    while (hasMore) {
+      const batch = await this.getProducts({ limit: batchSize, offset });
+      allProducts.push(...batch);
+      
+      if (batch.length < batchSize) {
+        hasMore = false;
+      } else {
+        offset += batchSize;
+      }
+    }
+    
+    return allProducts;
+  }
+
   async getPricelists(options: { limit?: number; offset?: number } = {}): Promise<OdooPricelist[]> {
     return this.searchRead('product.pricelist', [['active', '=', true]], [
       'id', 'name', 'active', 'currency_id', 'item_ids',
