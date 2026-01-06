@@ -9075,6 +9075,94 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Import all partners from Odoo as customers (replaces local data)
+  app.post("/api/odoo/import/partners", requireAdmin, async (req: any, res) => {
+    try {
+      const { deleteExisting = false } = req.body;
+      
+      console.log("[Odoo Import] Starting partner import from Odoo...");
+      
+      // Step 1: If requested, delete all existing customers
+      if (deleteExisting) {
+        console.log("[Odoo Import] Deleting all existing customers...");
+        await db.delete(customers);
+        console.log("[Odoo Import] All existing customers deleted");
+      }
+      
+      // Step 2: Fetch all partners from Odoo (companies and contacts)
+      const partners = await odooClient.getPartners({ limit: 1000 });
+      console.log(`[Odoo Import] Fetched ${partners.length} partners from Odoo`);
+      
+      const results = {
+        imported: 0,
+        skipped: 0,
+        failed: 0,
+        errors: [] as string[]
+      };
+      
+      // Step 3: Create each partner as a customer
+      for (const partner of partners) {
+        try {
+          // Skip partners without a name
+          if (!partner.name || partner.name.trim() === '') {
+            results.skipped++;
+            continue;
+          }
+          
+          // Parse the partner name for first/last name (for individuals)
+          let firstName = '';
+          let lastName = '';
+          let company = '';
+          
+          if (partner.is_company) {
+            company = partner.name;
+          } else {
+            const nameParts = partner.name.split(' ');
+            firstName = nameParts[0] || '';
+            lastName = nameParts.slice(1).join(' ') || '';
+            company = partner.parent_name || '';
+          }
+          
+          // Create customer record
+          const customerData = {
+            id: crypto.randomUUID(),
+            firstName,
+            lastName,
+            company,
+            email: partner.email || null,
+            phone: partner.phone || partner.mobile || null,
+            address: partner.street || null,
+            city: partner.city || null,
+            state: partner.state_id?.[1] || null,
+            zip: partner.zip || null,
+            country: partner.country_id?.[1] || null,
+            notes: partner.comment || null,
+            odooPartnerId: partner.id,
+            accountState: 'prospect' as const,
+            createdAt: new Date(),
+          };
+          
+          await db.insert(customers).values(customerData);
+          results.imported++;
+        } catch (error: any) {
+          results.failed++;
+          results.errors.push(`Partner ${partner.id} (${partner.name}): ${error.message}`);
+        }
+      }
+      
+      console.log(`[Odoo Import] Complete: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed`);
+      
+      res.json({
+        success: true,
+        message: `Imported ${results.imported} partners from Odoo`,
+        ...results
+      });
+    } catch (error: any) {
+      console.error("Error importing partners from Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to import partners from Odoo" });
+    }
+  });
+
   // ========================================
   // SHOPIFY INTEGRATION APIs
   // ========================================

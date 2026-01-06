@@ -115,6 +115,26 @@ export default function OdooSettingsPage() {
     },
   });
 
+  const importFromOdooMutation = useMutation({
+    mutationFn: async (deleteExisting: boolean) => {
+      const res = await apiRequest('POST', '/api/odoo/import/partners', { deleteExisting });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/partners'] });
+      toast({ 
+        title: "Import complete",
+        description: `Imported: ${data.imported}, Skipped: ${data.skipped}, Failed: ${data.failed}`
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Import failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const [showImportConfirm, setShowImportConfirm] = useState(false);
+
   const filteredCustomers = localCustomers.filter((c: any) => {
     if (!customerSearchTerm) return true;
     const searchLower = customerSearchTerm.toLowerCase();
@@ -248,11 +268,15 @@ export default function OdooSettingsPage() {
         </CardContent>
       </Card>
 
-      <Tabs defaultValue="sync" className="space-y-4">
+      <Tabs defaultValue="import" className="space-y-4">
         <TabsList>
+          <TabsTrigger value="import" data-testid="tab-import">
+            <Download className="h-4 w-4 mr-2" />
+            Import from Odoo
+          </TabsTrigger>
           <TabsTrigger value="sync" data-testid="tab-sync">
             <Upload className="h-4 w-4 mr-2" />
-            Sync Customers
+            Sync to Odoo
           </TabsTrigger>
           <TabsTrigger value="partners" data-testid="tab-partners">
             <Users className="h-4 w-4 mr-2" />
@@ -267,6 +291,107 @@ export default function OdooSettingsPage() {
             Orders
           </TabsTrigger>
         </TabsList>
+
+        <TabsContent value="import">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Download className="h-5 w-5" />
+                Import Partners from Odoo
+              </CardTitle>
+              <CardDescription>
+                Import all partners from Odoo into your local CRM as customers. 
+                This will replace all existing customer data.
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="space-y-6">
+                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
+                  <h4 className="font-semibold text-amber-800 dark:text-amber-200 mb-2">
+                    Warning: This action will delete all existing customers
+                  </h4>
+                  <p className="text-sm text-amber-700 dark:text-amber-300">
+                    All current customer records in this app will be permanently deleted and replaced 
+                    with partners imported from Odoo. This cannot be undone.
+                  </p>
+                </div>
+
+                {connectionTest?.success ? (
+                  <div className="space-y-4">
+                    <div className="flex items-center gap-4">
+                      <div className="flex-1">
+                        <div className="text-lg font-medium">Ready to Import</div>
+                        <div className="text-sm text-muted-foreground">
+                          Found {odooPartners.length} partners in Odoo
+                        </div>
+                      </div>
+                      
+                      {!showImportConfirm ? (
+                        <Button 
+                          variant="destructive"
+                          onClick={() => setShowImportConfirm(true)}
+                          data-testid="btn-start-import"
+                        >
+                          <Download className="h-4 w-4 mr-2" />
+                          Import All from Odoo
+                        </Button>
+                      ) : (
+                        <div className="flex items-center gap-2">
+                          <Button 
+                            variant="outline"
+                            onClick={() => setShowImportConfirm(false)}
+                            data-testid="btn-cancel-import"
+                          >
+                            Cancel
+                          </Button>
+                          <Button 
+                            variant="destructive"
+                            onClick={() => {
+                              importFromOdooMutation.mutate(true);
+                              setShowImportConfirm(false);
+                            }}
+                            disabled={importFromOdooMutation.isPending}
+                            data-testid="btn-confirm-import"
+                          >
+                            {importFromOdooMutation.isPending && (
+                              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                            )}
+                            Yes, Delete All & Import
+                          </Button>
+                        </div>
+                      )}
+                    </div>
+
+                    {importFromOdooMutation.isSuccess && (
+                      <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
+                        <div className="font-semibold text-green-800 dark:text-green-200">
+                          Import Completed Successfully
+                        </div>
+                        <div className="text-sm text-green-700 dark:text-green-300 mt-1">
+                          Your customers are now synced with Odoo partners.
+                        </div>
+                      </div>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-muted-foreground">
+                    <Link2 className="h-12 w-12 mx-auto mb-4 opacity-50" />
+                    <p>Please test your Odoo connection first</p>
+                    <Button 
+                      variant="outline" 
+                      className="mt-4"
+                      onClick={() => testConnection()}
+                      disabled={testingConnection}
+                    >
+                      {testingConnection && <RefreshCw className="h-4 w-4 mr-2 animate-spin" />}
+                      Test Connection
+                    </Button>
+                  </div>
+                )}
+              </div>
+            </CardContent>
+          </Card>
+        </TabsContent>
 
         <TabsContent value="sync">
           <Card>
