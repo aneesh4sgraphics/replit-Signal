@@ -785,6 +785,11 @@ export default function QuoteCalculator() {
 
       // Log activity
       logUserAction('Created Odoo Sales Order', `Order #${data.orderId}`);
+      
+      // Open the created order in Odoo for user to review/edit
+      if (data.orderId) {
+        window.open(`https://4sgraphics.odoo.com/web#id=${data.orderId}&model=sale.order&view_type=form`, '_blank');
+      }
     } catch (error: any) {
       console.error('Error creating Odoo order:', error);
       toast({
