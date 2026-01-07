@@ -47,6 +47,8 @@ interface PalletLabelData {
   quantityLabel: "boxes" | "rolls";
   showSheets: boolean;
   notes: string;
+  autoFill: boolean;
+  lineSpacing: number;
 }
 
 const PRINT_TYPES = [
@@ -87,7 +89,9 @@ const defaultPalletLabel: PalletLabelData = {
   uppercase: false,
   quantityLabel: "boxes",
   showSheets: true,
-  notes: ""
+  notes: "",
+  autoFill: true,
+  lineSpacing: 1.5
 };
 
 const labelFormatConfig: Record<LabelFormat, { width: string; height: string; name: string }> = {
@@ -688,6 +692,37 @@ export default function ProductLabels() {
                         <span>Larger</span>
                       </div>
                     </div>
+
+                    <div className="flex items-center space-x-2 pt-2">
+                      <Checkbox
+                        id="autoFill"
+                        checked={palletData.autoFill}
+                        onCheckedChange={(checked) => setPalletData({ ...palletData, autoFill: checked === true })}
+                        data-testid="checkbox-auto-fill"
+                      />
+                      <Label htmlFor="autoFill" className="text-sm cursor-pointer">
+                        Auto-Fill (spread content to fill label)
+                      </Label>
+                    </div>
+
+                    <div className="space-y-3 pt-2">
+                      <div className="flex items-center justify-between">
+                        <Label>Line Spacing</Label>
+                        <span className="text-sm font-medium bg-gray-100 px-2 py-0.5 rounded">{palletData.lineSpacing.toFixed(1)}x</span>
+                      </div>
+                      <Slider
+                        value={[palletData.lineSpacing]}
+                        onValueChange={(value) => setPalletData({ ...palletData, lineSpacing: value[0] })}
+                        min={0.5}
+                        max={3}
+                        step={0.1}
+                        data-testid="slider-line-spacing"
+                      />
+                      <div className="flex justify-between text-xs text-muted-foreground">
+                        <span>Compact</span>
+                        <span>Spacious</span>
+                      </div>
+                    </div>
                   </div>
                 </div>
               </div>
@@ -824,6 +859,8 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
   const config = palletFormatConfig[data.labelFormat];
   const is4x8 = data.labelFormat === "thermal4x8";
   const scale = (data.textScale || 100) / 100;
+  const lineSpacing = data.lineSpacing ?? 1.5;
+  const autoFill = data.autoFill ?? true;
   
   const baseSizes = is4x8 
     ? { product: 32, detail: 20, code: 18, info: 16, notes: 14 }
@@ -832,19 +869,32 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
   const productFont = getProductFont(data.productName);
   const quantityLabel = data.quantityLabel === "rolls" ? "Rolls" : "Boxes";
   
+  const lineHeight = lineSpacing;
+  
   return (
     <div 
       className="bg-white p-4 flex flex-col justify-between"
-      style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
+      style={{ 
+        width: config.width, 
+        height: config.height, 
+        boxSizing: 'border-box'
+      }}
     >
-      <div className="space-y-1 text-center">
+      <div 
+        className="text-center flex flex-col"
+        style={{ 
+          flex: autoFill ? 1 : undefined,
+          justifyContent: autoFill ? 'space-evenly' : 'flex-start',
+          gap: autoFill ? undefined : `${lineSpacing * 0.3}rem`
+        }}
+      >
         <div 
-          className="leading-tight"
           style={{ 
             fontSize: `${baseSizes.product * scale}px`,
             fontFamily: productFont.fontFamily,
             fontWeight: productFont.fontWeight,
-            textTransform: data.uppercase ? 'uppercase' : 'none'
+            textTransform: data.uppercase ? 'uppercase' : 'none',
+            lineHeight: lineHeight
           }}
         >
           {data.productName || "PRODUCT NAME"}
@@ -853,7 +903,7 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         {data.productDetail && (
           <div 
             className="font-semibold"
-            style={{ fontSize: `${baseSizes.detail * scale}px` }}
+            style={{ fontSize: `${baseSizes.detail * scale}px`, lineHeight: lineHeight }}
           >
             {data.productDetail}
           </div>
@@ -862,7 +912,7 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         {data.itemCode && (
           <div 
             className="font-mono font-bold"
-            style={{ fontSize: `${baseSizes.code * scale}px` }}
+            style={{ fontSize: `${baseSizes.code * scale}px`, lineHeight: lineHeight }}
           >
             {data.itemCode}
           </div>
@@ -871,7 +921,7 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         {data.batchCode && (
           <div 
             className="font-medium"
-            style={{ fontSize: `${baseSizes.info * scale}px` }}
+            style={{ fontSize: `${baseSizes.info * scale}px`, lineHeight: lineHeight }}
           >
             Batch: {data.batchCode}
           </div>
@@ -880,7 +930,7 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         {data.quantityInBoxes && (
           <div 
             className="font-semibold"
-            style={{ fontSize: `${baseSizes.info * scale}px` }}
+            style={{ fontSize: `${baseSizes.info * scale}px`, lineHeight: lineHeight }}
           >
             {quantityLabel}: {data.quantityInBoxes}
           </div>
@@ -889,7 +939,7 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         {data.showSheets && data.totalSheets && (
           <div 
             className="font-semibold"
-            style={{ fontSize: `${baseSizes.info * scale}px` }}
+            style={{ fontSize: `${baseSizes.info * scale}px`, lineHeight: lineHeight }}
           >
             Sheets: {data.totalSheets}
           </div>
@@ -897,8 +947,8 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         
         {data.notes && (
           <div 
-            className="mt-2 pt-2 border-t border-gray-200 text-left whitespace-pre-wrap"
-            style={{ fontSize: `${baseSizes.notes * scale}px` }}
+            className="pt-2 border-t border-gray-200 text-left whitespace-pre-wrap"
+            style={{ fontSize: `${baseSizes.notes * scale}px`, lineHeight: lineHeight }}
           >
             {data.notes}
           </div>
