@@ -10058,8 +10058,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           const catalogCategoryId = product.catalogCategoryId || null;
           const catalogProductTypeId = product.catalogProductTypeId || null;
           const minQuantity = product.minQuantity || 1;
-          const dealerPrice = product.dealerPrice?.toString() || product.list_price?.toString() || '0';
-          const retailPrice = product.retailPrice?.toString() || product.list_price?.toString() || '0';
+          
+          // All pricing tiers - can be null/0 and updated later in Product Pricing Management
+          const landedPrice = product.landedPrice?.toString() || null;
+          const exportPrice = product.exportPrice?.toString() || null;
+          const masterDistributorPrice = product.masterDistributorPrice?.toString() || null;
+          const dealerPrice = product.dealerPrice?.toString() || null;
+          const dealer2Price = product.dealer2Price?.toString() || null;
+          const tierStage25Price = product.tierStage25Price?.toString() || null;
+          const tierStage2Price = product.tierStage2Price?.toString() || null;
+          const tierStage15Price = product.tierStage15Price?.toString() || null;
+          const tierStage1Price = product.tierStage1Price?.toString() || null;
+          const retailPrice = product.retailPrice?.toString() || null;
           
           // Create local product entry with guided values
           await db.insert(productPricingMaster).values({
@@ -10075,8 +10085,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
             minQuantity,
             rollSheet,
             unitOfMeasure,
-            retailPrice,
+            // All pricing tiers
+            landedPrice,
+            exportPrice,
+            masterDistributorPrice,
             dealerPrice,
+            dealer2Price,
+            approvalNeededPrice: tierStage25Price, // Map to approvalNeededPrice column
+            tierStage25Price,
+            tierStage2Price,
+            tierStage15Price,
+            tierStage1Price,
+            retailPrice,
             uploadBatch: 'odoo-import-' + new Date().toISOString().split('T')[0],
           });
           

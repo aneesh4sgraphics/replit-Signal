@@ -176,7 +176,16 @@ export default function OdooSettingsPage() {
     productCategory: '',
     productType: '',
     minQuantity: '1',
+    // All pricing tiers ($/m²) - can be left at 0 and updated in Product Pricing Management
+    landedPrice: '',
+    exportPrice: '',
+    masterDistributorPrice: '',
     dealerPrice: '',
+    dealer2Price: '',
+    tierStage25Price: '',
+    tierStage2Price: '',
+    tierStage15Price: '',
+    tierStage1Price: '',
     retailPrice: '',
   });
   
@@ -236,7 +245,16 @@ export default function OdooSettingsPage() {
       productCategory: '',
       productType: '',
       minQuantity: '1',
-      dealerPrice: product.list_price?.toFixed(2) || '',
+      // All pricing tiers start empty - user can update later in Product Pricing Management
+      landedPrice: '',
+      exportPrice: '',
+      masterDistributorPrice: '',
+      dealerPrice: '',
+      dealer2Price: '',
+      tierStage25Price: '',
+      tierStage2Price: '',
+      tierStage15Price: '',
+      tierStage1Price: '',
       retailPrice: '',
     });
     setWizardOpen(true);
@@ -255,7 +273,16 @@ export default function OdooSettingsPage() {
       productType: wizardData.productType || wizardProduct.categ_name || 'Imported from Odoo',
       catalogCategoryId: wizardData.productCategory ? parseInt(wizardData.productCategory) : null,
       minQuantity: parseInt(wizardData.minQuantity) || 1,
+      // All pricing tiers
+      landedPrice: wizardData.landedPrice ? parseFloat(wizardData.landedPrice) : null,
+      exportPrice: wizardData.exportPrice ? parseFloat(wizardData.exportPrice) : null,
+      masterDistributorPrice: wizardData.masterDistributorPrice ? parseFloat(wizardData.masterDistributorPrice) : null,
       dealerPrice: wizardData.dealerPrice ? parseFloat(wizardData.dealerPrice) : null,
+      dealer2Price: wizardData.dealer2Price ? parseFloat(wizardData.dealer2Price) : null,
+      tierStage25Price: wizardData.tierStage25Price ? parseFloat(wizardData.tierStage25Price) : null,
+      tierStage2Price: wizardData.tierStage2Price ? parseFloat(wizardData.tierStage2Price) : null,
+      tierStage15Price: wizardData.tierStage15Price ? parseFloat(wizardData.tierStage15Price) : null,
+      tierStage1Price: wizardData.tierStage1Price ? parseFloat(wizardData.tierStage1Price) : null,
       retailPrice: wizardData.retailPrice ? parseFloat(wizardData.retailPrice) : null,
     };
     
@@ -2087,72 +2114,46 @@ export default function OdooSettingsPage() {
                 <p className="text-xs text-muted-foreground">Minimum quantity per order (used in QuickQuotes)</p>
               </div>
 
-              {/* Step 8: Pricing (per square meter) */}
-              <div className="space-y-2">
-                <label className="text-sm font-medium">Pricing per Square Meter ($/m²)</label>
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="text-xs text-muted-foreground">Dealer $/m²</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={wizardData.dealerPrice}
-                      onChange={(e) => setWizardData({ ...wizardData, dealerPrice: e.target.value })}
-                      placeholder="0.00"
-                      data-testid="input-dealer-price"
-                    />
-                  </div>
-                  <div>
-                    <label className="text-xs text-muted-foreground">Retail $/m²</label>
-                    <Input
-                      type="number"
-                      step="0.01"
-                      min="0"
-                      value={wizardData.retailPrice}
-                      onChange={(e) => setWizardData({ ...wizardData, retailPrice: e.target.value })}
-                      placeholder="0.00"
-                      data-testid="input-retail-price"
-                    />
-                  </div>
+              {/* Step 8: Pricing (per square meter) - All Tiers */}
+              <div className="space-y-3">
+                <div className="flex items-center justify-between">
+                  <label className="text-sm font-medium">Pricing per Square Meter ($/m²)</label>
+                  <span className="text-xs text-muted-foreground">Optional - can be set later in Product Pricing Management</span>
                 </div>
-                {wizardData.totalSqm && parseFloat(wizardData.totalSqm) > 0 && wizardProduct?.list_price && (
-                  <div className="p-2 bg-blue-50 rounded text-xs space-y-1">
-                    <p className="font-medium text-blue-700">Convert from Odoo price (${wizardProduct.list_price.toFixed(2)}/unit):</p>
-                    <p className="text-blue-600">
-                      ${wizardProduct.list_price.toFixed(2)} ÷ {parseFloat(wizardData.totalSqm).toFixed(4)} m² = <strong>${(wizardProduct.list_price / parseFloat(wizardData.totalSqm)).toFixed(2)}/m²</strong>
-                    </p>
-                    <div className="flex gap-2 mt-1">
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const sqm = parseFloat(wizardData.totalSqm);
-                          if (sqm > 0) {
-                            const pricePerSqm = (wizardProduct.list_price / sqm).toFixed(2);
-                            setWizardData({ ...wizardData, dealerPrice: pricePerSqm });
-                          }
-                        }}
-                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                      >
-                        Use for Dealer
-                      </button>
-                      <button 
-                        type="button"
-                        onClick={() => {
-                          const sqm = parseFloat(wizardData.totalSqm);
-                          if (sqm > 0) {
-                            const pricePerSqm = (wizardProduct.list_price / sqm).toFixed(2);
-                            setWizardData({ ...wizardData, retailPrice: pricePerSqm });
-                          }
-                        }}
-                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
-                      >
-                        Use for Retail
-                      </button>
+                
+                {/* Pricing Tiers Grid */}
+                <div className="grid grid-cols-2 gap-2 text-xs">
+                  {[
+                    { key: 'landedPrice', label: 'Landed' },
+                    { key: 'exportPrice', label: 'Export' },
+                    { key: 'masterDistributorPrice', label: 'Master Dist.' },
+                    { key: 'dealerPrice', label: 'Dealer' },
+                    { key: 'dealer2Price', label: 'Dealer 2' },
+                    { key: 'tierStage25Price', label: 'Stage 2.5' },
+                    { key: 'tierStage2Price', label: 'Stage 2' },
+                    { key: 'tierStage15Price', label: 'Stage 1.5' },
+                    { key: 'tierStage1Price', label: 'Stage 1' },
+                    { key: 'retailPrice', label: 'Retail' },
+                  ].map(tier => (
+                    <div key={tier.key} className="flex items-center gap-2">
+                      <label className="text-muted-foreground w-20 text-right">{tier.label}</label>
+                      <Input
+                        type="number"
+                        step="0.01"
+                        min="0"
+                        value={(wizardData as any)[tier.key] || ''}
+                        onChange={(e) => setWizardData({ ...wizardData, [tier.key]: e.target.value })}
+                        placeholder="0.00"
+                        className="h-7 text-xs"
+                        data-testid={`input-${tier.key}`}
+                      />
                     </div>
-                  </div>
-                )}
-                <p className="text-xs text-muted-foreground">Price per square meter - the final sheet price = $/m² × totalSqm</p>
+                  ))}
+                </div>
+                
+                <p className="text-xs text-muted-foreground bg-gray-50 p-2 rounded">
+                  All prices are optional. You can leave them at 0 and update later in the <strong>Product Pricing Management</strong> section.
+                </p>
               </div>
             </div>
           )}
