@@ -897,30 +897,37 @@ function ProductLabelPreview({ data }: { data: ProductLabelData }) {
   if (data.isSamplePack) {
     return (
       <div 
-        className="bg-white border-2 border-black flex flex-col justify-between"
+        className="bg-white border-2 border-black flex flex-col"
         style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
       >
-        <div className="p-2 flex-1 flex flex-col justify-between">
-          <div>
-            <div className={`font-bold uppercase ${isAvery ? 'text-sm' : 'text-base'}`} style={{ lineHeight: '1.2' }}>
+        <div className={`flex-1 flex flex-col ${isAvery ? 'px-2 pt-1.5 pb-1' : 'px-3 pt-2 pb-1'}`}>
+          {/* Header section */}
+          <div className="mb-1">
+            <div className={`font-bold uppercase ${isAvery ? 'text-sm leading-tight' : 'text-lg leading-tight'}`}>
               {data.productName || "PRODUCT NAME"}
             </div>
-            {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>SKU: {data.sku}</div>}
-            {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>Size: {data.variantSize}</div>}
-            {data.description && (
-              <div className={`text-gray-500 mt-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>{data.description}</div>
-            )}
-            {data.printTypes.length > 0 && (
-              <div className={`text-gray-600 mt-1 ${isAvery ? 'text-[7px]' : 'text-[8px]'}`}>
-                <span className="font-bold">Ink Compatibility:</span> {data.printTypes.join(", ")}
-              </div>
-            )}
+            {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>SKU: {data.sku}</div>}
+            {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>Size: {data.variantSize}</div>}
           </div>
-          <div className="flex items-end justify-between gap-2">
-            <div className="flex flex-col">
-              {data.price && <div className={`font-bold ${isAvery ? 'text-base' : 'text-lg'}`}>${data.price}</div>}
-              {data.price && <div className="text-[6px] text-gray-500">Discount not included</div>}
-              {data.barcode && <Barcode value={data.barcode} width={isAvery ? 1.2 : 1.5} height={isAvery ? 30 : 40} fontSize={isAvery ? 8 : 10} margin={0} />}
+          
+          {/* Description */}
+          {data.description && (
+            <div className={`text-gray-500 mb-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>{data.description}</div>
+          )}
+          
+          {/* Ink Compatibility */}
+          {data.printTypes.length > 0 && (
+            <div className={`text-gray-600 mb-2 ${isAvery ? 'text-[7px]' : 'text-[9px]'}`}>
+              <span className="font-bold">Ink:</span> {data.printTypes.join(", ")}
+            </div>
+          )}
+          
+          {/* Bottom section - pushed to bottom with mt-auto */}
+          <div className="mt-auto flex items-end justify-between gap-2">
+            <div className="flex flex-col gap-0.5">
+              {data.price && <div className={`font-bold ${isAvery ? 'text-lg' : 'text-xl'}`}>${data.price}</div>}
+              {data.price && <div className="text-[6px] text-gray-500 -mt-0.5">Discount not included</div>}
+              {data.barcode && <div className="mt-1"><Barcode value={data.barcode} width={isAvery ? 1.2 : 1.5} height={isAvery ? 30 : 40} fontSize={isAvery ? 8 : 10} margin={0} /></div>}
             </div>
             {data.websiteUrl && (
               <div className="flex flex-col items-center">
@@ -930,7 +937,7 @@ function ProductLabelPreview({ data }: { data: ProductLabelData }) {
             )}
           </div>
         </div>
-        <div className="bg-black text-white flex items-center justify-center" style={{ height: '0.25in', width: '100%' }}>
+        <div className="bg-black text-white flex items-center justify-center" style={{ height: '0.22in', width: '100%' }}>
           <div className="font-black text-xs tracking-wide">SAMPLE PACK</div>
         </div>
       </div>
@@ -939,40 +946,49 @@ function ProductLabelPreview({ data }: { data: ProductLabelData }) {
   
   return (
     <div 
-      className="bg-white border-2 border-black p-2 flex flex-col justify-between"
+      className="bg-white border-2 border-black flex flex-col"
       style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
     >
-      <div>
-        <div className={`font-bold uppercase ${isAvery ? 'text-sm' : 'text-base'}`} style={{ lineHeight: '1.2' }}>
-          {data.productName || "PRODUCT NAME"}
+      <div className={`flex-1 flex flex-col ${isAvery ? 'px-2 pt-1.5 pb-1' : 'px-3 pt-2 pb-1.5'}`}>
+        {/* Header section */}
+        <div className="mb-1">
+          <div className={`font-bold uppercase ${isAvery ? 'text-sm leading-tight' : 'text-lg leading-tight'}`}>
+            {data.productName || "PRODUCT NAME"}
+          </div>
+          {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>SKU: {data.sku}</div>}
+          {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>Size: {data.variantSize}</div>}
         </div>
-        {data.sku && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>SKU: {data.sku}</div>}
-        {data.variantSize && <div className={`text-gray-600 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>Size: {data.variantSize}</div>}
+        
+        {/* Description */}
         {data.description && (
-          <div className={`text-gray-500 mt-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-xs'}`}>{data.description}</div>
+          <div className={`text-gray-500 mb-1 line-clamp-2 ${isAvery ? 'text-[8px]' : 'text-[10px]'}`}>{data.description}</div>
         )}
+        
+        {/* Ink Compatibility */}
         {data.printTypes.length > 0 && (
-          <div className={`text-gray-600 mt-1 ${isAvery ? 'text-[7px]' : 'text-[8px]'}`}>
-            <span className="font-bold">Ink Compatibility:</span> {data.printTypes.join(", ")}
+          <div className={`text-gray-600 mb-2 ${isAvery ? 'text-[7px]' : 'text-[9px]'}`}>
+            <span className="font-bold">Ink:</span> {data.printTypes.join(", ")}
           </div>
         )}
-      </div>
-      <div className="flex items-end justify-between gap-2">
-        <div className="flex flex-col">
-          {data.price && <div className={`font-bold ${isAvery ? 'text-base' : 'text-lg'}`}>${data.price}</div>}
-          {data.price && <div className="text-[6px] text-gray-500">Discount not included</div>}
-          {data.barcode ? (
-            <Barcode value={data.barcode} width={isAvery ? 1.2 : 1.5} height={isAvery ? 35 : 45} fontSize={isAvery ? 9 : 11} margin={0} />
-          ) : (
-            <div className="text-xs text-gray-400">No barcode</div>
+        
+        {/* Bottom section - pushed to bottom with mt-auto */}
+        <div className="mt-auto flex items-end justify-between gap-2">
+          <div className="flex flex-col gap-0.5">
+            {data.price && <div className={`font-bold ${isAvery ? 'text-lg' : 'text-xl'}`}>${data.price}</div>}
+            {data.price && <div className="text-[6px] text-gray-500 -mt-0.5">Discount not included</div>}
+            {data.barcode ? (
+              <div className="mt-1"><Barcode value={data.barcode} width={isAvery ? 1.2 : 1.5} height={isAvery ? 35 : 45} fontSize={isAvery ? 9 : 11} margin={0} /></div>
+            ) : (
+              <div className="text-xs text-gray-400 mt-1">No barcode</div>
+            )}
+          </div>
+          {data.websiteUrl && (
+            <div className="flex flex-col items-center">
+              <div className="text-[6px] font-bold text-gray-600 mb-0.5">SCAN TO BUY</div>
+              <QRCodeSVG value={data.websiteUrl} size={isAvery ? 55 : 70} level="M" />
+            </div>
           )}
         </div>
-        {data.websiteUrl && (
-          <div className="flex flex-col items-center">
-            <div className="text-[6px] font-bold text-gray-600 mb-0.5">SCAN TO BUY</div>
-            <QRCodeSVG value={data.websiteUrl} size={isAvery ? 55 : 70} level="M" />
-          </div>
-        )}
       </div>
     </div>
   );
