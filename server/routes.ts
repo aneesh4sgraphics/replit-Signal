@@ -9658,6 +9658,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // ODOO SALES ORDER APIs
+  // ========================================
+
+  // Create a sales order in Odoo from QuickQuotes
+  app.post("/api/odoo/create-sale-order", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId, items, note } = req.body;
+      
+      if (!customerId || !items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "customerId and items array are required" });
+      }
+      
+      // Get customer and their Odoo partner ID
+      const [customer] = await db.select().from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1);
+      
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not synced to Odoo. Please sync the customer first." });
+      }
+      
+      // Build order lines - each item needs to be mapped to Odoo product
+      const orderLines: Array<[number, number, { product_id: number; product_uom_qty: number; price_unit: number }]> = [];
+      const unmappedItems: string[] = [];
+      
+      for (const item of items) {
+        // Get the Odoo mapping for this item
+        const [mapping] = await db.select().from(productOdooMappings)
+          .where(eq(productOdooMappings.itemCode, item.itemCode))
+          .limit(1);
+        
+        if (!mapping) {
+          unmappedItems.push(item.itemCode || item.productName);
+          continue;
+        }
+        
+        // Odoo order line format: [0, 0, { field: value }] for create
+        orderLines.push([0, 0, {
+          product_id: mapping.odooProductId,
+          product_uom_qty: item.quantity || 1,
+          price_unit: item.pricePerSheet || 0,
+        }]);
+      }
+      
+      if (unmappedItems.length > 0 && orderLines.length === 0) {
+        return res.status(400).json({ 
+          error: "No items are mapped to Odoo products", 
+          unmappedItems 
+        });
+      }
+      
+      // Create the sale order in Odoo
+      const orderId = await odooClient.createSaleOrder({
+        partner_id: customer.odooPartnerId,
+        order_line: orderLines,
+        note: note || `Created from QuickQuotes on ${new Date().toLocaleDateString()}`,
+      });
+      
+      // Log the activity
+      await db.insert(activityLogs).values({
+        userId: req.user.id,
+        actionType: 'odoo_order_created',
+        entityType: 'customer',
+        entityId: customerId,
+        details: {
+          odooOrderId: orderId,
+          itemCount: orderLines.length,
+          unmappedCount: unmappedItems.length,
+        },
+      });
+      
+      res.json({
+        success: true,
+        orderId,
+        itemsAdded: orderLines.length,
+        unmappedItems: unmappedItems.length > 0 ? unmappedItems : undefined,
+        message: `Sales order created in Odoo${unmappedItems.length > 0 ? ` (${unmappedItems.length} items skipped - not mapped)` : ''}`,
+      });
+    } catch (error: any) {
+      console.error("Error creating Odoo sale order:", error);
+      res.status(500).json({ error: error.message || "Failed to create sale order in Odoo" });
+    }
+  });
+
+  // ========================================
   // ODOO PRICE SYNC QUEUE APIs
   // ========================================
 

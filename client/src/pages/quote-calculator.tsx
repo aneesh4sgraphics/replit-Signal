@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck, Send, Loader2 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -107,6 +107,7 @@ export default function QuoteCalculator() {
   const [sizeSortOrder, setSizeSortOrder] = useState<'default' | 'asc' | 'desc'>('default');
   const [landedPriceRevealed, setLandedPriceRevealed] = useState<boolean>(false);
   const [sentPricesOpen, setSentPricesOpen] = useState<boolean>(false);
+  const [isCreatingOdooOrder, setIsCreatingOdooOrder] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -659,6 +660,79 @@ export default function QuoteCalculator() {
           return;
         }
       }
+    }
+  };
+
+  const handleCreateOdooOrder = async () => {
+    if (quoteItems.length === 0) {
+      toast({
+        title: "No Items in Quote",
+        description: "Please add items to your quote before creating a sales order",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    if (!selectedCustomer) {
+      toast({
+        title: "No Client Selected",
+        description: "Please select a client first before creating an Odoo sales order",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    // Check if customer has odooPartnerId
+    if (!(selectedCustomer as any).odooPartnerId) {
+      toast({
+        title: "Customer Not Synced to Odoo",
+        description: "This customer needs to be synced to Odoo first. Go to the customer profile and click 'Sync to Odoo'.",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    setIsCreatingOdooOrder(true);
+
+    try {
+      const response = await fetch('/api/odoo/create-sale-order', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          customerId: selectedCustomer.id,
+          items: quoteItems.map(item => ({
+            itemCode: item.itemCode,
+            productName: item.productName,
+            quantity: item.quantity,
+            pricePerSheet: item.pricePerSheet,
+          })),
+          note: `Quote from QuickQuotes - ${new Date().toLocaleDateString()}`,
+        }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data.error || 'Failed to create sales order');
+      }
+
+      toast({
+        title: "Sales Order Created!",
+        description: data.message || `Order #${data.orderId} created in Odoo`,
+      });
+
+      // Log activity
+      logUserAction('Created Odoo Sales Order', `Order #${data.orderId}`);
+    } catch (error: any) {
+      console.error('Error creating Odoo order:', error);
+      toast({
+        title: "Failed to Create Order",
+        description: error.message || "Could not create sales order in Odoo",
+        variant: "destructive",
+      });
+    } finally {
+      setIsCreatingOdooOrder(false);
     }
   };
 
@@ -1906,6 +1980,28 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                 >
                   <Mail className="h-4 w-4" />
                   Email Quote
+                </button>
+                <button
+                  onClick={() => {
+                    if (!selectedCustomer) {
+                      toast({
+                        title: "Please select a client first 😊",
+                        description: "Choose a client from the Customer Selection section above before creating a sales order.",
+                      });
+                      return;
+                    }
+                    handleCreateOdooOrder();
+                  }}
+                  disabled={!selectedCustomer || isCreatingOdooOrder || quoteItems.length === 0}
+                  className="inline-flex items-center gap-2 px-4 py-2 rounded-md bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
+                  data-testid="btn-create-odoo-order"
+                >
+                  {isCreatingOdooOrder ? (
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                  ) : (
+                    <Send className="h-4 w-4" />
+                  )}
+                  {isCreatingOdooOrder ? 'Creating...' : 'Sales Order'}
                 </button>
               </div>
             </div>
