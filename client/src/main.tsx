@@ -16,6 +16,27 @@ const resizeObserverErr = (e: ErrorEvent) => {
 };
 window.addEventListener('error', resizeObserverErr);
 
+// Also handle unhandled promise rejections that throw non-Error objects
+window.addEventListener('unhandledrejection', (e: PromiseRejectionEvent) => {
+  // Check if it's a ResizeObserver-related rejection or other harmless errors
+  const reason = e.reason;
+  if (reason === undefined || reason === null) {
+    e.preventDefault();
+    return;
+  }
+  // Handle ResizeObserver errors that come through as rejections
+  if (typeof reason === 'string' && 
+      (reason.includes('ResizeObserver') || reason.includes('loop'))) {
+    e.preventDefault();
+    return;
+  }
+  if (reason instanceof Error && 
+      (reason.message.includes('ResizeObserver') || reason.message.includes('loop'))) {
+    e.preventDefault();
+    return;
+  }
+});
+
 // Check and update cache version on app startup
 checkAndUpdateVersion().catch(error => {
   console.error('Cache version check failed:', error);
