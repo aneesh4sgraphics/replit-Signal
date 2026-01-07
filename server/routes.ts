@@ -377,71 +377,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
       calendar: { connected: false, error: null as string | null },
     };
     
-    // Check Odoo connection
-    try {
-      const { odooClient } = await import('./odoo');
-      const odooResult = await odooClient.testConnection();
-      connectionStatus.odoo.connected = odooResult.success;
-      if (!odooResult.success) {
-        connectionStatus.odoo.error = odooResult.message || 'Connection failed';
-      }
-    } catch (error: any) {
-      connectionStatus.odoo.error = error.message || 'Odoo not configured';
-    }
-    
-    // Check Gmail connection
-    try {
+    // Helper to get Replit token
+    const getReплитToken = () => {
       const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
       const xReplitToken = process.env.REPL_IDENTITY 
         ? 'repl ' + process.env.REPL_IDENTITY 
         : process.env.WEB_REPL_RENEWAL 
         ? 'depl ' + process.env.WEB_REPL_RENEWAL 
         : null;
-      
-      if (hostname && xReplitToken) {
-        const gmailConnection = await fetch(
-          'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
-          { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
-        ).then(r => r.json()).then(data => data.items?.[0]);
-        
-        const accessToken = gmailConnection?.settings?.access_token || gmailConnection?.settings?.oauth?.credentials?.access_token;
-        connectionStatus.gmail.connected = !!accessToken;
-        if (!accessToken) {
-          connectionStatus.gmail.error = 'Gmail not connected';
-        }
-      } else {
-        connectionStatus.gmail.error = 'Replit connector not available';
-      }
-    } catch (error: any) {
-      connectionStatus.gmail.error = error.message || 'Gmail check failed';
-    }
+      return { hostname, xReplitToken };
+    };
     
-    // Check Google Calendar connection
-    try {
-      const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-      const xReplitToken = process.env.REPL_IDENTITY 
-        ? 'repl ' + process.env.REPL_IDENTITY 
-        : process.env.WEB_REPL_RENEWAL 
-        ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-        : null;
-      
-      if (hostname && xReplitToken) {
-        const calendarConnection = await fetch(
-          'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-calendar',
-          { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
-        ).then(r => r.json()).then(data => data.items?.[0]);
-        
-        const accessToken = calendarConnection?.settings?.access_token || calendarConnection?.settings?.oauth?.credentials?.access_token;
-        connectionStatus.calendar.connected = !!accessToken;
-        if (!accessToken) {
-          connectionStatus.calendar.error = 'Google Calendar not connected';
+    // Check all connections in parallel for speed
+    const checks = await Promise.allSettled([
+      // Check Odoo connection
+      (async () => {
+        try {
+          const { odooClient } = await import('./odoo');
+          const odooResult = await odooClient.testConnection();
+          connectionStatus.odoo.connected = odooResult.success === true;
+          if (!odooResult.success) {
+            connectionStatus.odoo.error = odooResult.message || 'Connection failed';
+          }
+        } catch (error: any) {
+          connectionStatus.odoo.connected = false;
+          connectionStatus.odoo.error = error.message || 'Odoo not configured';
         }
-      } else {
-        connectionStatus.calendar.error = 'Replit connector not available';
-      }
-    } catch (error: any) {
-      connectionStatus.calendar.error = error.message || 'Calendar check failed';
-    }
+      })(),
+      
+      // Check Gmail connection - validate by actually testing the token
+      (async () => {
+        try {
+          const { hostname, xReplitToken } = getReплитToken();
+          if (!hostname || !xReplitToken) {
+            connectionStatus.gmail.connected = false;
+            connectionStatus.gmail.error = 'Replit connector not available';
+            return;
+          }
+          
+          const response = await fetch(
+            'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
+            { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
+          );
+          const data = await response.json();
+          const gmailConnection = data.items?.[0];
+          
+          const accessToken = gmailConnection?.settings?.access_token || 
+                              gmailConnection?.settings?.oauth?.credentials?.access_token;
+          
+          if (!accessToken) {
+            connectionStatus.gmail.connected = false;
+            connectionStatus.gmail.error = 'Gmail not connected - please reconnect in Integrations panel';
+          } else {
+            // Validate token by making a simple API call
+            const { google } = await import('googleapis');
+            const oauth2Client = new google.auth.OAuth2();
+            oauth2Client.setCredentials({ access_token: accessToken });
+            const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
+            await gmail.users.getProfile({ userId: 'me' });
+            connectionStatus.gmail.connected = true;
+          }
+        } catch (error: any) {
+          connectionStatus.gmail.connected = false;
+          connectionStatus.gmail.error = error.message?.includes('invalid_grant') 
+            ? 'Gmail token expired - please reconnect' 
+            : (error.message || 'Gmail check failed');
+        }
+      })(),
+      
+      // Check Google Calendar connection
+      (async () => {
+        try {
+          const { hostname, xReplitToken } = getReплитToken();
+          if (!hostname || !xReplitToken) {
+            connectionStatus.calendar.connected = false;
+            connectionStatus.calendar.error = 'Replit connector not available';
+            return;
+          }
+          
+          const response = await fetch(
+            'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-calendar',
+            { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
+          );
+          const data = await response.json();
+          const calendarConnection = data.items?.[0];
+          
+          const accessToken = calendarConnection?.settings?.access_token || 
+                              calendarConnection?.settings?.oauth?.credentials?.access_token;
+          
+          if (!accessToken) {
+            connectionStatus.calendar.connected = false;
+            connectionStatus.calendar.error = 'Google Calendar not connected - please reconnect in Integrations panel';
+          } else {
+            // Validate token by making a simple API call
+            const { google } = await import('googleapis');
+            const oauth2Client = new google.auth.OAuth2();
+            oauth2Client.setCredentials({ access_token: accessToken });
+            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
+            await calendar.calendarList.list({ maxResults: 1 });
+            connectionStatus.calendar.connected = true;
+          }
+        } catch (error: any) {
+          connectionStatus.calendar.connected = false;
+          connectionStatus.calendar.error = error.message?.includes('invalid_grant') 
+            ? 'Calendar token expired - please reconnect' 
+            : (error.message || 'Calendar check failed');
+        }
+      })(),
+    ]);
     
     res.json(connectionStatus);
   });

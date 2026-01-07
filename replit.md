@@ -90,6 +90,14 @@ Preferred communication style: Simple, everyday language.
   - Paid orders auto-advance category trust to "adopted" via product mappings
   - Environment variables: SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SHOPIFY_SCOPES, SHOPIFY_APP_URL
   - Tables: `shopifyInstalls` (OAuth tokens), `shopifyWebhookEvents` (event logging), `shopifyOrders`, `shopifyProductMappings`
+- **Integration Connection Status**: Proactive connection monitoring with user prompts for Odoo, Gmail, and Google Calendar:
+  - `/api/integrations/status` endpoint checks all three connections in parallel
+  - Real API validation (not just token presence) for Gmail and Calendar
+  - ConnectionPrompt dialog appears on dashboard when services are disconnected
+  - ConnectionStatusBanner shows warning with disconnected count
+  - 24-hour dismiss cooldown prevents excessive prompts
+  - Clear instructions for reconnecting each service type
+  - Component: `client/src/components/ConnectionPrompt.tsx`
 - **Admin Rules & Config System**: Admin-only area at `/admin/config` for adjusting coaching/journey logic without code changes:
   - **Product Taxonomy Tab**: Manage machine types (6 families), category groups, and product categories with machine compatibility settings
   - **SKU→Category Mapping Tab**: Map Shopify SKUs to internal categories using exact, prefix, or regex rules with priority ordering
