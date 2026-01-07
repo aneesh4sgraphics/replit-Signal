@@ -79,7 +79,17 @@ Preferred communication style: Simple, everyday language.
   - Bulk sync capability for mass customer migration
   - Per-customer sync button in ClientDetailView with visual status indicator
   - Admin settings page at `/odoo-settings` with connection testing, partner browsing, product viewing, and order viewing
-  - API endpoints: `/api/odoo/test-connection`, `/api/odoo/partners`, `/api/odoo/products`, `/api/odoo/pricelists`, `/api/odoo/orders`, `/api/odoo/users`, `/api/odoo/sync/customer/:id`, `/api/odoo/sync/customers` (bulk)
+  - **Guided Product Creation Wizard**: 6-step wizard for importing unmapped Odoo products with proper classification:
+    - Step 1: Roll or Sheet selection
+    - Step 2: Unit of Measure (sheets, rolls, packets, cartons)
+    - Step 3: Size (auto-detected from product code/name using regex patterns)
+    - Step 4: Square Meters (auto-calculated from size, editable)
+    - Step 5: Product Category selection from existing categories
+    - Step 6: Product Type selection (filtered by category)
+    - Prefills size from patterns like "13x19", "A4", "12x18"
+    - Stores Odoo code in `odooItemCode` field for display in quotes
+    - Dual-code architecture: local itemCode for internal use, odooItemCode for display
+  - API endpoints: `/api/odoo/test-connection`, `/api/odoo/partners`, `/api/odoo/products`, `/api/odoo/pricelists`, `/api/odoo/orders`, `/api/odoo/users`, `/api/odoo/sync/customer/:id`, `/api/odoo/sync/customers` (bulk), `/api/odoo/import-products`, `/api/odoo/missing-products`
 - **Shopify Integration**: Embedded Shopify Admin app for single-store internal use:
   - OAuth flow: `/shopify/auth?shop=...` initiates install, `/shopify/callback` handles token exchange
   - Automatic webhook registration for orders/paid, orders/updated, customers/create, customers/update
