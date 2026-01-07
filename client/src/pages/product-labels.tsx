@@ -44,6 +44,9 @@ interface PalletLabelData {
   copies: number;
   textScale: number;
   uppercase: boolean;
+  quantityLabel: "boxes" | "rolls";
+  showSheets: boolean;
+  notes: string;
 }
 
 const PRINT_TYPES = [
@@ -81,7 +84,10 @@ const defaultPalletLabel: PalletLabelData = {
   labelFormat: "thermal4x6",
   copies: 1,
   textScale: 100,
-  uppercase: false
+  uppercase: false,
+  quantityLabel: "boxes",
+  showSheets: true,
+  notes: ""
 };
 
 const labelFormatConfig: Record<LabelFormat, { width: string; height: string; name: string }> = {
@@ -595,25 +601,61 @@ export default function ProductLabels() {
                       </div>
                     </div>
 
-                    <div className="grid grid-cols-2 gap-4">
-                      <div className="space-y-2">
-                        <Label>Quantity in Boxes</Label>
-                        <Input
-                          value={palletData.quantityInBoxes}
-                          onChange={(e) => setPalletData({ ...palletData, quantityInBoxes: e.target.value })}
-                          placeholder="24"
-                          data-testid="input-pallet-qty-boxes"
-                        />
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-4">
+                        <Label>Quantity</Label>
+                        <Select
+                          value={palletData.quantityLabel}
+                          onValueChange={(value) => setPalletData({ ...palletData, quantityLabel: value as "boxes" | "rolls" })}
+                        >
+                          <SelectTrigger className="w-32" data-testid="select-quantity-label">
+                            <SelectValue />
+                          </SelectTrigger>
+                          <SelectContent>
+                            <SelectItem value="boxes">Boxes</SelectItem>
+                            <SelectItem value="rolls">Rolls</SelectItem>
+                          </SelectContent>
+                        </Select>
                       </div>
-                      <div className="space-y-2">
+                      <Input
+                        value={palletData.quantityInBoxes}
+                        onChange={(e) => setPalletData({ ...palletData, quantityInBoxes: e.target.value })}
+                        placeholder="24"
+                        data-testid="input-pallet-qty-boxes"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <div className="flex items-center justify-between">
                         <Label>Total in Sheets</Label>
-                        <Input
-                          value={palletData.totalSheets}
-                          onChange={(e) => setPalletData({ ...palletData, totalSheets: e.target.value })}
-                          placeholder="12,000"
-                          data-testid="input-pallet-total-sheets"
-                        />
+                        <div className="flex items-center space-x-2">
+                          <Checkbox
+                            id="showSheets"
+                            checked={palletData.showSheets}
+                            onCheckedChange={(checked) => setPalletData({ ...palletData, showSheets: !!checked })}
+                            data-testid="checkbox-show-sheets"
+                          />
+                          <Label htmlFor="showSheets" className="text-sm cursor-pointer">Show on label</Label>
+                        </div>
                       </div>
+                      <Input
+                        value={palletData.totalSheets}
+                        onChange={(e) => setPalletData({ ...palletData, totalSheets: e.target.value })}
+                        placeholder="12,000"
+                        disabled={!palletData.showSheets}
+                        data-testid="input-pallet-total-sheets"
+                      />
+                    </div>
+
+                    <div className="space-y-2">
+                      <Label>Notes</Label>
+                      <textarea
+                        className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
+                        value={palletData.notes}
+                        onChange={(e) => setPalletData({ ...palletData, notes: e.target.value })}
+                        placeholder="Any additional notes to print on the label..."
+                        data-testid="input-pallet-notes"
+                      />
                     </div>
 
                     <div className="space-y-2">
@@ -784,21 +826,22 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
   const scale = (data.textScale || 100) / 100;
   
   const baseSizes = is4x8 
-    ? { line1: 36, line2: 24, line3: 20, line4: 16, line5: 18 }
-    : { line1: 30, line2: 20, line3: 18, line4: 14, line5: 16 };
+    ? { product: 32, detail: 20, code: 18, info: 16, notes: 14 }
+    : { product: 26, detail: 16, code: 16, info: 14, notes: 12 };
   
   const productFont = getProductFont(data.productName);
+  const quantityLabel = data.quantityLabel === "rolls" ? "Rolls" : "Boxes";
   
   return (
     <div 
       className="bg-white p-4 flex flex-col justify-between"
       style={{ width: config.width, height: config.height, boxSizing: 'border-box' }}
     >
-      <div className="space-y-2 text-center">
+      <div className="space-y-1 text-center">
         <div 
           className="leading-tight"
           style={{ 
-            fontSize: `${baseSizes.line1 * scale}px`,
+            fontSize: `${baseSizes.product * scale}px`,
             fontFamily: productFont.fontFamily,
             fontWeight: productFont.fontWeight,
             textTransform: data.uppercase ? 'uppercase' : 'none'
@@ -807,47 +850,70 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
           {data.productName || "PRODUCT NAME"}
         </div>
         
-        <div 
-          className="font-semibold truncate"
-          style={{ fontSize: `${baseSizes.line2 * scale}px` }}
-        >
-          {data.productDetail || " "}
-        </div>
+        {data.productDetail && (
+          <div 
+            className="font-semibold"
+            style={{ fontSize: `${baseSizes.detail * scale}px` }}
+          >
+            {data.productDetail}
+          </div>
+        )}
         
-        <div 
-          className="font-mono font-bold"
-          style={{ fontSize: `${baseSizes.line3 * scale}px` }}
-        >
-          {data.itemCode || "ITEM-CODE"}
-        </div>
+        {data.itemCode && (
+          <div 
+            className="font-mono font-bold"
+            style={{ fontSize: `${baseSizes.code * scale}px` }}
+          >
+            {data.itemCode}
+          </div>
+        )}
         
         {data.batchCode && (
           <div 
             className="font-medium"
-            style={{ fontSize: `${baseSizes.line4 * scale}px` }}
+            style={{ fontSize: `${baseSizes.info * scale}px` }}
           >
             Batch: {data.batchCode}
           </div>
         )}
         
-        <div 
-          className="flex justify-center gap-6"
-          style={{ fontSize: `${baseSizes.line5 * scale}px` }}
-        >
-          <span><span className="font-semibold">Boxes:</span> {data.quantityInBoxes || "—"}</span>
-          <span><span className="font-semibold">Sheets:</span> {data.totalSheets || "—"}</span>
-        </div>
+        {data.quantityInBoxes && (
+          <div 
+            className="font-semibold"
+            style={{ fontSize: `${baseSizes.info * scale}px` }}
+          >
+            {quantityLabel}: {data.quantityInBoxes}
+          </div>
+        )}
+        
+        {data.showSheets && data.totalSheets && (
+          <div 
+            className="font-semibold"
+            style={{ fontSize: `${baseSizes.info * scale}px` }}
+          >
+            Sheets: {data.totalSheets}
+          </div>
+        )}
+        
+        {data.notes && (
+          <div 
+            className="mt-2 pt-2 border-t border-gray-200 text-left whitespace-pre-wrap"
+            style={{ fontSize: `${baseSizes.notes * scale}px` }}
+          >
+            {data.notes}
+          </div>
+        )}
       </div>
       
       <div className="flex justify-center pt-2">
         {data.itemCode ? (
           <QRCodeSVG 
             value={data.itemCode} 
-            size={is4x8 ? 140 : 100} 
+            size={is4x8 ? 120 : 80} 
             level="M"
           />
         ) : (
-          <div className={`border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 ${is4x8 ? 'w-[140px] h-[140px]' : 'w-[100px] h-[100px]'}`}>
+          <div className={`border-2 border-dashed border-gray-300 flex items-center justify-center text-gray-400 ${is4x8 ? 'w-[120px] h-[120px]' : 'w-[80px] h-[80px]'}`}>
             QR Code
           </div>
         )}
