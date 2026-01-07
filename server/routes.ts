@@ -88,6 +88,8 @@ import {
   productOdooMappings,
   odooPriceSyncQueue,
   productPricingMaster,
+  productCategories,
+  productTypes,
   adminMachineTypes,
   adminCategoryGroups,
   adminCategories,
