@@ -214,18 +214,28 @@ export default function OdooSettingsPage() {
     },
   });
 
-  // Query for all Odoo products (for mapping selection)
-  const { data: allOdooProducts = [], isLoading: allOdooProductsLoading } = useQuery<any[]>({
-    queryKey: ['/api/odoo/all-products', odooProductSearch],
+  // Query for all Odoo products (for mapping selection) - load once, filter client-side
+  const { data: allOdooProductsRaw = [], isLoading: allOdooProductsLoading } = useQuery<any[]>({
+    queryKey: ['/api/odoo/all-products'],
     queryFn: async () => {
       const params = new URLSearchParams();
-      if (odooProductSearch) params.set('search', odooProductSearch);
-      params.set('limit', '200');
+      params.set('limit', '1000'); // Load all products for instant client-side filtering
       const res = await fetch(`/api/odoo/all-products?${params.toString()}`);
       return res.json();
     },
     enabled: !!selectedProduct,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
   });
+  
+  // Client-side filtering for instant search as you type
+  const allOdooProducts = allOdooProductsRaw.filter((p: any) => {
+    if (!odooProductSearch) return true;
+    const searchLower = odooProductSearch.toLowerCase();
+    return (
+      (p.name || '').toLowerCase().includes(searchLower) ||
+      (p.default_code || '').toLowerCase().includes(searchLower)
+    );
+  }).slice(0, 100); // Show max 100 results
 
   // Query for price sync queue
   const { data: priceSyncQueue = [], isLoading: queueLoading, refetch: refetchQueue } = useQuery<OdooPriceSyncQueue[]>({
@@ -1370,12 +1380,23 @@ export default function OdooSettingsPage() {
 
               <div className="space-y-2">
                 <label className="text-sm font-medium">Search Odoo Products</label>
-                <Input
-                  placeholder="Type to search Odoo products..."
-                  value={odooProductSearch}
-                  onChange={(e) => setOdooProductSearch(e.target.value)}
-                  data-testid="input-odoo-product-search"
-                />
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                  <Input
+                    placeholder="Type product code or name to filter instantly..."
+                    value={odooProductSearch}
+                    onChange={(e) => setOdooProductSearch(e.target.value)}
+                    className="pl-10"
+                    autoFocus
+                    data-testid="input-odoo-product-search"
+                  />
+                </div>
+                {odooProductSearch && (
+                  <div className="text-xs text-muted-foreground">
+                    {allOdooProducts.length} products match "{odooProductSearch}"
+                    {allOdooProducts.length === 100 && " (showing first 100)"}
+                  </div>
+                )}
               </div>
 
               <div className="border rounded-lg max-h-[250px] overflow-auto">
