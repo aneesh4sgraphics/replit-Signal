@@ -9974,6 +9974,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Import selected Odoo products into local productPricingMaster and auto-map
+  // Now supports guided product creation with additional fields
   app.post("/api/odoo/import-products", requireAdmin, async (req: any, res) => {
     try {
       const { products } = req.body;
@@ -9992,7 +9993,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           continue;
         }
         
-        const itemCode = product.default_code.trim();
+        const odooItemCode = product.default_code.trim();
+        // Use Odoo code as the local item code going forward
+        const itemCode = odooItemCode;
         
         try {
           // Check if product already exists
@@ -10005,31 +10008,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
             continue;
           }
           
-          // Create local product entry with default values
+          // Extract guided fields from product (if provided)
+          const rollSheet = product.rollSheet || null;
+          const unitOfMeasure = product.unitOfMeasure || null;
+          const size = product.size || 'Standard';
+          const totalSqm = product.totalSqm || '0';
+          const productType = product.productType || product.categ_name || 'Imported from Odoo';
+          const catalogCategoryId = product.catalogCategoryId || null;
+          const catalogProductTypeId = product.catalogProductTypeId || null;
+          
+          // Create local product entry with guided values
           await db.insert(productPricingMaster).values({
             itemCode,
+            odooItemCode, // Store Odoo code for display
             productName: product.name,
-            productType: product.categ_name || 'Imported from Odoo',
-            size: 'Standard',
-            totalSqm: '0',
+            productType,
+            productTypeId: catalogProductTypeId,
+            catalogCategoryId,
+            catalogProductTypeId,
+            size,
+            totalSqm,
             minQuantity: 1,
+            rollSheet,
+            unitOfMeasure,
             retailPrice: product.list_price?.toString() || '0',
             dealerPrice: product.list_price?.toString() || '0',
             uploadBatch: 'odoo-import-' + new Date().toISOString().split('T')[0],
           });
           
-          // Auto-create mapping
+          // Auto-create mapping with Odoo code preserved
           await db.insert(productOdooMappings).values({
             itemCode,
             odooProductId: product.id,
-            odooDefaultCode: itemCode,
+            odooDefaultCode: odooItemCode,
             odooProductName: product.name,
             syncStatus: 'mapped',
+            createdBy: req.user?.email,
           }).onConflictDoNothing();
           
           imported++;
         } catch (err: any) {
-          errors.push(`${itemCode}: ${err.message}`);
+          errors.push(`${odooItemCode}: ${err.message}`);
         }
       }
       

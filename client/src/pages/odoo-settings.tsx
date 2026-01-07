@@ -162,6 +162,97 @@ export default function OdooSettingsPage() {
   // Import Products state
   const [importProductSearch, setImportProductSearch] = useState("");
   const [selectedImportProducts, setSelectedImportProducts] = useState<Set<number>>(new Set());
+  
+  // Guided Product Creation Wizard state
+  const [wizardOpen, setWizardOpen] = useState(false);
+  const [wizardProduct, setWizardProduct] = useState<any>(null);
+  const [wizardStep, setWizardStep] = useState(1);
+  const [wizardData, setWizardData] = useState({
+    rollSheet: '' as '' | 'roll' | 'sheet',
+    unitOfMeasure: '' as '' | 'sheets' | 'rolls' | 'packets' | 'cartons',
+    size: '',
+    totalSqm: '',
+    productCategory: '',
+    productType: '',
+  });
+  
+  // Fetch product categories and types for wizard dropdown
+  const { data: productCategories = [] } = useQuery<{id: number; name: string}[]>({
+    queryKey: ['/api/product-categories'],
+  });
+  
+  const { data: productTypes = [] } = useQuery<{id: number; name: string; categoryId: number}[]>({
+    queryKey: ['/api/product-types'],
+  });
+  
+  // Helper to extract size from product name/code
+  const extractSizeFromProduct = (product: any): string => {
+    const code = product.default_code || '';
+    const name = product.name || '';
+    const combined = `${code} ${name}`.toLowerCase();
+    
+    // Common size patterns: 13x19, 12x18, A4, A3, etc
+    const sizeMatch = combined.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+    if (sizeMatch) {
+      return `${sizeMatch[1]} x ${sizeMatch[2]}`;
+    }
+    
+    // A-series paper sizes
+    const aMatch = combined.match(/\ba(\d)\b/i);
+    if (aMatch) {
+      return `A${aMatch[1]}`;
+    }
+    
+    return 'Standard';
+  };
+  
+  // Helper to calculate sqm from size string
+  const calculateSqmFromSize = (sizeStr: string): string => {
+    const match = sizeStr.match(/(\d+(?:\.\d+)?)\s*[x×]\s*(\d+(?:\.\d+)?)/i);
+    if (match) {
+      const w = parseFloat(match[1]);
+      const h = parseFloat(match[2]);
+      // Assume inches, convert to meters (1 inch = 0.0254m)
+      const sqm = (w * 0.0254) * (h * 0.0254);
+      return sqm.toFixed(6);
+    }
+    return '0';
+  };
+  
+  // Open wizard for a product
+  const openWizard = (product: any) => {
+    const extractedSize = extractSizeFromProduct(product);
+    setWizardProduct(product);
+    setWizardStep(1);
+    setWizardData({
+      rollSheet: '',
+      unitOfMeasure: '',
+      size: extractedSize,
+      totalSqm: calculateSqmFromSize(extractedSize),
+      productCategory: '',
+      productType: '',
+    });
+    setWizardOpen(true);
+  };
+  
+  // Complete wizard and import product
+  const completeWizard = () => {
+    if (!wizardProduct) return;
+    
+    const enrichedProduct = {
+      ...wizardProduct,
+      rollSheet: wizardData.rollSheet || null,
+      unitOfMeasure: wizardData.unitOfMeasure || null,
+      size: wizardData.size || 'Standard',
+      totalSqm: wizardData.totalSqm || '0',
+      productType: wizardData.productType || wizardProduct.categ_name || 'Imported from Odoo',
+      catalogCategoryId: wizardData.productCategory ? parseInt(wizardData.productCategory) : null,
+    };
+    
+    importProductsMutation.mutate([enrichedProduct]);
+    setWizardOpen(false);
+    setWizardProduct(null);
+  };
 
   // Query for missing Odoo products (not in local app)
   const { data: missingProductsData, isLoading: missingProductsLoading, refetch: refetchMissingProducts } = useQuery<{
@@ -1297,6 +1388,7 @@ export default function OdooSettingsPage() {
                             <TableHead>Product Name</TableHead>
                             <TableHead>Price</TableHead>
                             <TableHead>Type</TableHead>
+                            <TableHead className="w-20">Action</TableHead>
                           </TableRow>
                         </TableHeader>
                         <TableBody>
@@ -1339,6 +1431,18 @@ export default function OdooSettingsPage() {
                                 <Badge variant={product.is_variant ? 'secondary' : 'outline'}>
                                   {product.is_variant ? 'Variant' : 'Template'}
                                 </Badge>
+                              </TableCell>
+                              <TableCell>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => openWizard(product)}
+                                  className="h-7 px-2"
+                                  data-testid={`btn-add-product-${product.id}`}
+                                >
+                                  <Plus className="h-3 w-3 mr-1" />
+                                  Add
+                                </Button>
                               </TableCell>
                             </TableRow>
                           ))}
@@ -1808,6 +1912,168 @@ export default function OdooSettingsPage() {
           <DialogFooter>
             <Button variant="outline" onClick={() => setEditingMapping(null)}>
               Cancel
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Guided Product Creation Wizard */}
+      <Dialog open={wizardOpen} onOpenChange={setWizardOpen}>
+        <DialogContent className="max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Plus className="h-5 w-5" />
+              Add Product from Odoo
+            </DialogTitle>
+            <DialogDescription>
+              Configure how this Odoo product should be set up in QuickQuotes
+            </DialogDescription>
+          </DialogHeader>
+
+          {wizardProduct && (
+            <div className="space-y-4">
+              {/* Product Info Header */}
+              <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border border-blue-200 dark:border-blue-800">
+                <div className="font-medium text-lg">{wizardProduct.name}</div>
+                <div className="text-sm text-muted-foreground mt-1 flex items-center gap-3">
+                  <span className="font-mono bg-blue-100 dark:bg-blue-900 px-2 py-0.5 rounded">{wizardProduct.default_code}</span>
+                  <span>${wizardProduct.list_price?.toFixed(2) || '0.00'}</span>
+                </div>
+              </div>
+
+              {/* Step 1: Roll or Sheet */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Is this a Roll or Sheet product?</label>
+                <Select
+                  value={wizardData.rollSheet}
+                  onValueChange={(value: 'roll' | 'sheet') => setWizardData({ ...wizardData, rollSheet: value })}
+                >
+                  <SelectTrigger data-testid="select-roll-sheet">
+                    <SelectValue placeholder="Select type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sheet">Sheet</SelectItem>
+                    <SelectItem value="roll">Roll</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Step 2: Unit of Measure */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Unit of Measure</label>
+                <Select
+                  value={wizardData.unitOfMeasure}
+                  onValueChange={(value: 'sheets' | 'rolls' | 'packets' | 'cartons') => setWizardData({ ...wizardData, unitOfMeasure: value })}
+                >
+                  <SelectTrigger data-testid="select-uom">
+                    <SelectValue placeholder="Select unit..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="sheets">Sheets</SelectItem>
+                    <SelectItem value="rolls">Rolls</SelectItem>
+                    <SelectItem value="packets">Packets</SelectItem>
+                    <SelectItem value="cartons">Cartons</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Step 3: Size (Prefilled) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Size</label>
+                <Input
+                  value={wizardData.size}
+                  onChange={(e) => {
+                    const newSize = e.target.value;
+                    setWizardData({
+                      ...wizardData,
+                      size: newSize,
+                      totalSqm: calculateSqmFromSize(newSize),
+                    });
+                  }}
+                  placeholder="e.g., 13 x 19"
+                  data-testid="input-wizard-size"
+                />
+                <p className="text-xs text-muted-foreground">Auto-detected from product code/name</p>
+              </div>
+
+              {/* Step 4: Sq. Meters (Prefilled) */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Sq. Meters</label>
+                <Input
+                  value={wizardData.totalSqm}
+                  onChange={(e) => setWizardData({ ...wizardData, totalSqm: e.target.value })}
+                  placeholder="0.000000"
+                  data-testid="input-wizard-sqm"
+                />
+                <p className="text-xs text-muted-foreground">Calculated from size (editable)</p>
+              </div>
+
+              {/* Step 5: Product Category */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Product Category</label>
+                <Select
+                  value={wizardData.productCategory}
+                  onValueChange={(value) => setWizardData({ ...wizardData, productCategory: value, productType: '' })}
+                >
+                  <SelectTrigger data-testid="select-category">
+                    <SelectValue placeholder="Select category..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productCategories.map((cat) => (
+                      <SelectItem key={cat.id} value={cat.id.toString()}>
+                        {cat.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+
+              {/* Step 6: Product Type */}
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Product Type</label>
+                <Select
+                  value={wizardData.productType}
+                  onValueChange={(value) => setWizardData({ ...wizardData, productType: value })}
+                >
+                  <SelectTrigger data-testid="select-type">
+                    <SelectValue placeholder="Select type..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {productTypes
+                      .filter((t) => !wizardData.productCategory || t.categoryId.toString() === wizardData.productCategory)
+                      .map((type) => (
+                        <SelectItem key={type.id} value={type.name}>
+                          {type.name}
+                        </SelectItem>
+                      ))}
+                  </SelectContent>
+                </Select>
+                <p className="text-xs text-muted-foreground">Determines placement in QuickQuotes & Price List</p>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setWizardOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              onClick={completeWizard}
+              disabled={importProductsMutation.isPending}
+              className="bg-green-600 hover:bg-green-700"
+              data-testid="btn-wizard-complete"
+            >
+              {importProductsMutation.isPending ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Adding...
+                </>
+              ) : (
+                <>
+                  <Plus className="h-4 w-4 mr-2" />
+                  Add Product
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>

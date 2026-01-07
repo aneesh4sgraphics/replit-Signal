@@ -40,6 +40,7 @@ export const pricingTiers = pgTable("pricing_tiers", {
 export const productPricingMaster = pgTable("product_pricing_master", {
   id: serial("id").primaryKey(),
   itemCode: varchar("item_code", { length: 100 }).notNull().unique(),
+  odooItemCode: varchar("odoo_item_code", { length: 100 }), // Odoo default_code for display
   productName: varchar("product_name", { length: 255 }).notNull(),
   productType: varchar("product_type", { length: 255 }).notNull(),
   productTypeId: integer("product_type_id").references(() => productTypes.id, { onDelete: "cascade" }),
@@ -49,6 +50,9 @@ export const productPricingMaster = pgTable("product_pricing_master", {
   size: varchar("size", { length: 100 }).notNull(),
   totalSqm: decimal("total_sqm", { precision: 10, scale: 6 }).notNull(),
   minQuantity: integer("min_quantity").notNull().default(50),
+  // Product classification
+  rollSheet: varchar("roll_sheet", { length: 10 }), // 'roll' or 'sheet'
+  unitOfMeasure: varchar("unit_of_measure", { length: 20 }), // 'sheets', 'rolls', 'packets', 'cartons'
   // Pricing tiers
   landedPrice: decimal("landed_price", { precision: 10, scale: 2 }),
   exportPrice: decimal("export_price", { precision: 10, scale: 2 }),
