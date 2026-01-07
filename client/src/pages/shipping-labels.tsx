@@ -115,6 +115,48 @@ const DEFAULT_VALUES: LabelFormValues = {
   showCustomerDetails: false,
 };
 
+// Translations for form labels (English/Spanish)
+const translations = {
+  en: {
+    labelFormat: "Label Format",
+    shipVia: "Ship Via (Carrier)",
+    shipFrom: "Ship From",
+    loadSavedRecipient: "Load Saved Recipient",
+    recipientCompanyName: "Recipient Company Name",
+    shipTo: "Ship To",
+    invoiceNumber: "Invoice Number",
+    invoiceDate: "Invoice Date",
+    clientPO: "Client PO #",
+    numberOfPallets: "Number of Pallets",
+    showCustomerDetails: "Show Customer Details on Label",
+    customerDetails: "Customer Details",
+    weight: "Weight (lbs)",
+    dimensions: "Dims (LxWxH)",
+    livePreview: "Live Preview",
+    palletOf: "Pallet {n} of {total}",
+  },
+  es: {
+    labelFormat: "Formato de Etiqueta",
+    shipVia: "Enviar Vía (Transportista)",
+    shipFrom: "Enviar Desde",
+    loadSavedRecipient: "Cargar Destinatario Guardado",
+    recipientCompanyName: "Nombre de Empresa Destinataria",
+    shipTo: "Enviar A",
+    invoiceNumber: "Número de Factura",
+    invoiceDate: "Fecha de Factura",
+    clientPO: "Orden de Compra #",
+    numberOfPallets: "Número de Pallets",
+    showCustomerDetails: "Mostrar Detalles del Cliente en Etiqueta",
+    customerDetails: "Detalles del Cliente",
+    weight: "Peso (lbs)",
+    dimensions: "Dims (LxWxH)",
+    livePreview: "Vista Previa",
+    palletOf: "Pallet {n} de {total}",
+  }
+};
+
+type Language = 'en' | 'es';
+
 export default function ShippingLabels() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -122,6 +164,9 @@ export default function ShippingLabels() {
     isValid: boolean;
     message: string;
   } | null>(null);
+  const [language, setLanguage] = useState<Language>('en');
+  
+  const t = translations[language];
 
   const { data: shipments = [] } = useQuery<Shipment[]>({
     queryKey: ["/api/shipments"],
@@ -351,6 +396,18 @@ export default function ShippingLabels() {
           </Button>
         </div>
 
+        <div className="flex justify-end mb-4">
+          <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
+            <SelectTrigger className="w-32" data-testid="select-language">
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="en">English</SelectItem>
+              <SelectItem value="es">Español</SelectItem>
+            </SelectContent>
+          </Select>
+        </div>
+
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-24">
           <div className="lg:col-span-5 space-y-6">
             <div className="glass-card p-6">
@@ -369,7 +426,7 @@ export default function ShippingLabels() {
                     name="format"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Label Format</FormLabel>
+                        <FormLabel>{t.labelFormat}</FormLabel>
                         <Select onValueChange={field.onChange} defaultValue={field.value}>
                           <FormControl>
                             <SelectTrigger data-testid="select-format">
@@ -396,7 +453,7 @@ export default function ShippingLabels() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2">
                             <Truck className="h-4 w-4 text-gray-400" />
-                            Ship Via (Carrier)
+                            {t.shipVia}
                           </FormLabel>
                           <div className="flex gap-2">
                             <FormControl>
@@ -433,7 +490,7 @@ export default function ShippingLabels() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           <MapPin className="h-4 w-4 text-gray-400" />
-                          Ship From
+                          {t.shipFrom}
                         </FormLabel>
                         <FormControl>
                           <Textarea 
@@ -452,7 +509,7 @@ export default function ShippingLabels() {
                     <div className="space-y-2">
                       <label className="text-sm font-medium flex items-center gap-2">
                         <History className="h-4 w-4 text-gray-400" />
-                        Load Saved Recipient
+                        {t.loadSavedRecipient}
                       </label>
                       <Select 
                         onValueChange={(value) => {
@@ -484,7 +541,7 @@ export default function ShippingLabels() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           <Package className="h-4 w-4 text-gray-400" />
-                          Recipient Company Name
+                          {t.recipientCompanyName}
                         </FormLabel>
                         <FormControl>
                           <Input placeholder="Company name..." data-testid="input-company-name" {...field} />
@@ -502,7 +559,7 @@ export default function ShippingLabels() {
                         <FormLabel className="flex items-center justify-between">
                           <span className="flex items-center gap-2">
                             <MapPin className="h-4 w-4 text-gray-400" />
-                            Ship To
+                            {t.shipTo}
                           </span>
                           <Button
                             type="button"
@@ -547,7 +604,7 @@ export default function ShippingLabels() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2">
                             <FileText className="h-4 w-4 text-gray-400" />
-                            Invoice #
+                            {t.invoiceNumber}
                           </FormLabel>
                           <FormControl>
                             <Input placeholder="INV-12345" data-testid="input-invoice" {...field} />
@@ -564,7 +621,7 @@ export default function ShippingLabels() {
                         <FormItem>
                           <FormLabel className="flex items-center gap-2">
                             <Calendar className="h-4 w-4 text-gray-400" />
-                            Date
+                            {t.invoiceDate}
                           </FormLabel>
                           <FormControl>
                             <Input type="date" data-testid="input-date" {...field} />
@@ -580,7 +637,7 @@ export default function ShippingLabels() {
                     name="clientPO"
                     render={({ field }) => (
                       <FormItem>
-                        <FormLabel>Client PO #</FormLabel>
+                        <FormLabel>{t.clientPO}</FormLabel>
                         <FormControl>
                           <Input placeholder="PO-12345" data-testid="input-client-po" {...field} />
                         </FormControl>
@@ -596,7 +653,7 @@ export default function ShippingLabels() {
                       <FormItem>
                         <FormLabel className="flex items-center gap-2">
                           <Box className="h-4 w-4 text-gray-400" />
-                          Number of Pallets/Boxes
+                          {t.numberOfPallets}/Boxes
                         </FormLabel>
                         <FormControl>
                           <Input type="number" min="1" max="99" data-testid="input-pallet-count" {...field} />
@@ -658,7 +715,7 @@ export default function ShippingLabels() {
                           name={`pallets.${index}.weight`}
                           render={({ field }) => (
                             <FormItem className="space-y-1">
-                              <FormLabel className="text-xs">Weight (lbs)</FormLabel>
+                              <FormLabel className="text-xs">{t.weight}</FormLabel>
                               <FormControl>
                                 <Input type="number" min="0" className="h-8" data-testid={`input-weight-${index}`} {...field} />
                               </FormControl>
@@ -672,7 +729,7 @@ export default function ShippingLabels() {
                           name={`pallets.${index}.dimensions`}
                           render={({ field }) => (
                             <FormItem className="space-y-1">
-                              <FormLabel className="text-xs">Dims (LxWxH)</FormLabel>
+                              <FormLabel className="text-xs">{t.dimensions}</FormLabel>
                               <FormControl>
                                 <Input className="h-8 font-mono" data-testid={`input-dims-${index}`} {...field} />
                               </FormControl>
@@ -749,7 +806,7 @@ export default function ShippingLabels() {
 
           <div className="lg:col-span-7 space-y-6">
             <div className="flex items-center justify-between">
-              <h2 className="text-xl font-semibold tracking-tight">Live Preview</h2>
+              <h2 className="text-xl font-semibold tracking-tight">{t.livePreview}</h2>
               <span className="text-sm text-muted-foreground bg-white px-3 py-1 rounded-full border shadow-sm">
                 {formValues.format === 'thermal' ? '4" x 6" Thermal' : formValues.format === 'thermal4x8' ? '4" x 8" Thermal' : '8.5" x 11" Laser (2-up)'}
               </span>

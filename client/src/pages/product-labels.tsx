@@ -106,6 +106,74 @@ const palletFormatConfig: Record<PalletLabelFormat, { width: string; height: str
   "thermal4x8": { width: "4in", height: "8in", name: "4\" x 8\" Thermal" }
 };
 
+// Translations for form labels (English/Spanish)
+const translations = {
+  en: {
+    // Product Labels
+    searchProducts: "Search Products",
+    labelFormat: "Label Format",
+    productName: "Product Name",
+    sku: "SKU",
+    variantSize: "Variant Size",
+    description: "Description",
+    price: "Price",
+    barcode: "Barcode",
+    websiteUrl: "Website URL (for QR code)",
+    inkCompatibility: "Ink Compatibility",
+    numberOfCopies: "Number of Copies",
+    samplePackLabel: "Sample Pack Label",
+    // Pallet Labels
+    labelSize: "Label Size",
+    productDetail: "Product Detail",
+    itemCode: "Item Code / SKU",
+    batchCode: "Batch Code",
+    quantity: "Quantity",
+    totalInSheets: "Total in Sheets",
+    showOnLabel: "Show on label",
+    notes: "Notes",
+    textSize: "Text Size",
+    lineSpacing: "Line Spacing",
+    uppercase: "UPPERCASE",
+    autoFillSpace: "Auto-fill space",
+    boxes: "Boxes",
+    rolls: "Rolls",
+    livePreview: "Live Preview",
+  },
+  es: {
+    // Product Labels
+    searchProducts: "Buscar Productos",
+    labelFormat: "Formato de Etiqueta",
+    productName: "Nombre del Producto",
+    sku: "SKU",
+    variantSize: "Tamaño de Variante",
+    description: "Descripción",
+    price: "Precio",
+    barcode: "Código de Barras",
+    websiteUrl: "URL del Sitio Web (para código QR)",
+    inkCompatibility: "Compatibilidad de Tinta",
+    numberOfCopies: "Número de Copias",
+    samplePackLabel: "Etiqueta de Paquete de Muestra",
+    // Pallet Labels
+    labelSize: "Tamaño de Etiqueta",
+    productDetail: "Detalle del Producto",
+    itemCode: "Código de Artículo / SKU",
+    batchCode: "Código de Lote",
+    quantity: "Cantidad",
+    totalInSheets: "Total en Hojas",
+    showOnLabel: "Mostrar en etiqueta",
+    notes: "Notas",
+    textSize: "Tamaño del Texto",
+    lineSpacing: "Espaciado de Línea",
+    uppercase: "MAYÚSCULAS",
+    autoFillSpace: "Llenar espacio automáticamente",
+    boxes: "Cajas",
+    rolls: "Rollos",
+    livePreview: "Vista Previa",
+  }
+};
+
+type Language = 'en' | 'es';
+
 export default function ProductLabels() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -115,6 +183,9 @@ export default function ProductLabels() {
   const [searchQuery, setSearchQuery] = useState("");
   const [itemCodeOpen, setItemCodeOpen] = useState(false);
   const [itemCodeSearch, setItemCodeSearch] = useState("");
+  const [language, setLanguage] = useState<Language>('en');
+  
+  const t = translations[language];
 
   const { data: savedLabels = [] } = useQuery<ProductLabel[]>({
     queryKey: ["/api/product-labels"],
@@ -291,16 +362,27 @@ export default function ProductLabels() {
         </div>
 
         <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as "product" | "pallet")} className="w-full">
-          <TabsList className="grid w-full max-w-md grid-cols-2 mb-6">
-            <TabsTrigger value="product" className="flex items-center gap-2" data-testid="tab-product-labels">
-              <Tag className="h-4 w-4" />
-              Product Labels
-            </TabsTrigger>
-            <TabsTrigger value="pallet" className="flex items-center gap-2" data-testid="tab-pallet-labels">
-              <Package className="h-4 w-4" />
-              Pallet Labels
-            </TabsTrigger>
-          </TabsList>
+          <div className="flex items-center justify-between mb-6">
+            <TabsList className="grid w-full max-w-md grid-cols-2">
+              <TabsTrigger value="product" className="flex items-center gap-2" data-testid="tab-product-labels">
+                <Tag className="h-4 w-4" />
+                Product Labels
+              </TabsTrigger>
+              <TabsTrigger value="pallet" className="flex items-center gap-2" data-testid="tab-pallet-labels">
+                <Package className="h-4 w-4" />
+                Pallet Labels
+              </TabsTrigger>
+            </TabsList>
+            <Select value={language} onValueChange={(v) => setLanguage(v as Language)}>
+              <SelectTrigger className="w-32" data-testid="select-language">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="en">English</SelectItem>
+                <SelectItem value="es">Español</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
 
           <TabsContent value="product" className="mt-0">
             <div className="grid grid-cols-1 lg:grid-cols-12 gap-6 pb-24">
@@ -313,7 +395,7 @@ export default function ProductLabels() {
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Search Products</Label>
+                      <Label>{t.searchProducts}</Label>
                       <Input
                         placeholder="Search by name, SKU..."
                         value={searchQuery}
@@ -357,7 +439,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Label Format</Label>
+                      <Label>{t.labelFormat}</Label>
                       <Select
                         value={labelData.labelFormat}
                         onValueChange={(value) => setLabelData({ ...labelData, labelFormat: value as LabelFormat })}
@@ -373,7 +455,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Product Name *</Label>
+                      <Label>{t.productName} *</Label>
                       <Input
                         value={labelData.productName}
                         onChange={(e) => setLabelData({ ...labelData, productName: e.target.value })}
@@ -384,7 +466,7 @@ export default function ProductLabels() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>SKU</Label>
+                        <Label>{t.sku}</Label>
                         <Input
                           value={labelData.sku}
                           onChange={(e) => setLabelData({ ...labelData, sku: e.target.value })}
@@ -393,7 +475,7 @@ export default function ProductLabels() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Variant Size</Label>
+                        <Label>{t.variantSize}</Label>
                         <Input
                           value={labelData.variantSize}
                           onChange={(e) => setLabelData({ ...labelData, variantSize: e.target.value })}
@@ -404,7 +486,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Description</Label>
+                      <Label>{t.description}</Label>
                       <Textarea
                         value={labelData.description}
                         onChange={(e) => setLabelData({ ...labelData, description: e.target.value })}
@@ -416,7 +498,7 @@ export default function ProductLabels() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Price</Label>
+                        <Label>{t.price}</Label>
                         <Input
                           value={labelData.price}
                           onChange={(e) => setLabelData({ ...labelData, price: e.target.value })}
@@ -425,7 +507,7 @@ export default function ProductLabels() {
                         />
                       </div>
                       <div className="space-y-2">
-                        <Label>Barcode</Label>
+                        <Label>{t.barcode}</Label>
                         <Input
                           value={labelData.barcode}
                           onChange={(e) => setLabelData({ ...labelData, barcode: e.target.value })}
@@ -436,7 +518,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Website URL (for QR code)</Label>
+                      <Label>{t.websiteUrl}</Label>
                       <Input
                         value={labelData.websiteUrl}
                         onChange={(e) => setLabelData({ ...labelData, websiteUrl: e.target.value })}
@@ -456,7 +538,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Ink Compatibility</Label>
+                      <Label>{t.inkCompatibility}</Label>
                       <div className="grid grid-cols-2 gap-2">
                         {PRINT_TYPES.map((type) => (
                           <div key={type} className="flex items-center space-x-2">
@@ -473,7 +555,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Number of Copies</Label>
+                      <Label>{t.numberOfCopies}</Label>
                       <Input
                         type="number"
                         min="1"
@@ -523,7 +605,7 @@ export default function ProductLabels() {
 
               <div className="lg:col-span-7 space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold tracking-tight">Live Preview</h2>
+                  <h2 className="text-xl font-semibold tracking-tight">{t.livePreview}</h2>
                   <span className="text-sm text-muted-foreground bg-white px-3 py-1 rounded-full border shadow-sm">
                     {labelFormatConfig[labelData.labelFormat].name}
                   </span>
@@ -553,7 +635,7 @@ export default function ProductLabels() {
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>Label Size</Label>
+                      <Label>{t.labelSize}</Label>
                       <Select
                         value={palletData.labelFormat}
                         onValueChange={(value) => setPalletData({ ...palletData, labelFormat: value as PalletLabelFormat })}
@@ -569,7 +651,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Product Name *</Label>
+                      <Label>{t.productName} *</Label>
                       <Input
                         value={palletData.productName}
                         onChange={(e) => setPalletData({ ...palletData, productName: e.target.value })}
@@ -588,7 +670,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Product Detail</Label>
+                      <Label>{t.productDetail}</Label>
                       <Input
                         value={palletData.productDetail}
                         onChange={(e) => setPalletData({ ...palletData, productDetail: e.target.value })}
@@ -599,7 +681,7 @@ export default function ProductLabels() {
 
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
-                        <Label>Item Code / SKU</Label>
+                        <Label>{t.itemCode}</Label>
                         <Popover open={itemCodeOpen} onOpenChange={setItemCodeOpen}>
                           <PopoverTrigger asChild>
                             <div className="relative">
@@ -654,7 +736,7 @@ export default function ProductLabels() {
                         </Popover>
                       </div>
                       <div className="space-y-2">
-                        <Label>Batch Code</Label>
+                        <Label>{t.batchCode}</Label>
                         <Input
                           value={palletData.batchCode}
                           onChange={(e) => setPalletData({ ...palletData, batchCode: e.target.value })}
@@ -666,7 +748,7 @@ export default function ProductLabels() {
 
                     <div className="space-y-2">
                       <div className="flex items-center gap-4">
-                        <Label>Quantity</Label>
+                        <Label>{t.quantity}</Label>
                         <Select
                           value={palletData.quantityLabel}
                           onValueChange={(value) => setPalletData({ ...palletData, quantityLabel: value as "boxes" | "rolls" })}
@@ -675,8 +757,8 @@ export default function ProductLabels() {
                             <SelectValue />
                           </SelectTrigger>
                           <SelectContent>
-                            <SelectItem value="boxes">Boxes</SelectItem>
-                            <SelectItem value="rolls">Rolls</SelectItem>
+                            <SelectItem value="boxes">{t.boxes}</SelectItem>
+                            <SelectItem value="rolls">{t.rolls}</SelectItem>
                           </SelectContent>
                         </Select>
                       </div>
@@ -690,7 +772,7 @@ export default function ProductLabels() {
 
                     <div className="space-y-2">
                       <div className="flex items-center justify-between">
-                        <Label>Total in Sheets</Label>
+                        <Label>{t.totalInSheets}</Label>
                         <div className="flex items-center space-x-2">
                           <Checkbox
                             id="showSheets"
@@ -698,7 +780,7 @@ export default function ProductLabels() {
                             onCheckedChange={(checked) => setPalletData({ ...palletData, showSheets: !!checked })}
                             data-testid="checkbox-show-sheets"
                           />
-                          <Label htmlFor="showSheets" className="text-sm cursor-pointer">Show on label</Label>
+                          <Label htmlFor="showSheets" className="text-sm cursor-pointer">{t.showOnLabel}</Label>
                         </div>
                       </div>
                       <Input
@@ -711,7 +793,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Notes</Label>
+                      <Label>{t.notes}</Label>
                       <textarea
                         className="w-full min-h-[80px] px-3 py-2 text-sm rounded-md border border-input bg-background ring-offset-background placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring focus:ring-offset-2"
                         value={palletData.notes}
@@ -722,7 +804,7 @@ export default function ProductLabels() {
                     </div>
 
                     <div className="space-y-2">
-                      <Label>Number of Copies</Label>
+                      <Label>{t.numberOfCopies}</Label>
                       <Input
                         type="number"
                         min="1"
@@ -735,7 +817,7 @@ export default function ProductLabels() {
 
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
-                        <Label>Text Size</Label>
+                        <Label>{t.textSize}</Label>
                         <span className="text-sm font-medium bg-gray-100 px-2 py-0.5 rounded">{palletData.textScale}%</span>
                       </div>
                       <Slider
@@ -766,7 +848,7 @@ export default function ProductLabels() {
 
                     <div className="space-y-3 pt-2">
                       <div className="flex items-center justify-between">
-                        <Label>Line Spacing</Label>
+                        <Label>{t.lineSpacing}</Label>
                         <span className="text-sm font-medium bg-gray-100 px-2 py-0.5 rounded">{palletData.lineSpacing.toFixed(1)}x</span>
                       </div>
                       <Slider
@@ -788,7 +870,7 @@ export default function ProductLabels() {
 
               <div className="lg:col-span-7 space-y-6">
                 <div className="flex items-center justify-between">
-                  <h2 className="text-xl font-semibold tracking-tight">Live Preview</h2>
+                  <h2 className="text-xl font-semibold tracking-tight">{t.livePreview}</h2>
                   <span className="text-sm text-muted-foreground bg-white px-3 py-1 rounded-full border shadow-sm">
                     {palletFormatConfig[palletData.labelFormat].name}
                   </span>
