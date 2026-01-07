@@ -589,6 +589,24 @@ router.post("/upload-pricing-database", isAuthenticated, requireAdmin, upload.si
   }
 });
 
+// Get product codes for autocomplete (lightweight endpoint)
+router.get("/quickquotes/products", async (req, res) => {
+  try {
+    const pricingData = await storage.getAllProductPricingMaster();
+    // Return only the fields needed for autocomplete
+    const products = pricingData.map(item => ({
+      id: item.id,
+      itemCode: item.itemCode,
+      productName: item.productName,
+      productType: item.productType
+    }));
+    res.json(products);
+  } catch (error) {
+    console.error("Error fetching product codes:", error);
+    res.status(500).json({ error: "Failed to fetch product codes" });
+  }
+});
+
 // Get all product pricing from database
 router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
   const startTime = Date.now();
