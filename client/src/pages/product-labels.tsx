@@ -1,5 +1,5 @@
 import { useState, useRef, useEffect } from "react";
-import { Printer, RotateCcw, Tag, Save, Trash2, RefreshCw, Package } from "lucide-react";
+import { Printer, RotateCcw, Tag, Save, Trash2, RefreshCw, Package, Database, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -200,7 +200,7 @@ export default function ProductLabels() {
     p.itemCode?.toLowerCase().startsWith(itemCodeSearch.toLowerCase())
   ).slice(0, 20);
 
-  const { data: notionProducts = [], isError: notionError } = useQuery<any[]>({
+  const { data: notionProducts = [], isError: notionError, isLoading: notionLoading, refetch: refetchNotion } = useQuery<any[]>({
     queryKey: ["/api/notion-products/search", searchQuery],
     queryFn: async () => {
       if (!searchQuery.trim()) return [];
@@ -395,7 +395,30 @@ export default function ProductLabels() {
 
                   <div className="space-y-4">
                     <div className="space-y-2">
-                      <Label>{t.searchProducts}</Label>
+                      <div className="flex items-center justify-between">
+                        <Label className="flex items-center gap-2">
+                          <Database className="h-4 w-4 text-purple-600" />
+                          {t.searchProducts}
+                          <span className="text-xs text-gray-500">(Notion)</span>
+                        </Label>
+                        {searchQuery && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => refetchNotion()}
+                            disabled={notionLoading}
+                            className="h-7 px-2 text-xs"
+                            data-testid="button-sync-notion"
+                          >
+                            {notionLoading ? (
+                              <Loader2 className="h-3 w-3 animate-spin mr-1" />
+                            ) : (
+                              <RefreshCw className="h-3 w-3 mr-1" />
+                            )}
+                            Sync
+                          </Button>
+                        )}
+                      </div>
                       <Input
                         placeholder="Search by name, SKU..."
                         value={searchQuery}
