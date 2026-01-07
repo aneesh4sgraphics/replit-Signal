@@ -43,6 +43,7 @@ interface PalletLabelData {
   labelFormat: PalletLabelFormat;
   copies: number;
   textScale: number;
+  uppercase: boolean;
 }
 
 const PRINT_TYPES = [
@@ -79,7 +80,8 @@ const defaultPalletLabel: PalletLabelData = {
   totalSheets: "",
   labelFormat: "thermal4x6",
   copies: 1,
-  textScale: 100
+  textScale: 100,
+  uppercase: false
 };
 
 const labelFormatConfig: Record<LabelFormat, { width: string; height: string; name: string }> = {
@@ -551,6 +553,15 @@ export default function ProductLabels() {
                         placeholder="Enter product name..."
                         data-testid="input-pallet-product-name"
                       />
+                      <div className="flex items-center space-x-2 pt-1">
+                        <Checkbox
+                          id="uppercase"
+                          checked={palletData.uppercase}
+                          onCheckedChange={(checked) => setPalletData({ ...palletData, uppercase: !!checked })}
+                          data-testid="checkbox-uppercase"
+                        />
+                        <Label htmlFor="uppercase" className="text-sm cursor-pointer">Print in ALL CAPS</Label>
+                      </div>
                     </div>
 
                     <div className="space-y-2">
@@ -785,11 +796,12 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
     >
       <div className="space-y-2 text-center">
         <div 
-          className="uppercase leading-tight"
+          className="leading-tight"
           style={{ 
             fontSize: `${baseSizes.line1 * scale}px`,
             fontFamily: productFont.fontFamily,
-            fontWeight: productFont.fontWeight
+            fontWeight: productFont.fontWeight,
+            textTransform: data.uppercase ? 'uppercase' : 'none'
           }}
         >
           {data.productName || "PRODUCT NAME"}
