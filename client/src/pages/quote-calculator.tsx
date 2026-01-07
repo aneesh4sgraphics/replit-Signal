@@ -747,13 +747,30 @@ export default function QuoteCalculator() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || 'Failed to create sales order');
+        // Build detailed error message
+        let errorMsg = data.error || 'Failed to create sales order';
+        if (data.unmappedItems && data.unmappedItems.length > 0) {
+          errorMsg += `. Unmapped products: ${data.unmappedItems.slice(0, 5).join(', ')}`;
+          if (data.unmappedItems.length > 5) {
+            errorMsg += ` and ${data.unmappedItems.length - 5} more`;
+          }
+        }
+        throw new Error(errorMsg);
       }
 
       toast({
         title: "Sales Order Created!",
         description: data.message || `Order #${data.orderId} created in Odoo`,
       });
+      
+      // Show warning if some items were skipped
+      if (data.unmappedItems && data.unmappedItems.length > 0) {
+        toast({
+          title: "Some Items Skipped",
+          description: `${data.unmappedItems.length} item(s) not mapped to Odoo: ${data.unmappedItems.slice(0, 3).join(', ')}`,
+          variant: "destructive",
+        });
+      }
 
       // Log activity
       logUserAction('Created Odoo Sales Order', `Order #${data.orderId}`);
