@@ -36,6 +36,7 @@ interface PalletLabelData {
   productName: string;
   productDetail: string;
   itemCode: string;
+  batchCode: string;
   quantityInBoxes: string;
   totalSheets: string;
   labelFormat: PalletLabelFormat;
@@ -71,6 +72,7 @@ const defaultPalletLabel: PalletLabelData = {
   productName: "",
   productDetail: "",
   itemCode: "",
+  batchCode: "",
   quantityInBoxes: "",
   totalSheets: "",
   labelFormat: "thermal4x6",
@@ -558,14 +560,25 @@ export default function ProductLabels() {
                       />
                     </div>
 
-                    <div className="space-y-2">
-                      <Label>Item Code / SKU</Label>
-                      <Input
-                        value={palletData.itemCode}
-                        onChange={(e) => setPalletData({ ...palletData, itemCode: e.target.value })}
-                        placeholder="SKU-12345"
-                        data-testid="input-pallet-item-code"
-                      />
+                    <div className="grid grid-cols-2 gap-4">
+                      <div className="space-y-2">
+                        <Label>Item Code / SKU</Label>
+                        <Input
+                          value={palletData.itemCode}
+                          onChange={(e) => setPalletData({ ...palletData, itemCode: e.target.value })}
+                          placeholder="SKU-12345"
+                          data-testid="input-pallet-item-code"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Batch Code</Label>
+                        <Input
+                          value={palletData.batchCode}
+                          onChange={(e) => setPalletData({ ...palletData, batchCode: e.target.value })}
+                          placeholder="BATCH-001"
+                          data-testid="input-pallet-batch-code"
+                        />
+                      </div>
                     </div>
 
                     <div className="grid grid-cols-2 gap-4">
@@ -735,6 +748,12 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
         <div className={`font-mono font-bold ${is4x8 ? 'text-xl' : 'text-lg'}`}>
           {data.itemCode || "ITEM-CODE"}
         </div>
+        
+        {data.batchCode && (
+          <div className={`font-medium ${is4x8 ? 'text-base' : 'text-sm'}`}>
+            Batch: {data.batchCode}
+          </div>
+        )}
         
         <div className={`flex justify-center gap-6 ${is4x8 ? 'text-lg' : 'text-base'}`}>
           <span><span className="font-semibold">Boxes:</span> {data.quantityInBoxes || "—"}</span>
