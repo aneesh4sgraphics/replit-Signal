@@ -38,6 +38,22 @@
   </head>
   <body>
     <div id="root"></div>
+    <script>
+      // Suppress harmless browser warnings before any other scripts load
+      window.addEventListener('error', function(e) {
+        if (e.message && (e.message.includes('ResizeObserver') || e.message.includes('loop'))) {
+          e.stopImmediatePropagation();
+          e.preventDefault();
+          return false;
+        }
+      }, true);
+      window.addEventListener('unhandledrejection', function(e) {
+        var r = e.reason;
+        if (r === undefined || r === null) { e.preventDefault(); return; }
+        if (typeof r === 'string' && (r.includes('ResizeObserver') || r.includes('loop'))) { e.preventDefault(); return; }
+        if (r && r.message && (r.message.includes('ResizeObserver') || r.message.includes('loop'))) { e.preventDefault(); return; }
+      }, true);
+    </script>
     <script type="module" src="/src/main.tsx"></script>
     <!-- This is a replit script which adds a banner on the top of the page when opened in development mode outside the replit environment -->
     <script type="text/javascript" src="https://replit.com/public/js/replit-dev-banner.js"></script>
