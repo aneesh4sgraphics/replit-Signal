@@ -3678,6 +3678,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     return String(num);
   }
 
+  // Generate CSV quote for download
+  app.post("/api/generate-quote-csv", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerName, customerEmail, items, quoteNumber } = req.body;
+      
+      if (!items || !Array.isArray(items) || items.length === 0) {
+        return res.status(400).json({ error: "Quote items are required" });
+      }
+
+      // Build CSV content
+      const headers = ['Item Code', 'Product', 'Size', 'Quantity', 'Price Per Sheet', 'Total'];
+      const rows = items.map((item: any) => [
+        item.itemCode || '',
+        item.productType || '',
+        item.size || '',
+        item.quantity || 0,
+        item.pricePerSheet?.toFixed(2) || '0.00',
+        item.total?.toFixed(2) || '0.00'
+      ]);
+
+      const csvContent = [
+        `Quote Number,${quoteNumber || 'N/A'}`,
+        `Customer,${customerName || 'N/A'}`,
+        `Email,${customerEmail || 'N/A'}`,
+        `Date,${new Date().toLocaleDateString()}`,
+        '',
+        headers.join(','),
+        ...rows.map(row => row.map((cell: any) => `"${String(cell).replace(/"/g, '""')}"`).join(',')),
+        '',
+        `Total,,,,,${items.reduce((sum: number, item: any) => sum + (item.total || 0), 0).toFixed(2)}`
+      ].join('\n');
+
+      res.setHeader('Content-Type', 'text/csv');
+      res.setHeader('Content-Disposition', `attachment; filename="quote_${quoteNumber || 'export'}.csv"`);
+      res.send(csvContent);
+    } catch (error) {
+      console.error("CSV generation error:", error);
+      res.status(500).json({ error: "Failed to generate CSV" });
+    }
+  });
+
   // Send email quote
   app.post("/api/send-email-quote", isAuthenticated, async (req: any, res) => {
     try {

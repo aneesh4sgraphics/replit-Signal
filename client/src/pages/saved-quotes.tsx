@@ -264,7 +264,7 @@ export default function SavedQuotes() {
       }
 
       if (format === 'pdf') {
-        const response = await apiRequest("POST", "/api/generate-quote-pdf", {
+        const response = await apiRequest("POST", "/api/generate-pdf-quote", {
           customerName: quote.customerName,
           customerEmail: quote.customerEmail,
           items: quoteItems,
