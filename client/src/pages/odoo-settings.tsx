@@ -2013,7 +2013,7 @@ export default function OdooSettingsPage() {
                 <label className="text-sm font-medium">Product Category</label>
                 <Select
                   value={wizardData.productCategory}
-                  onValueChange={(value) => setWizardData({ ...wizardData, productCategory: value, productType: '' })}
+                  onValueChange={(value) => setWizardData({ ...wizardData, productCategory: value })}
                 >
                   <SelectTrigger data-testid="select-category">
                     <SelectValue placeholder="Select category..." />
@@ -2031,24 +2031,13 @@ export default function OdooSettingsPage() {
               {/* Step 6: Product Type */}
               <div className="space-y-2">
                 <label className="text-sm font-medium">Product Type</label>
-                <Select
+                <Input
                   value={wizardData.productType}
-                  onValueChange={(value) => setWizardData({ ...wizardData, productType: value })}
-                >
-                  <SelectTrigger data-testid="select-type">
-                    <SelectValue placeholder="Select type..." />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {productTypes
-                      .filter((t) => !wizardData.productCategory || t.categoryId.toString() === wizardData.productCategory)
-                      .map((type) => (
-                        <SelectItem key={type.id} value={type.name}>
-                          {type.name}
-                        </SelectItem>
-                      ))}
-                  </SelectContent>
-                </Select>
-                <p className="text-xs text-muted-foreground">Determines placement in QuickQuotes & Price List</p>
+                  onChange={(e) => setWizardData({ ...wizardData, productType: e.target.value })}
+                  placeholder="Enter product type (e.g., Thickness: 8mil)"
+                  data-testid="input-product-type"
+                />
+                <p className="text-xs text-muted-foreground">This will appear in QuickQuotes, Price List, and everywhere else</p>
               </div>
             </div>
           )}
