@@ -749,6 +749,24 @@ function ProductLabelPreview({ data }: { data: ProductLabelData }) {
   );
 }
 
+function getProductFont(productName: string): { fontFamily: string; fontWeight: number } {
+  const name = productName.toLowerCase().trim();
+  
+  if (name.includes('graffiti')) {
+    return { fontFamily: "'Lobster', cursive", fontWeight: 400 };
+  }
+  if (name.includes('solvit')) {
+    return { fontFamily: "'Merienda', cursive", fontWeight: 700 };
+  }
+  if (name.includes('cliq')) {
+    return { fontFamily: "'Century Gothic', 'Trebuchet MS', sans-serif", fontWeight: 700 };
+  }
+  if (name.includes('rang')) {
+    return { fontFamily: "'Fredoka', sans-serif", fontWeight: 700 };
+  }
+  return { fontFamily: "'Archivo Narrow', 'Arial Narrow', sans-serif", fontWeight: 700 };
+}
+
 function PalletLabelPreview({ data }: { data: PalletLabelData }) {
   const config = palletFormatConfig[data.labelFormat];
   const is4x8 = data.labelFormat === "thermal4x8";
@@ -758,6 +776,8 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
     ? { line1: 36, line2: 24, line3: 20, line4: 16, line5: 18 }
     : { line1: 30, line2: 20, line3: 18, line4: 14, line5: 16 };
   
+  const productFont = getProductFont(data.productName);
+  
   return (
     <div 
       className="bg-white p-4 flex flex-col justify-between"
@@ -765,8 +785,12 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
     >
       <div className="space-y-2 text-center">
         <div 
-          className="font-black uppercase leading-tight"
-          style={{ fontSize: `${baseSizes.line1 * scale}px` }}
+          className="uppercase leading-tight"
+          style={{ 
+            fontSize: `${baseSizes.line1 * scale}px`,
+            fontFamily: productFont.fontFamily,
+            fontWeight: productFont.fontWeight
+          }}
         >
           {data.productName || "PRODUCT NAME"}
         </div>
