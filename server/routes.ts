@@ -9971,6 +9971,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get Odoo products that are NOT in local productPricingMaster
   app.get("/api/odoo/missing-products", requireAdmin, async (req: any, res) => {
     try {
+      // First check if Odoo is connected
+      const isConnected = await odooClient.testConnection();
+      if (!isConnected) {
+        return res.status(503).json({ 
+          error: "Odoo is not connected. Please check your Odoo credentials in Environment Secrets." 
+        });
+      }
+      
       const search = (req.query.search as string || '').toLowerCase();
       
       // Get all local item codes

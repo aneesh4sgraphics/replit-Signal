@@ -297,7 +297,7 @@ export default function OdooSettingsPage() {
 
   // Query for missing Odoo products (not in local app)
   // Note: Search filtering is done client-side to avoid losing data when typing
-  const { data: missingProductsData, isLoading: missingProductsLoading, refetch: refetchMissingProducts } = useQuery<{
+  const { data: missingProductsData, isLoading: missingProductsLoading, error: missingProductsError, refetch: refetchMissingProducts } = useQuery<{
     success: boolean;
     totalOdooProducts: number;
     totalLocalProducts: number;
@@ -306,11 +306,29 @@ export default function OdooSettingsPage() {
   }>({
     queryKey: ['/api/odoo/missing-products'],
     queryFn: async () => {
-      const res = await fetch('/api/odoo/missing-products');
-      return res.json();
+      const controller = new AbortController();
+      const timeoutId = setTimeout(() => controller.abort(), 30000); // 30 second timeout
+      
+      try {
+        const res = await fetch('/api/odoo/missing-products', { signal: controller.signal });
+        clearTimeout(timeoutId);
+        
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({}));
+          throw new Error(errorData.error || `Failed to load (${res.status})`);
+        }
+        return res.json();
+      } catch (err: any) {
+        clearTimeout(timeoutId);
+        if (err.name === 'AbortError') {
+          throw new Error('Request timed out. Please check your Odoo connection.');
+        }
+        throw err;
+      }
     },
     enabled: false, // Only fetch when button is clicked
     staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+    retry: false, // Don't retry on failure
   });
 
   // Import products mutation
@@ -1343,7 +1361,17 @@ export default function OdooSettingsPage() {
             </CardHeader>
             <CardContent>
               <div className="space-y-4">
-                {!missingProductsData ? (
+                {missingProductsError ? (
+                  <div className="text-center py-12">
+                    <Package className="h-12 w-12 mx-auto mb-4 text-red-400" />
+                    <p className="text-red-600 font-medium mb-2">Failed to load Odoo products</p>
+                    <p className="text-sm text-muted-foreground mb-4">{(missingProductsError as any)?.message || 'Unknown error'}</p>
+                    <Button variant="outline" onClick={() => refetchMissingProducts()}>
+                      <RefreshCw className="h-4 w-4 mr-2" />
+                      Try Again
+                    </Button>
+                  </div>
+                ) : !missingProductsData ? (
                   <div className="text-center py-12 text-muted-foreground">
                     <Package className="h-12 w-12 mx-auto mb-4 opacity-50" />
                     <p>Click "Load Missing Products" to find Odoo products not in your local app</p>
