@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useRef, useEffect } from "react";
 import { Printer, RotateCcw, Tag, Save, Trash2, RefreshCw, Package } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -9,6 +9,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Checkbox } from "@/components/ui/checkbox";
 import { Slider } from "@/components/ui/slider";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
@@ -111,10 +113,21 @@ export default function ProductLabels() {
   const [labelData, setLabelData] = useState<ProductLabelData>(defaultLabel);
   const [palletData, setPalletData] = useState<PalletLabelData>(defaultPalletLabel);
   const [searchQuery, setSearchQuery] = useState("");
+  const [itemCodeOpen, setItemCodeOpen] = useState(false);
+  const [itemCodeSearch, setItemCodeSearch] = useState("");
 
   const { data: savedLabels = [] } = useQuery<ProductLabel[]>({
     queryKey: ["/api/product-labels"],
   });
+
+  const { data: productCodes = [] } = useQuery<{ id: number; itemCode: string; productName: string; productType: string }[]>({
+    queryKey: ["/api/quickquotes/products"],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  const filteredProductCodes = productCodes.filter(p => 
+    p.itemCode?.toLowerCase().startsWith(itemCodeSearch.toLowerCase())
+  ).slice(0, 20);
 
   const { data: notionProducts = [], isError: notionError } = useQuery<any[]>({
     queryKey: ["/api/notion-products/search", searchQuery],
@@ -587,12 +600,58 @@ export default function ProductLabels() {
                     <div className="grid grid-cols-2 gap-4">
                       <div className="space-y-2">
                         <Label>Item Code / SKU</Label>
-                        <Input
-                          value={palletData.itemCode}
-                          onChange={(e) => setPalletData({ ...palletData, itemCode: e.target.value })}
-                          placeholder="SKU-12345"
-                          data-testid="input-pallet-item-code"
-                        />
+                        <Popover open={itemCodeOpen} onOpenChange={setItemCodeOpen}>
+                          <PopoverTrigger asChild>
+                            <div className="relative">
+                              <Input
+                                value={palletData.itemCode}
+                                onChange={(e) => {
+                                  const val = e.target.value;
+                                  setPalletData({ ...palletData, itemCode: val });
+                                  setItemCodeSearch(val);
+                                  if (val.length > 0) setItemCodeOpen(true);
+                                }}
+                                onFocus={() => {
+                                  if (palletData.itemCode.length > 0) {
+                                    setItemCodeSearch(palletData.itemCode);
+                                    setItemCodeOpen(true);
+                                  }
+                                }}
+                                placeholder="Type to search..."
+                                data-testid="input-pallet-item-code"
+                              />
+                            </div>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-[300px] p-0" align="start" onOpenAutoFocus={(e) => e.preventDefault()}>
+                            <Command>
+                              <CommandList>
+                                <CommandEmpty>No matching codes found</CommandEmpty>
+                                <CommandGroup>
+                                  {filteredProductCodes.map((product) => (
+                                    <CommandItem
+                                      key={product.id}
+                                      value={product.itemCode}
+                                      onSelect={() => {
+                                        setPalletData({ 
+                                          ...palletData, 
+                                          itemCode: product.itemCode,
+                                          productName: palletData.productName || product.productName
+                                        });
+                                        setItemCodeOpen(false);
+                                      }}
+                                      data-testid={`item-code-option-${product.id}`}
+                                    >
+                                      <div className="flex flex-col">
+                                        <span className="font-mono font-medium">{product.itemCode}</span>
+                                        <span className="text-xs text-muted-foreground truncate">{product.productName}</span>
+                                      </div>
+                                    </CommandItem>
+                                  ))}
+                                </CommandGroup>
+                              </CommandList>
+                            </Command>
+                          </PopoverContent>
+                        </Popover>
                       </div>
                       <div className="space-y-2">
                         <Label>Batch Code</Label>
@@ -894,7 +953,11 @@ function PalletLabelPreview({ data }: { data: PalletLabelData }) {
             fontFamily: productFont.fontFamily,
             fontWeight: productFont.fontWeight,
             textTransform: data.uppercase ? 'uppercase' : 'none',
-            lineHeight: lineHeight
+            lineHeight: lineHeight,
+            width: '100%',
+            textAlign: 'center',
+            wordBreak: 'break-word',
+            hyphens: 'auto'
           }}
         >
           {data.productName || "PRODUCT NAME"}
