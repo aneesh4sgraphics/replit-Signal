@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
+import { ConnectionPrompt, ConnectionStatusBanner } from "@/components/ConnectionPrompt";
 import { useQuery } from "@tanstack/react-query";
 import { useAppUsage } from "@/hooks/useAppUsage";
 import { Progress } from "@/components/ui/progress";
@@ -213,20 +214,22 @@ export default function Dashboard() {
 
 
   return (
-    <div style={{
-      minHeight: '100vh',
-      background: 'linear-gradient(135deg, #e0e7ef 0%, #dfe7f2 25%, #e8e4f0 50%, #ede7e3 75%, #e5ebe8 100%)',
-      backgroundSize: '400% 400%',
-      animation: 'gentleShift 20s ease infinite',
-      padding: '40px 20px',
-      fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
-      position: 'relative',
-      overflow: 'hidden',
-      marginLeft: '-24px',
-      marginRight: '-24px',
-      marginTop: '-24px',
-      marginBottom: '-24px'
-    }}>
+    <>
+      <ConnectionPrompt />
+      <div style={{
+        minHeight: '100vh',
+        background: 'linear-gradient(135deg, #e0e7ef 0%, #dfe7f2 25%, #e8e4f0 50%, #ede7e3 75%, #e5ebe8 100%)',
+        backgroundSize: '400% 400%',
+        animation: 'gentleShift 20s ease infinite',
+        padding: '40px 20px',
+        fontFamily: '-apple-system, BlinkMacSystemFont, "SF Pro Display", system-ui, sans-serif',
+        position: 'relative',
+        overflow: 'hidden',
+        marginLeft: '-24px',
+        marginRight: '-24px',
+        marginTop: '-24px',
+        marginBottom: '-24px'
+      }}>
       <style>{`
         @keyframes gentleShift {
           0% { background-position: 0% 50%; }
@@ -1206,5 +1209,6 @@ export default function Dashboard() {
         )}
       </div>
     </div>
+    </>
   );
 }
