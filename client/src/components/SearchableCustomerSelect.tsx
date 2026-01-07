@@ -68,24 +68,36 @@ export default function SearchableCustomerSelect({
     staleTime: 2 * 60 * 1000,
   });
 
-  // Filter customers based on search term
-  const filteredCustomers = customers.filter(customer => {
+  // Group customers by company - pick one representative per company
+  const companiesMap = new Map<string, Customer>();
+  customers.forEach(customer => {
+    const companyKey = (customer.company || "").toLowerCase().trim();
+    if (companyKey && !companiesMap.has(companyKey)) {
+      companiesMap.set(companyKey, customer);
+    }
+  });
+
+  // Filter companies based on search term (search by company name OR contact name)
+  const filteredCompanies = Array.from(companiesMap.values()).filter(customer => {
     if (!debouncedSearchTerm) return true;
     
     const searchLower = debouncedSearchTerm.toLowerCase();
-    const fullName = `${customer.firstName} ${customer.lastName}`.toLowerCase();
     const company = customer.company?.toLowerCase() || "";
-    const email = customer.email?.toLowerCase() || "";
     
-    return fullName.includes(searchLower) || 
-           company.includes(searchLower) || 
-           email.includes(searchLower);
-  }).slice(0, 10); // Limit to 10 results
+    // Also search by contact names within this company
+    const matchingContacts = customers.filter(c => 
+      (c.company?.toLowerCase() || "") === company &&
+      (`${c.firstName} ${c.lastName}`.toLowerCase().includes(searchLower) ||
+       c.email?.toLowerCase().includes(searchLower))
+    );
+    
+    return company.includes(searchLower) || matchingContacts.length > 0;
+  }).slice(0, 10);
 
   // Set search term when customer is selected externally
   useEffect(() => {
     if (selectedCustomer) {
-      setSearchTerm(`${selectedCustomer.firstName} ${selectedCustomer.lastName} - ${selectedCustomer.company}`);
+      setSearchTerm(selectedCustomer.company || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`);
       setShowDropdown(false);
     }
   }, [selectedCustomer]);
@@ -93,7 +105,7 @@ export default function SearchableCustomerSelect({
   // Handle customer selection
   const handleCustomerSelect = (customer: Customer) => {
     onCustomerSelect(customer);
-    setSearchTerm(`${customer.firstName} ${customer.lastName} - ${customer.company}`);
+    setSearchTerm(customer.company || `${customer.firstName} ${customer.lastName}`);
     setShowDropdown(false);
   };
 
@@ -194,9 +206,9 @@ export default function SearchableCustomerSelect({
               <div className="p-3 text-center text-sm text-gray-500">
                 Loading customers...
               </div>
-            ) : filteredCustomers.length > 0 ? (
+            ) : filteredCompanies.length > 0 ? (
               <div className="space-y-1">
-                {filteredCustomers.map((customer) => (
+                {filteredCompanies.map((customer) => (
                   <div
                     key={customer.id}
                     onClick={() => handleCustomerSelect(customer)}
@@ -206,9 +218,6 @@ export default function SearchableCustomerSelect({
                       <Building className="h-4 w-4 text-blue-500 flex-shrink-0" />
                       <div className="flex-1 min-w-0">
                         <div className="font-medium text-sm text-gray-900">
-                          {customer.firstName} {customer.lastName}
-                        </div>
-                        <div className="text-sm text-blue-600 font-medium">
                           {customer.company}
                         </div>
                       </div>
