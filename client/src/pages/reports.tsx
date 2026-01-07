@@ -74,7 +74,7 @@ const reports: ReportTile[] = [
 ];
 
 export default function ReportsPage() {
-  const categories = [...new Set(reports.map(r => r.category))];
+  const categories = Array.from(new Set(reports.map(r => r.category)));
   
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">

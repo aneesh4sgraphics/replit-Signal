@@ -4,7 +4,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 import { 
   Home, FileText, DollarSign, Users, Database, Settings, LogOut,
   Activity, Calculator, TrendingUp, Truck, Package, Tag, Search, Clock,
-  Target, AlertTriangle, Mail, Building2
+  Target, AlertTriangle, Mail, Building2, BarChart3
 } from 'lucide-react';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
@@ -29,6 +29,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/clients', icon: Users, label: 'Clients', keywords: ['customers', 'contacts', 'database'] },
   { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', keywords: ['area', 'square meter', 'calculate'] },
   { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', keywords: ['competitors', 'market', 'comparison'] },
+  { path: '/reports', icon: BarChart3, label: 'Reports', keywords: ['analytics', 'reports', 'dashboard', 'sales', 'metrics', 'insights'] },
   { path: '/shipping-calculator', icon: Truck, label: 'Shipping', keywords: ['delivery', 'freight', 'transport'] },
   { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', keywords: ['labels', 'packages', 'shipment'] },
   { path: '/product-labels', icon: Tag, label: 'Product Labels', keywords: ['tags', 'stickers', 'product'] },
