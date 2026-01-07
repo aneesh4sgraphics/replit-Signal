@@ -78,6 +78,15 @@ interface QuoteItem {
   sortOrder?: number;
 }
 
+interface AdditionalCharge {
+  id: string;
+  type: 'credit_card' | 'shipping' | 'other';
+  label: string;
+  odooProductCode: string;
+  amount: number;
+  enabled: boolean;
+}
+
 const allPricingTiers = [
   { key: 'landedPrice', label: 'Landed Price' },
   { key: 'exportPrice', label: 'Export Only' },
@@ -108,6 +117,11 @@ export default function QuoteCalculator() {
   const [landedPriceRevealed, setLandedPriceRevealed] = useState<boolean>(false);
   const [sentPricesOpen, setSentPricesOpen] = useState<boolean>(false);
   const [isCreatingOdooOrder, setIsCreatingOdooOrder] = useState(false);
+  const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([
+    { id: 'cc', type: 'credit_card', label: 'Credit Card Fee', odooProductCode: 'CC-FEE', amount: 0, enabled: false },
+    { id: 'ship', type: 'shipping', label: 'Shipping Cost', odooProductCode: 'SHIPPING', amount: 0, enabled: false },
+  ]);
+  const [showAdditionalCharges, setShowAdditionalCharges] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -550,7 +564,11 @@ export default function QuoteCalculator() {
     });
   };
 
-  const totalAmount = quoteItems.reduce((sum, item) => sum + item.total, 0);
+  const quoteSubtotal = quoteItems.reduce((sum, item) => sum + item.total, 0);
+  const additionalChargesTotal = additionalCharges
+    .filter(c => c.enabled && c.amount > 0)
+    .reduce((sum, c) => sum + c.amount, 0);
+  const totalAmount = quoteSubtotal + additionalChargesTotal;
 
   const [isPDFGenerating, setIsPDFGenerating] = useState(false);
   
@@ -695,18 +713,33 @@ export default function QuoteCalculator() {
     setIsCreatingOdooOrder(true);
 
     try {
+      // Build items array including additional charges
+      const productItems = quoteItems.map(item => ({
+        itemCode: item.itemCode,
+        productName: item.productName,
+        quantity: item.quantity,
+        pricePerSheet: item.pricePerSheet,
+      }));
+      
+      // Add enabled additional charges as items
+      const chargeItems = additionalCharges
+        .filter(c => c.enabled && c.amount > 0)
+        .map(c => ({
+          itemCode: c.odooProductCode,
+          productName: c.label,
+          quantity: 1,
+          pricePerSheet: c.amount,
+        }));
+      
+      const allItems = [...productItems, ...chargeItems];
+      
       const response = await fetch('/api/odoo/create-sale-order', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           customerId: selectedCustomer.id,
-          items: quoteItems.map(item => ({
-            itemCode: item.itemCode,
-            productName: item.productName,
-            quantity: item.quantity,
-            pricePerSheet: item.pricePerSheet,
-          })),
+          items: allItems,
           note: `Quote from QuickQuotes - ${new Date().toLocaleDateString()}`,
         }),
       });
@@ -1942,9 +1975,107 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               maxHeight="300px"
             />
 
+            {/* Additional Charges Section */}
+            <div className="mt-4 border border-gray-200 rounded-lg overflow-hidden">
+              <button
+                onClick={() => setShowAdditionalCharges(!showAdditionalCharges)}
+                className="w-full flex items-center justify-between px-4 py-3 bg-gray-50 hover:bg-gray-100 transition-colors"
+                data-testid="btn-toggle-additional-charges"
+              >
+                <span className="text-sm font-medium text-gray-700 flex items-center gap-2">
+                  <Plus className="h-4 w-4" />
+                  Additional Charges (CC Fee / Shipping)
+                  {additionalChargesTotal > 0 && (
+                    <span className="ml-2 px-2 py-0.5 bg-purple-100 text-purple-700 rounded text-xs">
+                      +${additionalChargesTotal.toFixed(2)}
+                    </span>
+                  )}
+                </span>
+                <ChevronDown className={`h-4 w-4 text-gray-500 transition-transform ${showAdditionalCharges ? 'rotate-180' : ''}`} />
+              </button>
+              
+              {showAdditionalCharges && (
+                <div className="p-4 space-y-3 bg-white">
+                  {additionalCharges.map((charge) => (
+                    <div key={charge.id} className="flex items-center gap-4">
+                      <input
+                        type="checkbox"
+                        checked={charge.enabled}
+                        onChange={(e) => {
+                          setAdditionalCharges(prev => prev.map(c => 
+                            c.id === charge.id ? { ...c, enabled: e.target.checked } : c
+                          ));
+                        }}
+                        className="h-4 w-4 rounded border-gray-300 text-purple-600 focus:ring-purple-500"
+                        data-testid={`checkbox-charge-${charge.id}`}
+                      />
+                      <div className="flex-1 grid grid-cols-3 gap-3">
+                        <div>
+                          <label className="text-xs text-gray-500">Label</label>
+                          <Input
+                            value={charge.label}
+                            onChange={(e) => {
+                              setAdditionalCharges(prev => prev.map(c => 
+                                c.id === charge.id ? { ...c, label: e.target.value } : c
+                              ));
+                            }}
+                            className="h-8 text-sm"
+                            placeholder="Charge name"
+                            data-testid={`input-charge-label-${charge.id}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Odoo Product Code</label>
+                          <Input
+                            value={charge.odooProductCode}
+                            onChange={(e) => {
+                              setAdditionalCharges(prev => prev.map(c => 
+                                c.id === charge.id ? { ...c, odooProductCode: e.target.value } : c
+                              ));
+                            }}
+                            className="h-8 text-sm font-mono"
+                            placeholder="e.g. CC-FEE"
+                            data-testid={`input-charge-code-${charge.id}`}
+                          />
+                        </div>
+                        <div>
+                          <label className="text-xs text-gray-500">Amount ($)</label>
+                          <Input
+                            type="number"
+                            min="0"
+                            step="0.01"
+                            value={charge.amount || ''}
+                            onChange={(e) => {
+                              setAdditionalCharges(prev => prev.map(c => 
+                                c.id === charge.id ? { ...c, amount: parseFloat(e.target.value) || 0 } : c
+                              ));
+                            }}
+                            className="h-8 text-sm"
+                            placeholder="0.00"
+                            data-testid={`input-charge-amount-${charge.id}`}
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                  <p className="text-xs text-gray-500 mt-2">
+                    These charges use Odoo product codes. Ensure the codes exist in Odoo for the sales order to include them.
+                  </p>
+                </div>
+              )}
+            </div>
+
             <div className="flex items-center justify-between pt-6 border-t border-gray-200">
               <div className="text-base font-medium text-gray-800">
-                Total: ${totalAmount.toFixed(2)}
+                {additionalChargesTotal > 0 ? (
+                  <div className="space-y-1">
+                    <div className="text-sm text-gray-500">Subtotal: ${quoteSubtotal.toFixed(2)}</div>
+                    <div className="text-sm text-gray-500">+ Charges: ${additionalChargesTotal.toFixed(2)}</div>
+                    <div>Total: ${totalAmount.toFixed(2)}</div>
+                  </div>
+                ) : (
+                  <>Total: ${totalAmount.toFixed(2)}</>
+                )}
               </div>
               <div className="flex gap-3">
                 <button
