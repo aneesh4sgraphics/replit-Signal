@@ -1988,7 +1988,7 @@ export default function OdooSettingsPage() {
 
               {/* Step 3: Size (Prefilled) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Size</label>
+                <label className="text-sm font-medium">Size (Width x Height in inches)</label>
                 <Input
                   value={wizardData.size}
                   onChange={(e) => {
@@ -2001,20 +2001,32 @@ export default function OdooSettingsPage() {
                   }}
                   placeholder="e.g., 13 x 19"
                   data-testid="input-wizard-size"
+                  className={wizardData.size === 'Standard' ? 'border-orange-400' : ''}
                 />
-                <p className="text-xs text-muted-foreground">Auto-detected from product code/name</p>
+                {wizardData.size === 'Standard' && (
+                  <div className="p-2 bg-orange-50 border border-orange-200 rounded text-xs text-orange-700">
+                    <strong>Warning:</strong> Size not detected. Enter dimensions (e.g., "13 x 19") to calculate correct pricing.
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Format: Width x Height (e.g., 13 x 19 for sheets, 36 x 100' for rolls)</p>
               </div>
 
               {/* Step 4: Sq. Meters (Prefilled) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Sq. Meters</label>
+                <label className="text-sm font-medium">Total Sq. Meters (m²)</label>
                 <Input
                   value={wizardData.totalSqm}
                   onChange={(e) => setWizardData({ ...wizardData, totalSqm: e.target.value })}
                   placeholder="0.000000"
                   data-testid="input-wizard-sqm"
+                  className={parseFloat(wizardData.totalSqm || '0') === 0 ? 'border-red-400' : ''}
                 />
-                <p className="text-xs text-muted-foreground">Calculated from size (editable)</p>
+                {parseFloat(wizardData.totalSqm || '0') === 0 && (
+                  <div className="p-2 bg-red-50 border border-red-200 rounded text-xs text-red-700">
+                    <strong>Required:</strong> Total sq. meters must be greater than 0 for pricing to work correctly.
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">This is the area per unit used to calculate sheet/roll price</p>
               </div>
 
               {/* Step 5: Product Category */}
@@ -2063,12 +2075,12 @@ export default function OdooSettingsPage() {
                 <p className="text-xs text-muted-foreground">Minimum quantity per order (used in QuickQuotes)</p>
               </div>
 
-              {/* Step 8: Pricing */}
+              {/* Step 8: Pricing (per square meter) */}
               <div className="space-y-2">
-                <label className="text-sm font-medium">Pricing (Optional)</label>
+                <label className="text-sm font-medium">Pricing per Square Meter ($/m²)</label>
                 <div className="grid grid-cols-2 gap-3">
                   <div>
-                    <label className="text-xs text-muted-foreground">Dealer Price ($)</label>
+                    <label className="text-xs text-muted-foreground">Dealer $/m²</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -2080,7 +2092,7 @@ export default function OdooSettingsPage() {
                     />
                   </div>
                   <div>
-                    <label className="text-xs text-muted-foreground">Retail Price ($)</label>
+                    <label className="text-xs text-muted-foreground">Retail $/m²</label>
                     <Input
                       type="number"
                       step="0.01"
@@ -2092,7 +2104,43 @@ export default function OdooSettingsPage() {
                     />
                   </div>
                 </div>
-                <p className="text-xs text-muted-foreground">Pre-fill from Odoo price or enter manually</p>
+                {wizardData.totalSqm && parseFloat(wizardData.totalSqm) > 0 && wizardProduct?.list_price && (
+                  <div className="p-2 bg-blue-50 rounded text-xs space-y-1">
+                    <p className="font-medium text-blue-700">Convert from Odoo price (${wizardProduct.list_price.toFixed(2)}/unit):</p>
+                    <p className="text-blue-600">
+                      ${wizardProduct.list_price.toFixed(2)} ÷ {parseFloat(wizardData.totalSqm).toFixed(4)} m² = <strong>${(wizardProduct.list_price / parseFloat(wizardData.totalSqm)).toFixed(2)}/m²</strong>
+                    </p>
+                    <div className="flex gap-2 mt-1">
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const sqm = parseFloat(wizardData.totalSqm);
+                          if (sqm > 0) {
+                            const pricePerSqm = (wizardProduct.list_price / sqm).toFixed(2);
+                            setWizardData({ ...wizardData, dealerPrice: pricePerSqm });
+                          }
+                        }}
+                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                      >
+                        Use for Dealer
+                      </button>
+                      <button 
+                        type="button"
+                        onClick={() => {
+                          const sqm = parseFloat(wizardData.totalSqm);
+                          if (sqm > 0) {
+                            const pricePerSqm = (wizardProduct.list_price / sqm).toFixed(2);
+                            setWizardData({ ...wizardData, retailPrice: pricePerSqm });
+                          }
+                        }}
+                        className="px-2 py-1 bg-blue-100 text-blue-800 rounded hover:bg-blue-200"
+                      >
+                        Use for Retail
+                      </button>
+                    </div>
+                  </div>
+                )}
+                <p className="text-xs text-muted-foreground">Price per square meter - the final sheet price = $/m² × totalSqm</p>
               </div>
             </div>
           )}
