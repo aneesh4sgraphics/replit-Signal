@@ -34,6 +34,7 @@ import EmailApp from "@/pages/email-app";
 import ObjectionsPage from "@/pages/objections";
 import ShopifySettingsPage from "@/pages/shopify-settings";
 import OdooSettingsPage from "@/pages/odoo-settings";
+import IntegrationsSettingsPage from "@/pages/integrations-settings";
 import SalesAnalyticsPage from "@/pages/sales-analytics";
 import ReportsPage from "@/pages/reports";
 
@@ -94,6 +95,7 @@ const AppRoutes = () => (
     <Route path="/objections" component={ObjectionsPage} />
     <Route path="/shopify-settings" component={ShopifySettingsPage} />
     <Route path="/odoo-settings" component={OdooSettingsPage} />
+    <Route path="/integrations" component={IntegrationsSettingsPage} />
     <Route path="/sales-analytics" component={SalesAnalyticsPage} />
     <Route path="/reports" component={ReportsPage} />
     <Route><Redirect to="/" /></Route>
