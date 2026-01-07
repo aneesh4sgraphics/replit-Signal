@@ -10243,6 +10243,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (productTypeId !== undefined) {
         updates.productTypeId = productTypeId || null;
+        updates.catalogProductTypeId = productTypeId || null; // Keep in sync
         // If setting productTypeId, also derive catalogCategoryId from the type
         if (productTypeId) {
           const [typeInfo] = await db.select().from(productTypes)
@@ -10294,6 +10295,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (updates.productTypeId !== undefined) {
         updateData.productTypeId = updates.productTypeId || null;
+        updateData.catalogProductTypeId = updates.productTypeId || null; // Keep in sync
         // Derive category from type
         if (updates.productTypeId) {
           const [typeInfo] = await db.select().from(productTypes)

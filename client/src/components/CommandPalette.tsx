@@ -4,7 +4,7 @@ import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, Comma
 import { 
   Home, FileText, DollarSign, Users, Database, Settings, LogOut,
   Activity, Calculator, TrendingUp, Truck, Package, Tag, Search, Clock,
-  Target, AlertTriangle, Mail, Building2, BarChart3, Plug
+  Target, AlertTriangle, Mail, Building2, BarChart3, Plug, Layers
 } from 'lucide-react';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
@@ -37,6 +37,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/objections', icon: AlertTriangle, label: 'Objections', keywords: ['objections', 'issues', 'blockers', 'concerns', 'problems'] },
   { path: '/email-app', icon: Mail, label: 'Email Studio', keywords: ['email', 'templates', 'mail', 'compose', 'send'], adminOnly: true },
   { path: '/integrations', icon: Plug, label: 'Integrations', keywords: ['gmail', 'calendar', 'odoo', 'connect', 'settings', 'google'], adminOnly: true },
+  { path: '/product-mapping', icon: Layers, label: 'Product Mapping', keywords: ['map', 'category', 'type', 'size', 'sqm', 'fix', 'unmapped'], adminOnly: true },
   { path: '/shopify-settings', icon: Settings, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
   { path: '/odoo-settings', icon: Building2, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
   { path: '/admin', icon: Users, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
