@@ -162,6 +162,7 @@ export default function OdooSettingsPage() {
   // Import Products state
   const [importProductSearch, setImportProductSearch] = useState("");
   const [selectedImportProducts, setSelectedImportProducts] = useState<Set<number>>(new Set());
+  const [recentlyImportedIds, setRecentlyImportedIds] = useState<Set<number>>(new Set()); // Track imported products to hide immediately
   
   // Guided Product Creation Wizard state
   const [wizardOpen, setWizardOpen] = useState(false);
@@ -258,6 +259,10 @@ export default function OdooSettingsPage() {
       retailPrice: wizardData.retailPrice ? parseFloat(wizardData.retailPrice) : null,
     };
     
+    // Add to recently imported to hide immediately from list
+    if (wizardProduct?.id) {
+      setRecentlyImportedIds(prev => new Set([...prev, wizardProduct.id]));
+    }
     importProductsMutation.mutate([enrichedProduct]);
     setWizardOpen(false);
     setWizardProduct(null);
@@ -291,6 +296,7 @@ export default function OdooSettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/products-for-mapping'] });
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/missing-products'] });
       setSelectedImportProducts(new Set());
+      setRecentlyImportedIds(new Set()); // Clear after server data refreshes
       toast({ 
         title: "Products imported",
         description: `${data.imported} products added successfully`
@@ -1320,7 +1326,9 @@ export default function OdooSettingsPage() {
                     {/* Stats */}
                     <div className="grid grid-cols-3 gap-4">
                       <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-center">
-                        <div className="text-xl font-bold">{missingProductsData.totalLocalProducts}</div>
+                        <div className="text-xl font-bold">
+                          {missingProductsData.totalLocalProducts + recentlyImportedIds.size}
+                        </div>
                         <div className="text-xs text-muted-foreground">Local Products</div>
                       </div>
                       <div className="bg-gray-50 dark:bg-gray-900 rounded-lg p-3 text-center">
@@ -1328,7 +1336,9 @@ export default function OdooSettingsPage() {
                         <div className="text-xs text-muted-foreground">Odoo Products</div>
                       </div>
                       <div className="bg-yellow-50 dark:bg-yellow-900 rounded-lg p-3 text-center">
-                        <div className="text-xl font-bold text-yellow-600">{missingProductsData.missingCount}</div>
+                        <div className="text-xl font-bold text-yellow-600">
+                          {missingProductsData.missingCount - recentlyImportedIds.size}
+                        </div>
                         <div className="text-xs text-muted-foreground">Missing from Local</div>
                       </div>
                     </div>
@@ -1403,6 +1413,8 @@ export default function OdooSettingsPage() {
                         <TableBody>
                           {missingProductsData.missingProducts
                             .filter(p => {
+                              // Hide recently imported products immediately
+                              if (recentlyImportedIds.has(p.id)) return false;
                               if (!importProductSearch) return true;
                               const search = importProductSearch.toLowerCase();
                               return (
