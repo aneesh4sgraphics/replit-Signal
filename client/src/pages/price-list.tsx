@@ -20,6 +20,7 @@ import { getPriceColumnHeader } from "@/utils/sizeUtils";
 import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 import { EmptyState, getErrorType, getErrorMessage, getErrorDetails } from "@/components/EmptyState";
 import { ApiError, queryClient } from "@/lib/queryClient";
+import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
 
 interface ProductData {
   [key: string]: string | number | undefined;
@@ -450,19 +451,8 @@ export default function PriceList() {
     refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 
-  // Allowed Product Categories (curated list) - always show all 10
-  const categories = [
-    'Graffiti Polyester Paper',
-    'Graffiti Blended Poly',
-    'GraffitiSTICK',
-    'Solvit Sign & Display Media',
-    'CLiQ Aqueous Media',
-    'Rang Print Canvas',
-    'EiE Inkjet Film',
-    'eLe Laser Films',
-    'MXP Offset Plates',
-    'Rollers & Chemicals',
-  ];
+  // Use shared category constants (11 curated categories)
+  const categories = [...ALLOWED_CATEGORIES];
 
   // Handle product reordering
   const handleProductReorder = (reorderedItems: any[]) => {

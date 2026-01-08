@@ -14,6 +14,7 @@ Preferred communication style: Simple, everyday language.
 - **State Management**: TanStack Query (React Query).
 - **UI Components**: shadcn/ui built on Radix UI, styled with Tailwind CSS.
 - **UI/UX Decisions**: Odoo ERP-inspired design with a clean, business-friendly aesthetic, including sidebar navigation, card-based layouts, muted purple accents, professional favicon, adaptive column resizing, color-coded quantity logic, and responsive design. Design system includes glassmorphism effects, animated gradient backgrounds, and floating ambient orbs.
+- **Product Category Constants**: Shared `client/src/lib/productCategories.ts` module exports `ALLOWED_CATEGORIES` (11 curated categories), `CATEGORY_TYPE_KEYWORDS` (keyword-based type filtering), and helper functions. Used consistently across Quote Calculator, Product Mapping, Product Pricing Management, and Price List pages.
 
 ### Backend
 - **Runtime**: Node.js with Express.js (TypeScript, ESM modules).

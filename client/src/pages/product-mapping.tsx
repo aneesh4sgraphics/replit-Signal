@@ -28,6 +28,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
+import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS } from '@/lib/productCategories';
 
 interface Product {
   id: number;
@@ -349,25 +350,11 @@ export default function ProductMapping() {
     setAddProductDialogOpen(true);
   };
 
-  // Use database categories but filter to show only the 11 allowed
-  const ALLOWED_CATEGORY_NAMES = [
-    'Graffiti Polyester Paper',
-    'Graffiti Blended Poly',
-    'Graffiti SOFT Poly',
-    'GraffitiSTICK',
-    'Solvit Sign & Display Media',
-    'CLiQ Aqueous Media',
-    'Rang Print Canvas',
-    'EiE Inkjet Film',
-    'eLe Laser Films',
-    'MXP Offset Plates',
-    'Rollers & Chemicals',
-  ];
-
+  // Use database categories but filter to show only the 11 allowed (from shared constants)
   const allCategories = data?.categories || [];
   const categories = allCategories
     .filter(c => 
-      ALLOWED_CATEGORY_NAMES.some(allowed => 
+      ALLOWED_CATEGORIES.some(allowed => 
         c.name.toLowerCase() === allowed.toLowerCase() ||
         c.name.toLowerCase().includes(allowed.toLowerCase()) || 
         allowed.toLowerCase().includes(c.name.toLowerCase())
@@ -377,21 +364,6 @@ export default function ProductMapping() {
   const types = data?.types || [];
   const products = data?.products || [];
   const counts = data?.counts || { all: 0, unmapped: 0, noSize: 0, noSqm: 0, incomplete: 0 };
-
-  // Category to product type keyword mapping
-  const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
-    'Graffiti Polyester Paper': ['graffiti polyester', 'graffiti polyester film'],
-    'Graffiti Blended Poly': ['graffiti blended poly'],
-    'Graffiti SOFT Poly': ['graffiti soft poly', 'soft poly'],
-    'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick'],
-    'Solvit Sign & Display Media': ['solvit'],
-    'CLiQ Aqueous Media': ['cliq'],
-    'Rang Print Canvas': ['rang'],
-    'EiE Inkjet Film': ['eie'],
-    'eLe Laser Films': ['ele laser', 'ele polyester laser'],
-    'MXP Offset Plates': ['mxp', 'laser plate'],
-    'Rollers & Chemicals': ['roller', 'chemical'],
-  };
 
   const getTypesForCategoryKeywords = (categoryId: number): ProductType[] => {
     const category = categories.find(c => c.id === categoryId);

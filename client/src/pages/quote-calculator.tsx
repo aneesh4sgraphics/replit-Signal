@@ -23,6 +23,7 @@ import { EmptyState, getErrorType, getErrorMessage, getErrorDetails } from "@/co
 import { ApiError } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useEmailComposer } from "@/components/email-composer";
+import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
 
 interface ProductData {
   id: number;
@@ -346,53 +347,14 @@ export default function QuoteCalculator() {
     (issue.objectionType === 'price' || issue.objectionType === 'compatibility')
   ) || [];
 
-  // Allowed Product Categories (curated list) - always show all 10
-  const categories = [
-    'Graffiti Polyester Paper',
-    'Graffiti Blended Poly',
-    'Graffiti SOFT Poly',
-    'GraffitiSTICK',
-    'Solvit Sign & Display Media',
-    'CLiQ Aqueous Media',
-    'Rang Print Canvas',
-    'EiE Inkjet Film',
-    'eLe Laser Films',
-    'MXP Offset Plates',
-    'Rollers & Chemicals',
-  ];
+  // Use shared category constants
+  const categories = [...ALLOWED_CATEGORIES];
 
-  // Category to product type keyword mapping - defines what product types belong to each category
-  const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
-    'Graffiti Polyester Paper': ['graffiti polyester', 'graffiti polyester film'],
-    'Graffiti Blended Poly': ['graffiti blended poly'],
-    'Graffiti SOFT Poly': ['graffiti soft poly', 'soft poly'],
-    'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick'],
-    'Solvit Sign & Display Media': ['solvit'],
-    'CLiQ Aqueous Media': ['cliq'],
-    'Rang Print Canvas': ['rang'],
-    'EiE Inkjet Film': ['eie'],
-    'eLe Laser Films': ['ele laser', 'ele polyester laser'],
-    'MXP Offset Plates': ['mxp', 'laser plate'],
-    'Rollers & Chemicals': ['roller', 'chemical'],
-  };
-
-  // Get product types for selected category - use explicit keyword matching
+  // Get product types for selected category using shared helper
   const productTypes = (() => {
     if (!selectedCategory) return [];
-    
-    const categoryKeywords = CATEGORY_TYPE_KEYWORDS[selectedCategory];
-    if (!categoryKeywords) return [];
-    
-    // Get all unique product types from the data
     const allTypes = Array.from(new Set(productData.map(item => item.productType).filter(Boolean)));
-    
-    // Filter types that start with any of the category keywords
-    const matchingTypes = allTypes.filter(type => {
-      const typeLower = type.toLowerCase();
-      return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
-    });
-    
-    return matchingTypes.sort();
+    return getTypesForCategory(selectedCategory, allTypes);
   })();
 
   // Get sizes for selected type with sorting

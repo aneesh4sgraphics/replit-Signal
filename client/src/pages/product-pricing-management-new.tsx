@@ -8,10 +8,12 @@ import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Switch } from "@/components/ui/switch";
 import { Label } from "@/components/ui/label";
 import { Input } from "@/components/ui/input";
-import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle, Trash2, History, RotateCcw, Clock, Package, Edit2, Save, X, Search, Layers, Copy } from "lucide-react";
+import { Database, Upload, Download, RefreshCw, FileSpreadsheet, CheckCircle, AlertCircle, AlertTriangle, Trash2, History, RotateCcw, Clock, Package, Edit2, Save, X, Search, Layers, Copy, Filter } from "lucide-react";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
+import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
 import { HeaderDivider, SimpleCardFrame, FloatingElements, IconBadge, SectionDivider } from "@/components/NotionLineArt";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -221,6 +223,8 @@ export default function ProductPricingManagementNew() {
   const [selectedBatch, setSelectedBatch] = useState<UploadBatch | null>(null);
   const [showBatchDetails, setShowBatchDetails] = useState(false);
   const [searchTerm, setSearchTerm] = useState("");
+  const [selectedCategory, setSelectedCategory] = useState("");
+  const [selectedProductType, setSelectedProductType] = useState("");
   const [editingId, setEditingId] = useState<number | null>(null);
   const [editValues, setEditValues] = useState<Record<string, string>>({});
   const [showBulkEditDialog, setShowBulkEditDialog] = useState(false);
@@ -350,14 +354,44 @@ export default function ProductPricingManagementNew() {
     },
   });
 
-  // Filter products by search term
-  const filteredPricingData = pricingData.filter(item => 
-    searchTerm === "" ||
-    item.itemCode.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.productName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.productType.toLowerCase().includes(searchTerm.toLowerCase()) ||
-    item.size.toLowerCase().includes(searchTerm.toLowerCase())
-  );
+  // Get unique product types from pricing data
+  const allProductTypes = Array.from(new Set(pricingData.map(item => item.productType).filter(Boolean)));
+  
+  // Get product types for selected category using shared helper
+  const categoryProductTypes = (selectedCategory && selectedCategory !== "all")
+    ? getTypesForCategory(selectedCategory, allProductTypes)
+    : allProductTypes;
+
+  // Filter products by category, product type, and search term
+  const filteredPricingData = pricingData.filter(item => {
+    // Category filter - check if product type matches category keywords
+    if (selectedCategory && selectedCategory !== "all") {
+      const categoryKeywords = CATEGORY_TYPE_KEYWORDS[selectedCategory];
+      if (categoryKeywords) {
+        const typeLower = item.productType.toLowerCase();
+        const matchesCategory = categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
+        if (!matchesCategory) return false;
+      }
+    }
+    
+    // Product type filter
+    if (selectedProductType && selectedProductType !== "all" && item.productType !== selectedProductType) return false;
+    
+    // Search term filter
+    if (searchTerm !== "") {
+      const searchLower = searchTerm.toLowerCase();
+      if (
+        !item.itemCode.toLowerCase().includes(searchLower) &&
+        !item.productName.toLowerCase().includes(searchLower) &&
+        !item.productType.toLowerCase().includes(searchLower) &&
+        !item.size.toLowerCase().includes(searchLower)
+      ) {
+        return false;
+      }
+    }
+    
+    return true;
+  });
 
   // Toggle product selection
   const toggleProductSelection = (productId: number) => {
@@ -826,9 +860,36 @@ export default function ProductPricingManagementNew() {
               <h2 className="text-base font-medium text-gray-800 flex items-center gap-2">
                 <IconBadge icon={Database} label="Product Pricing" className="px-0 py-0 bg-transparent border-none text-base font-medium text-gray-800" />
               </h2>
-              <p className="text-xs text-gray-500">{pricingData.length} products in database</p>
+              <p className="text-xs text-gray-500">{filteredPricingData.length} of {pricingData.length} products</p>
             </div>
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2 flex-wrap">
+              <Select value={selectedCategory} onValueChange={(val) => { setSelectedCategory(val); setSelectedProductType(""); }}>
+                <SelectTrigger className="h-8 text-xs w-44" data-testid="select-category">
+                  <Filter className="h-3 w-3 mr-1 text-gray-400" />
+                  <SelectValue placeholder="All Categories" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Categories</SelectItem>
+                  {ALLOWED_CATEGORIES.map(cat => (
+                    <SelectItem key={cat} value={cat}>{cat}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+              <Select 
+                value={selectedProductType} 
+                onValueChange={setSelectedProductType}
+                disabled={!selectedCategory || selectedCategory === "all" || categoryProductTypes.length === 0}
+              >
+                <SelectTrigger className="h-8 text-xs w-48" data-testid="select-product-type">
+                  <SelectValue placeholder="All Product Types" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="all">All Product Types</SelectItem>
+                  {categoryProductTypes.sort().map(type => (
+                    <SelectItem key={type} value={type}>{type}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
               <div className="relative">
                 <Search className="absolute left-2 top-1/2 transform -translate-y-1/2 h-3 w-3 text-gray-400" />
                 <Input
@@ -836,10 +897,21 @@ export default function ProductPricingManagementNew() {
                   placeholder="Search products..."
                   value={searchTerm}
                   onChange={(e) => setSearchTerm(e.target.value)}
-                  className="pl-7 h-8 text-xs w-64"
+                  className="pl-7 h-8 text-xs w-48"
                   data-testid="input-search-products"
                 />
               </div>
+              {((selectedCategory && selectedCategory !== "all") || (selectedProductType && selectedProductType !== "all") || searchTerm) && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => { setSelectedCategory(""); setSelectedProductType(""); setSearchTerm(""); }}
+                  className="h-8 text-xs text-gray-500 hover:text-gray-700"
+                  data-testid="button-clear-filters"
+                >
+                  Clear Filters
+                </Button>
+              )}
               {canBulkEdit && (
                 <Button
                   onClick={startBulkEditing}
