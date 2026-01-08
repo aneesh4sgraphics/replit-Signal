@@ -181,7 +181,8 @@ export default function ProductMapping() {
     },
   });
 
-  const ALLOWED_CATEGORIES = [
+  // Use database categories but filter to show only the 10 allowed
+  const ALLOWED_CATEGORY_NAMES = [
     'Graffiti Polyester Paper',
     'Graffiti Blended Poly',
     'GraffitiSTICK',
@@ -196,7 +197,8 @@ export default function ProductMapping() {
 
   const allCategories = data?.categories || [];
   const categories = allCategories.filter(c => 
-    ALLOWED_CATEGORIES.some(allowed => 
+    ALLOWED_CATEGORY_NAMES.some(allowed => 
+      c.name.toLowerCase() === allowed.toLowerCase() ||
       c.name.toLowerCase().includes(allowed.toLowerCase()) || 
       allowed.toLowerCase().includes(c.name.toLowerCase())
     )

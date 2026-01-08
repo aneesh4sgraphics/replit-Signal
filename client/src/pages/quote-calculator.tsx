@@ -346,8 +346,8 @@ export default function QuoteCalculator() {
     (issue.objectionType === 'price' || issue.objectionType === 'compatibility')
   ) || [];
 
-  // Allowed Product Categories (curated list)
-  const ALLOWED_CATEGORIES = [
+  // Allowed Product Categories (curated list) - always show all 10
+  const categories = [
     'Graffiti Polyester Paper',
     'Graffiti Blended Poly',
     'GraffitiSTICK',
@@ -359,15 +359,6 @@ export default function QuoteCalculator() {
     'MXP Offset Plates',
     'Rollers & Chemicals',
   ];
-
-  // Get unique categories - filter to only allowed ones
-  const allCategories = Array.from(new Set(productData.map(item => item.productName).filter(Boolean)));
-  const categories = ALLOWED_CATEGORIES.filter(allowed => 
-    allCategories.some(cat => 
-      cat.toLowerCase().includes(allowed.toLowerCase()) || 
-      allowed.toLowerCase().includes(cat.toLowerCase())
-    )
-  );
 
   // Helper to extract keywords from a category name
   const extractCategoryKeywords = (text: string): string[] => {

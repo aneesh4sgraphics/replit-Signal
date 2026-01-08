@@ -450,8 +450,8 @@ export default function PriceList() {
     refetchOnWindowFocus: true, // Refetch when window regains focus
   });
 
-  // Allowed Product Categories (curated list)
-  const ALLOWED_CATEGORIES = [
+  // Allowed Product Categories (curated list) - always show all 10
+  const categories = [
     'Graffiti Polyester Paper',
     'Graffiti Blended Poly',
     'GraffitiSTICK',
@@ -463,24 +463,6 @@ export default function PriceList() {
     'MXP Offset Plates',
     'Rollers & Chemicals',
   ];
-
-  // Get unique categories - memoize to prevent re-renders and filter to allowed list
-  const categories = useMemo(() => {
-    if (!productData || productData.length === 0) return [];
-    // Get all category names from data
-    const categoryNames = productData
-      .map(item => item.productName || item.product_name || '')
-      .filter(name => name && name.trim().length > 0);
-    const allCategories = Array.from(new Set(categoryNames));
-    
-    // Filter to only allowed categories
-    return ALLOWED_CATEGORIES.filter(allowed => 
-      allCategories.some(cat => 
-        cat.toLowerCase().includes(allowed.toLowerCase()) || 
-        allowed.toLowerCase().includes(cat.toLowerCase())
-      )
-    );
-  }, [productData]);
 
   // Handle product reordering
   const handleProductReorder = (reorderedItems: any[]) => {
