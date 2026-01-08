@@ -9303,6 +9303,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Odoo stats for a customer (for the Odoo-style stat bar)
+  app.get("/api/odoo/customer/:customerId/stats", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json({
+          sales: 0,
+          salesCount: 0,
+          invoiced: 0,
+          invoicedCount: 0,
+          due: 0,
+          dueCount: 0,
+          quotesCount: 0,
+          quotesTotal: 0,
+          connected: false,
+        });
+      }
+      
+      const partnerId = customer[0].odooPartnerId;
+      
+      // Fetch data in parallel
+      const [quotes, orders, invoices] = await Promise.all([
+        odooClient.getQuotesByPartner(partnerId).catch(() => []),
+        odooClient.getSaleOrdersByPartner(partnerId).catch(() => []),
+        odooClient.getInvoicesByPartner(partnerId).catch(() => []),
+      ]);
+      
+      // Calculate sales (confirmed orders)
+      const salesTotal = orders.reduce((sum: number, o: any) => sum + (parseFloat(o.amount_total) || 0), 0);
+      
+      // Calculate invoiced (paid invoices)
+      const paidInvoices = invoices.filter((inv: any) => inv.payment_state === 'paid' || inv.payment_state === 'in_payment');
+      const invoicedTotal = paidInvoices.reduce((sum: number, inv: any) => sum + (parseFloat(inv.amount_total) || 0), 0);
+      
+      // Calculate due (unpaid invoices)
+      const dueInvoices = invoices.filter((inv: any) => 
+        inv.state === 'posted' && 
+        (inv.payment_state === 'not_paid' || inv.payment_state === 'partial')
+      );
+      const dueTotal = dueInvoices.reduce((sum: number, inv: any) => sum + (parseFloat(inv.amount_residual) || 0), 0);
+      
+      // Quotes total
+      const quotesTotal = quotes.reduce((sum: number, q: any) => sum + (parseFloat(q.amount_total) || 0), 0);
+      
+      res.json({
+        sales: salesTotal,
+        salesCount: orders.length,
+        invoiced: invoicedTotal,
+        invoicedCount: paidInvoices.length,
+        due: dueTotal,
+        dueCount: dueInvoices.length,
+        quotesCount: quotes.length,
+        quotesTotal: quotesTotal,
+        connected: true,
+      });
+    } catch (error: any) {
+      console.error("Error fetching Odoo stats for customer:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch stats from Odoo" });
+    }
+  });
+
   // Get Odoo sync status - check if any Odoo-linked customers exist
   app.get("/api/odoo/sync-status", requireApproval, async (req: any, res) => {
     try {

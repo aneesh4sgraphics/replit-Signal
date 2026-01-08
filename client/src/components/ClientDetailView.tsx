@@ -287,7 +287,6 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'press-profiles',
   });
 
   const { data: sampleRequests = [], refetch: refetchSamples } = useQuery<SampleRequest[]>({
@@ -297,7 +296,6 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'samples',
   });
 
   const { data: swatchShipments = [] } = useQuery<SwatchBookShipment[]>({
@@ -307,7 +305,6 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'swatch-book',
   });
 
   const { data: productCategories = [] } = useQuery<ProductCategory[]>({
@@ -347,7 +344,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'quotes-prices' && !!(customer.email || customer.company),
+    enabled: !!(customer.email || customer.company),
   });
 
   // Fetch journey instances (Press Test, Swatch Book, Quote Sent journeys)
@@ -403,6 +400,28 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     enabled: activeTab === 'orders' && !!(customer as any).odooPartnerId,
   });
 
+  // Fetch Odoo stats for this customer (for the Odoo-style stat bar)
+  const { data: odooStats } = useQuery<{
+    sales: number;
+    salesCount: number;
+    invoiced: number;
+    invoicedCount: number;
+    due: number;
+    dueCount: number;
+    quotesCount: number;
+    quotesTotal: number;
+    connected: boolean;
+  }>({
+    queryKey: ['/api/odoo/customer', customer.id, 'stats'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/customer/${customer.id}/stats`);
+      if (!res.ok) return { sales: 0, salesCount: 0, invoiced: 0, invoicedCount: 0, due: 0, dueCount: 0, quotesCount: 0, quotesTotal: 0, connected: false };
+      return res.json();
+    },
+    enabled: !!(customer as any).odooPartnerId,
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
   // Fetch Odoo quotes for this customer
   const { data: odooQuotes = [] } = useQuery<any[]>({
     queryKey: ['/api/odoo/customer', customer.id, 'quotes'],
@@ -422,7 +441,6 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: activeTab === 'emails',
   });
 
   // Fetch drip campaigns for assignment
@@ -1066,24 +1084,107 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
         </div>
       </div>
 
-      {/* Compact Overview Bar */}
-      <div className="grid grid-cols-4 gap-3 bg-gray-50 rounded-lg p-3">
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">${parseFloat(customer.totalSpent || '0').toLocaleString()}</p>
-          <p className="text-xs text-gray-500">Total Spent</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">{customer.totalOrders || 0}</p>
-          <p className="text-xs text-gray-500">Orders</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">{sentQuotes.length}</p>
-          <p className="text-xs text-gray-500">Quotes Sent</p>
-        </div>
-        <div className="text-center">
-          <p className="text-2xl font-bold text-gray-900">{sampleRequests.filter(s => s.status === 'shipped' || s.status === 'delivered').length}</p>
-          <p className="text-xs text-gray-500">Samples Sent</p>
-        </div>
+      {/* Odoo-Style Stat Bar */}
+      <div className="flex items-center gap-1 bg-gray-50 rounded-lg p-2 overflow-x-auto">
+        {/* Quotes */}
+        <button 
+          onClick={() => setActiveTab('quotes-prices')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <FileText className="h-4 w-4" />
+            <span className="text-xs font-medium">Quotes</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{sentQuotes.length + (odooStats?.quotesCount || 0)}</span>
+        </button>
+        
+        {/* Sales (Odoo) */}
+        <button 
+          onClick={() => setActiveTab('orders')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <ShoppingCart className="h-4 w-4" />
+            <span className="text-xs font-medium">Sales</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{odooStats?.salesCount || customer.totalOrders || 0}</span>
+        </button>
+        
+        {/* Invoiced (Odoo) */}
+        <button 
+          onClick={() => setActiveTab('orders')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-green-600">
+            <Receipt className="h-4 w-4" />
+            <span className="text-xs font-medium">Invoiced</span>
+          </div>
+          <span className="text-sm font-bold text-green-700">
+            ${((odooStats?.invoiced || 0) / 1000).toFixed(1)}k
+          </span>
+        </button>
+        
+        {/* Due (Odoo) */}
+        <button 
+          onClick={() => setActiveTab('orders')}
+          className={`flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200 ${(odooStats?.due || 0) > 0 ? 'bg-amber-50' : ''}`}
+        >
+          <div className={`flex items-center gap-1.5 ${(odooStats?.due || 0) > 0 ? 'text-amber-600' : 'text-gray-600'}`}>
+            <Clock className="h-4 w-4" />
+            <span className="text-xs font-medium">Due</span>
+          </div>
+          <span className={`text-sm font-bold ${(odooStats?.due || 0) > 0 ? 'text-amber-700' : 'text-gray-900'}`}>
+            ${((odooStats?.due || 0) / 1000).toFixed(1)}k
+          </span>
+        </button>
+        
+        {/* Emails */}
+        <button 
+          onClick={() => setActiveTab('emails')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <Mail className="h-4 w-4" />
+            <span className="text-xs font-medium">Emails</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{emailSends.length}</span>
+        </button>
+        
+        {/* Samples */}
+        <button 
+          onClick={() => setActiveTab('samples')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <FlaskConical className="h-4 w-4" />
+            <span className="text-xs font-medium">Samples</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{sampleRequests.length}</span>
+        </button>
+        
+        {/* Swatch */}
+        <button 
+          onClick={() => setActiveTab('swatch-book')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <Palette className="h-4 w-4" />
+            <span className="text-xs font-medium">Swatch</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{swatchShipments.length}</span>
+        </button>
+        
+        {/* Press Profiles */}
+        <button 
+          onClick={() => setActiveTab('press-profiles')}
+          className="flex flex-col items-center px-3 py-2 rounded hover:bg-gray-100 transition-colors min-w-[80px] border border-transparent hover:border-gray-200"
+        >
+          <div className="flex items-center gap-1.5 text-gray-600">
+            <Printer className="h-4 w-4" />
+            <span className="text-xs font-medium">Press</span>
+          </div>
+          <span className="text-sm font-bold text-gray-900">{pressProfiles.length}</span>
+        </button>
       </div>
 
       {/* Customer Coach Panel - Moved Up */}
