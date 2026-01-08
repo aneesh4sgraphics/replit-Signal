@@ -10570,8 +10570,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { minScore = 0.7 } = req.body;
       
       // Get Odoo products
-      const odooClient = await import('./odoo.js');
-      const odooProducts = await odooClient.searchOdooProducts('', 500);
+      const { odooClient } = await import('./odoo.js');
+      const odooProducts = await odooClient.getProducts({ limit: 500 });
       
       if (!odooProducts || odooProducts.length === 0) {
         return res.json({ success: true, generated: 0, message: "No Odoo products found" });
