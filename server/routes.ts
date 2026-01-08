@@ -55,7 +55,7 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
-import { eq, sql, and, desc, ilike, gte } from "drizzle-orm";
+import { eq, sql, and, or, desc, ilike, gte, isNull } from "drizzle-orm";
 import { 
   customers,
   customerContacts, 
@@ -10260,7 +10260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const filter = (req.query.filter as string) || 'all';
       const search = (req.query.search as string || '').toLowerCase();
       
-      // Get all products with their category/type info
+      // Get all products with their category/type info (excluding archived)
       const allProducts = await db.select({
         id: productPricingMaster.id,
         itemCode: productPricingMaster.itemCode,
@@ -10277,6 +10277,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         retailPrice: productPricingMaster.retailPrice,
         updatedAt: productPricingMaster.updatedAt,
       }).from(productPricingMaster)
+        .where(or(eq(productPricingMaster.isArchived, false), isNull(productPricingMaster.isArchived)))
         .orderBy(productPricingMaster.productName);
       
       // Get categories and types for reference
