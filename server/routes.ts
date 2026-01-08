@@ -1435,6 +1435,74 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Delete a product type
+  app.delete("/api/product-types/:typeId", requireAdmin, async (req: any, res) => {
+    try {
+      const typeId = parseInt(req.params.typeId);
+      if (isNaN(typeId)) {
+        return res.status(400).json({ error: "Invalid type ID" });
+      }
+      
+      // Check if any products are using this type
+      const productsUsingType = await db.select({ id: productPricingMaster.id })
+        .from(productPricingMaster)
+        .where(eq(productPricingMaster.catalogProductTypeId, typeId))
+        .limit(1);
+      
+      if (productsUsingType.length > 0) {
+        return res.status(400).json({ 
+          error: "Cannot delete type that has products assigned. Merge or reassign products first." 
+        });
+      }
+      
+      await db.delete(productTypes).where(eq(productTypes.id, typeId));
+      setCachedData("product-types", null);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting type:", error);
+      res.status(500).json({ error: error.message || "Failed to delete type" });
+    }
+  });
+
+  // Merge product types (move all products from source to target, then delete source)
+  app.post("/api/product-types/merge", requireAdmin, async (req: any, res) => {
+    try {
+      const { sourceTypeId, targetTypeId } = req.body;
+      
+      if (!sourceTypeId || !targetTypeId) {
+        return res.status(400).json({ error: "Source and target type IDs are required" });
+      }
+      
+      if (sourceTypeId === targetTypeId) {
+        return res.status(400).json({ error: "Source and target cannot be the same" });
+      }
+      
+      // Get target type to verify it exists and get its category
+      const [targetType] = await db.select().from(productTypes).where(eq(productTypes.id, targetTypeId));
+      if (!targetType) {
+        return res.status(404).json({ error: "Target type not found" });
+      }
+      
+      // Update all products from source type to target type
+      const updateResult = await db.update(productPricingMaster)
+        .set({ 
+          catalogProductTypeId: targetTypeId,
+          catalogCategoryId: targetType.categoryId,
+          updatedAt: new Date()
+        })
+        .where(eq(productPricingMaster.catalogProductTypeId, sourceTypeId));
+      
+      // Delete the source type
+      await db.delete(productTypes).where(eq(productTypes.id, sourceTypeId));
+      
+      setCachedData("product-types", null);
+      res.json({ success: true, message: "Types merged successfully" });
+    } catch (error: any) {
+      console.error("Error merging types:", error);
+      res.status(500).json({ error: error.message || "Failed to merge types" });
+    }
+  });
+
   // Get product types by category
   app.get("/api/product-types/:categoryId", async (req, res) => {
     try {

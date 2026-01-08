@@ -14,7 +14,7 @@ import { queryClient, apiRequest } from '@/lib/queryClient';
 import { ScrollArea } from '@/components/ui/scroll-area';
 import { 
   ArrowLeft, Search, RefreshCw, Download, CheckCircle2, 
-  Edit2, Package, Layers, Save, X, AlertCircle, Plus, Trash2, Ban
+  Edit2, Package, Layers, Save, X, AlertCircle, Plus, Trash2, Ban, Merge
 } from 'lucide-react';
 import {
   AlertDialog,
@@ -96,6 +96,11 @@ export default function ProductMapping() {
   
   // Confirm dialogs
   const [showImportConfirm, setShowImportConfirm] = useState(false);
+  
+  // Type management dialogs
+  const [typeToDelete, setTypeToDelete] = useState<ProductType | null>(null);
+  const [typeToMerge, setTypeToMerge] = useState<ProductType | null>(null);
+  const [mergeTargetId, setMergeTargetId] = useState<string>('');
 
   // Fetch unmapped products
   const { data: unmappedData, isLoading: loadingProducts, refetch: refetchProducts } = useQuery<UnmappedResponse>({
@@ -231,6 +236,39 @@ export default function ProductMapping() {
     },
     onError: (error: Error) => {
       toast({ variant: 'destructive', title: 'Failed to add type', description: error.message });
+    },
+  });
+
+  const deleteType = useMutation({
+    mutationFn: async (typeId: number) => {
+      const res = await apiRequest('DELETE', `/api/product-types/${typeId}`);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Type deleted' });
+      refetchTypes();
+      refetchProducts();
+      setTypeToDelete(null);
+    },
+    onError: (error: Error) => {
+      toast({ variant: 'destructive', title: 'Failed to delete type', description: error.message });
+    },
+  });
+
+  const mergeTypes = useMutation({
+    mutationFn: async (data: { sourceTypeId: number; targetTypeId: number }) => {
+      const res = await apiRequest('POST', '/api/product-types/merge', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Types merged successfully' });
+      refetchTypes();
+      refetchProducts();
+      setTypeToMerge(null);
+      setMergeTargetId('');
+    },
+    onError: (error: Error) => {
+      toast({ variant: 'destructive', title: 'Failed to merge types', description: error.message });
     },
   });
 
@@ -655,11 +693,32 @@ export default function ProductMapping() {
                             className="flex items-center justify-between p-3 border rounded-lg"
                             data-testid={`type-row-${type.id}`}
                           >
-                            <div>
+                            <div className="flex-1">
                               <div className="font-medium">{type.name}</div>
                               <div className="text-sm text-muted-foreground">
                                 {category?.name || 'Unknown'} • {productCount} products
                               </div>
+                            </div>
+                            <div className="flex gap-1">
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setTypeToMerge(type)}
+                                title="Merge into another type"
+                                data-testid={`button-merge-type-${type.id}`}
+                              >
+                                <Merge className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                size="sm"
+                                variant="ghost"
+                                onClick={() => setTypeToDelete(type)}
+                                className="text-destructive hover:text-destructive"
+                                title="Delete type"
+                                data-testid={`button-delete-type-${type.id}`}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
                             </div>
                           </div>
                         );
@@ -930,6 +989,85 @@ export default function ProductMapping() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {/* Delete Type Confirmation */}
+      <AlertDialog open={!!typeToDelete} onOpenChange={() => setTypeToDelete(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Product Type?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {typeToDelete && (
+                <>
+                  Are you sure you want to delete "{typeToDelete.name}"? 
+                  This can only be done if no products are assigned to this type.
+                </>
+              )}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => typeToDelete && deleteType.mutate(typeToDelete.id)}
+              disabled={deleteType.isPending}
+              className="bg-destructive hover:bg-destructive/90"
+            >
+              {deleteType.isPending ? 'Deleting...' : 'Delete Type'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {/* Merge Type Dialog */}
+      <Dialog open={!!typeToMerge} onOpenChange={() => { setTypeToMerge(null); setMergeTargetId(''); }}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Merge Product Type</DialogTitle>
+            <DialogDescription>
+              {typeToMerge && (
+                <>
+                  Move all products from "{typeToMerge.name}" to another type, then delete the source type.
+                </>
+              )}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-2">
+              <Label>Merge into:</Label>
+              <Select value={mergeTargetId} onValueChange={setMergeTargetId}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select target type" />
+                </SelectTrigger>
+                <SelectContent>
+                  {types
+                    .filter(t => t.id !== typeToMerge?.id)
+                    .map((type) => {
+                      const cat = categories.find(c => c.id === type.categoryId);
+                      return (
+                        <SelectItem key={type.id} value={type.id.toString()}>
+                          {type.name} ({cat?.name})
+                        </SelectItem>
+                      );
+                    })}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => { setTypeToMerge(null); setMergeTargetId(''); }}>
+              Cancel
+            </Button>
+            <Button
+              onClick={() => typeToMerge && mergeTargetId && mergeTypes.mutate({
+                sourceTypeId: typeToMerge.id,
+                targetTypeId: parseInt(mergeTargetId)
+              })}
+              disabled={!mergeTargetId || mergeTypes.isPending}
+            >
+              {mergeTypes.isPending ? 'Merging...' : 'Merge & Delete'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
