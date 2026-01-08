@@ -1227,7 +1227,7 @@ export default function ProductMapping() {
                 <SelectTrigger data-testid="select-type">
                   <SelectValue placeholder="Select type..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
                   {filteredTypesForEdit.map(type => (
                     <SelectItem key={type.id} value={type.id.toString()}>
                       {type.name}
@@ -1367,7 +1367,7 @@ export default function ProductMapping() {
                 <SelectTrigger data-testid="bulk-select-type">
                   <SelectValue placeholder="Keep current values..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="max-h-[300px] overflow-y-auto">
                   {(editForm.categoryId ? filteredTypesForEdit : types).map(type => (
                     <SelectItem key={type.id} value={type.id.toString()}>
                       {editForm.categoryId ? type.name : `${categories.find(c => c.id === type.categoryId)?.name} → ${type.name}`}
