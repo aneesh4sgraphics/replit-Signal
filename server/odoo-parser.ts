@@ -8,20 +8,27 @@ interface ParsedOdooRow {
   phone: string;
   email: string;
   salesperson: string;
+  street: string;
+  street2: string;
   city: string;
+  state: string;
   country: string;
   zip: string;
 }
 
 function parseOdooRow(row: any): ParsedOdooRow | null {
-  // Extract fields from row object
+  // Extract fields from row object - match Odoo Excel export column names exactly
   const completeName = row['Complete Name']?.toString().trim() || '';
-  const phone = row['Phone']?.toString().trim() || '';
+  const phone = row['Phone']?.toString().trim() || row['Mobile']?.toString().trim() || '';
   const email = row['Email']?.toString().trim() || '';
   const salesperson = row['Salesperson']?.toString().trim() || '';
+  // Address fields - try multiple Odoo column name variations
+  const street = row['Street']?.toString().trim() || row['Address']?.toString().trim() || row['Street and Number']?.toString().trim() || '';
+  const street2 = row['Street2']?.toString().trim() || row['Street 2']?.toString().trim() || '';
   const city = row['City']?.toString().trim() || '';
+  const state = row['State']?.toString().trim() || row['State/Province']?.toString().trim() || row['Province']?.toString().trim() || '';
   const country = row['Country']?.toString().trim() || '';
-  const zip = row['Zip']?.toString().trim() || '';
+  const zip = row['Zip']?.toString().trim() || row['ZIP']?.toString().trim() || row['Postal Code']?.toString().trim() || '';
 
   if (!completeName && !email && !phone) {
     console.log('Skipping row with no identifiable information');
@@ -33,7 +40,10 @@ function parseOdooRow(row: any): ParsedOdooRow | null {
     phone,
     email,
     salesperson,
+    street,
+    street2,
     city,
+    state,
     country,
     zip
   };
@@ -146,10 +156,10 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
           email: parsedOdoo.email,
           acceptsEmailMarketing: false,
           company,
-          address1: '',
-          address2: '',
+          address1: parsedOdoo.street || '',
+          address2: parsedOdoo.street2 || '',
           city: parsedOdoo.city,
-          province: '',
+          province: parsedOdoo.state || '',
           country: parsedOdoo.country,
           zip: parsedOdoo.zip,
           phone: parsedOdoo.phone,

@@ -599,6 +599,19 @@ export default function OdooSettingsPage() {
         </div>
       </div>
 
+      {/* Weekly Sync Reminder Banner */}
+      <div className="bg-amber-50 dark:bg-amber-950 border border-amber-200 dark:border-amber-800 rounded-lg p-4 flex items-center gap-3">
+        <Clock className="h-5 w-5 text-amber-600 flex-shrink-0" />
+        <div>
+          <p className="font-medium text-amber-800 dark:text-amber-200">
+            Reminder: Sync with Odoo Weekly
+          </p>
+          <p className="text-sm text-amber-700 dark:text-amber-300">
+            To keep customer data current, import partners from Odoo at least once a week. This ensures addresses, contacts, and other information stay up-to-date with Odoo.
+          </p>
+        </div>
+      </div>
+
       <Card>
         <CardHeader>
           <CardTitle className="flex items-center gap-2">

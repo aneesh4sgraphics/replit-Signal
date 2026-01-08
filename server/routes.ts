@@ -9380,25 +9380,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contactType = 'other';
           }
           
-          // Build full address from street and street2
-          let fullAddress = partner.street || '';
-          if (partner.street2) {
-            fullAddress = fullAddress ? `${fullAddress}, ${partner.street2}` : partner.street2;
-          }
-          
-          // Create customer record
+          // Create customer record - map Odoo address fields exactly
           const customerData = {
             id: crypto.randomUUID(),
             firstName,
             lastName,
             company,
             email: partner.email || null,
-            phone: partner.phone || null,
-            address: fullAddress || null,
+            phone: partner.phone || partner.mobile || null,
+            cell: partner.mobile || null,
+            address1: partner.street || null,
+            address2: partner.street2 || null,
             city: partner.city || null,
-            province: partner.state_id?.[1] || null, // Full state/province name
+            province: partner.state_id ? partner.state_id[1] : null, // Full state/province name from Odoo
             zip: partner.zip || null,
-            country: partner.country_id?.[1] || null,
+            country: partner.country_id ? partner.country_id[1] : null, // Full country name from Odoo
             notes: partner.comment || null,
             odooPartnerId: partner.id,
             odooParentId,
