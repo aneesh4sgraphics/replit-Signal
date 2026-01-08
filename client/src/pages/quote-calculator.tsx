@@ -360,47 +360,37 @@ export default function QuoteCalculator() {
     'Rollers & Chemicals',
   ];
 
-  // Helper to extract keywords from a category name
-  const extractCategoryKeywords = (text: string): string[] => {
-    const normalized = text
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/[_\-\/\\]/g, ' ')
-      .toLowerCase()
-      .trim();
-    const words = normalized.split(/\s+/).filter(w => w.length > 2);
-    const stopwords = ['the', 'and', 'for', 'with', 'paper', 'film', 'media', 'print'];
-    return words.filter(w => !stopwords.includes(w));
+  // Category to product type keyword mapping - defines what product types belong to each category
+  const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
+    'Graffiti Polyester Paper': ['graffiti polyester', 'graffiti polyester film'],
+    'Graffiti Blended Poly': ['graffiti blended poly', 'graffiti soft poly'],
+    'GraffitiSTICK': ['graffiti stick', 'graffiti slickstick', 'graffiti silverstick', 'graffitiSTICK'],
+    'Solvit Sign & Display Media': ['solvit'],
+    'CLiQ Aqueous Media': ['cliq'],
+    'Rang Print Canvas': ['rang'],
+    'EiE Inkjet Film': ['eie'],
+    'eLe Laser Films': ['ele'],
+    'MXP Offset Plates': ['mxp'],
+    'Rollers & Chemicals': ['roller', 'chemical'],
   };
 
-  // Get product types for selected category - use keyword matching
+  // Get product types for selected category - use explicit keyword matching
   const productTypes = (() => {
     if (!selectedCategory) return [];
     
-    const keywords = extractCategoryKeywords(selectedCategory);
+    const categoryKeywords = CATEGORY_TYPE_KEYWORDS[selectedCategory];
+    if (!categoryKeywords) return [];
     
     // Get all unique product types from the data
     const allTypes = Array.from(new Set(productData.map(item => item.productType).filter(Boolean)));
     
-    // Filter types that match ALL keywords from the category
+    // Filter types that start with any of the category keywords
     const matchingTypes = allTypes.filter(type => {
-      const typeKeywords = extractCategoryKeywords(type);
-      return keywords.every(kw => 
-        typeKeywords.some(tk => tk.includes(kw) || kw.includes(tk))
-      );
+      const typeLower = type.toLowerCase();
+      return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
     });
     
-    // If we found matches, use them; otherwise fall back to original behavior
-    if (matchingTypes.length > 0) {
-      return matchingTypes.sort();
-    }
-    
-    // Fallback: filter by productName match
-    return Array.from(new Set(
-      productData
-        .filter(item => item.productName === selectedCategory)
-        .map(item => item.productType)
-        .filter(Boolean)
-    )).sort();
+    return matchingTypes.sort();
   })();
 
   // Get sizes for selected type with sorting

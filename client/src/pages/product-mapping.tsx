@@ -207,29 +207,30 @@ export default function ProductMapping() {
   const products = data?.products || [];
   const counts = data?.counts || { all: 0, unmapped: 0, noSize: 0, noSqm: 0, incomplete: 0 };
 
-  const extractKeywords = (text: string): string[] => {
-    const normalized = text
-      .replace(/([a-z])([A-Z])/g, '$1 $2')
-      .replace(/[_\-\/\\]/g, ' ')
-      .toLowerCase()
-      .trim();
-    const words = normalized.split(/\s+/).filter(w => w.length > 2);
-    const stopwords = ['the', 'and', 'for', 'with', 'paper', 'film'];
-    return words.filter(w => !stopwords.includes(w));
+  // Category to product type keyword mapping
+  const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
+    'Graffiti Polyester Paper': ['graffiti polyester', 'graffiti polyester film'],
+    'Graffiti Blended Poly': ['graffiti blended poly', 'graffiti soft poly'],
+    'GraffitiSTICK': ['graffiti stick', 'graffiti slickstick', 'graffiti silverstick', 'graffitiSTICK'],
+    'Solvit Sign & Display Media': ['solvit'],
+    'CLiQ Aqueous Media': ['cliq'],
+    'Rang Print Canvas': ['rang'],
+    'EiE Inkjet Film': ['eie'],
+    'eLe Laser Films': ['ele'],
+    'MXP Offset Plates': ['mxp'],
+    'Rollers & Chemicals': ['roller', 'chemical'],
   };
 
   const getTypesForCategoryKeywords = (categoryId: number): ProductType[] => {
     const category = categories.find(c => c.id === categoryId);
     if (!category) return types.filter(t => t.categoryId === categoryId);
     
-    const keywords = extractKeywords(category.name);
-    if (keywords.length === 0) return types.filter(t => t.categoryId === categoryId);
+    const categoryKeywords = CATEGORY_TYPE_KEYWORDS[category.name];
+    if (!categoryKeywords) return types.filter(t => t.categoryId === categoryId);
     
     const matchingTypes = types.filter(t => {
-      const typeKeywords = extractKeywords(t.name);
-      return keywords.every(kw => 
-        typeKeywords.some(tk => tk.includes(kw) || kw.includes(tk))
-      );
+      const typeLower = t.name.toLowerCase();
+      return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
     });
     
     if (matchingTypes.length > 0) return matchingTypes;
