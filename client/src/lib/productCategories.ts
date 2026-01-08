@@ -28,10 +28,17 @@ export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
 // Defines what product types belong to each category based on name matching
 // Note: Uses includes() matching, not startsWith(), to catch variations like "Graffiti COOLStick"
 export const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
-  'Graffiti Polyester Paper': ['graffiti polyester'],
+  'Graffiti Polyester Paper': [
+    'graffiti polyester', 'pure polyester', 'polyester blockout', 
+    'auraboard', 'aura board', 'clear film', 'frosted film', 'backlit film',
+    'gold 8mil', 'gold 11mil', 'silver 8mil', 'silver 11mil', 
+    'rose 8mil', 'rose 11mil', 'mirror 8mil', 
+    'digital fabric', 'coho film', 'pp:', 'pp-pet-pp',
+    'thickness:', '8mil /', '11mil /', '14mil /'
+  ],
   'Graffiti Blended Poly': ['graffiti blended poly', 'blended poly'],
   'Graffiti SOFT Poly': ['graffiti soft poly', 'soft poly'],
-  'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick'],
+  'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick', 'magnetics'],
   'Solvit Sign & Display Media': ['solvit', 'banner', 'vinyl', 'polysign', 'one way vision', 'poster'],
   'CLiQ Aqueous Media': ['cliq', 'petbull', 'photo paper', 'inkjet matte'],
   'Rang Print Canvas': ['rang', 'canvas', 'cotton rag', 'hot press', 'cold press'],
