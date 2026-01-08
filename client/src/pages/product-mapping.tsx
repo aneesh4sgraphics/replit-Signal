@@ -301,13 +301,28 @@ export default function ProductMapping() {
     return '';
   };
 
-  // Calculate SqM from size
-  const calculateSqm = (size: string): string => {
-    const match = size.match(/(\d+)x(\d+)/);
+  // Calculate SqM from size based on packing type
+  // Sheets/Packet/Carton/Unit: both dimensions in inches (e.g., 13x19 = 13in x 19in)
+  // Roll: first dimension in inches, second in feet (e.g., 24x40 = 24in x 40ft)
+  const calculateSqm = (size: string, packingType: string): string => {
+    const match = size.match(/(\d+\.?\d*)x(\d+\.?\d*)/i);
     if (match) {
-      const width = parseInt(match[1]);
-      const height = parseInt(match[2]);
-      const sqm = ((width * height) / 144) * 0.0929; // Convert square inches to sqm
+      const dim1 = parseFloat(match[1]);
+      const dim2 = parseFloat(match[2]);
+      
+      let squareInches: number;
+      
+      if (packingType === 'Roll') {
+        // Roll: first is inches (width), second is feet (length)
+        // Convert feet to inches: dim2 * 12
+        squareInches = dim1 * (dim2 * 12);
+      } else {
+        // Sheets, Packet, Carton, Unit: both are inches
+        squareInches = dim1 * dim2;
+      }
+      
+      // Convert square inches to square meters: 1 sq inch = 0.00064516 sq meters
+      const sqm = squareInches * 0.00064516;
       return sqm.toFixed(4);
     }
     return '0';
@@ -719,7 +734,7 @@ export default function ProductMapping() {
                       const parsed = parseSizeFromCode(mappingProduct.itemCode);
                       if (parsed) {
                         setSelectedSize(parsed);
-                        setSelectedSqm(calculateSqm(parsed));
+                        setSelectedSqm(calculateSqm(parsed, selectedPackingType));
                       }
                     }}
                   >
@@ -778,7 +793,7 @@ export default function ProductMapping() {
                     size="sm"
                     onClick={() => {
                       if (selectedSize) {
-                        setSelectedSqm(calculateSqm(selectedSize));
+                        setSelectedSqm(calculateSqm(selectedSize, selectedPackingType));
                       }
                     }}
                   >
