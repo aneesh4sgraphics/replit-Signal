@@ -10330,6 +10330,34 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reset all product mappings (admin only) - clears productTypeId, catalogProductTypeId, catalogCategoryId
+  app.post("/api/products/reset-mappings", requireAdmin, async (req: any, res) => {
+    try {
+      const { confirm } = req.body;
+      
+      if (confirm !== 'RESET_ALL_MAPPINGS') {
+        return res.status(400).json({ error: "Confirmation required. Send { confirm: 'RESET_ALL_MAPPINGS' }" });
+      }
+      
+      // Clear mapping fields for all products
+      const result = await db.update(productPricingMaster)
+        .set({
+          productTypeId: null,
+          catalogProductTypeId: null,
+          catalogCategoryId: null,
+          updatedAt: new Date(),
+        })
+        .returning({ id: productPricingMaster.id });
+      
+      console.log(`Reset mappings for ${result.length} products`);
+      
+      res.json({ success: true, resetCount: result.length });
+    } catch (error: any) {
+      console.error("Error resetting product mappings:", error);
+      res.status(500).json({ error: error.message || "Failed to reset mappings" });
+    }
+  });
+
   // Get duplicate/similar products for merging
   app.get("/api/products/duplicates", requireAdmin, async (req: any, res) => {
     try {

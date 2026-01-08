@@ -14,8 +14,18 @@ import { useToast } from '@/hooks/use-toast';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { 
   ArrowLeft, Search, RefreshCw, AlertTriangle, CheckCircle2, 
-  Edit2, Package, Layers, Ruler, Calculator, Save, X, Copy, Merge, Star
+  Edit2, Package, Layers, Ruler, Calculator, Save, X, Copy, Merge, Star, Trash2
 } from 'lucide-react';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import { Accordion, AccordionContent, AccordionItem, AccordionTrigger } from '@/components/ui/accordion';
 import { cn } from '@/lib/utils';
 
@@ -181,6 +191,23 @@ export default function ProductMapping() {
     },
   });
 
+  const resetMappingsMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/products/reset-mappings', { confirm: 'RESET_ALL_MAPPINGS' });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({ title: 'Mappings Reset', description: `${data.resetCount} product mappings have been cleared. You can now re-map them.` });
+      queryClient.invalidateQueries({ queryKey: ['/api/products/unmapped'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/product-pricing'] });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Reset failed', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const [showResetConfirm, setShowResetConfirm] = useState(false);
+
   // Use database categories but filter to show only the 10 allowed
   const ALLOWED_CATEGORY_NAMES = [
     'Graffiti Polyester Paper',
@@ -242,8 +269,9 @@ export default function ProductMapping() {
     return getTypesForCategoryKeywords(parseInt(editForm.categoryId));
   }, [types, categories, editForm.categoryId]);
 
+  // Use keyword-based filtering for category → type matching
   const getTypesForCategory = (categoryId: number) => {
-    return types.filter(t => t.categoryId === categoryId);
+    return getTypesForCategoryKeywords(categoryId);
   };
 
   const getCategoryForType = (typeId: number) => {
@@ -400,7 +428,36 @@ export default function ProductMapping() {
           <RefreshCw className={cn("h-4 w-4 mr-2", isLoading && "animate-spin")} />
           Refresh
         </Button>
+        <Button 
+          variant="destructive" 
+          onClick={() => setShowResetConfirm(true)}
+          disabled={resetMappingsMutation.isPending}
+          data-testid="btn-reset-mappings"
+        >
+          <Trash2 className="h-4 w-4 mr-2" />
+          Reset All Mappings
+        </Button>
       </div>
+      
+      <AlertDialog open={showResetConfirm} onOpenChange={setShowResetConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Reset All Product Mappings?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will clear ALL product category and type mappings. You will need to re-map all products from scratch. This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction 
+              onClick={() => resetMappingsMutation.mutate()}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {resetMappingsMutation.isPending ? 'Resetting...' : 'Yes, Reset All Mappings'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
 
       <Tabs value={mainTab} onValueChange={(v) => setMainTab(v as MainTab)} className="mb-6">
         <TabsList className="grid w-full max-w-md grid-cols-2">
