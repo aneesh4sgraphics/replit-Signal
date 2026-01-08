@@ -369,7 +369,7 @@ export default function ProductPricingManagementNew() {
       const categoryKeywords = CATEGORY_TYPE_KEYWORDS[selectedCategory];
       if (categoryKeywords) {
         const typeLower = item.productType.toLowerCase();
-        const matchesCategory = categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
+        const matchesCategory = categoryKeywords.some(keyword => typeLower.includes(keyword.toLowerCase()));
         if (!matchesCategory) return false;
       }
     }

@@ -25,23 +25,25 @@ export const ALLOWED_CATEGORIES = [
 export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
 
 // Category to product type keyword mapping
-// Defines what product types belong to each category based on name prefix matching
+// Defines what product types belong to each category based on name matching
+// Note: Uses includes() matching, not startsWith(), to catch variations like "Graffiti COOLStick"
 export const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
-  'Graffiti Polyester Paper': ['graffiti polyester', 'graffiti polyester film'],
-  'Graffiti Blended Poly': ['graffiti blended poly'],
+  'Graffiti Polyester Paper': ['graffiti polyester'],
+  'Graffiti Blended Poly': ['graffiti blended poly', 'blended poly'],
   'Graffiti SOFT Poly': ['graffiti soft poly', 'soft poly'],
   'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick'],
-  'Solvit Sign & Display Media': ['solvit'],
-  'CLiQ Aqueous Media': ['cliq'],
-  'Rang Print Canvas': ['rang'],
-  'EiE Inkjet Film': ['eie'],
-  'eLe Laser Films': ['ele laser', 'ele polyester laser'],
-  'MXP Offset Plates': ['mxp', 'laser plate'],
+  'Solvit Sign & Display Media': ['solvit', 'banner', 'vinyl', 'polysign', 'one way vision', 'poster'],
+  'CLiQ Aqueous Media': ['cliq', 'petbull', 'photo paper', 'inkjet matte'],
+  'Rang Print Canvas': ['rang', 'canvas', 'cotton rag', 'hot press', 'cold press'],
+  'EiE Inkjet Film': ['eie inkjet', 'eie waterproof'],
+  'eLe Laser Films': ['ele laser', 'ele frosted laser', 'ele clear laser'],
+  'MXP Offset Plates': ['mxp', 'laser plate', 'ele polyester laser plate'],
   'Rollers & Chemicals': ['roller', 'chemical'],
 };
 
 /**
- * Get product types matching a category based on keyword prefix matching
+ * Get product types matching a category based on keyword matching
+ * Uses includes() to catch variations like "Graffiti COOLStick" for "stick" keyword
  * @param category - The category name
  * @param allTypes - Array of all product type names
  * @returns Filtered and sorted array of matching product type names
@@ -52,7 +54,7 @@ export function getTypesForCategory(category: string, allTypes: string[]): strin
   
   const matchingTypes = allTypes.filter(type => {
     const typeLower = type.toLowerCase();
-    return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
+    return categoryKeywords.some(keyword => typeLower.includes(keyword.toLowerCase()));
   });
   
   return matchingTypes.sort();

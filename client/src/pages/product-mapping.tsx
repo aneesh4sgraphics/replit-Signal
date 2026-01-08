@@ -382,7 +382,7 @@ export default function ProductMapping() {
     
     const matchingTypes = types.filter(t => {
       const typeLower = t.name.toLowerCase();
-      return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
+      return categoryKeywords.some(keyword => typeLower.includes(keyword.toLowerCase()));
     });
     
     // Sort alphabetically for easier scanning
