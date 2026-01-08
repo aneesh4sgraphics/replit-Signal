@@ -23,7 +23,7 @@ import { EmptyState, getErrorType, getErrorMessage, getErrorDetails } from "@/co
 import { ApiError } from "@/lib/queryClient";
 import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useEmailComposer } from "@/components/email-composer";
-import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
+import { ALLOWED_CATEGORIES } from "@/lib/productCategories";
 
 interface ProductData {
   id: number;
@@ -45,6 +45,8 @@ interface ProductData {
   tierStage1Price: number;
   retailPrice: number;
   sortOrder?: number;
+  catalogCategoryId?: number | null;
+  productTypeId?: number | null;
 }
 
 interface Customer {
@@ -347,14 +349,40 @@ export default function QuoteCalculator() {
     (issue.objectionType === 'price' || issue.objectionType === 'compatibility')
   ) || [];
 
-  // Use shared category constants
-  const categories = [...ALLOWED_CATEGORIES];
+  // Fetch categories from database
+  const { data: dbCategories = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ['/api/product-categories'],
+    enabled: !isAuthLoading && isAuthenticated,
+  });
 
-  // Get product types for selected category using shared helper
+  // Build category ID to name lookup
+  const categoryIdToName = new Map(dbCategories.map(c => [c.id, c.name]));
+  const categoryNameToId = new Map(dbCategories.map(c => [c.name, c.id]));
+
+  // Use categories from database, fallback to hardcoded list if empty
+  const categories = dbCategories.length > 0 
+    ? dbCategories.map(c => c.name).filter(name => ALLOWED_CATEGORIES.includes(name as typeof ALLOWED_CATEGORIES[number]))
+    : [...ALLOWED_CATEGORIES];
+
+  // Get product types for selected category using catalogCategoryId when available
   const productTypes = (() => {
     if (!selectedCategory) return [];
-    const allTypes = Array.from(new Set(productData.map(item => item.productType).filter(Boolean)));
-    return getTypesForCategory(selectedCategory, allTypes);
+    
+    const categoryId = categoryNameToId.get(selectedCategory);
+    
+    // Filter products by catalogCategoryId if available, otherwise use prefix matching
+    const typesInCategory = productData
+      .filter(item => {
+        if (categoryId && item.catalogCategoryId) {
+          return item.catalogCategoryId === categoryId;
+        }
+        // Fallback: prefix matching for unmapped products
+        const categoryPrefix = selectedCategory.toLowerCase().split(' ')[0];
+        return item.productType?.toLowerCase().includes(categoryPrefix);
+      })
+      .map(item => item.productType)
+      .filter(Boolean);
+    return Array.from(new Set(typesInCategory)).sort();
   })();
 
   // Get sizes for selected type with sorting

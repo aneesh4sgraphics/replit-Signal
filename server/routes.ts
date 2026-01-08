@@ -1394,6 +1394,47 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Add a new product category
+  app.post("/api/product-categories", requireAdmin, async (req: any, res) => {
+    try {
+      const { name } = req.body;
+      if (!name || typeof name !== 'string') {
+        return res.status(400).json({ error: "Category name is required" });
+      }
+      
+      const [category] = await db.insert(productCategories).values({ name: name.trim() }).returning();
+      setCachedData("product-categories", null); // Clear cache
+      res.json(category);
+    } catch (error: any) {
+      console.error("Error adding category:", error);
+      res.status(500).json({ error: error.message || "Failed to add category" });
+    }
+  });
+
+  // Add a new product type
+  app.post("/api/product-types", requireAdmin, async (req: any, res) => {
+    try {
+      const { name, categoryId } = req.body;
+      if (!name || typeof name !== 'string') {
+        return res.status(400).json({ error: "Type name is required" });
+      }
+      if (!categoryId || typeof categoryId !== 'number') {
+        return res.status(400).json({ error: "Category ID is required" });
+      }
+      
+      const [type] = await db.insert(productTypes).values({ 
+        name: name.trim(), 
+        categoryId 
+      }).returning();
+      setCachedData("product-types", null); // Clear cache
+      setCachedData(`product-types-${categoryId}`, null); // Clear category-specific cache
+      res.json(type);
+    } catch (error: any) {
+      console.error("Error adding type:", error);
+      res.status(500).json({ error: error.message || "Failed to add type" });
+    }
+  });
+
   // Get product types by category
   app.get("/api/product-types/:categoryId", async (req, res) => {
     try {
@@ -10251,6 +10292,85 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // SIMPLIFIED ODOO IMPORT - Import ALL products as unmapped
+  // ========================================
+  
+  app.post("/api/products/import-all-from-odoo", requireAdmin, async (req: any, res) => {
+    try {
+      const { odooClient } = await import('./odoo');
+      
+      console.log("[Odoo Import] Fetching ALL products from Odoo...");
+      const odooProducts = await odooClient.getAllProducts();
+      console.log(`[Odoo Import] Found ${odooProducts.length} products in Odoo`);
+      
+      let imported = 0;
+      let skipped = 0;
+      const errors: string[] = [];
+      
+      for (const product of odooProducts) {
+        if (!product.default_code || !product.name) {
+          skipped++;
+          continue;
+        }
+        
+        const odooItemCode = product.default_code.trim();
+        
+        try {
+          // Check if product already exists
+          const [existing] = await db.select().from(productPricingMaster)
+            .where(eq(productPricingMaster.itemCode, odooItemCode))
+            .limit(1);
+          
+          if (existing) {
+            skipped++;
+            continue;
+          }
+          
+          // Extract description for size info
+          const description = product.description_sale || product.description || product.name;
+          
+          // Create product as UNMAPPED (no category/type assigned)
+          await db.insert(productPricingMaster).values({
+            itemCode: odooItemCode,
+            odooItemCode: odooItemCode,
+            productName: product.name,
+            productType: 'Unmapped',
+            productTypeId: null,
+            catalogCategoryId: null,
+            catalogProductTypeId: null,
+            size: 'Unmapped',
+            totalSqm: '0',
+            minQuantity: 1,
+            rollSheet: null,
+            unitOfMeasure: null,
+            dealerPrice: product.list_price?.toString() || '0',
+            retailPrice: product.list_price?.toString() || '0',
+            uploadBatch: 'odoo-fresh-import-' + new Date().toISOString().split('T')[0],
+            isArchived: false,
+          });
+          
+          imported++;
+        } catch (err: any) {
+          errors.push(`${odooItemCode}: ${err.message}`);
+        }
+      }
+      
+      console.log(`[Odoo Import] Complete: ${imported} imported, ${skipped} skipped, ${errors.length} errors`);
+      
+      res.json({
+        success: true,
+        totalFromOdoo: odooProducts.length,
+        imported,
+        skipped,
+        errors: errors.slice(0, 20),
+      });
+    } catch (error: any) {
+      console.error("Error importing all products from Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to import products from Odoo" });
+    }
+  });
+
+  // ========================================
   // PRODUCT MAPPING TOOL APIs
   // ========================================
 
@@ -10571,7 +10691,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { minScore = 0.7 } = req.body;
       
       // Get Odoo products
-      const { odooClient } = await import('./odoo.js');
+      const { odooClient } = await import('./odoo');
       const odooProducts = await odooClient.getProducts({ limit: 500 });
       
       if (!odooProducts || odooProducts.length === 0) {

@@ -13,7 +13,7 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { useAuth } from "@/hooks/useAuth";
-import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
+import { ALLOWED_CATEGORIES } from "@/lib/productCategories";
 import { HeaderDivider, SimpleCardFrame, FloatingElements, IconBadge, SectionDivider } from "@/components/NotionLineArt";
 import { apiRequest } from "@/lib/queryClient";
 
@@ -39,6 +39,8 @@ interface ProductPricingMaster {
   uploadBatch: string;
   createdAt: string;
   updatedAt: string;
+  catalogCategoryId?: number | null;
+  productTypeId?: number | null;
 }
 
 interface UploadResult {
@@ -354,23 +356,53 @@ export default function ProductPricingManagementNew() {
     },
   });
 
+  // Fetch categories from database
+  const { data: dbCategories = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ['/api/product-categories'],
+  });
+
+  // Build category ID to name lookup
+  const categoryNameToId = new Map(dbCategories.map(c => [c.name, c.id]));
+
   // Get unique product types from pricing data
-  const allProductTypes = Array.from(new Set(pricingData.map(item => item.productType).filter(Boolean)));
+  const allProductTypes = Array.from(new Set(pricingData.map(item => item.productType).filter(Boolean))).sort();
   
-  // Get product types for selected category using shared helper
-  const categoryProductTypes = (selectedCategory && selectedCategory !== "all")
-    ? getTypesForCategory(selectedCategory, allProductTypes)
-    : allProductTypes;
+  // Get product types for selected category using catalogCategoryId when available
+  const categoryProductTypes = (() => {
+    if (!selectedCategory || selectedCategory === "all") return allProductTypes;
+    
+    const categoryId = categoryNameToId.get(selectedCategory);
+    
+    // Filter products by catalogCategoryId if available, otherwise use prefix matching
+    const typesInCategory = pricingData
+      .filter(item => {
+        if (categoryId && item.catalogCategoryId) {
+          return item.catalogCategoryId === categoryId;
+        }
+        // Fallback: prefix matching for unmapped products
+        const categoryPrefix = selectedCategory.toLowerCase().split(' ')[0];
+        return (item.productType || '').toLowerCase().includes(categoryPrefix);
+      })
+      .map(item => item.productType)
+      .filter(Boolean);
+    return Array.from(new Set(typesInCategory)).sort();
+  })();
 
   // Filter products by category, product type, and search term
   const filteredPricingData = pricingData.filter(item => {
-    // Category filter - check if product type matches category keywords
+    // Category filter - use catalogCategoryId from database when available
     if (selectedCategory && selectedCategory !== "all") {
-      const categoryKeywords = CATEGORY_TYPE_KEYWORDS[selectedCategory];
-      if (categoryKeywords) {
-        const typeLower = item.productType.toLowerCase();
-        const matchesCategory = categoryKeywords.some(keyword => typeLower.includes(keyword.toLowerCase()));
-        if (!matchesCategory) return false;
+      const categoryId = categoryNameToId.get(selectedCategory);
+      
+      if (categoryId && item.catalogCategoryId) {
+        // Use exact category ID match when available
+        if (item.catalogCategoryId !== categoryId) return false;
+      } else {
+        // Fallback: prefix matching for unmapped products
+        const categoryPrefix = selectedCategory.toLowerCase().split(' ')[0];
+        if (!(item.productType || '').toLowerCase().includes(categoryPrefix)) {
+          return false;
+        }
       }
     }
     
@@ -383,7 +415,7 @@ export default function ProductPricingManagementNew() {
       if (
         !item.itemCode.toLowerCase().includes(searchLower) &&
         !item.productName.toLowerCase().includes(searchLower) &&
-        !item.productType.toLowerCase().includes(searchLower) &&
+        !(item.productType || '').toLowerCase().includes(searchLower) &&
         !item.size.toLowerCase().includes(searchLower)
       ) {
         return false;

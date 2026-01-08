@@ -20,7 +20,7 @@ import { getPriceColumnHeader } from "@/utils/sizeUtils";
 import ProductOrderingDialog from "@/components/ProductOrderingDialog";
 import { EmptyState, getErrorType, getErrorMessage, getErrorDetails } from "@/components/EmptyState";
 import { ApiError, queryClient } from "@/lib/queryClient";
-import { ALLOWED_CATEGORIES, CATEGORY_TYPE_KEYWORDS, getTypesForCategory } from "@/lib/productCategories";
+import { ALLOWED_CATEGORIES } from "@/lib/productCategories";
 
 interface ProductData {
   [key: string]: string | number | undefined;
