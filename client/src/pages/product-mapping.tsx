@@ -292,11 +292,18 @@ export default function ProductMapping() {
     });
   };
 
-  // Parse size from product code (e.g., "1218B" -> "12x18")
+  // Parse size from product code
+  // Handles formats like: "GOSF05-21x30", "GOSF08-13x19", "PP11-1319", "PP1117B"
   const parseSizeFromCode = (code: string): string => {
-    const sizeMatch = code.match(/(\d{2})(\d{2})([A-Z]?)$/);
-    if (sizeMatch) {
-      return `${sizeMatch[1]}x${sizeMatch[2]}`;
+    // First try format with explicit "x" separator: "GOSF05-21x30" -> "21x30"
+    const explicitMatch = code.match(/(\d+)x(\d+)/i);
+    if (explicitMatch) {
+      return `${explicitMatch[1]}x${explicitMatch[2]}`;
+    }
+    // Fallback: 4-digit pattern at end like "1319B" -> "13x19"
+    const implicitMatch = code.match(/(\d{2})(\d{2})([A-Z]?)$/);
+    if (implicitMatch) {
+      return `${implicitMatch[1]}x${implicitMatch[2]}`;
     }
     return '';
   };
