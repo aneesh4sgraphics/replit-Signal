@@ -2615,10 +2615,10 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                             <td className="p-2">{item.size || '-'}</td>
                             <td className="p-2 text-right">{item.quantity?.toLocaleString() || '-'}</td>
                             <td className="p-2 text-right">
-                              ${item.pricePerSheet?.toFixed(4) || item.price?.toFixed(4) || '0.0000'}
+                              ${Number(item.pricePerSheet || item.price || 0).toFixed(4)}
                             </td>
                             <td className="p-2 text-right font-medium">
-                              ${item.total?.toFixed(2) || (item.quantity * (item.pricePerSheet || item.price || 0)).toFixed(2)}
+                              ${Number(item.total || (item.quantity * (item.pricePerSheet || item.price || 0)) || 0).toFixed(2)}
                             </td>
                           </tr>
                         )) : <tr><td colSpan={5} className="p-2 text-center text-gray-500">No items found</td></tr>;

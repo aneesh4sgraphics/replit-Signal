@@ -912,8 +912,8 @@ Product Type: ${item.productType}
 Size: ${item.size}
 Item Code: ${item.itemCode}
 Minimum Order Quantity: ${item.minOrderQty}
-Price per ${priceLabel}: $${item.pricePerSheet.toFixed(2)}
-Total: $${itemTotal.toFixed(2)}
+Price per ${priceLabel}: $${Number(item.pricePerSheet || 0).toFixed(2)}
+Total: $${Number(itemTotal || 0).toFixed(2)}
 
 —————————————`;
 }).join('\n\n')}
@@ -1349,8 +1349,8 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       <SelectValue placeholder="Select size" className="truncate" />
                     </SelectTrigger>
                     <SelectContent className="max-w-none w-auto min-w-[200px]">
-                      {availableSizes.map(product => (
-                        <SelectItem key={product.size} value={product.size} className="max-w-none whitespace-nowrap">
+                      {availableSizes.map((product, index) => (
+                        <SelectItem key={`${product.size}-${product.id || index}`} value={product.size} className="max-w-none whitespace-nowrap">
                           <span className="whitespace-nowrap">{product.size} ({parseFloat(String(product.totalSqm || 0)).toFixed(4)} m²)</span>
                         </SelectItem>
                       ))}
@@ -2025,18 +2025,18 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       />
                     );
                   case 'pricePerSqM':
-                    return <span className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</span>;
+                    return <span className="text-sm text-gray-600">${Number(item.pricePerSqM || 0).toFixed(2)}</span>;
                   case 'pricePerSheet':
                     // Determine unit based on minimum order quantity
                     const unitLabel = item.minOrderQty === 1 ? 'roll' : 'sheet';
                     return (
                       <div className="text-right">
-                        <span className="text-sm text-gray-600">${item.pricePerSheet.toFixed(2)}</span>
+                        <span className="text-sm text-gray-600">${Number(item.pricePerSheet || 0).toFixed(2)}</span>
                         <div className="text-xs text-gray-400">/{unitLabel}</div>
                       </div>
                     );
                   case 'total':
-                    return <span className="text-sm text-gray-800 font-medium">${item.total.toFixed(2)}</span>;
+                    return <span className="text-sm text-gray-800 font-medium">${Number(item.total || 0).toFixed(2)}</span>;
                   case 'actions':
                     return (
                       <button

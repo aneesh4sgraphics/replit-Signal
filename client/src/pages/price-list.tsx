@@ -940,7 +940,7 @@ export default function PriceList() {
                 case 'minQty':
                   return <span className="text-sm text-gray-600">{item.minQty}</span>;
                 case 'pricePerSqM':
-                  return <span className="text-sm text-gray-600">${item.pricePerSqM.toFixed(2)}</span>;
+                  return <span className="text-sm text-gray-600">${Number(item.pricePerSqM || 0).toFixed(2)}</span>;
                 case 'shippingCost':
                   return (
                     <div className="flex items-center justify-center">
@@ -978,18 +978,18 @@ export default function PriceList() {
                   return (
                     <div className="text-right">
                       <span className={`text-sm ${includeShipping && shippingCost > 0 ? 'text-blue-600 font-medium' : 'text-gray-600'}`}>
-                        ${adjustedPricePerSheet.toFixed(2)}
+                        ${Number(adjustedPricePerSheet || 0).toFixed(2)}
                       </span>
                       <div className="text-xs text-gray-400">/{unitLabel}</div>
                       {includeShipping && shippingCost > 0 && (
-                        <div className="text-xs text-gray-400">(+${shippingCost.toFixed(2)} ship)</div>
+                        <div className="text-xs text-gray-400">(+${Number(shippingCost || 0).toFixed(2)} ship)</div>
                       )}
                     </div>
                   );
                 case 'pricePerPack':
                   return (
                     <span className={`text-sm font-medium ${includeShipping && shippingCost > 0 ? 'text-blue-600' : 'text-green-600'}`}>
-                      ${adjustedPricePerPack.toFixed(2)}
+                      ${Number(adjustedPricePerPack || 0).toFixed(2)}
                     </span>
                   );
                 default:
