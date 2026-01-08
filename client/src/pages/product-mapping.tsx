@@ -364,13 +364,15 @@ export default function ProductMapping() {
   ];
 
   const allCategories = data?.categories || [];
-  const categories = allCategories.filter(c => 
-    ALLOWED_CATEGORY_NAMES.some(allowed => 
-      c.name.toLowerCase() === allowed.toLowerCase() ||
-      c.name.toLowerCase().includes(allowed.toLowerCase()) || 
-      allowed.toLowerCase().includes(c.name.toLowerCase())
+  const categories = allCategories
+    .filter(c => 
+      ALLOWED_CATEGORY_NAMES.some(allowed => 
+        c.name.toLowerCase() === allowed.toLowerCase() ||
+        c.name.toLowerCase().includes(allowed.toLowerCase()) || 
+        allowed.toLowerCase().includes(c.name.toLowerCase())
+      )
     )
-  );
+    .sort((a, b) => a.name.localeCompare(b.name));
   const types = data?.types || [];
   const products = data?.products || [];
   const counts = data?.counts || { all: 0, unmapped: 0, noSize: 0, noSqm: 0, incomplete: 0 };
@@ -391,18 +393,29 @@ export default function ProductMapping() {
 
   const getTypesForCategoryKeywords = (categoryId: number): ProductType[] => {
     const category = categories.find(c => c.id === categoryId);
-    if (!category) return types.filter(t => t.categoryId === categoryId);
+    if (!category) {
+      return types
+        .filter(t => t.categoryId === categoryId)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
     
     const categoryKeywords = CATEGORY_TYPE_KEYWORDS[category.name];
-    if (!categoryKeywords) return types.filter(t => t.categoryId === categoryId);
+    if (!categoryKeywords) {
+      return types
+        .filter(t => t.categoryId === categoryId)
+        .sort((a, b) => a.name.localeCompare(b.name));
+    }
     
     const matchingTypes = types.filter(t => {
       const typeLower = t.name.toLowerCase();
       return categoryKeywords.some(keyword => typeLower.startsWith(keyword.toLowerCase()));
     });
     
-    if (matchingTypes.length > 0) return matchingTypes;
-    return types.filter(t => t.categoryId === categoryId);
+    // Sort alphabetically for easier scanning
+    const sortedTypes = (matchingTypes.length > 0 ? matchingTypes : types.filter(t => t.categoryId === categoryId))
+      .sort((a, b) => a.name.localeCompare(b.name));
+    
+    return sortedTypes;
   };
 
   const filteredTypesForEdit = useMemo(() => {
