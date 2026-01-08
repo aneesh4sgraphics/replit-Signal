@@ -1,158 +1,60 @@
 # Replit.md - Quote Calculator Application
 
 ## Overview
-This full-stack TypeScript application provides a quote calculator for product pricing, featuring a React frontend, Node.js/Express backend, PostgreSQL with Drizzle ORM, and styled with Tailwind CSS and shadcn/ui. The UI is inspired by Odoo ERP, incorporating sidebar navigation, card-based layouts, and muted purple accents. Key capabilities include comprehensive product management, tiered pricing calculations, customer relationship management (CRM) with journey tracking, professional PDF generation for quotes and price lists, and advanced label generation. The project aims to provide an efficient, user-friendly tool for sales staff to generate accurate product quotes and manage pricing data, enhancing sales workflows and customer interactions.
+This full-stack TypeScript application is a quote calculator for product pricing. It features a React frontend and a Node.js/Express backend with a PostgreSQL database and Drizzle ORM. The application aims to provide sales staff with an efficient tool for generating accurate product quotes, managing pricing data, and enhancing sales workflows and customer interactions. Key capabilities include comprehensive product management, tiered pricing, CRM with customer journey tracking, professional PDF generation for quotes and price lists, advanced label generation, and integration with Odoo ERP and Shopify. The UI is inspired by Odoo, using sidebar navigation, card-based layouts, and muted purple accents.
 
 ## User Preferences
 Preferred communication style: Simple, everyday language.
 
 ## System Architecture
 
-### Frontend Architecture
-- **Framework**: React with TypeScript
-- **Routing**: Wouter
-- **State Management**: TanStack Query (React Query)
-- **UI Components**: shadcn/ui built on Radix UI
-- **Styling**: Tailwind CSS with custom properties
-- **Build Tool**: Vite
-- **UI/UX Decisions**: Odoo ERP-inspired design with a clean, business-friendly aesthetic, sidebar navigation, card-based layouts, and muted purple accents. Features include professional favicon, adaptive column resizing, color-coded quantity logic, and responsive design. The design system incorporates glassmorphism effects with frosted glass cards, animated gradient backgrounds, and floating ambient orbs.
+### Frontend
+- **Framework**: React with TypeScript.
+- **Routing**: Wouter.
+- **State Management**: TanStack Query (React Query).
+- **UI Components**: shadcn/ui built on Radix UI, styled with Tailwind CSS.
+- **UI/UX Decisions**: Odoo ERP-inspired design with a clean, business-friendly aesthetic, including sidebar navigation, card-based layouts, muted purple accents, professional favicon, adaptive column resizing, color-coded quantity logic, and responsive design. Design system includes glassmorphism effects, animated gradient backgrounds, and floating ambient orbs.
 
-### Backend Architecture
-- **Runtime**: Node.js with Express.js
-- **Language**: TypeScript with ESM modules
-- **API Style**: RESTful API endpoints
-- **Database**: PostgreSQL with Drizzle ORM
-- **Session Management**: PostgreSQL session store (connect-pg-simple)
+### Backend
+- **Runtime**: Node.js with Express.js (TypeScript, ESM modules).
+- **API Style**: RESTful API.
+- **Database**: PostgreSQL with Drizzle ORM.
+- **Session Management**: PostgreSQL session store.
 - **Technical Implementations**: Server-side PDF generation (html-pdf-node), robust authentication with role-based access control, comprehensive CSV upload/synchronization with hash-based change detection, and dynamic logo fetching.
-- **Error Handling & Diagnostics**: Production-ready error logging, performance tracking, and detailed error responses with actionable suggestions, exposing only sanitized error fields to the frontend. Includes a `/api/diagnostics` health check endpoint.
-- **AI Chatbot**: Hybrid RAG system using OpenAI GPT-4o (with fallback to local BM25 search over troubleshooting PDFs). Features context-only answering, product retrieval from the database, strict "no guessing" policy, source citations, and guidance to appropriate app sections. Works offline with local search.
-- **CRM Integration**: Comprehensive customer journey tracking system, including customer journey instances, press test journeys, sample requests, test outcomes, and swatch management.
-- **Customer Coach Panel**: Coach-style B2B Customer Journey system for repeat buyers with minimal typing. Features:
-  - Account State badges (Prospect→FirstTrust→ExpansionPossible→ExpansionInProgress→MultiCategory→Embedded)
-  - Machine Profile tracking (6 machine families: Offset, Digital Dry Toner, HP Indigo, Inkjet, Flexo, Wide Format)
-  - Category Trust Grid (48 product categories with 5-state progression: NotIntroduced→Introduced→Evaluated→Adopted→Habitual)
-  - Reorder Intelligence with status alerts (Upcoming/Due/Overdue/AtRisk)
-  - "Next Best Move" single actionable coach nudge based on customer state
-  - One-click trust advancement and objection logging
-  - Auto-sync capability from sample requests and test outcomes
-- **QuickQuotes + Customer Journey Integration**: Native integration between quote generation and CRM:
-  - Quotes auto-link to product categories via `quoteCategoryLinks` table
-  - Category trust automatically advances from "not_introduced" to "introduced" when quotes are sent
-  - Follow-up timers created: Initial (4 days), Second (7-10 days), Final (14+ days)
-  - Test outcomes auto-advance category trust to "evaluated"
-  - Next Best Move prioritizes overdue quote follow-ups
-  - Quote close flow with "won/lost" outcome tracking and optional trust advancement to "adopted"
-- **Email Studio**: Pre-composed email templates with dynamic variables ({{client.name}}, {{product.type}}, {{price.dealer}}, etc.). Admin-only template creation, user compose flow with recipient selection and variable auto-fill, email send logging and activity tracking.
-- **Drip Email Campaigns**: Automated multi-step email sequences with time delays for nurturing leads and follow-ups:
-  - Campaign builder with multi-step workflow, configurable delays (minutes/hours/days/weeks)
-  - Rich text editor (TipTap) with formatting, images, links, and variable personalization
-  - Customer assignment interface for enrolling customers in campaigns
-  - Background worker polls for scheduled emails and sends via Gmail
-  - Row-level locking prevents duplicate sends, with automatic retry on failure (up to 3 attempts)
-  - Step status tracking (scheduled/sending/sent/failed/skipped) with error logging
-  - Trigger types: manual, on_signup, on_purchase, on_quote
-  - Tables: `dripCampaigns`, `dripCampaignSteps`, `dripCampaignAssignments`, `dripCampaignStepStatus`
-- **Gmail Integration**: App-wide email compose popup via EmailComposerProvider context. Features:
-  - EmailLaunchIcon appears next to all customer email addresses (client table, customer detail header)
-  - Gmail-style compose popup with template selection and variable substitution
-  - Sends via connected Gmail account using googleapis, appears in sender's Sent folder
-  - All sends logged to `emailSends` table with customer context, template used, and variable data
-  - Email History tab in customer detail view shows sent emails with subject, recipient, date, and preview
-  - Email count badge displayed per customer in client table ("Mailer Sent" column)
-- **Email Engagement Tracking**: Open and click tracking for all outgoing emails with automated follow-up task creation:
-  - Unique tracking token generated per email sent
-  - Invisible tracking pixel (1x1 GIF) injected into HTML emails to detect opens
-  - All links automatically wrapped with click-tracking redirects
-  - Public endpoints: `/api/t/open/:token.png` (pixel), `/api/t/click/:token` (redirect)
-  - Tracking events logged to `emailTrackingEvents` with IP address, user agent, and timestamps
-  - Open/click counts updated in `emailTrackingTokens` with first/last opened timestamps
-  - Automated follow-up task creation on first engagement: opens (24-hour due, normal priority), clicks (4-hour due, high priority)
-  - Tracking data accessible via `/api/email/tracking/:customerId`
-  - Works for both manual email sends and drip campaign emails
-  - Tables: `emailTrackingTokens`, `emailTrackingEvents`
-- **Odoo V19 Enterprise Integration**: Full CRM-to-Odoo connectivity as a specialized front-end:
-  - JSON-RPC API client (`server/odoo.ts`) for Odoo V19 Enterprise
-  - Authentication via API key stored in environment secrets (ODOO_URL, ODOO_DATABASE, ODOO_USERNAME, ODOO_API_KEY)
-  - Customer sync: Push local CRM customers to Odoo as `res.partner` records
-  - `odooPartnerId` field on customers table links to Odoo partner ID
-  - Bidirectional data access: Read products, pricelists, sale orders, and users from Odoo
-  - Bulk sync capability for mass customer migration
-  - Per-customer sync button in ClientDetailView with visual status indicator
-  - Admin settings page at `/odoo-settings` with connection testing, partner browsing, product viewing, and order viewing
-  - **Guided Product Creation Wizard**: 6-step wizard for importing unmapped Odoo products with proper classification:
-    - Step 1: Roll or Sheet selection
-    - Step 2: Unit of Measure (sheets, rolls, packets, cartons)
-    - Step 3: Size (auto-detected from product code/name using regex patterns)
-    - Step 4: Square Meters (auto-calculated from size, editable)
-    - Step 5: Product Category selection from existing categories
-    - Step 6: Product Type selection (filtered by category)
-    - Prefills size from patterns like "13x19", "A4", "12x18"
-    - Stores Odoo code in `odooItemCode` field for display in quotes
-    - Dual-code architecture: local itemCode for internal use, odooItemCode for display
-  - API endpoints: `/api/odoo/test-connection`, `/api/odoo/partners`, `/api/odoo/products`, `/api/odoo/pricelists`, `/api/odoo/orders`, `/api/odoo/users`, `/api/odoo/sync/customer/:id`, `/api/odoo/sync/customers` (bulk), `/api/odoo/import-products`, `/api/odoo/missing-products`
-- **Shopify Integration**: Embedded Shopify Admin app for single-store internal use:
-  - OAuth flow: `/shopify/auth?shop=...` initiates install, `/shopify/callback` handles token exchange
-  - Automatic webhook registration for orders/paid, orders/updated, customers/create, customers/update
-  - HMAC verification for all webhooks using raw body capture before JSON parsing
-  - Embedded app entry point at `/app` for loading CRM inside Shopify Admin iframe
-  - App Bridge v4 integration via CDN script for navigation within Shopify Admin
-  - Order sync maps Shopify customers to CRM accounts by email/company name
-  - Paid orders auto-advance category trust to "adopted" via product mappings
-  - Environment variables: SHOPIFY_API_KEY, SHOPIFY_API_SECRET, SHOPIFY_SCOPES, SHOPIFY_APP_URL
-  - Tables: `shopifyInstalls` (OAuth tokens), `shopifyWebhookEvents` (event logging), `shopifyOrders`, `shopifyProductMappings`
-- **Integration Connection Status**: Proactive connection monitoring with user prompts for Odoo, Gmail, and Google Calendar:
-  - `/api/integrations/status` endpoint checks all three connections in parallel
-  - Real API validation (not just token presence) for Gmail and Calendar
-  - ConnectionPrompt dialog appears on dashboard when services are disconnected
-  - ConnectionStatusBanner shows warning with disconnected count
-  - 24-hour dismiss cooldown prevents excessive prompts
-  - Clear instructions for reconnecting each service type
-  - Component: `client/src/components/ConnectionPrompt.tsx`
-- **Admin Rules & Config System**: Admin-only area at `/admin/config` for adjusting coaching/journey logic without code changes:
-  - **Product Taxonomy Tab**: Manage machine types (6 families), category groups, and product categories with machine compatibility settings
-  - **SKU→Category Mapping Tab**: Map Shopify SKUs to internal categories using exact, prefix, or regex rules with priority ordering
-  - **Coaching Timers Tab**: Editable timing parameters for quote follow-ups (4/7/14 days), press test delivery grace, habitual definitions, stale account thresholds
-  - **Nudge Engine Settings Tab**: Configure nudge priority order, enable/disable nudges, severity levels (low/medium/high/critical)
-  - **Conversation Scripts Tab**: Editable sales scripts by stage (prospect/expansion/retention) and persona (distributor/end_customer)
-  - **Audit Log Tab**: Track all config changes with before/after states, user attribution, and timestamps
-  - **Config Versioning**: Draft/publish flow with rollback capability to previous versions
-  - **Seed Capability**: One-click initial config seeding with default timers and nudge settings
-  - Tables: `adminMachineTypes`, `adminCategoryGroups`, `adminCategories`, `adminCategoryVariants`, `adminSkuMappings`, `adminCoachingTimers`, `adminNudgeSettings`, `adminConversationScripts`, `adminConfigVersions`, `adminAuditLog`
+- **Error Handling**: Production-ready error logging, performance tracking, and detailed error responses with actionable suggestions, exposing sanitized error fields. Includes a `/api/diagnostics` health check.
+- **AI Chatbot**: Hybrid RAG system using OpenAI GPT-4o with fallback to local BM25 search. Provides context-only answers, product retrieval, strict "no guessing" policy, source citations, and guidance to app sections. Works offline.
+- **CRM Integration**: Comprehensive customer journey tracking system, including account states, machine profile tracking, category trust grid, reorder intelligence, and "Next Best Move" coaching nudges.
+- **QuickQuotes + Customer Journey Integration**: Native integration linking quote generation to CRM, automating category trust advancement and follow-up timers.
+- **Email Studio & Drip Campaigns**: Pre-composed email templates with dynamic variables, admin-only template creation, user compose flow, email send logging, and automated multi-step email sequences with configurable delays.
+- **Gmail Integration**: App-wide email compose popup, sending via connected Gmail account, with all sends logged and viewable in customer detail.
+- **Email Engagement Tracking**: Open and click tracking for all outgoing emails with automated follow-up task creation based on engagement.
+- **Odoo V19 Enterprise Integration**: JSON-RPC API client for Odoo V19 Enterprise. Features customer sync (incremental and full reset), full address field mapping, bidirectional data access (products, pricelists, sale orders, users), bulk sync, and a guided product creation wizard for unmapped Odoo products.
+- **Shopify Integration**: Embedded Shopify Admin app with OAuth flow, automatic webhook registration (orders/paid, orders/updated, customers/create, customers/update), HMAC verification, and order sync mapping Shopify customers to CRM accounts.
+- **Integration Connection Status**: Proactive monitoring and user prompts for Odoo, Gmail, and Google Calendar connection statuses.
+- **Admin Rules & Config System**: Admin-only area for adjusting coaching/journey logic without code changes, including product taxonomy, SKU-to-category mapping, coaching timers, nudge engine settings, conversation scripts, and an audit log with config versioning.
 
-### Database Architecture
-- **ORM**: Drizzle ORM with PostgreSQL dialect
-- **Migration**: Drizzle Kit
-- **Connection**: Neon Database serverless connection
-- **Schema Location**: `/shared/schema.ts` for shared types.
-- **System Design Choices**: Comprehensive foreign key constraints with cascade delete for data integrity across product categories, types, sizes, and pricing. Utilizes a unified `productPricingMaster` table. Includes robust NaN validation and boolean parsing enhancements.
-- **Performance Optimizations**:
-  - Database indexes on foreign key columns and timestamps across key tables (customerContacts, sentQuotes, activityLogs, pressProfiles, sampleRequests, testOutcomes, swatchBookShipments, quoteEvents, quoteCategoryLinks, priceListEvents, customerActivityEvents, followUpTasks, emailSends)
-  - Lazy-loading for Client Detail tabs (orders, emails, swatch-book, press-profiles, samples, quotes-prices) using React Query's `enabled` property
-  - Server-side pagination for customers and sent-quotes endpoints with search support
-  - Parallel query execution in getCRMDashboardStats using Promise.all for 11 independent count queries
-  - Batch operations in initDefaultFollowUpConfig to avoid N+1 query patterns
+### Database
+- **ORM**: Drizzle ORM with PostgreSQL dialect.
+- **Migration**: Drizzle Kit.
+- **Connection**: Neon Database serverless connection.
+- **Schema**: `/shared/schema.ts`.
+- **System Design**: Comprehensive foreign key constraints with cascade delete, unified `productPricingMaster` table, NaN validation, and boolean parsing enhancements.
+- **Performance Optimizations**: Database indexes on foreign key columns and timestamps, lazy-loading for Client Detail tabs, server-side pagination, parallel query execution, and batch operations.
 
 ## External Dependencies
 
-### Frontend Dependencies
-- **React Ecosystem**: React, React DOM, React Query
-- **UI Libraries**: Radix UI primitives, Lucide React icons, shadcn/ui
-- **Styling**: Tailwind CSS, class-variance-authority
-- **Forms**: React Hook Form with Zod validation
-- **Utilities**: clsx, tailwind-merge, date-fns, file-saver, react-beautiful-dnd, react-barcode, qrcode.react
+### Frontend
+- **React Ecosystem**: React, React DOM, React Query.
+- **UI Libraries**: Radix UI primitives, Lucide React icons, shadcn/ui.
+- **Styling**: Tailwind CSS, class-variance-authority.
+- **Forms**: React Hook Form with Zod validation.
+- **Utilities**: clsx, tailwind-merge, date-fns, file-saver, react-beautiful-dnd, react-barcode, qrcode.react.
 
-### Backend Dependencies
-- **Core**: Express.js, Node.js types
-- **Database**: Drizzle ORM, Neon Database client, pg, connect-pg-simple
-- **Validation**: Zod
-- **File Handling**: Multer
-- **PDF Generation**: html-pdf-node
-- **Development**: tsx, cross-env
-- **AI/NLP**: OpenAI (for GPT-4o integration)
-
-### Development Tools
-- **Build**: Vite, esbuild
-- **TypeScript**: Strict configuration
-- **Linting**: ESLint
-- **Database**: Drizzle Kit
-- **Other**: axios, csv-parse, pdf-lib, pug, puppeteer, zod-validation-error
+### Backend
+- **Core**: Express.js.
+- **Database**: Drizzle ORM, Neon Database client, pg, connect-pg-simple.
+- **Validation**: Zod.
+- **File Handling**: Multer.
+- **PDF Generation**: html-pdf-node.
+- **AI/NLP**: OpenAI.
+- **Other**: axios, csv-parse, pdf-lib, pug, puppeteer, zod-validation-error.

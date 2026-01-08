@@ -9303,21 +9303,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Import all partners from Odoo as customers (READ-ONLY: only reads from Odoo, writes to local DB)
+  // Get Odoo sync status - check if any Odoo-linked customers exist
+  app.get("/api/odoo/sync-status", requireApproval, async (req: any, res) => {
+    try {
+      // Count customers with Odoo partner IDs (previously synced)
+      const [syncedCount] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(customers)
+        .where(sql`${customers.odooPartnerId} IS NOT NULL`);
+      
+      // Get last sync timestamp
+      const [lastSync] = await db.select({ lastSync: sql<Date>`MAX(${customers.lastOdooSyncAt})` })
+        .from(customers);
+      
+      // Count total customers
+      const [totalCount] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(customers);
+      
+      res.json({
+        hasPreviousSync: (syncedCount?.count || 0) > 0,
+        syncedCustomerCount: syncedCount?.count || 0,
+        totalCustomerCount: totalCount?.count || 0,
+        lastSyncAt: lastSync?.lastSync || null,
+      });
+    } catch (error: any) {
+      console.error("Error fetching Odoo sync status:", error);
+      res.status(500).json({ error: error.message || "Failed to get sync status" });
+    }
+  });
+
+  // Import partners from Odoo as customers with import mode support
+  // importMode: 'add_new' (default) = only add missing, 'full_reset' = delete all and re-import
   app.post("/api/odoo/import/partners", requireAdmin, async (req: any, res) => {
     try {
-      const { deleteExisting = false } = req.body;
+      const { deleteExisting = false, importMode = 'add_new' } = req.body;
+      const useFullReset = deleteExisting || importMode === 'full_reset';
       
-      console.log("[Odoo Import] Starting partner import from Odoo...");
+      console.log(`[Odoo Import] Starting partner import from Odoo (mode: ${useFullReset ? 'full_reset' : 'add_new'})...`);
       
-      // Step 1: If requested, delete all existing customers
-      if (deleteExisting) {
-        console.log("[Odoo Import] Deleting all existing customers...");
+      // Step 1: If full reset, delete all existing customers
+      if (useFullReset) {
+        console.log("[Odoo Import] FULL RESET: Deleting all existing customers...");
         await db.delete(customers);
         console.log("[Odoo Import] All existing customers deleted");
       }
       
-      // Step 2: Fetch ALL partners from Odoo (companies and contacts) using pagination
+      // Step 2: Get existing Odoo partner IDs to check for duplicates (for incremental mode)
+      const existingOdooIds = new Set<number>();
+      if (!useFullReset) {
+        const existing = await db.select({ odooPartnerId: customers.odooPartnerId })
+          .from(customers)
+          .where(sql`${customers.odooPartnerId} IS NOT NULL`);
+        existing.forEach(c => {
+          if (c.odooPartnerId) existingOdooIds.add(c.odooPartnerId);
+        });
+        console.log(`[Odoo Import] Found ${existingOdooIds.size} existing Odoo-linked customers`);
+      }
+      
+      // Step 3: Fetch ALL partners from Odoo (companies and contacts) using pagination
       console.log("[Odoo Import] Fetching all partners from Odoo (this may take a moment)...");
       const partners = await odooClient.getAllPartners();
       console.log(`[Odoo Import] Fetched ${partners.length} partners from Odoo`);
@@ -9325,18 +9367,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const results = {
         imported: 0,
         skipped: 0,
+        alreadyExists: 0,
         failed: 0,
         errors: [] as string[],
-        skippedPartners: [] as string[]
+        skippedPartners: [] as string[],
+        mode: useFullReset ? 'full_reset' : 'add_new',
       };
       
-      // Step 3: Create each partner as a customer
+      // Step 4: Create each partner as a customer
       for (const partner of partners) {
         try {
           // Skip partners without a name
           if (!partner.name || partner.name.trim() === '') {
             results.skipped++;
             results.skippedPartners.push(`Partner ID ${partner.id}: No name provided`);
+            continue;
+          }
+          
+          // In incremental mode, skip partners that already exist
+          if (!useFullReset && existingOdooIds.has(partner.id)) {
+            results.alreadyExists++;
             continue;
           }
           
@@ -9403,6 +9453,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             salesRepId,
             salesRepName,
             accountState: 'prospect' as const,
+            lastOdooSyncAt: new Date(),
             createdAt: new Date(),
           };
           
@@ -9414,9 +9465,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`[Odoo Import] Complete: ${results.imported} imported, ${results.skipped} skipped, ${results.failed} failed`);
+      console.log(`[Odoo Import] Complete: ${results.imported} imported, ${results.alreadyExists} already existed, ${results.skipped} skipped, ${results.failed} failed`);
       
-      // Step 4: Resolve parent customer IDs (link children to their parent companies)
+      // Step 5: Resolve parent customer IDs (link children to their parent companies)
       console.log("[Odoo Import] Resolving parent relationships...");
       const customersWithParent = await db.select().from(customers).where(sql`${customers.odooParentId} IS NOT NULL`);
       let parentLinksResolved = 0;

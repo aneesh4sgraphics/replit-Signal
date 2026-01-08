@@ -93,24 +93,41 @@ export default function OdooSettingsPage() {
     enabled: !!connectionTest?.success,
   });
 
+  // Get Odoo sync status to determine if this is first import or incremental
+  const { data: syncStatus } = useQuery<{
+    hasPreviousSync: boolean;
+    syncedCustomerCount: number;
+    totalCustomerCount: number;
+    lastSyncAt: string | null;
+  }>({
+    queryKey: ['/api/odoo/sync-status'],
+  });
+
   const importFromOdooMutation = useMutation({
-    mutationFn: async (deleteExisting: boolean) => {
-      const res = await apiRequest('POST', '/api/odoo/import/partners', { deleteExisting });
+    mutationFn: async (params: { importMode: 'add_new' | 'full_reset' }) => {
+      const res = await apiRequest('POST', '/api/odoo/import/partners', { 
+        importMode: params.importMode,
+        deleteExisting: params.importMode === 'full_reset'
+      });
       return res.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/partners'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/sync-status'] });
       setImportResult({
         imported: data.imported,
         skipped: data.skipped,
+        alreadyExists: data.alreadyExists || 0,
         failed: data.failed,
         errors: data.errors || [],
-        skippedPartners: data.skippedPartners || []
+        skippedPartners: data.skippedPartners || [],
+        mode: data.mode || 'add_new',
       });
+      const modeText = data.mode === 'full_reset' ? 'Full import' : 'Incremental import';
       toast({ 
-        title: "Import complete",
-        description: `Imported: ${data.imported}, Skipped: ${data.skipped}, Failed: ${data.failed}`
+        title: `${modeText} complete`,
+        description: `New: ${data.imported}, Already existed: ${data.alreadyExists || 0}, Skipped: ${data.skipped}, Failed: ${data.failed}`
       });
     },
     onError: (error: any) => {
@@ -119,12 +136,15 @@ export default function OdooSettingsPage() {
   });
 
   const [showImportConfirm, setShowImportConfirm] = useState(false);
+  const [showFullResetConfirm, setShowFullResetConfirm] = useState(false);
   const [importResult, setImportResult] = useState<{
     imported: number;
     skipped: number;
+    alreadyExists: number;
     failed: number;
     errors: string[];
     skippedPartners?: string[];
+    mode?: string;
   } | null>(null);
 
   // Product Mapping state
@@ -726,21 +746,31 @@ export default function OdooSettingsPage() {
                 Import Partners from Odoo
               </CardTitle>
               <CardDescription>
-                Import all partners from Odoo into your local CRM as customers. 
-                This will replace all existing customer data.
+                {syncStatus?.hasPreviousSync 
+                  ? "Import new customers from Odoo. Previously synced customers will be skipped."
+                  : "Import all partners from Odoo into your local CRM as customers."}
               </CardDescription>
             </CardHeader>
             <CardContent>
               <div className="space-y-6">
-                <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-4">
-                  <h4 className="font-semibold text-amber-800 dark:text-amber-200 mb-2">
-                    Warning: This action will delete all existing customers
-                  </h4>
-                  <p className="text-sm text-amber-700 dark:text-amber-300">
-                    All current customer records in this app will be permanently deleted and replaced 
-                    with partners imported from Odoo. This cannot be undone.
-                  </p>
-                </div>
+                {/* Show sync status summary */}
+                {syncStatus?.hasPreviousSync && (
+                  <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                    <div className="flex items-center gap-2 mb-2">
+                      <CheckCircle className="h-5 w-5 text-blue-600" />
+                      <span className="font-semibold text-blue-800 dark:text-blue-200">Previous Import Found</span>
+                    </div>
+                    <p className="text-sm text-blue-700 dark:text-blue-300">
+                      {syncStatus.syncedCustomerCount} customers already synced from Odoo. 
+                      Only new customers will be added.
+                      {syncStatus.lastSyncAt && (
+                        <span className="block mt-1 text-blue-600">
+                          Last sync: {format(new Date(syncStatus.lastSyncAt), 'PPP')}
+                        </span>
+                      )}
+                    </p>
+                  </div>
+                )}
 
                 {connectionTest?.success ? (
                   <div className="space-y-4">
@@ -754,12 +784,11 @@ export default function OdooSettingsPage() {
                       
                       {!showImportConfirm ? (
                         <Button 
-                          variant="destructive"
                           onClick={() => setShowImportConfirm(true)}
                           data-testid="btn-start-import"
                         >
                           <Download className="h-4 w-4 mr-2" />
-                          Import All from Odoo
+                          {syncStatus?.hasPreviousSync ? "Import New Customers" : "Import All from Odoo"}
                         </Button>
                       ) : (
                         <div className="flex items-center gap-2">
@@ -771,9 +800,8 @@ export default function OdooSettingsPage() {
                             Cancel
                           </Button>
                           <Button 
-                            variant="destructive"
                             onClick={() => {
-                              importFromOdooMutation.mutate(true);
+                              importFromOdooMutation.mutate({ importMode: 'add_new' });
                               setShowImportConfirm(false);
                             }}
                             disabled={importFromOdooMutation.isPending}
@@ -782,22 +810,76 @@ export default function OdooSettingsPage() {
                             {importFromOdooMutation.isPending && (
                               <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
                             )}
-                            Yes, Delete All & Import
+                            {syncStatus?.hasPreviousSync ? "Yes, Import New Customers" : "Yes, Import All"}
                           </Button>
                         </div>
                       )}
                     </div>
 
+                    {/* Advanced: Full Reset Option (hidden by default for incremental users) */}
+                    {syncStatus?.hasPreviousSync && (
+                      <details className="border rounded-lg p-3">
+                        <summary className="cursor-pointer text-sm text-muted-foreground hover:text-foreground">
+                          Advanced: Full Reset (Replace All Customers)
+                        </summary>
+                        <div className="mt-3 space-y-3">
+                          <div className="bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-800 rounded-lg p-3">
+                            <p className="text-sm text-amber-700 dark:text-amber-300">
+                              This will delete ALL existing customers and re-import everything from Odoo. 
+                              Any local edits (notes, pricing tiers, etc.) will be lost.
+                            </p>
+                          </div>
+                          {!showFullResetConfirm ? (
+                            <Button 
+                              variant="destructive"
+                              size="sm"
+                              onClick={() => setShowFullResetConfirm(true)}
+                            >
+                              Replace Everything
+                            </Button>
+                          ) : (
+                            <div className="flex items-center gap-2">
+                              <Button 
+                                variant="outline"
+                                size="sm"
+                                onClick={() => setShowFullResetConfirm(false)}
+                              >
+                                Cancel
+                              </Button>
+                              <Button 
+                                variant="destructive"
+                                size="sm"
+                                onClick={() => {
+                                  importFromOdooMutation.mutate({ importMode: 'full_reset' });
+                                  setShowFullResetConfirm(false);
+                                }}
+                                disabled={importFromOdooMutation.isPending}
+                              >
+                                {importFromOdooMutation.isPending && (
+                                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                                )}
+                                Yes, Delete All & Re-Import
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+                      </details>
+                    )}
+
                     {importResult && (
                       <div className="space-y-3">
                         <div className="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4">
                           <div className="font-semibold text-green-800 dark:text-green-200">
-                            Import Completed
+                            {importResult.mode === 'full_reset' ? 'Full Import Completed' : 'Incremental Import Completed'}
                           </div>
-                          <div className="text-sm text-green-700 dark:text-green-300 mt-2 grid grid-cols-3 gap-4">
+                          <div className="text-sm text-green-700 dark:text-green-300 mt-2 grid grid-cols-4 gap-4">
                             <div className="text-center p-2 bg-green-100 rounded">
                               <div className="text-2xl font-bold text-green-700">{importResult.imported}</div>
-                              <div className="text-xs">Imported</div>
+                              <div className="text-xs">New</div>
+                            </div>
+                            <div className="text-center p-2 bg-blue-100 rounded">
+                              <div className="text-2xl font-bold text-blue-700">{importResult.alreadyExists}</div>
+                              <div className="text-xs">Existed</div>
                             </div>
                             <div className="text-center p-2 bg-yellow-100 rounded">
                               <div className="text-2xl font-bold text-yellow-700">{importResult.skipped}</div>

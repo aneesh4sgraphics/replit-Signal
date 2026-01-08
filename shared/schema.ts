@@ -202,6 +202,9 @@ export const customers = pgTable("customers", {
   salesRepId: varchar("sales_rep_id"), // Assigned sales rep user ID
   salesRepName: varchar("sales_rep_name", { length: 255 }), // Assigned sales rep display name
   pricingTier: varchar("pricing_tier", { length: 50 }), // Mandatory pricing tier for quotes
+  pricingTierSetBy: varchar("pricing_tier_set_by", { length: 255 }), // Email of user who set the tier
+  pricingTierSetAt: timestamp("pricing_tier_set_at"), // When tier was first set (locks for non-admins)
+  lastOdooSyncAt: timestamp("last_odoo_sync_at"), // When this customer was last synced from Odoo
   odooPartnerId: integer("odoo_partner_id"), // Linked Odoo res.partner ID
   odooParentId: integer("odoo_parent_id"), // Parent partner ID in Odoo (for tree structure)
   parentCustomerId: varchar("parent_customer_id"), // Local parent customer ID (resolved after import)
