@@ -10592,6 +10592,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
       await db.delete(productMergeSuggestions)
         .where(eq(productMergeSuggestions.status, 'pending'));
       
+      // Get all previously rejected pairs to exclude them
+      const rejectedPairs = await db.select({
+        localProductId: productMergeSuggestions.localProductId,
+        odooDefaultCode: productMergeSuggestions.odooDefaultCode,
+      })
+        .from(productMergeSuggestions)
+        .where(eq(productMergeSuggestions.status, 'rejected'));
+      
+      // Create a Set for fast lookup of rejected pairs
+      const rejectedSet = new Set(
+        rejectedPairs.map(r => `${r.localProductId}:${r.odooDefaultCode}`)
+      );
+      
       let generated = 0;
       const newSuggestions: any[] = [];
       const missingFromLocal: any[] = [];
@@ -10622,6 +10635,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
         
         if (bestMatch && bestMatch.score < 1.0) {
+          // Skip if this pair was previously rejected
+          const pairKey = `${bestMatch.product.id}:${odooCode}`;
+          if (rejectedSet.has(pairKey)) {
+            continue;
+          }
+          
           // Found a fuzzy match - create suggestion
           newSuggestions.push({
             localProductId: bestMatch.product.id,
