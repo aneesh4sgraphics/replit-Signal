@@ -304,7 +304,8 @@ export default function ProductMapping() {
   // Calculate SqM from size based on packing type
   // Sheets/Packet/Carton/Unit: both dimensions in inches (e.g., 13x19 = 13in x 19in)
   // Roll: first dimension in inches, second in feet (e.g., 24x40 = 24in x 40ft)
-  const calculateSqm = (size: string, packingType: string): string => {
+  // For Sheets/Packet/Carton: multiply by number of sheets to get total SqM per pack
+  const calculateSqm = (size: string, packingType: string, numSheets: number = 1): string => {
     const match = size.match(/(\d+\.?\d*)x(\d+\.?\d*)/i);
     if (match) {
       const dim1 = parseFloat(match[1]);
@@ -322,7 +323,13 @@ export default function ProductMapping() {
       }
       
       // Convert square inches to square meters: 1 sq inch = 0.00064516 sq meters
-      const sqm = squareInches * 0.00064516;
+      let sqm = squareInches * 0.00064516;
+      
+      // For Sheets, Packet, Carton: multiply by number of sheets per pack
+      if (packingType === 'Sheets' || packingType === 'Packet' || packingType === 'Carton') {
+        sqm = sqm * numSheets;
+      }
+      
       return sqm.toFixed(4);
     }
     return '0';
@@ -734,7 +741,8 @@ export default function ProductMapping() {
                       const parsed = parseSizeFromCode(mappingProduct.itemCode);
                       if (parsed) {
                         setSelectedSize(parsed);
-                        setSelectedSqm(calculateSqm(parsed, selectedPackingType));
+                        const numSheets = parseInt(sheetsPerPack) || 1;
+                        setSelectedSqm(calculateSqm(parsed, selectedPackingType, numSheets));
                       }
                     }}
                   >
@@ -793,7 +801,8 @@ export default function ProductMapping() {
                     size="sm"
                     onClick={() => {
                       if (selectedSize) {
-                        setSelectedSqm(calculateSqm(selectedSize, selectedPackingType));
+                        const numSheets = parseInt(sheetsPerPack) || 1;
+                        setSelectedSqm(calculateSqm(selectedSize, selectedPackingType, numSheets));
                       }
                     }}
                   >
