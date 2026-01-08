@@ -69,8 +69,27 @@ export const productPricingMaster = pgTable("product_pricing_master", {
   uploadBatch: varchar("upload_batch", { length: 100 }), // Track which upload this came from
   rowHash: varchar("row_hash", { length: 64 }), // Hash of row data for change detection
   sortOrder: integer("sort_order"), // Preserve CSV file order
+  // Merge tracking
+  isArchived: boolean("is_archived").default(false), // Set true when merged into another product
+  mergeParentId: integer("merge_parent_id"), // Points to the primary product this was merged into
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+// Product merge suggestions - tracks fuzzy matches between Odoo and local products
+export const productMergeSuggestions = pgTable("product_merge_suggestions", {
+  id: serial("id").primaryKey(),
+  localProductId: integer("local_product_id").notNull().references(() => productPricingMaster.id, { onDelete: "cascade" }),
+  odooDefaultCode: varchar("odoo_default_code", { length: 100 }).notNull(),
+  odooProductName: varchar("odoo_product_name", { length: 255 }),
+  odooProductId: integer("odoo_product_id"), // Odoo product.template ID if available
+  matchScore: decimal("match_score", { precision: 5, scale: 4 }).notNull(), // 0-1 similarity score
+  matchType: varchar("match_type", { length: 20 }).notNull(), // 'exact', 'fuzzy', 'prefix'
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'accepted', 'rejected'
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by", { length: 255 }),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
 });
 
 // Product to Odoo mapping table - links QuickQuotes products to Odoo products

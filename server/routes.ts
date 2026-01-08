@@ -122,7 +122,8 @@ import {
   TRUST_LEVELS,
   QUOTE_FOLLOW_UP_STAGES,
   JOURNEY_PROGRESS_STAGES,
-  insertCustomerJourneyProgressSchema
+  insertCustomerJourneyProgressSchema,
+  productMergeSuggestions
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -10357,6 +10358,338 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: error.message || "Failed to reset mappings" });
     }
   });
+
+  // ============ ODOO FUZZY MATCH SUGGESTIONS ============
+
+  // Helper: Calculate Levenshtein distance for fuzzy matching
+  const levenshteinDistance = (str1: string, str2: string): number => {
+    const m = str1.length;
+    const n = str2.length;
+    const dp: number[][] = Array(m + 1).fill(null).map(() => Array(n + 1).fill(0));
+    
+    for (let i = 0; i <= m; i++) dp[i][0] = i;
+    for (let j = 0; j <= n; j++) dp[0][j] = j;
+    
+    for (let i = 1; i <= m; i++) {
+      for (let j = 1; j <= n; j++) {
+        if (str1[i - 1] === str2[j - 1]) {
+          dp[i][j] = dp[i - 1][j - 1];
+        } else {
+          dp[i][j] = 1 + Math.min(dp[i - 1][j], dp[i][j - 1], dp[i - 1][j - 1]);
+        }
+      }
+    }
+    return dp[m][n];
+  };
+
+  // Helper: Normalize product code for comparison
+  const normalizeProductCode = (code: string): string => {
+    return code
+      .toLowerCase()
+      .replace(/[\s\-_\/\\\.]+/g, '')
+      .trim();
+  };
+
+  // Helper: Calculate similarity score (0-1)
+  const calculateSimilarity = (str1: string, str2: string): number => {
+    const normalized1 = normalizeProductCode(str1);
+    const normalized2 = normalizeProductCode(str2);
+    
+    if (normalized1 === normalized2) return 1.0;
+    
+    const maxLen = Math.max(normalized1.length, normalized2.length);
+    if (maxLen === 0) return 0;
+    
+    const distance = levenshteinDistance(normalized1, normalized2);
+    return 1 - (distance / maxLen);
+  };
+
+  // Get all pending merge suggestions
+  app.get("/api/products/merge-suggestions", requireAdmin, async (req: any, res) => {
+    try {
+      const suggestions = await db.select({
+        id: productMergeSuggestions.id,
+        localProductId: productMergeSuggestions.localProductId,
+        odooDefaultCode: productMergeSuggestions.odooDefaultCode,
+        odooProductName: productMergeSuggestions.odooProductName,
+        odooProductId: productMergeSuggestions.odooProductId,
+        matchScore: productMergeSuggestions.matchScore,
+        matchType: productMergeSuggestions.matchType,
+        status: productMergeSuggestions.status,
+        createdAt: productMergeSuggestions.createdAt,
+      })
+        .from(productMergeSuggestions)
+        .where(eq(productMergeSuggestions.status, 'pending'))
+        .orderBy(desc(productMergeSuggestions.matchScore));
+      
+      // Get local product details for each suggestion
+      const enrichedSuggestions = await Promise.all(suggestions.map(async (s) => {
+        const [localProduct] = await db.select({
+          itemCode: productPricingMaster.itemCode,
+          odooItemCode: productPricingMaster.odooItemCode,
+          productName: productPricingMaster.productName,
+          productType: productPricingMaster.productType,
+          size: productPricingMaster.size,
+          dealerPrice: productPricingMaster.dealerPrice,
+        })
+          .from(productPricingMaster)
+          .where(eq(productPricingMaster.id, s.localProductId))
+          .limit(1);
+        
+        return {
+          ...s,
+          localProduct,
+        };
+      }));
+      
+      res.json({
+        success: true,
+        suggestions: enrichedSuggestions,
+        count: enrichedSuggestions.length,
+      });
+    } catch (error: any) {
+      console.error("Error fetching merge suggestions:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch suggestions" });
+    }
+  });
+
+  // Generate fuzzy match suggestions from Odoo products
+  app.post("/api/products/generate-suggestions", requireAdmin, async (req: any, res) => {
+    try {
+      const { minScore = 0.7 } = req.body;
+      
+      // Get Odoo products
+      const odooClient = await import('./odoo.js');
+      const odooProducts = await odooClient.searchOdooProducts('', 500);
+      
+      if (!odooProducts || odooProducts.length === 0) {
+        return res.json({ success: true, generated: 0, message: "No Odoo products found" });
+      }
+      
+      // Get local products
+      const localProducts = await db.select({
+        id: productPricingMaster.id,
+        itemCode: productPricingMaster.itemCode,
+        odooItemCode: productPricingMaster.odooItemCode,
+        productName: productPricingMaster.productName,
+        isArchived: productPricingMaster.isArchived,
+      })
+        .from(productPricingMaster)
+        .where(eq(productPricingMaster.isArchived, false));
+      
+      // Clear existing pending suggestions
+      await db.delete(productMergeSuggestions)
+        .where(eq(productMergeSuggestions.status, 'pending'));
+      
+      let generated = 0;
+      const newSuggestions: any[] = [];
+      const missingFromLocal: any[] = [];
+      
+      for (const odooProduct of odooProducts) {
+        const odooCode = odooProduct.default_code || '';
+        if (!odooCode) continue;
+        
+        let bestMatch: { product: any; score: number; type: string } | null = null;
+        
+        for (const localProduct of localProducts) {
+          // Skip if already has this Odoo code
+          if (localProduct.odooItemCode === odooCode) {
+            bestMatch = { product: localProduct, score: 1.0, type: 'exact' };
+            break;
+          }
+          
+          // Calculate similarity with item code
+          const score = calculateSimilarity(odooCode, localProduct.itemCode);
+          
+          if (score >= minScore && (!bestMatch || score > bestMatch.score)) {
+            bestMatch = {
+              product: localProduct,
+              score,
+              type: score === 1.0 ? 'exact' : score >= 0.9 ? 'prefix' : 'fuzzy',
+            };
+          }
+        }
+        
+        if (bestMatch && bestMatch.score < 1.0) {
+          // Found a fuzzy match - create suggestion
+          newSuggestions.push({
+            localProductId: bestMatch.product.id,
+            odooDefaultCode: odooCode,
+            odooProductName: odooProduct.name || '',
+            odooProductId: odooProduct.id,
+            matchScore: bestMatch.score.toFixed(4),
+            matchType: bestMatch.type,
+            status: 'pending',
+          });
+          generated++;
+        } else if (!bestMatch) {
+          // No match found - track as missing
+          missingFromLocal.push({
+            odooCode,
+            odooProductName: odooProduct.name,
+            odooProductId: odooProduct.id,
+          });
+        }
+      }
+      
+      // Insert new suggestions
+      if (newSuggestions.length > 0) {
+        await db.insert(productMergeSuggestions).values(newSuggestions);
+      }
+      
+      res.json({
+        success: true,
+        generated,
+        missingFromLocal: missingFromLocal.slice(0, 50), // Return first 50 missing
+        totalMissing: missingFromLocal.length,
+      });
+    } catch (error: any) {
+      console.error("Error generating suggestions:", error);
+      res.status(500).json({ error: error.message || "Failed to generate suggestions" });
+    }
+  });
+
+  // Accept a merge suggestion - apply Odoo code to local product
+  app.post("/api/products/merge-suggestions/:id/accept", requireAdmin, async (req: any, res) => {
+    try {
+      const suggestionId = parseInt(req.params.id);
+      const userId = req.user?.id || req.user?.email || 'admin';
+      
+      // Get the suggestion
+      const [suggestion] = await db.select()
+        .from(productMergeSuggestions)
+        .where(eq(productMergeSuggestions.id, suggestionId))
+        .limit(1);
+      
+      if (!suggestion) {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+      
+      if (suggestion.status !== 'pending') {
+        return res.status(400).json({ error: "Suggestion already resolved" });
+      }
+      
+      // Update the local product with Odoo code (Odoo code takes precedence)
+      await db.update(productPricingMaster)
+        .set({
+          odooItemCode: suggestion.odooDefaultCode,
+          updatedAt: new Date(),
+        })
+        .where(eq(productPricingMaster.id, suggestion.localProductId));
+      
+      // Mark suggestion as accepted
+      await db.update(productMergeSuggestions)
+        .set({
+          status: 'accepted',
+          resolvedAt: new Date(),
+          resolvedBy: userId,
+        })
+        .where(eq(productMergeSuggestions.id, suggestionId));
+      
+      res.json({ success: true, message: "Odoo code applied to product" });
+    } catch (error: any) {
+      console.error("Error accepting suggestion:", error);
+      res.status(500).json({ error: error.message || "Failed to accept suggestion" });
+    }
+  });
+
+  // Reject a merge suggestion
+  app.post("/api/products/merge-suggestions/:id/reject", requireAdmin, async (req: any, res) => {
+    try {
+      const suggestionId = parseInt(req.params.id);
+      const userId = req.user?.id || req.user?.email || 'admin';
+      const { notes } = req.body;
+      
+      const [suggestion] = await db.select()
+        .from(productMergeSuggestions)
+        .where(eq(productMergeSuggestions.id, suggestionId))
+        .limit(1);
+      
+      if (!suggestion) {
+        return res.status(404).json({ error: "Suggestion not found" });
+      }
+      
+      await db.update(productMergeSuggestions)
+        .set({
+          status: 'rejected',
+          resolvedAt: new Date(),
+          resolvedBy: userId,
+          notes: notes || null,
+        })
+        .where(eq(productMergeSuggestions.id, suggestionId));
+      
+      res.json({ success: true, message: "Suggestion rejected" });
+    } catch (error: any) {
+      console.error("Error rejecting suggestion:", error);
+      res.status(500).json({ error: error.message || "Failed to reject suggestion" });
+    }
+  });
+
+  // Add a new product from Odoo data
+  app.post("/api/products/add-from-odoo", requireAdmin, async (req: any, res) => {
+    try {
+      const { 
+        odooCode, 
+        odooProductName, 
+        odooProductId,
+        productName,
+        productType,
+        size,
+        totalSqm,
+        minQuantity,
+        rollSheet,
+        unitOfMeasure,
+      } = req.body;
+      
+      if (!odooCode) {
+        return res.status(400).json({ error: "Odoo code is required" });
+      }
+      
+      // Check if product with this Odoo code already exists
+      const [existing] = await db.select({ id: productPricingMaster.id })
+        .from(productPricingMaster)
+        .where(eq(productPricingMaster.odooItemCode, odooCode))
+        .limit(1);
+      
+      if (existing) {
+        return res.status(400).json({ error: "Product with this Odoo code already exists" });
+      }
+      
+      // Generate a unique item code based on Odoo code
+      const itemCode = `ODOO-${odooCode}`;
+      
+      // Check if item code exists
+      const [existingItemCode] = await db.select({ id: productPricingMaster.id })
+        .from(productPricingMaster)
+        .where(eq(productPricingMaster.itemCode, itemCode))
+        .limit(1);
+      
+      if (existingItemCode) {
+        return res.status(400).json({ error: "Product with this item code already exists" });
+      }
+      
+      // Insert new product
+      const [newProduct] = await db.insert(productPricingMaster).values({
+        itemCode,
+        odooItemCode: odooCode,
+        productName: productName || odooProductName || 'Unknown Product',
+        productType: productType || 'Unknown Type',
+        size: size || 'Standard',
+        totalSqm: totalSqm || '0',
+        minQuantity: minQuantity || 50,
+        rollSheet: rollSheet || null,
+        unitOfMeasure: unitOfMeasure || null,
+        isArchived: false,
+      }).returning();
+      
+      res.json({ success: true, product: newProduct });
+    } catch (error: any) {
+      console.error("Error adding product from Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to add product" });
+    }
+  });
+
+  // ============ END ODOO FUZZY MATCH ============
 
   // Get duplicate/similar products for merging
   app.get("/api/products/duplicates", requireAdmin, async (req: any, res) => {
