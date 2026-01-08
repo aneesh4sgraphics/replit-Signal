@@ -1200,12 +1200,12 @@ export default function ProductMapping() {
                 value={editForm.categoryId}
                 onValueChange={handleCategoryChange}
               >
-                <SelectTrigger data-testid="select-category">
+                <SelectTrigger data-testid="select-category" className="text-left">
                   <SelectValue placeholder="Select category..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-[250px]">
                   {categories.map(cat => (
-                    <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
+                    <SelectItem key={cat.id} value={cat.id.toString()} className="text-left">{cat.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -1224,10 +1224,10 @@ export default function ProductMapping() {
                 value={editForm.productTypeId}
                 onValueChange={(val) => setEditForm(prev => ({ ...prev, productTypeId: val }))}
               >
-                <SelectTrigger data-testid="select-type">
+                <SelectTrigger data-testid="select-type" className="text-left">
                   <SelectValue placeholder="Select type..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
+                <SelectContent className="max-h-[300px] overflow-y-auto min-w-[280px]">
                   {filteredTypesForEdit.map(type => (
                     <SelectItem key={type.id} value={type.id.toString()}>
                       {type.name}
@@ -1340,10 +1340,10 @@ export default function ProductMapping() {
                 value={editForm.categoryId}
                 onValueChange={handleCategoryChange}
               >
-                <SelectTrigger data-testid="bulk-select-category">
+                <SelectTrigger data-testid="bulk-select-category" className="text-left">
                   <SelectValue placeholder="Keep current values..." />
                 </SelectTrigger>
-                <SelectContent>
+                <SelectContent className="min-w-[250px]">
                   {categories.map(cat => (
                     <SelectItem key={cat.id} value={cat.id.toString()}>{cat.name}</SelectItem>
                   ))}
@@ -1364,10 +1364,10 @@ export default function ProductMapping() {
                 value={editForm.productTypeId}
                 onValueChange={(val) => setEditForm(prev => ({ ...prev, productTypeId: val }))}
               >
-                <SelectTrigger data-testid="bulk-select-type">
+                <SelectTrigger data-testid="bulk-select-type" className="text-left">
                   <SelectValue placeholder="Keep current values..." />
                 </SelectTrigger>
-                <SelectContent className="max-h-[300px] overflow-y-auto">
+                <SelectContent className="max-h-[300px] overflow-y-auto min-w-[280px]">
                   {(editForm.categoryId ? filteredTypesForEdit : types).map(type => (
                     <SelectItem key={type.id} value={type.id.toString()}>
                       {editForm.categoryId ? type.name : `${categories.find(c => c.id === type.categoryId)?.name} → ${type.name}`}

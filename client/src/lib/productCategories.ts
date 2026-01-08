@@ -20,6 +20,7 @@ export const ALLOWED_CATEGORIES = [
   'eLe Laser Films',
   'MXP Offset Plates',
   'Rollers & Chemicals',
+  'COHO DTF Films',
 ] as const;
 
 export type AllowedCategory = typeof ALLOWED_CATEGORIES[number];
@@ -33,9 +34,10 @@ export const CATEGORY_TYPE_KEYWORDS: Record<string, string[]> = {
     'auraboard', 'aura board', 'clear film', 'frosted film', 'backlit film',
     'gold 8mil', 'gold 11mil', 'silver 8mil', 'silver 11mil', 
     'rose 8mil', 'rose 11mil', 'mirror 8mil', 
-    'digital fabric', 'coho film', 'pp:', 'pp-pet-pp',
+    'digital fabric', 'pp:', 'pp-pet-pp',
     'thickness:', '8mil /', '11mil /', '14mil /'
   ],
+  'COHO DTF Films': ['coho'],
   'Graffiti Blended Poly': ['graffiti blended poly', 'blended poly'],
   'Graffiti SOFT Poly': ['graffiti soft poly', 'soft poly'],
   'GraffitiSTICK': ['stick', 'slickstick', 'coolstick', 'clearstick', 'silverstick', 'paperstick', 'durastick', 'magnetics'],
