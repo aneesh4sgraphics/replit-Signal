@@ -6039,6 +6039,118 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // Gmail Intelligence Routes
+  // ========================================
+
+  // Get sync state for current user
+  app.get("/api/gmail-intelligence/sync-state", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getSyncState } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const state = await getSyncState(userId);
+      res.json(state || { syncStatus: 'never_synced' });
+    } catch (error: any) {
+      console.error("Error fetching Gmail sync state:", error);
+      res.status(500).json({ error: "Failed to fetch sync state" });
+    }
+  });
+
+  // Trigger Gmail sync for current user
+  app.post("/api/gmail-intelligence/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const { syncGmailMessages, analyzeMessagesForInsights } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userEmail = req.user?.email || req.user?.claims?.email;
+      const maxMessages = parseInt(req.body.maxMessages) || 50;
+      
+      // Sync messages from Gmail
+      const syncResult = await syncGmailMessages(userId, userEmail, maxMessages);
+      
+      // Analyze new messages for insights
+      const analysisResult = await analyzeMessagesForInsights(userId);
+      
+      res.json({ 
+        success: true, 
+        sync: syncResult, 
+        analysis: analysisResult 
+      });
+    } catch (error: any) {
+      console.error("Error syncing Gmail:", error);
+      res.status(500).json({ error: error.message || "Failed to sync Gmail" });
+    }
+  });
+
+  // Get insights for current user
+  app.get("/api/gmail-intelligence/insights", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getInsightsForUser } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { status, type, customerId, limit } = req.query;
+      
+      const insights = await getInsightsForUser(userId, {
+        status: status as string,
+        type: type as string,
+        customerId: customerId as string,
+        limit: limit ? parseInt(limit as string) : 50,
+      });
+      
+      res.json(insights);
+    } catch (error: any) {
+      console.error("Error fetching Gmail insights:", error);
+      res.status(500).json({ error: "Failed to fetch insights" });
+    }
+  });
+
+  // Get insights summary (counts by type and status)
+  app.get("/api/gmail-intelligence/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getInsightsSummary } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      
+      const summary = await getInsightsSummary(userId);
+      res.json(summary);
+    } catch (error: any) {
+      console.error("Error fetching Gmail insights summary:", error);
+      res.status(500).json({ error: "Failed to fetch summary" });
+    }
+  });
+
+  // Update insight status (complete, dismiss, acknowledge)
+  app.patch("/api/gmail-intelligence/insights/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const { updateInsightStatus } = await import("./gmail-intelligence");
+      const insightId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { status, reason } = req.body;
+      
+      if (!['pending', 'acknowledged', 'completed', 'dismissed'].includes(status)) {
+        return res.status(400).json({ error: "Invalid status" });
+      }
+      
+      await updateInsightStatus(insightId, status, userId, reason);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating insight status:", error);
+      res.status(500).json({ error: "Failed to update insight" });
+    }
+  });
+
+  // Re-analyze pending messages
+  app.post("/api/gmail-intelligence/analyze", isAuthenticated, async (req: any, res) => {
+    try {
+      const { analyzeMessagesForInsights } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const limit = parseInt(req.body.limit) || 20;
+      
+      const result = await analyzeMessagesForInsights(userId, limit);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error analyzing messages:", error);
+      res.status(500).json({ error: "Failed to analyze messages" });
+    }
+  });
+
+  // ========================================
   // Shipment Labeler Routes
   // ========================================
 
