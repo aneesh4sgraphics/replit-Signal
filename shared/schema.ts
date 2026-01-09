@@ -2454,3 +2454,46 @@ export const insertDailyUserPerformanceSchema = createInsertSchema(dailyUserPerf
 });
 export type DailyUserPerformance = typeof dailyUserPerformance.$inferSelect;
 export type InsertDailyUserPerformance = z.infer<typeof insertDailyUserPerformanceSchema>;
+
+// Shipment Follow-up Tasks - track outbound shipments awaiting customer response
+export const shipmentFollowUpTasks = pgTable("shipment_follow_up_tasks", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  gmailMessageId: integer("gmail_message_id").references(() => gmailMessages.id, { onDelete: "set null" }),
+  threadId: varchar("thread_id", { length: 100 }), // Gmail thread ID for tracking replies
+  shipmentType: varchar("shipment_type", { length: 50 }).notNull(), // 'swatchbook', 'press_test_kit', 'samples', 'package'
+  carrier: varchar("carrier", { length: 50 }), // 'ups', 'fedex', 'usps', 'other'
+  trackingNumber: varchar("tracking_number", { length: 100 }),
+  subject: varchar("subject", { length: 500 }), // Original email subject
+  recipientEmail: varchar("recipient_email", { length: 255 }),
+  recipientName: varchar("recipient_name", { length: 255 }),
+  customerCompany: varchar("customer_company", { length: 255 }),
+  sentAt: timestamp("sent_at"), // When shipment email was sent
+  followUpDueDate: timestamp("follow_up_due_date").notNull(), // When to remind (default +4 days)
+  status: varchar("status", { length: 20 }).default("pending"), // 'pending', 'completed', 'dismissed'
+  replyReceived: boolean("reply_received").default(false), // Auto-detected reply
+  replyReceivedAt: timestamp("reply_received_at"),
+  completedAt: timestamp("completed_at"),
+  dismissedAt: timestamp("dismissed_at"),
+  dismissedReason: text("dismissed_reason"),
+  lastReminderAt: timestamp("last_reminder_at"),
+  reminderCount: integer("reminder_count").default(0),
+  notes: text("notes"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("shipment_followup_user_id_idx").on(table.userId),
+  customerIdIdx: index("shipment_followup_customer_id_idx").on(table.customerId),
+  statusIdx: index("shipment_followup_status_idx").on(table.status),
+  dueDateIdx: index("shipment_followup_due_date_idx").on(table.followUpDueDate),
+  threadIdIdx: index("shipment_followup_thread_id_idx").on(table.threadId),
+}));
+
+export const insertShipmentFollowUpTaskSchema = createInsertSchema(shipmentFollowUpTasks).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type ShipmentFollowUpTask = typeof shipmentFollowUpTasks.$inferSelect;
+export type InsertShipmentFollowUpTask = z.infer<typeof insertShipmentFollowUpTaskSchema>;

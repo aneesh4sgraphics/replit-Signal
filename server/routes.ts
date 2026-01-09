@@ -6151,6 +6151,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // Shipment Follow-up Tasks Routes
+  // ========================================
+
+  // Get shipment follow-up tasks
+  app.get("/api/shipment-followups", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getShipmentFollowUpTasks, getPendingShipmentReminders } = await import("./gmail-intelligence");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const status = req.query.status as string | undefined;
+      const remindersOnly = req.query.reminders === 'true';
+
+      if (remindersOnly) {
+        const reminders = await getPendingShipmentReminders(userId);
+        return res.json(reminders);
+      }
+
+      const tasks = await getShipmentFollowUpTasks(userId, status);
+      res.json(tasks);
+    } catch (error: any) {
+      console.error("Error fetching shipment follow-up tasks:", error);
+      res.status(500).json({ error: "Failed to fetch tasks" });
+    }
+  });
+
+  // Complete a shipment follow-up task
+  app.patch("/api/shipment-followups/:id/complete", isAuthenticated, async (req: any, res) => {
+    try {
+      const { updateShipmentTaskStatus } = await import("./gmail-intelligence");
+      const taskId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+
+      await updateShipmentTaskStatus(taskId, userId, 'completed');
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error completing shipment task:", error);
+      res.status(500).json({ error: "Failed to complete task" });
+    }
+  });
+
+  // Dismiss a shipment follow-up task
+  app.patch("/api/shipment-followups/:id/dismiss", isAuthenticated, async (req: any, res) => {
+    try {
+      const { updateShipmentTaskStatus } = await import("./gmail-intelligence");
+      const taskId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { reason } = req.body;
+
+      await updateShipmentTaskStatus(taskId, userId, 'dismissed', reason);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error dismissing shipment task:", error);
+      res.status(500).json({ error: "Failed to dismiss task" });
+    }
+  });
+
+  // Mark reminder as sent (for internal use)
+  app.patch("/api/shipment-followups/:id/reminder-sent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { markReminderSent } = await import("./gmail-intelligence");
+      const taskId = parseInt(req.params.id);
+
+      await markReminderSent(taskId);
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error marking reminder sent:", error);
+      res.status(500).json({ error: "Failed to update reminder" });
+    }
+  });
+
+  // ========================================
   // Shipment Labeler Routes
   // ========================================
 

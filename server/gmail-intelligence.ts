@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { gmailSyncState, gmailMessages, gmailInsights, customers } from "@shared/schema";
-import { eq, and, desc, sql, inArray } from "drizzle-orm";
+import { gmailSyncState, gmailMessages, gmailInsights, customers, shipmentFollowUpTasks } from "@shared/schema";
+import { eq, and, desc, sql, inArray, lt, isNull, or } from "drizzle-orm";
 import { getMessages, getMessage } from "./gmail-client";
 import OpenAI from "openai";
 
@@ -89,7 +89,7 @@ export async function syncGmailMessages(userId: string, userEmail: string, maxMe
       
       const bodyText = stripHtml(fullMessage.body);
 
-      await db.insert(gmailMessages).values({
+      const [insertedMessage] = await db.insert(gmailMessages).values({
         userId,
         gmailMessageId: msg.id,
         threadId: msg.threadId || null,
@@ -104,7 +104,16 @@ export async function syncGmailMessages(userId: string, userEmail: string, maxMe
         sentAt: msg.date ? new Date(msg.date) : null,
         customerId,
         analysisStatus: 'pending',
-      });
+      }).returning();
+      
+      // Detect shipment emails and create follow-up tasks
+      if (msg.direction === 'outbound') {
+        await detectAndCreateShipmentFollowUp(insertedMessage, userId);
+      } else {
+        // Check if this is a reply to a shipment email
+        await checkForReplyAndCloseTask(insertedMessage, userId);
+      }
+      
       processed++;
     }
 
@@ -365,4 +374,204 @@ export async function getInsightsSummary(userId: string) {
     urgent: urgent[0]?.count || 0,
     overdue: overdueCount[0]?.count || 0,
   };
+}
+
+// Shipment Follow-up Detection
+const SHIPMENT_KEYWORDS = [
+  'swatchbook', 'swatch book', 'swatches sent', 'sending swatches',
+  'press test kit', 'press-test kit', 'test kit sent', 'sending test kit',
+  'samples sent', 'sending samples', 'shipped samples', 'mailing samples',
+  'shipped out', 'sending out', 'mailed out', 'package sent',
+  'tracking number', 'tracking info', 'shipped via', 'shipping via',
+];
+
+const CARRIER_PATTERNS: { pattern: RegExp; carrier: string }[] = [
+  { pattern: /\b(ups|united parcel)\b/i, carrier: 'ups' },
+  { pattern: /\b(fedex|fed[-\s]?ex)\b/i, carrier: 'fedex' },
+  { pattern: /\b(usps|postal service|usmail)\b/i, carrier: 'usps' },
+  { pattern: /\b(dhl)\b/i, carrier: 'dhl' },
+];
+
+const TRACKING_PATTERNS = [
+  /\b(1Z[A-Z0-9]{16})\b/i, // UPS
+  /\b(\d{12,22})\b/, // FedEx
+  /\b(\d{20,22})\b/, // USPS
+  /\b(9[0-4]\d{20,21})\b/, // USPS
+];
+
+function detectShipmentType(subject: string, body: string): string | null {
+  const text = `${subject} ${body}`.toLowerCase();
+  if (text.includes('swatchbook') || text.includes('swatch book') || text.includes('swatches')) return 'swatchbook';
+  if (text.includes('press test') || text.includes('test kit')) return 'press_test_kit';
+  if (text.includes('sample') || text.includes('samples')) return 'samples';
+  if (SHIPMENT_KEYWORDS.some(kw => text.includes(kw))) return 'package';
+  return null;
+}
+
+function detectCarrier(text: string): string | null {
+  for (const { pattern, carrier } of CARRIER_PATTERNS) {
+    if (pattern.test(text)) return carrier;
+  }
+  return null;
+}
+
+function extractTrackingNumber(text: string): string | null {
+  for (const pattern of TRACKING_PATTERNS) {
+    const match = text.match(pattern);
+    if (match) return match[1];
+  }
+  return null;
+}
+
+export async function detectAndCreateShipmentFollowUp(message: typeof gmailMessages.$inferSelect, userId: string) {
+  if (message.direction !== 'outbound') return null;
+
+  const subject = message.subject || '';
+  const body = message.bodyText || message.snippet || '';
+  const fullText = `${subject} ${body}`;
+
+  const shipmentType = detectShipmentType(subject, body);
+  if (!shipmentType) return null;
+
+  // Check if we already have a follow-up task for this thread
+  if (message.threadId) {
+    const existing = await db.select().from(shipmentFollowUpTasks)
+      .where(and(
+        eq(shipmentFollowUpTasks.threadId, message.threadId),
+        eq(shipmentFollowUpTasks.userId, userId),
+        eq(shipmentFollowUpTasks.status, 'pending')
+      ))
+      .limit(1);
+    if (existing.length > 0) return null;
+  }
+
+  const carrier = detectCarrier(fullText);
+  const trackingNumber = extractTrackingNumber(fullText);
+
+  // Get customer info
+  let customerCompany = '';
+  if (message.customerId) {
+    const [customer] = await db.select().from(customers)
+      .where(eq(customers.id, message.customerId));
+    if (customer) {
+      customerCompany = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+    }
+  }
+
+  const followUpDueDate = new Date();
+  followUpDueDate.setDate(followUpDueDate.getDate() + 4); // Follow up in 4 days
+
+  const [task] = await db.insert(shipmentFollowUpTasks).values({
+    userId,
+    customerId: message.customerId,
+    gmailMessageId: message.id,
+    threadId: message.threadId,
+    shipmentType,
+    carrier,
+    trackingNumber,
+    subject,
+    recipientEmail: message.toEmail,
+    recipientName: message.toName,
+    customerCompany,
+    sentAt: message.sentAt,
+    followUpDueDate,
+    status: 'pending',
+  }).returning();
+
+  console.log(`[Shipment Follow-up] Created task for ${shipmentType} to ${customerCompany || message.toEmail}`);
+  return task;
+}
+
+export async function checkForReplyAndCloseTask(message: typeof gmailMessages.$inferSelect, userId: string) {
+  if (message.direction !== 'inbound' || !message.threadId) return;
+
+  // Find any pending shipment follow-up tasks for this thread
+  const pendingTasks = await db.select().from(shipmentFollowUpTasks)
+    .where(and(
+      eq(shipmentFollowUpTasks.threadId, message.threadId),
+      eq(shipmentFollowUpTasks.userId, userId),
+      eq(shipmentFollowUpTasks.status, 'pending')
+    ));
+
+  for (const task of pendingTasks) {
+    await db.update(shipmentFollowUpTasks)
+      .set({
+        status: 'completed',
+        replyReceived: true,
+        replyReceivedAt: message.sentAt || new Date(),
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(shipmentFollowUpTasks.id, task.id));
+    
+    console.log(`[Shipment Follow-up] Auto-closed task ${task.id} - reply received`);
+  }
+}
+
+export async function getShipmentFollowUpTasks(userId: string, status?: string) {
+  let query = db.select().from(shipmentFollowUpTasks)
+    .where(eq(shipmentFollowUpTasks.userId, userId));
+  
+  if (status) {
+    query = db.select().from(shipmentFollowUpTasks)
+      .where(and(
+        eq(shipmentFollowUpTasks.userId, userId),
+        eq(shipmentFollowUpTasks.status, status)
+      ));
+  }
+
+  return await query.orderBy(desc(shipmentFollowUpTasks.followUpDueDate));
+}
+
+export async function getPendingShipmentReminders(userId: string) {
+  const now = new Date();
+  const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  return await db.select().from(shipmentFollowUpTasks)
+    .where(and(
+      eq(shipmentFollowUpTasks.userId, userId),
+      eq(shipmentFollowUpTasks.status, 'pending'),
+      lt(shipmentFollowUpTasks.followUpDueDate, now),
+      or(
+        isNull(shipmentFollowUpTasks.lastReminderAt),
+        lt(shipmentFollowUpTasks.lastReminderAt, today)
+      )
+    ))
+    .orderBy(shipmentFollowUpTasks.followUpDueDate);
+}
+
+export async function updateShipmentTaskStatus(
+  taskId: number, 
+  userId: string, 
+  status: 'completed' | 'dismissed',
+  reason?: string
+) {
+  const updates: Partial<typeof shipmentFollowUpTasks.$inferSelect> = {
+    status,
+    updatedAt: new Date(),
+  };
+
+  if (status === 'completed') {
+    updates.completedAt = new Date();
+  } else if (status === 'dismissed') {
+    updates.dismissedAt = new Date();
+    updates.dismissedReason = reason;
+  }
+
+  await db.update(shipmentFollowUpTasks)
+    .set(updates)
+    .where(and(
+      eq(shipmentFollowUpTasks.id, taskId),
+      eq(shipmentFollowUpTasks.userId, userId)
+    ));
+}
+
+export async function markReminderSent(taskId: number) {
+  await db.update(shipmentFollowUpTasks)
+    .set({
+      lastReminderAt: new Date(),
+      reminderCount: sql`${shipmentFollowUpTasks.reminderCount} + 1`,
+      updatedAt: new Date(),
+    })
+    .where(eq(shipmentFollowUpTasks.id, taskId));
 }

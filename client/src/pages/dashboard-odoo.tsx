@@ -35,6 +35,7 @@ import {
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
+import ShipmentFollowUpWidget from "@/components/ShipmentFollowUpWidget";
 import { ConnectionPrompt, ConnectionStatusBanner } from "@/components/ConnectionPrompt";
 import { useQuery } from "@tanstack/react-query";
 import { useAppUsage } from "@/hooks/useAppUsage";
@@ -594,6 +595,11 @@ export default function Dashboard() {
         {/* Start Your Day Dashboard */}
         <div style={{ marginBottom: '32px' }}>
           <StartYourDayDashboard />
+        </div>
+
+        {/* Shipment Follow-up Tasks */}
+        <div style={{ marginBottom: '32px' }}>
+          <ShipmentFollowUpWidget />
         </div>
 
         {/* Objection Summary Card */}
