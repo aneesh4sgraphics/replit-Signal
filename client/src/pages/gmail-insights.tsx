@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -7,6 +7,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import { format, formatDistanceToNow, isPast } from "date-fns";
+import { motion, AnimatePresence } from "framer-motion";
 import { 
   Mail, 
   RefreshCw, 
@@ -23,7 +24,8 @@ import {
   ChevronDown,
   ChevronUp,
   X,
-  ExternalLink
+  ExternalLink,
+  PartyPopper
 } from "lucide-react";
 import {
   Dialog,
@@ -102,6 +104,136 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
   low: { color: "bg-gray-400 text-white", label: "Low" },
 };
 
+function isPurchaseOrderEmail(insight: Insight): boolean {
+  const poKeywords = ['purchase order', 'po#', 'po number', 'p.o.', 'po:', 'purchase-order'];
+  const textToCheck = [
+    insight.summary?.toLowerCase() || '',
+    insight.details?.toLowerCase() || '',
+    insight.email?.subject?.toLowerCase() || ''
+  ].join(' ');
+  return poKeywords.some(keyword => textToCheck.includes(keyword));
+}
+
+function ChampagneCelebration({ isVisible, onClose, customerName }: { isVisible: boolean; onClose: () => void; customerName?: string }) {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(onClose, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.5, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.5, y: 50 }}
+            transition={{ type: "spring", damping: 15 }}
+            className="relative bg-gradient-to-br from-amber-50 via-yellow-100 to-amber-200 dark:from-amber-900 dark:via-yellow-900 dark:to-amber-800 rounded-3xl p-8 shadow-2xl max-w-md mx-4 text-center overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Confetti/bubbles background */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {[...Array(20)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ y: 300, x: Math.random() * 400 - 200, opacity: 0 }}
+                  animate={{ 
+                    y: -100, 
+                    opacity: [0, 1, 1, 0],
+                    rotate: Math.random() * 360
+                  }}
+                  transition={{ 
+                    duration: 2 + Math.random() * 2,
+                    delay: Math.random() * 0.5,
+                    repeat: Infinity,
+                    repeatDelay: Math.random() * 2
+                  }}
+                  className="absolute bottom-0"
+                  style={{ left: `${Math.random() * 100}%` }}
+                >
+                  <span className="text-2xl">
+                    {['🎉', '🥂', '✨', '🌟', '💫', '🎊'][Math.floor(Math.random() * 6)]}
+                  </span>
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Champagne bottle animation */}
+            <motion.div
+              initial={{ rotate: -20 }}
+              animate={{ rotate: [-20, 20, -10, 10, 0] }}
+              transition={{ duration: 0.6, delay: 0.2 }}
+              className="text-8xl mb-4 relative z-10"
+            >
+              🍾
+            </motion.div>
+
+            {/* Cork pop effect */}
+            <motion.div
+              initial={{ y: 0, opacity: 1, scale: 1 }}
+              animate={{ y: -100, opacity: 0, scale: 0.5 }}
+              transition={{ duration: 0.8, delay: 0.4 }}
+              className="absolute top-20 left-1/2 transform -translate-x-1/2 text-4xl"
+            >
+              🎊
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.5 }}
+              className="text-3xl font-bold text-amber-800 dark:text-amber-100 mb-2 relative z-10"
+            >
+              You've Got a Purchase Order!
+            </motion.h2>
+
+            {customerName && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 0.7 }}
+                className="text-lg text-amber-700 dark:text-amber-200 mb-4 relative z-10"
+              >
+                from <span className="font-semibold">{customerName}</span>
+              </motion.p>
+            )}
+
+            <motion.div
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.9 }}
+              className="flex items-center justify-center gap-2 text-amber-600 dark:text-amber-300 relative z-10"
+            >
+              <PartyPopper className="h-5 w-5" />
+              <span>Time to celebrate!</span>
+              <PartyPopper className="h-5 w-5" />
+            </motion.div>
+
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.1 }}
+              onClick={onClose}
+              className="mt-6 px-6 py-2 bg-amber-600 hover:bg-amber-700 text-white rounded-full font-medium transition-colors relative z-10"
+            >
+              Awesome!
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
 export default function GmailInsightsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -110,6 +242,9 @@ export default function GmailInsightsPage() {
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
   const [dismissReason, setDismissReason] = useState("");
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
+  const [showPOCelebration, setShowPOCelebration] = useState(false);
+  const [poCustomerName, setPOCustomerName] = useState<string | undefined>();
+  const celebratedPOsRef = useRef<Set<number>>(new Set());
 
   const { data: syncState, isLoading: syncStateLoading } = useQuery<SyncState>({
     queryKey: ["/api/gmail-intelligence/sync-state"],
@@ -130,6 +265,26 @@ export default function GmailInsightsPage() {
       return response.json();
     },
   });
+
+  // Detect PO emails and trigger celebration
+  useEffect(() => {
+    if (!insights || insights.length === 0) return;
+    
+    const poInsight = insights.find(insight => 
+      insight.status === 'pending' && 
+      isPurchaseOrderEmail(insight) && 
+      !celebratedPOsRef.current.has(insight.id)
+    );
+    
+    if (poInsight) {
+      celebratedPOsRef.current.add(poInsight.id);
+      const customerName = poInsight.customer 
+        ? `${poInsight.customer.firstName} ${poInsight.customer.lastName}${poInsight.customer.company ? ` (${poInsight.customer.company})` : ''}`
+        : poInsight.email?.from;
+      setPOCustomerName(customerName);
+      setShowPOCelebration(true);
+    }
+  }, [insights]);
 
   const syncMutation = useMutation({
     mutationFn: async () => {
@@ -322,11 +477,17 @@ export default function GmailInsightsPage() {
   };
 
   return (
-    <div className="container mx-auto py-6 space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold flex items-center gap-2">
-            <Mail className="h-6 w-6 text-[#875A7B]" />
+    <>
+      <ChampagneCelebration 
+        isVisible={showPOCelebration} 
+        onClose={() => setShowPOCelebration(false)}
+        customerName={poCustomerName}
+      />
+      <div className="container mx-auto py-6 space-y-6">
+        <div className="flex items-center justify-between">
+          <div>
+            <h1 className="text-2xl font-bold flex items-center gap-2">
+              <Mail className="h-6 w-6 text-[#875A7B]" />
             Email Intelligence
           </h1>
           <p className="text-muted-foreground">
@@ -536,6 +697,7 @@ export default function GmailInsightsPage() {
           </div>
         </DialogContent>
       </Dialog>
-    </div>
+      </div>
+    </>
   );
 }
