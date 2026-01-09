@@ -244,6 +244,13 @@ export default function ClientDatabase() {
     }
   }, [customers, urlParams]);
   
+  // Fetch Odoo base URL for constructing partner links
+  const { data: odooBaseUrlData } = useQuery<{ baseUrl: string | null }>({
+    queryKey: ['/api/odoo/base-url'],
+    staleTime: 60 * 60 * 1000, // 1 hour - this rarely changes
+  });
+  const odooBaseUrl = odooBaseUrlData?.baseUrl || '';
+
   // Fetch quote counts per customer - only after customers are loaded
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],
@@ -2826,7 +2833,7 @@ export default function ClientDatabase() {
                           >
                             View
                           </Button>
-                          {customer.odooPartnerId && (
+                          {customer.odooPartnerId && odooBaseUrl && (
                             <TooltipProvider>
                               <Tooltip>
                                 <TooltipTrigger asChild>
@@ -2834,7 +2841,7 @@ export default function ClientDatabase() {
                                     variant="ghost"
                                     size="sm"
                                     className="h-7 w-7 p-0"
-                                    onClick={() => window.open(`${import.meta.env.VITE_ODOO_URL || ''}/web#id=${customer.odooPartnerId}&model=res.partner&view_type=form`, '_blank')}
+                                    onClick={() => window.open(`${odooBaseUrl}/web#id=${customer.odooPartnerId}&model=res.partner&view_type=form`, '_blank')}
                                   >
                                     <ExternalLink className="h-3.5 w-3.5 text-purple-500" />
                                   </Button>

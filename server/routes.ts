@@ -9622,6 +9622,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get Odoo base URL for constructing links (available to approved users)
+  app.get("/api/odoo/base-url", requireApproval, async (req: any, res) => {
+    try {
+      const odooUrl = process.env.ODOO_URL?.replace(/\/+$/, '') || null;
+      res.json({ baseUrl: odooUrl });
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
+
   // Get partners (customers/companies) from Odoo
   app.get("/api/odoo/partners", requireApproval, async (req: any, res) => {
     try {
