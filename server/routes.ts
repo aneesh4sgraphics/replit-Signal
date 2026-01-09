@@ -1812,15 +1812,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customerId = req.params.id;
       const customerData = { ...req.body };
       
-      // Convert date strings to Date objects for timestamp fields
-      if (customerData.pausedUntil && typeof customerData.pausedUntil === 'string') {
-        customerData.pausedUntil = new Date(customerData.pausedUntil);
-      }
-      if (customerData.updatedAt && typeof customerData.updatedAt === 'string') {
-        customerData.updatedAt = new Date(customerData.updatedAt);
-      }
-      if (customerData.createdAt && typeof customerData.createdAt === 'string') {
-        customerData.createdAt = new Date(customerData.createdAt);
+      // Convert date strings to Date objects for all timestamp fields
+      const timestampFields = ['pausedUntil', 'updatedAt', 'createdAt', 'pricingTierSetAt', 'lastOdooSyncAt'];
+      for (const field of timestampFields) {
+        if (customerData[field] !== undefined && customerData[field] !== null) {
+          if (typeof customerData[field] === 'string') {
+            customerData[field] = new Date(customerData[field]);
+          }
+        }
       }
       
       const customer = await storage.updateCustomer(customerId, customerData);
