@@ -4406,12 +4406,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Filter by owner if not admin
       const filteredQuotes = isAdmin ? pendingQuotes : pendingQuotes.filter(q => q.ownerEmail === userEmail);
       
-      // Categorize by urgency
-      const result = filteredQuotes.map(q => ({
-        ...q,
-        isOverdue: q.followUpDueAt && new Date(q.followUpDueAt) < now,
-        daysUntilDue: q.followUpDueAt ? Math.ceil((new Date(q.followUpDueAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+      // Get all customers to map email to ID
+      const allCustomers = await storage.getCustomers();
+      const customersByEmail = new Map(allCustomers.map(c => [c.email?.toLowerCase(), c]));
+      // Build customer name lookup using company or firstName + lastName
+      const customersByName = new Map(allCustomers.map(c => {
+        const displayName = c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+        return [displayName.toLowerCase(), c];
       }));
+      
+      // Categorize by urgency and add customerId
+      const result = filteredQuotes.map(q => {
+        const customerByEmail = q.customerEmail ? customersByEmail.get(q.customerEmail.toLowerCase()) : null;
+        const customerByName = q.customerName ? customersByName.get(q.customerName.toLowerCase()) : null;
+        const customer = customerByEmail || customerByName;
+        return {
+          ...q,
+          customerId: customer?.id || null,
+          isOverdue: q.followUpDueAt && new Date(q.followUpDueAt) < now,
+          daysUntilDue: q.followUpDueAt ? Math.ceil((new Date(q.followUpDueAt).getTime() - now.getTime()) / (1000 * 60 * 60 * 24)) : null
+        };
+      });
       
       res.json(result);
     } catch (error) {
@@ -4431,7 +4446,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .orderBy(sql`${sentQuotes.outcomeUpdatedAt} DESC`)
         .limit(10);
       
-      res.json(lostQuotes);
+      // Get all customers to map email to ID
+      const allCustomers = await storage.getCustomers();
+      const customersByEmail = new Map(allCustomers.map(c => [c.email?.toLowerCase(), c]));
+      // Build customer name lookup using company or firstName + lastName
+      const customersByName = new Map(allCustomers.map(c => {
+        const displayName = c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+        return [displayName.toLowerCase(), c];
+      }));
+      
+      // Add customerId to each quote
+      const result = lostQuotes.map(q => {
+        const customerByEmail = q.customerEmail ? customersByEmail.get(q.customerEmail.toLowerCase()) : null;
+        const customerByName = q.customerName ? customersByName.get(q.customerName.toLowerCase()) : null;
+        const customer = customerByEmail || customerByName;
+        return {
+          ...q,
+          customerId: customer?.id || null,
+        };
+      });
+      
+      res.json(result);
     } catch (error) {
       console.error("Error fetching lost quote notifications:", error);
       res.status(500).json({ error: "Failed to fetch notifications" });

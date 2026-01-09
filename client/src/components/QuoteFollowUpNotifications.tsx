@@ -8,15 +8,17 @@ import { Textarea } from "@/components/ui/textarea";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { AlertTriangle, CheckCircle, XCircle, Clock, DollarSign } from "lucide-react";
+import { AlertTriangle, CheckCircle, XCircle, Clock, DollarSign, ExternalLink } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { Link } from "wouter";
 
 interface LostQuote {
   id: number;
   quoteNumber: string;
   customerName: string;
   customerEmail: string | null;
+  customerId: string | null;
   totalAmount: string;
   createdAt: string;
   outcomeUpdatedAt: string | null;
@@ -229,15 +231,28 @@ export function QuoteFollowUpNotifications() {
             {lostNotifications.slice(0, 3).map((quote) => (
               <div 
                 key={quote.id} 
-                className="flex items-center justify-between p-2 bg-white rounded border cursor-pointer hover:bg-gray-50"
-                onClick={() => {
-                  setSelectedQuote(quote);
-                  setIsEditorOpen(true);
-                }}
+                className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50"
               >
                 <div>
-                  <p className="font-medium text-sm">{quote.quoteNumber}</p>
-                  <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  <p 
+                    className="font-medium text-sm cursor-pointer hover:underline"
+                    onClick={() => {
+                      setSelectedQuote(quote);
+                      setIsEditorOpen(true);
+                    }}
+                  >
+                    {quote.quoteNumber}
+                  </p>
+                  {quote.customerId ? (
+                    <Link href={`/clients/${quote.customerId}`}>
+                      <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
+                        {quote.customerName}
+                        <ExternalLink className="h-3 w-3" />
+                      </span>
+                    </Link>
+                  ) : (
+                    <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  )}
                 </div>
                 <div className="flex items-center gap-2">
                   <Badge variant="destructive" className="text-xs">Lost</Badge>
@@ -293,15 +308,28 @@ export function QuoteFollowUpReminders() {
             {overdueQuotes.slice(0, 3).map((quote: any) => (
               <div 
                 key={quote.id} 
-                className="flex items-center justify-between p-2 bg-white rounded border cursor-pointer hover:bg-gray-50"
-                onClick={() => {
-                  setSelectedQuote(quote);
-                  setIsEditorOpen(true);
-                }}
+                className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50"
               >
                 <div>
-                  <p className="font-medium text-sm">{quote.quoteNumber}</p>
-                  <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  <p 
+                    className="font-medium text-sm cursor-pointer hover:underline"
+                    onClick={() => {
+                      setSelectedQuote(quote);
+                      setIsEditorOpen(true);
+                    }}
+                  >
+                    {quote.quoteNumber}
+                  </p>
+                  {quote.customerId ? (
+                    <Link href={`/clients/${quote.customerId}`}>
+                      <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
+                        {quote.customerName}
+                        <ExternalLink className="h-3 w-3" />
+                      </span>
+                    </Link>
+                  ) : (
+                    <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  )}
                 </div>
                 <Badge variant="outline" className="text-xs text-amber-600 border-amber-300">
                   {Math.abs(quote.daysUntilDue)} days overdue
@@ -324,15 +352,28 @@ export function QuoteFollowUpReminders() {
             {upcomingQuotes.slice(0, 3).map((quote: any) => (
               <div 
                 key={quote.id} 
-                className="flex items-center justify-between p-2 bg-white rounded border cursor-pointer hover:bg-gray-50"
-                onClick={() => {
-                  setSelectedQuote(quote);
-                  setIsEditorOpen(true);
-                }}
+                className="flex items-center justify-between p-2 bg-white rounded border hover:bg-gray-50"
               >
                 <div>
-                  <p className="font-medium text-sm">{quote.quoteNumber}</p>
-                  <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  <p 
+                    className="font-medium text-sm cursor-pointer hover:underline"
+                    onClick={() => {
+                      setSelectedQuote(quote);
+                      setIsEditorOpen(true);
+                    }}
+                  >
+                    {quote.quoteNumber}
+                  </p>
+                  {quote.customerId ? (
+                    <Link href={`/clients/${quote.customerId}`}>
+                      <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
+                        {quote.customerName}
+                        <ExternalLink className="h-3 w-3" />
+                      </span>
+                    </Link>
+                  ) : (
+                    <p className="text-xs text-gray-500">{quote.customerName}</p>
+                  )}
                 </div>
                 <Badge variant="outline" className="text-xs text-blue-600 border-blue-300">
                   {quote.daysUntilDue} days left
