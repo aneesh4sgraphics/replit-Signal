@@ -1640,6 +1640,12 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                     </span>
                   </div>
                   <div className="flex justify-between">
+                    <span className="text-sm text-gray-600">SKU:</span>
+                    <span className="text-sm text-gray-800 font-mono">
+                      {isCustomSize ? 'CUSTOM' : (selectedProduct?.itemCode || 'Not Selected')}
+                    </span>
+                  </div>
+                  <div className="flex justify-between">
                     <span className="text-sm text-gray-600">Total Sqm:</span>
                     <span className="text-sm text-gray-800">
                       {isCustomSize && customWidth && customHeight ? 
