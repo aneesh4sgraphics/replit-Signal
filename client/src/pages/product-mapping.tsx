@@ -1216,7 +1216,7 @@ export default function ProductMapping() {
             <DialogDescription>
               {typeToMerge && (
                 <>
-                  Move all products from "{typeToMerge.name}" to another type, then delete the source type.
+                  Move all products from "{typeToMerge.name}" to another type within the same category ({categories.find(c => c.id === typeToMerge.categoryId)?.name}), then delete the source type.
                 </>
               )}
             </DialogDescription>
@@ -1230,15 +1230,12 @@ export default function ProductMapping() {
                 </SelectTrigger>
                 <SelectContent>
                   {types
-                    .filter(t => t.id !== typeToMerge?.id)
-                    .map((type) => {
-                      const cat = categories.find(c => c.id === type.categoryId);
-                      return (
-                        <SelectItem key={type.id} value={type.id.toString()}>
-                          {type.name} ({cat?.name})
-                        </SelectItem>
-                      );
-                    })}
+                    .filter(t => t.id !== typeToMerge?.id && t.categoryId === typeToMerge?.categoryId)
+                    .map((type) => (
+                      <SelectItem key={type.id} value={type.id.toString()}>
+                        {type.name}
+                      </SelectItem>
+                    ))}
                 </SelectContent>
               </Select>
             </div>
