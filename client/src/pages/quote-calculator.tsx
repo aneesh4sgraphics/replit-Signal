@@ -1559,7 +1559,18 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
           )}
 
           {/* Quote Summary Card */}
-          <div className="glass-card mb-6">
+          <div className="glass-card mb-6 relative overflow-hidden">
+            {/* SAMPLE PACK Watermark - shows when Min Order Qty is 5 Sheets */}
+            {selectedProduct && selectedProduct.minQuantity === 5 && !isRollFormat(selectedProduct.size) && (
+              <div className="absolute inset-0 flex items-center justify-center pointer-events-none z-10">
+                <div 
+                  className="text-6xl font-bold text-red-500/20 transform -rotate-30 whitespace-nowrap select-none"
+                  style={{ transform: 'rotate(-30deg)' }}
+                >
+                  SAMPLE PACK
+                </div>
+              </div>
+            )}
             <h2 className="heading-secondary text-gray-800 mb-2">Quote Summary</h2>
             <p className="body-small text-gray-500 mb-6">Using default pricing</p>
             <div>
