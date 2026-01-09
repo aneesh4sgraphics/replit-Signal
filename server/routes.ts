@@ -9399,7 +9399,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const inventory = await odooClient.getProductInventory(itemCode);
-      const odooBaseUrl = process.env.ODOO_URL;
+      const odooBaseUrl = process.env.ODOO_URL?.replace(/\/+$/, ''); // Remove trailing slashes
       const productUrl = inventory.productId && odooBaseUrl
         ? `${odooBaseUrl}/web#id=${inventory.productId}&model=product.product&view_type=form`
         : null;
