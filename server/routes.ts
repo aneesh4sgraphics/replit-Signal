@@ -9390,6 +9390,29 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product inventory from Odoo by SKU
+  app.get("/api/odoo/inventory/:itemCode", requireApproval, async (req: any, res) => {
+    try {
+      const { itemCode } = req.params;
+      if (!itemCode) {
+        return res.status(400).json({ error: "Item code is required" });
+      }
+
+      const inventory = await odooClient.getProductInventory(itemCode);
+      res.json({
+        itemCode,
+        qtyAvailable: inventory.qtyAvailable,
+        qtyReserved: inventory.qtyReserved,
+        qtyVirtual: inventory.qtyVirtual,
+        productId: inventory.productId,
+        lastUpdated: new Date().toISOString()
+      });
+    } catch (error: any) {
+      console.error("Error fetching Odoo inventory:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch inventory from Odoo" });
+    }
+  });
+
   // Get pricelists from Odoo
   app.get("/api/odoo/pricelists", requireApproval, async (req: any, res) => {
     try {

@@ -583,6 +583,37 @@ class OdooClient {
       'amount_residual', 'payment_state', 'invoice_origin', 'ref',
     ], { limit: 100, order: 'invoice_date desc' });
   }
+
+  async getProductInventory(itemCode: string): Promise<{ qtyAvailable: number; qtyReserved: number; qtyVirtual: number; productId: number | null }> {
+    try {
+      // First find the product by default_code (SKU)
+      const products = await this.searchRead('product.product', [
+        ['default_code', '=', itemCode]
+      ], ['id', 'name', 'qty_available', 'virtual_available', 'outgoing_qty', 'incoming_qty'], { limit: 1 });
+
+      if (!products || products.length === 0) {
+        console.log(`[Odoo] Product not found for SKU: ${itemCode}`);
+        return { qtyAvailable: 0, qtyReserved: 0, qtyVirtual: 0, productId: null };
+      }
+
+      const product = products[0];
+      const qtyAvailable = product.qty_available || 0;
+      const qtyVirtual = product.virtual_available || 0;
+      const qtyReserved = product.outgoing_qty || 0;
+
+      console.log(`[Odoo] Inventory for ${itemCode}: Available=${qtyAvailable}, Virtual=${qtyVirtual}, Reserved=${qtyReserved}`);
+      
+      return {
+        qtyAvailable,
+        qtyReserved,
+        qtyVirtual,
+        productId: product.id
+      };
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching inventory for ${itemCode}:`, error.message);
+      throw error;
+    }
+  }
 }
 
 export const odooClient = new OdooClient();

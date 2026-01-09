@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck, Send, Loader2 } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck, Send, Loader2, RefreshCw, Package } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -421,6 +421,21 @@ export default function QuoteCalculator() {
     item.productType === selectedType &&
     item.size === selectedSize
   );
+
+  // Fetch inventory from Odoo for selected product
+  const { data: inventoryData, isLoading: inventoryLoading, refetch: refetchInventory } = useQuery<{
+    itemCode: string;
+    qtyAvailable: number;
+    qtyReserved: number;
+    qtyVirtual: number;
+    productId: number | null;
+    lastUpdated: string;
+  }>({
+    queryKey: ['/api/odoo/inventory', selectedProduct?.itemCode],
+    enabled: !!selectedProduct?.itemCode && !isCustomSize,
+    staleTime: 60000, // Cache for 1 minute
+    refetchOnWindowFocus: false,
+  });
 
   // Utility function for retail pricing rounding (99-cent rounding)
   const applyRetailRounding = (price: number, isRetail: boolean): number => {
@@ -1673,6 +1688,41 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       }
                     </span>
                   </div>
+                  {/* Available Stock from Odoo */}
+                  {selectedProduct && !isCustomSize && (
+                    <div className="flex justify-between items-center">
+                      <span className="text-sm text-gray-600 flex items-center gap-1">
+                        <Package className="h-3 w-3" />
+                        Available Stock:
+                      </span>
+                      <span className="flex items-center gap-2">
+                        {inventoryLoading ? (
+                          <span className="flex items-center gap-1 text-sm text-gray-500">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Loading...
+                          </span>
+                        ) : inventoryData ? (
+                          <span className={`text-sm font-medium ${
+                            inventoryData.qtyAvailable > 0 ? 'text-green-600' : 'text-red-500'
+                          }`}>
+                            {Math.floor(inventoryData.qtyAvailable)} {isRollFormat(selectedProduct.size) ? 'Rolls' : 'Sheets'}
+                          </span>
+                        ) : (
+                          <span className="text-sm text-gray-400">Unavailable</span>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="sm"
+                          className="h-6 w-6 p-0"
+                          onClick={() => refetchInventory()}
+                          disabled={inventoryLoading}
+                          title="Sync inventory from Odoo"
+                        >
+                          <RefreshCw className={`h-3 w-3 ${inventoryLoading ? 'animate-spin' : ''}`} />
+                        </Button>
+                      </span>
+                    </div>
+                  )}
                 </div>
 
                 {/* Pricing Table */}
