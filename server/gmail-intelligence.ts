@@ -201,7 +201,24 @@ export async function analyzeMessagesForInsights(userId: string, limit: number =
 }
 
 interface ExtractedInsight {
-  type: 'sales_opportunity' | 'promise' | 'follow_up' | 'task' | 'question';
+  type: 
+    | 'sales_opportunity' 
+    | 'promise' 
+    | 'follow_up' 
+    | 'task' 
+    | 'question'
+    | 'unanswered_quote'
+    | 'stale_negotiation'
+    | 'urgent_request'
+    | 'competitor_mention'
+    | 'budget_timing'
+    | 'decision_maker'
+    | 'repeat_inquiry'
+    | 'meeting_followup'
+    | 'complaint'
+    | 'reengagement'
+    | 'thank_you'
+    | 'attachment_request';
   summary: string;
   details: string;
   confidence: number;
@@ -221,25 +238,57 @@ Content:
 ${message.bodyText?.substring(0, 4000) || message.snippet || 'No content'}
 `;
 
-  const systemPrompt = `You are a sales intelligence assistant analyzing business emails. Extract actionable insights from emails.
+  const systemPrompt = `You are a sales intelligence assistant analyzing business emails for a printing/packaging supplies company. Extract actionable insights from emails.
 
-For each email, identify:
-1. PROMISES: Commitments made to customers (e.g., "I'll send you a quote by Friday", "I'll follow up next week")
-2. FOLLOW_UPS: Required follow-up actions mentioned (e.g., "let me know if you need anything", "touch base next month")
-3. SALES_OPPORTUNITIES: Buying signals or opportunities (e.g., "interested in pricing", "looking to order soon")
-4. TASKS: Specific action items mentioned (e.g., "send samples", "check inventory")
-5. QUESTIONS: Unanswered customer questions requiring response
+INSIGHT TYPES TO DETECT:
 
-Return a JSON array of insights. Each insight must have:
-- type: one of "promise", "follow_up", "sales_opportunity", "task", "question"
-- summary: a brief 1-sentence description (max 100 chars)
+**Core Sales Actions:**
+1. PROMISE: Commitments made to customers (e.g., "I'll send you a quote by Friday")
+2. FOLLOW_UP: Required follow-up actions (e.g., "touch base next month")
+3. SALES_OPPORTUNITY: Buying signals (e.g., "interested in pricing", "looking to order")
+4. TASK: Specific action items (e.g., "send samples", "check inventory")
+5. QUESTION: Unanswered customer questions requiring response
+
+**High-Priority Detections:**
+6. UNANSWERED_QUOTE: Customer asked for pricing/quote but this is an INBOUND email with no apparent response yet. Look for: "what's the price", "can you quote", "need pricing on", "how much for"
+7. STALE_NEGOTIATION: Email discusses pricing negotiation, discounts, or terms that needs follow-up. Look for: price discussions, "can you do better", "need approval", negotiation language
+8. URGENT_REQUEST: Emails with urgent language needing quick action. Look for: "ASAP", "urgent", "rush", "deadline tomorrow", "need by [near date]", "emergency"
+9. COMPETITOR_MENTION: Customer mentions competitors or shopping around. Look for: competitor names, "shopping around", "comparing quotes", "other suppliers", "your competition"
+
+**Opportunity Signals:**
+10. BUDGET_TIMING: Mentions of budget cycles or approval timing. Look for: "end of quarter", "budget approval", "fiscal year", "spending before", "Q1/Q2/Q3/Q4 budget"
+11. DECISION_MAKER: Escalation to decision makers. Look for: "forwarding to my boss", "need approval from", "running by management", "our purchasing team"
+12. REPEAT_INQUIRY: Indicates repeat interest in same product category. Look for: "asking again about", "still interested in", "following up on my previous"
+
+**Promise & Commitment Tracking:**
+13. MEETING_FOLLOWUP: Discussion of meetings/calls without clear calendar invite. Look for: "let's schedule a call", "should we meet", "want to discuss on the phone"
+
+**Customer Health:**
+14. COMPLAINT: Customer frustration or issues. Look for: quality issues, delivery problems, frustrated tone, "disappointed", "unacceptable", "problem with"
+15. REENGAGEMENT: Opportunity to reconnect with inactive customer. Look for: "been a while", "last ordered", "haven't heard from you", "what's new"
+16. THANK_YOU: Positive feedback indicating satisfaction. Look for: "thank you", "great job", "appreciate", "excellent service", "happy with"
+
+**Attachment Tracking:**
+17. ATTACHMENT_REQUEST: Customer requested materials that may need follow-up. Look for: "send me the spec sheet", "can I get a catalog", "need technical data", "product info"
+
+Return JSON: {"insights": [...]}
+
+Each insight must have:
+- type: one of the types above in lowercase with underscores (e.g., "unanswered_quote", "competitor_mention")
+- summary: brief 1-sentence description (max 100 chars)
 - details: fuller context from the email
-- confidence: 0.0-1.0 how confident you are this is actionable
-- dueDate: ISO date string if a deadline is mentioned or can be reasonably inferred, null otherwise
-- priority: "low", "medium", "high", or "urgent" based on urgency
+- confidence: 0.0-1.0 how confident this is actionable
+- dueDate: ISO date string if deadline mentioned, null otherwise
+- priority: "low", "medium", "high", or "urgent"
 
-Only extract insights with confidence >= 0.6. If no actionable insights, return empty array [].
-Focus on business-relevant items. Ignore auto-replies, newsletters, and marketing emails.`;
+PRIORITY GUIDELINES:
+- urgent: unanswered_quote, urgent_request, complaint
+- high: stale_negotiation, competitor_mention, decision_maker, budget_timing
+- medium: promise, follow_up, sales_opportunity, meeting_followup, attachment_request
+- low: task, question, thank_you, reengagement, repeat_inquiry
+
+Only extract insights with confidence >= 0.6. Return empty array [] if no actionable insights.
+Ignore auto-replies, newsletters, spam, and marketing emails.`;
 
   try {
     const response = await openai.chat.completions.create({

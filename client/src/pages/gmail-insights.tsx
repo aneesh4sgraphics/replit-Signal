@@ -27,7 +27,19 @@ import {
   ExternalLink,
   PartyPopper,
   PlugZap,
-  ArrowRight
+  ArrowRight,
+  DollarSign,
+  Zap,
+  Users,
+  Calendar,
+  TrendingUp,
+  Repeat,
+  Phone,
+  ThumbsDown,
+  UserPlus,
+  Heart,
+  FileText,
+  Swords
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -92,12 +104,35 @@ interface InsightsSummary {
   overdue: number;
 }
 
-const insightTypeConfig: Record<string, { icon: any; label: string; color: string }> = {
-  sales_opportunity: { icon: Target, label: "Sales Opportunity", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" },
-  promise: { icon: Handshake, label: "Promise Made", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200" },
-  follow_up: { icon: Clock, label: "Follow-up Needed", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" },
-  task: { icon: ListTodo, label: "Task", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200" },
-  question: { icon: HelpCircle, label: "Unanswered Question", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" },
+const insightTypeConfig: Record<string, { icon: any; label: string; color: string; category: string }> = {
+  // Core Sales Actions
+  sales_opportunity: { icon: Target, label: "Sales Opportunity", color: "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200", category: "opportunity" },
+  promise: { icon: Handshake, label: "Promise Made", color: "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200", category: "commitment" },
+  follow_up: { icon: Clock, label: "Follow-up Needed", color: "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200", category: "action" },
+  task: { icon: ListTodo, label: "Task", color: "bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200", category: "action" },
+  question: { icon: HelpCircle, label: "Unanswered Question", color: "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200", category: "action" },
+  
+  // High-Priority Detections
+  unanswered_quote: { icon: DollarSign, label: "Unanswered Quote Request", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", category: "urgent" },
+  stale_negotiation: { icon: TrendingUp, label: "Stale Negotiation", color: "bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200", category: "urgent" },
+  urgent_request: { icon: Zap, label: "Urgent Request", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", category: "urgent" },
+  competitor_mention: { icon: Swords, label: "Competitor Mention", color: "bg-rose-100 text-rose-800 dark:bg-rose-900 dark:text-rose-200", category: "opportunity" },
+  
+  // Opportunity Signals
+  budget_timing: { icon: Calendar, label: "Budget Timing Signal", color: "bg-emerald-100 text-emerald-800 dark:bg-emerald-900 dark:text-emerald-200", category: "opportunity" },
+  decision_maker: { icon: Users, label: "Decision Maker Involved", color: "bg-indigo-100 text-indigo-800 dark:bg-indigo-900 dark:text-indigo-200", category: "opportunity" },
+  repeat_inquiry: { icon: Repeat, label: "Repeat Inquiry", color: "bg-cyan-100 text-cyan-800 dark:bg-cyan-900 dark:text-cyan-200", category: "opportunity" },
+  
+  // Promise & Meeting Tracking
+  meeting_followup: { icon: Phone, label: "Meeting Follow-up", color: "bg-sky-100 text-sky-800 dark:bg-sky-900 dark:text-sky-200", category: "commitment" },
+  
+  // Customer Health
+  complaint: { icon: ThumbsDown, label: "Customer Complaint", color: "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200", category: "urgent" },
+  reengagement: { icon: UserPlus, label: "Re-engagement Opportunity", color: "bg-teal-100 text-teal-800 dark:bg-teal-900 dark:text-teal-200", category: "opportunity" },
+  thank_you: { icon: Heart, label: "Positive Feedback", color: "bg-pink-100 text-pink-800 dark:bg-pink-900 dark:text-pink-200", category: "health" },
+  
+  // Attachment Tracking
+  attachment_request: { icon: FileText, label: "Material Requested", color: "bg-slate-100 text-slate-800 dark:bg-slate-900 dark:text-slate-200", category: "action" },
 };
 
 const priorityConfig: Record<string, { color: string; label: string }> = {
@@ -695,15 +730,31 @@ export default function GmailInsightsPage() {
     queryKey: ["/api/gmail-intelligence/summary"],
   });
 
+  const categoryToTypes: Record<string, string[]> = {
+    urgent: ['unanswered_quote', 'stale_negotiation', 'urgent_request', 'complaint'],
+    opportunity: ['sales_opportunity', 'competitor_mention', 'budget_timing', 'decision_maker', 'repeat_inquiry', 'reengagement'],
+    commitment: ['promise', 'meeting_followup'],
+    action: ['follow_up', 'task', 'question', 'attachment_request'],
+    health: ['thank_you'],
+  };
+
   const { data: insights, isLoading: insightsLoading } = useQuery<Insight[]>({
-    queryKey: ["/api/gmail-intelligence/insights", { status: statusFilter, type: activeTab === "all" ? undefined : activeTab }],
+    queryKey: ["/api/gmail-intelligence/insights", { status: statusFilter, category: activeTab }],
     queryFn: async () => {
       const params = new URLSearchParams();
       if (statusFilter) params.append("status", statusFilter);
-      if (activeTab !== "all") params.append("type", activeTab);
       const response = await fetch(`/api/gmail-intelligence/insights?${params}`);
       if (!response.ok) throw new Error("Failed to fetch insights");
-      return response.json();
+      const data = await response.json();
+      
+      if (activeTab === "all") return data;
+      
+      const typesForCategory = categoryToTypes[activeTab];
+      if (typesForCategory) {
+        return data.filter((i: Insight) => typesForCategory.includes(i.insightType));
+      }
+      
+      return data.filter((i: Insight) => i.insightType === activeTab);
     },
   });
 
@@ -1202,46 +1253,54 @@ export default function GmailInsightsPage() {
       </div>
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
-        <TabsList>
+        <TabsList className="flex-wrap h-auto gap-1 p-1">
           <TabsTrigger value="all" className="gap-1">
             All
             {summary && summary.totalPending > 0 && (
               <Badge variant="secondary" className="ml-1">{summary.totalPending}</Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="promise" className="gap-1">
-            <Handshake className="h-4 w-4" />
-            Promises
-            {summary?.byType?.promise && (
-              <Badge variant="secondary" className="ml-1">{summary.byType.promise}</Badge>
+          <TabsTrigger value="urgent" className="gap-1 text-red-600">
+            <Zap className="h-4 w-4" />
+            Urgent
+            {summary?.byType && (
+              <Badge variant="destructive" className="ml-1">
+                {(summary.byType.unanswered_quote || 0) + (summary.byType.urgent_request || 0) + (summary.byType.complaint || 0) + (summary.byType.stale_negotiation || 0)}
+              </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="follow_up" className="gap-1">
-            <Clock className="h-4 w-4" />
-            Follow-ups
-            {summary?.byType?.follow_up && (
-              <Badge variant="secondary" className="ml-1">{summary.byType.follow_up}</Badge>
-            )}
-          </TabsTrigger>
-          <TabsTrigger value="sales_opportunity" className="gap-1">
+          <TabsTrigger value="opportunity" className="gap-1 text-green-600">
             <Target className="h-4 w-4" />
             Opportunities
-            {summary?.byType?.sales_opportunity && (
-              <Badge variant="secondary" className="ml-1">{summary.byType.sales_opportunity}</Badge>
+            {summary?.byType && (
+              <Badge variant="secondary" className="ml-1">
+                {(summary.byType.sales_opportunity || 0) + (summary.byType.competitor_mention || 0) + (summary.byType.budget_timing || 0) + (summary.byType.decision_maker || 0) + (summary.byType.repeat_inquiry || 0) + (summary.byType.reengagement || 0)}
+              </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="task" className="gap-1">
+          <TabsTrigger value="commitment" className="gap-1 text-purple-600">
+            <Handshake className="h-4 w-4" />
+            Commitments
+            {summary?.byType && (
+              <Badge variant="secondary" className="ml-1">
+                {(summary.byType.promise || 0) + (summary.byType.meeting_followup || 0)}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="action" className="gap-1 text-blue-600">
             <ListTodo className="h-4 w-4" />
-            Tasks
-            {summary?.byType?.task && (
-              <Badge variant="secondary" className="ml-1">{summary.byType.task}</Badge>
+            Actions
+            {summary?.byType && (
+              <Badge variant="secondary" className="ml-1">
+                {(summary.byType.follow_up || 0) + (summary.byType.task || 0) + (summary.byType.question || 0) + (summary.byType.attachment_request || 0)}
+              </Badge>
             )}
           </TabsTrigger>
-          <TabsTrigger value="question" className="gap-1">
-            <HelpCircle className="h-4 w-4" />
-            Questions
-            {summary?.byType?.question && (
-              <Badge variant="secondary" className="ml-1">{summary.byType.question}</Badge>
+          <TabsTrigger value="health" className="gap-1 text-pink-600">
+            <Heart className="h-4 w-4" />
+            Feedback
+            {summary?.byType?.thank_you && (
+              <Badge variant="secondary" className="ml-1">{summary.byType.thank_you}</Badge>
             )}
           </TabsTrigger>
         </TabsList>
