@@ -1090,39 +1090,6 @@ export default function GmailInsightsPage() {
         </div>
         <div className="flex gap-2 flex-wrap">
           <Button
-            variant="outline"
-            onClick={() => {
-              setPOCustomerName("Demo Customer (ABC Corp)");
-              setShowPOCelebration(true);
-            }}
-            className="text-amber-600 border-amber-300 hover:bg-amber-50"
-            size="sm"
-          >
-            🍾 PO Preview
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setPricingCustomerName("Happy Client (XYZ Inc)");
-              setShowPricingCelebration(true);
-            }}
-            className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
-            size="sm"
-          >
-            💰 Pricing Preview
-          </Button>
-          <Button
-            variant="outline"
-            onClick={() => {
-              setSwatchbookCustomerName("Sample Lover (Design Co)");
-              setShowSwatchbookCelebration(true);
-            }}
-            className="text-emerald-600 border-emerald-300 hover:bg-emerald-50"
-            size="sm"
-          >
-            📦 Samples Preview
-          </Button>
-          <Button
             onClick={() => syncMutation.mutate()}
             disabled={syncMutation.isPending}
           >

@@ -10,7 +10,6 @@ import { ShopifyAppBridgeProvider } from "@/components/ShopifyAppBridgeProvider"
 import { ServiceWorkerUpdater } from "@/components/ServiceWorkerUpdater";
 import { AuthWatcher } from "@/components/AuthWatcher";
 import { EmailComposerProvider } from "@/components/email-composer";
-import { DemoProviders } from "@/components/DemoProviders";
 import OdooLayout from "@/components/OdooLayout";
 import AreaPricer from "@/pages/area-pricer-fixed";
 import CompetitorPricing from "@/pages/competitor-pricing-fixed";
@@ -43,7 +42,6 @@ import GmailInsightsPage from "@/pages/gmail-insights";
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
 
-// Extracted component to avoid JSX duplication
 const PendingPage = () => (
   <div className="min-h-screen flex items-center justify-center">
     <div className="text-center">
@@ -72,8 +70,6 @@ const PendingPage = () => (
 const AppRoutes = () => (
   <Switch>
     <Route path="/" component={Dashboard} />
-    <Route path="/demo" component={Dashboard} />
-    <Route path="/demo/:rest*">{() => <Redirect to="/demo" />}</Route>
     <Route path="/quick-quotes" component={QuoteCalculator} />
     <Route path="/quote-calculator" component={QuoteCalculator} />
     <Route path="/price-list" component={PriceList} />
@@ -105,36 +101,6 @@ const AppRoutes = () => (
     <Route><Redirect to="/" /></Route>
   </Switch>
 );
-
-function DemoBanner() {
-  return (
-    <div className="fixed top-0 left-0 right-0 z-[100] bg-gradient-to-r from-purple-700 to-purple-900 text-white py-2 px-4 text-center text-sm font-medium shadow-lg">
-      <div className="flex items-center justify-center gap-3">
-        <span className="animate-pulse">●</span>
-        <span>Demo Mode - Read-Only Preview with Sample Data</span>
-        <button 
-          onClick={() => window.location.href = "/api/login"}
-          className="ml-4 bg-white text-purple-800 px-3 py-1 rounded text-xs font-semibold hover:bg-purple-100 transition-colors"
-        >
-          Login for Full Access
-        </button>
-      </div>
-    </div>
-  );
-}
-
-function DemoRouter() {
-  return (
-    <>
-      <DemoBanner />
-      <div className="pt-10">
-        <OdooLayout>
-          <AppRoutes />
-        </OdooLayout>
-      </div>
-    </>
-  );
-}
 
 function Router() {
   const { isAuthenticated, isLoading, user } = useAuth();
@@ -196,24 +162,7 @@ function Router() {
   );
 }
 
-function DemoApp() {
-  return (
-    <DemoProviders>
-      <ShopifyAppBridgeProvider>
-        <TooltipProvider>
-          <EmailComposerProvider>
-            <MicroFeedbackProvider>
-              <Toaster />
-              <DemoRouter />
-            </MicroFeedbackProvider>
-          </EmailComposerProvider>
-        </TooltipProvider>
-      </ShopifyAppBridgeProvider>
-    </DemoProviders>
-  );
-}
-
-function RegularApp() {
+function App() {
   return (
     <QueryClientProvider client={queryClient}>
       <ShopifyAppBridgeProvider>
@@ -230,16 +179,6 @@ function RegularApp() {
       </ShopifyAppBridgeProvider>
     </QueryClientProvider>
   );
-}
-
-function App() {
-  const isDemo = typeof window !== "undefined" && window.location.pathname.startsWith("/demo");
-  
-  if (isDemo) {
-    return <DemoApp />;
-  }
-  
-  return <RegularApp />;
 }
 
 export default App;
