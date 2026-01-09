@@ -2427,3 +2427,30 @@ export const insertGmailDeliverabilityStatsSchema = createInsertSchema(gmailDeli
 });
 export type GmailDeliverabilityStats = typeof gmailDeliverabilityStats.$inferSelect;
 export type InsertGmailDeliverabilityStats = z.infer<typeof insertGmailDeliverabilityStatsSchema>;
+
+// Daily User Performance - track achievements and wins per day
+export const dailyUserPerformance = pgTable("daily_user_performance", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  purchaseOrdersReceived: integer("purchase_orders_received").default(0),
+  pricingApprovalsReceived: integer("pricing_approvals_received").default(0),
+  quotesCreated: integer("quotes_created").default(0),
+  followUpsCompleted: integer("follow_ups_completed").default(0),
+  emailsSent: integer("emails_sent").default(0),
+  newCustomersAdded: integer("new_customers_added").default(0),
+  coachingTip: text("coaching_tip"), // AI-generated coaching tip for improvement
+  celebrationShown: boolean("celebration_shown").default(false),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userDateIdx: index("daily_performance_user_date_idx").on(table.userId, table.date),
+}));
+
+export const insertDailyUserPerformanceSchema = createInsertSchema(dailyUserPerformance).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type DailyUserPerformance = typeof dailyUserPerformance.$inferSelect;
+export type InsertDailyUserPerformance = z.infer<typeof insertDailyUserPerformanceSchema>;

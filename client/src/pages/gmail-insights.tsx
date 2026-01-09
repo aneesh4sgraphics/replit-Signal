@@ -107,6 +107,16 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
   low: { color: "bg-gray-400 text-white", label: "Low" },
 };
 
+interface DailyPerformance {
+  date: string;
+  purchaseOrdersReceived: number;
+  pricingApprovalsReceived: number;
+  quotesCreated: number;
+  followUpsCompleted: number;
+  emailsSent: number;
+  coachingTip: string | null;
+}
+
 function isPurchaseOrderEmail(insight: Insight): boolean {
   const poKeywords = ['purchase order', 'po#', 'po number', 'p.o.', 'po:', 'purchase-order'];
   const textToCheck = [
@@ -115,6 +125,21 @@ function isPurchaseOrderEmail(insight: Insight): boolean {
     insight.email?.subject?.toLowerCase() || ''
   ].join(' ');
   return poKeywords.some(keyword => textToCheck.includes(keyword));
+}
+
+function isPricingApprovalEmail(insight: Insight): boolean {
+  const approvalKeywords = [
+    'pricing approved', 'price approved', 'approve the pricing', 'approved pricing',
+    'like the pricing', 'love the pricing', 'accept the price', 'price accepted',
+    'pricing looks good', 'price looks good', 'agree to the price', 'agreed to pricing',
+    'confirm the pricing', 'pricing confirmed', 'go ahead with the price'
+  ];
+  const textToCheck = [
+    insight.summary?.toLowerCase() || '',
+    insight.details?.toLowerCase() || '',
+    insight.email?.subject?.toLowerCase() || ''
+  ].join(' ');
+  return approvalKeywords.some(keyword => textToCheck.includes(keyword));
 }
 
 function ChampagneCelebration({ isVisible, onClose, customerName }: { isVisible: boolean; onClose: () => void; customerName?: string }) {
@@ -237,6 +262,193 @@ function ChampagneCelebration({ isVisible, onClose, customerName }: { isVisible:
   );
 }
 
+function GoldChainCelebration({ isVisible, onClose, customerName }: { isVisible: boolean; onClose: () => void; customerName?: string }) {
+  useEffect(() => {
+    if (isVisible) {
+      const timer = setTimeout(onClose, 6000);
+      return () => clearTimeout(timer);
+    }
+  }, [isVisible, onClose]);
+
+  return (
+    <AnimatePresence>
+      {isVisible && (
+        <motion.div
+          initial={{ opacity: 0 }}
+          animate={{ opacity: 1 }}
+          exit={{ opacity: 0 }}
+          className="fixed inset-0 z-50 flex items-center justify-center bg-black/70 backdrop-blur-sm"
+          onClick={onClose}
+        >
+          <motion.div
+            initial={{ scale: 0.5, y: 50 }}
+            animate={{ scale: 1, y: 0 }}
+            exit={{ scale: 0.5, y: 50 }}
+            transition={{ type: "spring", damping: 15 }}
+            className="relative bg-gradient-to-br from-yellow-400 via-amber-500 to-yellow-600 rounded-3xl p-8 shadow-2xl max-w-md mx-4 text-center overflow-hidden"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Sparkle effects */}
+            <div className="absolute inset-0 overflow-hidden pointer-events-none">
+              {[...Array(15)].map((_, i) => (
+                <motion.div
+                  key={i}
+                  initial={{ scale: 0, opacity: 0 }}
+                  animate={{ 
+                    scale: [0, 1.5, 0],
+                    opacity: [0, 1, 0],
+                  }}
+                  transition={{ 
+                    duration: 1.5,
+                    delay: Math.random() * 2,
+                    repeat: Infinity,
+                    repeatDelay: Math.random() * 3
+                  }}
+                  className="absolute text-2xl"
+                  style={{ 
+                    left: `${Math.random() * 100}%`, 
+                    top: `${Math.random() * 100}%` 
+                  }}
+                >
+                  ✨
+                </motion.div>
+              ))}
+            </div>
+
+            {/* Big S Gold Chain Guy */}
+            <motion.div
+              initial={{ scale: 0, rotate: -30 }}
+              animate={{ scale: 1, rotate: 0 }}
+              transition={{ type: "spring", damping: 10, delay: 0.2 }}
+              className="text-8xl mb-2 relative z-10"
+            >
+              🧔
+            </motion.div>
+            
+            {/* Gold chain with dollar sign */}
+            <motion.div
+              initial={{ y: -50, opacity: 0 }}
+              animate={{ y: 0, opacity: 1 }}
+              transition={{ delay: 0.4, type: "spring" }}
+              className="text-6xl -mt-4 mb-4 relative z-10"
+            >
+              💰💲💰
+            </motion.div>
+
+            <motion.h2
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              transition={{ delay: 0.6 }}
+              className="text-3xl font-bold text-white mb-2 relative z-10 drop-shadow-lg"
+            >
+              Pricing Approved! 
+            </motion.h2>
+
+            <motion.p
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 0.8 }}
+              className="text-xl text-yellow-100 mb-2 relative z-10"
+            >
+              You're a Sales Superstar!
+            </motion.p>
+
+            {customerName && (
+              <motion.p
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                transition={{ delay: 1 }}
+                className="text-lg text-yellow-200 mb-4 relative z-10"
+              >
+                <span className="font-semibold">{customerName}</span> loves your pricing!
+              </motion.p>
+            )}
+
+            <motion.button
+              initial={{ opacity: 0 }}
+              animate={{ opacity: 1 }}
+              transition={{ delay: 1.2 }}
+              onClick={onClose}
+              className="mt-4 px-6 py-2 bg-white hover:bg-yellow-50 text-amber-700 rounded-full font-bold transition-colors relative z-10 shadow-lg"
+            >
+              That's How We Do It! 💪
+            </motion.button>
+          </motion.div>
+        </motion.div>
+      )}
+    </AnimatePresence>
+  );
+}
+
+function DailyPerformanceCard({ todayPOs, todayApprovals, yesterdayPOs, yesterdayApprovals, coachingTip }: {
+  todayPOs: number;
+  todayApprovals: number;
+  yesterdayPOs: number;
+  yesterdayApprovals: number;
+  coachingTip?: string;
+}) {
+  const hasAchievements = todayPOs > 0 || todayApprovals > 0;
+  const hadAchievementsYesterday = yesterdayPOs > 0 || yesterdayApprovals > 0;
+  
+  return (
+    <Card className="border-2 border-dashed border-amber-300 dark:border-amber-700 bg-gradient-to-br from-amber-50 to-yellow-50 dark:from-amber-950 dark:to-yellow-950">
+      <CardHeader className="pb-2">
+        <CardTitle className="text-lg flex items-center gap-2">
+          <span className="text-2xl">🏆</span>
+          Your Sales Wins
+        </CardTitle>
+        <CardDescription>Today's achievements & yesterday's recap</CardDescription>
+      </CardHeader>
+      <CardContent className="space-y-4">
+        {/* Today's Stats */}
+        <div className="grid grid-cols-2 gap-3">
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-3 text-center shadow-sm">
+            <div className="text-3xl mb-1">{todayPOs > 0 ? '🍾' : '📦'}</div>
+            <div className="text-2xl font-bold text-amber-600">{todayPOs}</div>
+            <div className="text-xs text-muted-foreground">POs Today</div>
+          </div>
+          <div className="bg-white dark:bg-gray-900 rounded-lg p-3 text-center shadow-sm">
+            <div className="text-3xl mb-1">{todayApprovals > 0 ? '💰' : '📋'}</div>
+            <div className="text-2xl font-bold text-green-600">{todayApprovals}</div>
+            <div className="text-xs text-muted-foreground">Approvals Today</div>
+          </div>
+        </div>
+
+        {/* Yesterday's Recap */}
+        {hadAchievementsYesterday && (
+          <div className="bg-muted/50 rounded-lg p-3">
+            <div className="text-sm font-medium mb-1 flex items-center gap-1">
+              <Clock className="h-3 w-3" /> Yesterday's Performance
+            </div>
+            <div className="text-xs text-muted-foreground">
+              {yesterdayPOs > 0 && <span className="mr-2">🍾 {yesterdayPOs} POs</span>}
+              {yesterdayApprovals > 0 && <span>💰 {yesterdayApprovals} Approvals</span>}
+            </div>
+          </div>
+        )}
+
+        {/* Coaching Tip */}
+        {coachingTip ? (
+          <div className="bg-blue-50 dark:bg-blue-950 rounded-lg p-3 border border-blue-200 dark:border-blue-800">
+            <div className="text-sm font-medium mb-1 flex items-center gap-1 text-blue-700 dark:text-blue-300">
+              💡 Coach's Tip
+            </div>
+            <p className="text-xs text-blue-600 dark:text-blue-400">{coachingTip}</p>
+          </div>
+        ) : (
+          <div className="bg-muted/30 rounded-lg p-3 text-center">
+            <p className="text-xs text-muted-foreground">
+              {hasAchievements 
+                ? "🔥 You're on fire! Keep up the great work!" 
+                : "💪 Sync your emails to track your wins!"}
+            </p>
+          </div>
+        )}
+      </CardContent>
+    </Card>
+  );
+}
+
 function GmailNotConnectedDialog({ isOpen, onClose }: { isOpen: boolean; onClose: () => void }) {
   const [, navigate] = useLocation();
   
@@ -303,8 +515,11 @@ export default function GmailInsightsPage() {
   const [expandedIds, setExpandedIds] = useState<Set<number>>(new Set());
   const [showPOCelebration, setShowPOCelebration] = useState(false);
   const [poCustomerName, setPOCustomerName] = useState<string | undefined>();
+  const [showPricingCelebration, setShowPricingCelebration] = useState(false);
+  const [pricingCustomerName, setPricingCustomerName] = useState<string | undefined>();
   const [showGmailNotConnected, setShowGmailNotConnected] = useState(false);
   const celebratedPOsRef = useRef<Set<number>>(new Set());
+  const celebratedApprovalsRef = useRef<Set<number>>(new Set());
 
   const { data: syncState, isLoading: syncStateLoading } = useQuery<SyncState>({
     queryKey: ["/api/gmail-intelligence/sync-state"],
@@ -326,10 +541,15 @@ export default function GmailInsightsPage() {
     },
   });
 
-  // Detect PO emails and trigger celebration
+  // Count today's achievements from insights
+  const todayPOs = insights?.filter(i => isPurchaseOrderEmail(i) && i.status !== 'dismissed').length || 0;
+  const todayApprovals = insights?.filter(i => isPricingApprovalEmail(i) && i.status !== 'dismissed').length || 0;
+
+  // Detect PO emails and pricing approvals, trigger celebrations
   useEffect(() => {
     if (!insights || insights.length === 0) return;
     
+    // Check for new PO emails
     const poInsight = insights.find(insight => 
       insight.status === 'pending' && 
       isPurchaseOrderEmail(insight) && 
@@ -343,6 +563,23 @@ export default function GmailInsightsPage() {
         : poInsight.email?.from;
       setPOCustomerName(customerName);
       setShowPOCelebration(true);
+      return; // Only show one celebration at a time
+    }
+    
+    // Check for pricing approval emails
+    const approvalInsight = insights.find(insight => 
+      insight.status === 'pending' && 
+      isPricingApprovalEmail(insight) && 
+      !celebratedApprovalsRef.current.has(insight.id)
+    );
+    
+    if (approvalInsight) {
+      celebratedApprovalsRef.current.add(approvalInsight.id);
+      const customerName = approvalInsight.customer 
+        ? `${approvalInsight.customer.firstName} ${approvalInsight.customer.lastName}${approvalInsight.customer.company ? ` (${approvalInsight.customer.company})` : ''}`
+        : approvalInsight.email?.from;
+      setPricingCustomerName(customerName);
+      setShowPricingCelebration(true);
     }
   }, [insights]);
 
@@ -553,6 +790,11 @@ export default function GmailInsightsPage() {
         onClose={() => setShowPOCelebration(false)}
         customerName={poCustomerName}
       />
+      <GoldChainCelebration 
+        isVisible={showPricingCelebration} 
+        onClose={() => setShowPricingCelebration(false)}
+        customerName={pricingCustomerName}
+      />
       <GmailNotConnectedDialog 
         isOpen={showGmailNotConnected} 
         onClose={() => setShowGmailNotConnected(false)} 
@@ -568,7 +810,7 @@ export default function GmailInsightsPage() {
             AI-powered insights from your email conversations
           </p>
         </div>
-        <div className="flex gap-2">
+        <div className="flex gap-2 flex-wrap">
           <Button
             variant="outline"
             onClick={() => {
@@ -576,9 +818,20 @@ export default function GmailInsightsPage() {
               setShowPOCelebration(true);
             }}
             className="text-amber-600 border-amber-300 hover:bg-amber-50"
+            size="sm"
           >
-            <PartyPopper className="h-4 w-4 mr-2" />
-            Preview Celebration
+            🍾 PO Preview
+          </Button>
+          <Button
+            variant="outline"
+            onClick={() => {
+              setPricingCustomerName("Happy Client (XYZ Inc)");
+              setShowPricingCelebration(true);
+            }}
+            className="text-yellow-600 border-yellow-300 hover:bg-yellow-50"
+            size="sm"
+          >
+            💰 Pricing Preview
           </Button>
           <Button
             onClick={() => syncMutation.mutate()}
@@ -588,6 +841,55 @@ export default function GmailInsightsPage() {
             {syncMutation.isPending ? "Syncing..." : "Sync Emails"}
           </Button>
         </div>
+      </div>
+
+      {/* Daily Performance Card */}
+      <div className="grid gap-4 md:grid-cols-3">
+        <div className="md:col-span-2">
+          <DailyPerformanceCard 
+            todayPOs={todayPOs}
+            todayApprovals={todayApprovals}
+            yesterdayPOs={0}
+            yesterdayApprovals={0}
+            coachingTip={todayPOs === 0 && todayApprovals === 0 
+              ? "Tip: Follow up on pending quotes to turn them into POs! Check your oldest pending quotes first."
+              : todayPOs > 0 
+                ? "Great job closing that PO! Now follow up with similar customers who might be ready to buy."
+                : "Nice work getting that pricing approved! Strike while the iron is hot - send the quote today!"}
+          />
+        </div>
+        <Card className="md:col-span-1">
+          <CardHeader className="pb-2">
+            <CardTitle className="text-sm font-medium flex items-center gap-2">
+              <RefreshCw className="h-4 w-4" />
+              Sync Status
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {syncStateLoading ? (
+              <Skeleton className="h-16 w-full" />
+            ) : (
+              <>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Last sync: </span>
+                  {syncState?.lastSyncedAt ? (
+                    formatDistanceToNow(new Date(syncState.lastSyncedAt), { addSuffix: true })
+                  ) : (
+                    <span className="text-orange-500">Never synced</span>
+                  )}
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Emails processed: </span>
+                  <span className="font-medium">{syncState?.messagesProcessed || 0}</span>
+                </div>
+                <div className="text-sm">
+                  <span className="text-muted-foreground">Insights found: </span>
+                  <span className="font-medium">{syncState?.insightsExtracted || 0}</span>
+                </div>
+              </>
+            )}
+          </CardContent>
+        </Card>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
