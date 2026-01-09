@@ -119,6 +119,7 @@ export default function PriceList() {
   const [productTypeOrder, setProductTypeOrder] = useState<string[]>([]);
   const [collapsedTypes, setCollapsedTypes] = useState<Set<string>>(new Set());
   const [showTypeOrderDialog, setShowTypeOrderDialog] = useState(false);
+  const [selectedForPDF, setSelectedForPDF] = useState<Set<string>>(new Set());
   
   // Helper to update shipping cost input (string for intermediate typing)
   const updateShippingInput = (itemCode: string, value: string) => {
@@ -215,8 +216,11 @@ export default function PriceList() {
       // Use adjusted items with shipping costs applied, sorted by productTypeOrder
       const itemsToUse = orderedItems.length > 0 ? orderedItems : priceListItems;
       
+      // Filter only selected items for PDF
+      const selectedItems = itemsToUse.filter(item => selectedForPDF.has(item.itemCode));
+      
       // Sort items by productTypeOrder for PDF
-      const sortedItems = [...itemsToUse].sort((a, b) => {
+      const sortedItems = [...selectedItems].sort((a, b) => {
         const aTypeIndex = productTypeOrder.indexOf(a.productType);
         const bTypeIndex = productTypeOrder.indexOf(b.productType);
         if (aTypeIndex === -1 && bTypeIndex === -1) return a.productType.localeCompare(b.productType);
@@ -319,6 +323,14 @@ export default function PriceList() {
       toast({
         title: "No Data",
         description: "Please select a category and tier to generate PDF",
+        variant: "destructive"
+      });
+      return;
+    }
+    if (selectedForPDF.size === 0) {
+      toast({
+        title: "No Items Selected",
+        description: "Please select at least one product to include in the PDF",
         variant: "destructive"
       });
       return;
@@ -573,15 +585,58 @@ export default function PriceList() {
     });
   }, [groupedByType, productTypeOrder]);
 
-  // Initialize productTypeOrder when priceListItems changes
+  // Initialize productTypeOrder and selectedForPDF when priceListItems changes
   useEffect(() => {
     if (priceListItems.length > 0) {
       // Normalize product types to match groupedByType logic (use 'Unknown' for falsy values)
       const types = Array.from(new Set(priceListItems.map(item => item.productType || 'Unknown'))).sort();
       setProductTypeOrder(types);
       setCollapsedTypes(new Set());
+      // Default all items selected for PDF
+      setSelectedForPDF(new Set(priceListItems.map(item => item.itemCode)));
     }
   }, [priceListItems]);
+
+  // Toggle single item selection for PDF
+  const toggleItemSelection = (itemCode: string) => {
+    setSelectedForPDF(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(itemCode)) {
+        newSet.delete(itemCode);
+      } else {
+        newSet.add(itemCode);
+      }
+      return newSet;
+    });
+  };
+
+  // Toggle all items in a product type group
+  const toggleTypeSelection = (productType: string, items: PriceListItem[]) => {
+    const itemCodes = items.map(item => item.itemCode);
+    const allSelected = itemCodes.every(code => selectedForPDF.has(code));
+    
+    setSelectedForPDF(prev => {
+      const newSet = new Set(prev);
+      if (allSelected) {
+        itemCodes.forEach(code => newSet.delete(code));
+      } else {
+        itemCodes.forEach(code => newSet.add(code));
+      }
+      return newSet;
+    });
+  };
+
+  // Select/deselect all items
+  const toggleSelectAll = () => {
+    const allItemCodes = priceListItems.map(item => item.itemCode);
+    const allSelected = allItemCodes.every(code => selectedForPDF.has(code));
+    
+    if (allSelected) {
+      setSelectedForPDF(new Set());
+    } else {
+      setSelectedForPDF(new Set(allItemCodes));
+    }
+  };
 
   // Toggle collapse state for a product type
   const toggleTypeCollapse = (type: string) => {
@@ -1101,7 +1156,24 @@ export default function PriceList() {
               </Button>
             </div>
           </div>
-          <p className="body-small text-gray-500 mb-6">{priceListItems.length} products found across {sortedProductTypes.length} product types</p>
+          <div className="flex items-center justify-between mb-6">
+            <p className="body-small text-gray-500">{priceListItems.length} products found across {sortedProductTypes.length} product types</p>
+            <div className="flex items-center gap-4">
+              <span className="text-sm text-gray-600">
+                <span className="font-medium text-purple-700">{selectedForPDF.size}</span> of {priceListItems.length} selected for PDF
+              </span>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={toggleSelectAll}
+                className="text-xs"
+              >
+                {priceListItems.length > 0 && priceListItems.every(item => selectedForPDF.has(item.itemCode)) 
+                  ? 'Deselect All' 
+                  : 'Select All'}
+              </Button>
+            </div>
+          </div>
           
           {/* Grouped by Product Type Display */}
           <div className="space-y-4">
@@ -1117,6 +1189,12 @@ export default function PriceList() {
                     onClick={() => toggleTypeCollapse(productType)}
                   >
                     <div className="flex items-center gap-3">
+                      <Checkbox
+                        checked={items.every(item => selectedForPDF.has(item.itemCode))}
+                        onCheckedChange={() => toggleTypeSelection(productType, items)}
+                        onClick={(e) => e.stopPropagation()}
+                        className="h-4 w-4"
+                      />
                       <Button
                         variant="ghost"
                         size="sm"
@@ -1126,7 +1204,9 @@ export default function PriceList() {
                         {isCollapsed ? <ChevronDown className="h-4 w-4" /> : <ChevronUp className="h-4 w-4" />}
                       </Button>
                       <span className="font-semibold text-gray-800">{productType}</span>
-                      <Badge variant="secondary" className="text-xs">{items.length} items</Badge>
+                      <Badge variant="secondary" className="text-xs">
+                        {items.filter(item => selectedForPDF.has(item.itemCode)).length}/{items.length} selected
+                      </Badge>
                     </div>
                     <div className="flex items-center gap-1">
                       <Button
@@ -1155,6 +1235,7 @@ export default function PriceList() {
                     <Table>
                       <TableHeader>
                         <TableRow className="bg-gray-50">
+                          <TableHead className="w-[50px] text-center">PDF</TableHead>
                           <TableHead className="w-[140px]">Item Code</TableHead>
                           <TableHead className="w-[100px] text-center">Size</TableHead>
                           <TableHead className="w-[80px] text-center">Min Qty</TableHead>
@@ -1177,6 +1258,13 @@ export default function PriceList() {
                           
                           return (
                             <TableRow key={item.itemCode} className={idx % 2 === 0 ? 'bg-white' : 'bg-gray-50/50'}>
+                              <TableCell className="text-center">
+                                <Checkbox
+                                  checked={selectedForPDF.has(item.itemCode)}
+                                  onCheckedChange={() => toggleItemSelection(item.itemCode)}
+                                  className="h-4 w-4"
+                                />
+                              </TableCell>
                               <TableCell className="font-mono text-sm text-gray-600">{item.itemCode}</TableCell>
                               <TableCell className="text-center text-sm text-gray-600">{item.size}</TableCell>
                               <TableCell className="text-center text-sm text-gray-600">{item.minQty}</TableCell>
