@@ -9399,12 +9399,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       const inventory = await odooClient.getProductInventory(itemCode);
+      const odooBaseUrl = process.env.ODOO_URL;
+      const productUrl = inventory.productId && odooBaseUrl
+        ? `${odooBaseUrl}/web#id=${inventory.productId}&model=product.product&view_type=form`
+        : null;
       res.json({
         itemCode,
         qtyAvailable: inventory.qtyAvailable,
         qtyReserved: inventory.qtyReserved,
         qtyVirtual: inventory.qtyVirtual,
         productId: inventory.productId,
+        odooUrl: productUrl,
         lastUpdated: new Date().toISOString()
       });
     } catch (error: any) {
