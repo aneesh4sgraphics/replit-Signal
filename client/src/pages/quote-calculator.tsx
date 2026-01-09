@@ -536,7 +536,15 @@ export default function QuoteCalculator() {
     if (!selectedProduct) return; // Additional safety check
 
     const tierPrice = (selectedProduct[tier as keyof ProductData] as number) || 0;
-    const pricePerSheet = tierPrice * parseFloat(String(selectedProduct.totalSqm || 0));
+    const totalSqm = parseFloat(String(selectedProduct.totalSqm || 0));
+    const minQty = selectedProduct.minQuantity || 1;
+    
+    // For products sold in packs (minQuantity > 1), totalSqm represents the entire pack
+    // We need to divide by minQuantity to get the per-unit price
+    // For rolls (minQuantity = 1), this has no effect since we divide by 1
+    const pricePerUnit = (tierPrice * totalSqm) / minQty;
+    const pricePerSheet = pricePerUnit; // Per-sheet or per-roll price
+    
     const useQuantity = Math.max(quantity, selectedProduct.minQuantity);
     
     // Apply retail rounding for RETAIL tier only to total
@@ -556,7 +564,7 @@ export default function QuoteCalculator() {
       pricePerSheet: pricePerSheet,
       total: total,
       tier: tier,
-      squareMeters: parseFloat(String(selectedProduct.totalSqm || 0)),
+      squareMeters: totalSqm / minQty, // Per-unit sqm (per-sheet or per-roll)
       minOrderQty: selectedProduct.minQuantity,
       sortOrder: selectedProduct.sortOrder
     };
