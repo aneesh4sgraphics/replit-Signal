@@ -1545,10 +1545,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Update all products from source type to target type
-      const updateResult = await db.update(productPricingMaster)
+      // Must update BOTH productTypeId AND catalogProductTypeId, plus productType text field
+      await db.update(productPricingMaster)
         .set({ 
+          productTypeId: targetTypeId,
           catalogProductTypeId: targetTypeId,
           catalogCategoryId: targetType.categoryId,
+          productType: targetType.name,
+          updatedAt: new Date()
+        })
+        .where(eq(productPricingMaster.productTypeId, sourceTypeId));
+      
+      // Also update any products that only have catalogProductTypeId set (edge case)
+      await db.update(productPricingMaster)
+        .set({ 
+          productTypeId: targetTypeId,
+          catalogProductTypeId: targetTypeId,
+          catalogCategoryId: targetType.categoryId,
+          productType: targetType.name,
           updatedAt: new Date()
         })
         .where(eq(productPricingMaster.catalogProductTypeId, sourceTypeId));
