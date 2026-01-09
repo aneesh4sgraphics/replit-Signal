@@ -568,13 +568,26 @@ export default function GmailInsightsPage() {
             AI-powered insights from your email conversations
           </p>
         </div>
-        <Button
-          onClick={() => syncMutation.mutate()}
-          disabled={syncMutation.isPending}
-        >
-          <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
-          {syncMutation.isPending ? "Syncing..." : "Sync Emails"}
-        </Button>
+        <div className="flex gap-2">
+          <Button
+            variant="outline"
+            onClick={() => {
+              setPOCustomerName("Demo Customer (ABC Corp)");
+              setShowPOCelebration(true);
+            }}
+            className="text-amber-600 border-amber-300 hover:bg-amber-50"
+          >
+            <PartyPopper className="h-4 w-4 mr-2" />
+            Preview Celebration
+          </Button>
+          <Button
+            onClick={() => syncMutation.mutate()}
+            disabled={syncMutation.isPending}
+          >
+            <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
+            {syncMutation.isPending ? "Syncing..." : "Sync Emails"}
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
