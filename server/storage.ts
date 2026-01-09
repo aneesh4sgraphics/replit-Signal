@@ -201,6 +201,7 @@ export interface IStorage {
   rejectUser(userId: string, adminId: string): Promise<User | undefined>;
   changeUserRole(userId: string, role: string): Promise<User | undefined>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
+  updateUserAllowedTiers(userId: string, allowedTiers: string[] | null): Promise<User | undefined>;
 
   
   // Product Categories
@@ -705,6 +706,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ role, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async updateUserAllowedTiers(userId: string, allowedTiers: string[] | null): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ allowedTiers, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return user;

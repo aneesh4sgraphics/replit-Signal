@@ -1240,6 +1240,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Update user's allowed pricing tiers
+  app.patch('/api/admin/users/:userId/allowed-tiers', requireAdmin, async (req: any, res) => {
+    try {
+      const userId = decodeURIComponent(req.params.userId);
+      const { allowedTiers } = req.body;
+      
+      // Validate allowedTiers is null or an array of valid tier keys
+      const validTiers = ['landedPrice', 'exportPrice', 'dealerPrice', 'wholesalePrice', 'distributorPrice', 'singleRollPrice', 'retailPrice'];
+      
+      if (allowedTiers !== null && !Array.isArray(allowedTiers)) {
+        return res.status(400).json({ message: "allowedTiers must be null or an array of tier keys" });
+      }
+      
+      if (Array.isArray(allowedTiers)) {
+        const invalidTiers = allowedTiers.filter((t: string) => !validTiers.includes(t));
+        if (invalidTiers.length > 0) {
+          return res.status(400).json({ message: `Invalid tier keys: ${invalidTiers.join(', ')}` });
+        }
+      }
+      
+      const user = await storage.updateUserAllowedTiers(userId, allowedTiers);
+      
+      if (!user) {
+        return res.status(404).json({ message: "User not found" });
+      }
+      
+      res.json(user);
+    } catch (error) {
+      console.error("Error updating user allowed tiers:", error);
+      res.status(500).json({ message: error instanceof Error ? error.message : "Failed to update user allowed tiers" });
+    }
+  });
+
   // Auto-assign sales reps based on location rules
   app.post('/api/admin/auto-assign-sales-reps', isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
