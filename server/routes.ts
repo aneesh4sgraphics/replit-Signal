@@ -9968,7 +9968,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Step 3: Get Vendor category ID to filter out vendors
       console.log("[Odoo Import] Fetching Vendor category ID...");
       const vendorCategoryId = await odooClient.getVendorCategoryId();
-      console.log(`[Odoo Import] Vendor category ID: ${vendorCategoryId}`);
+      if (vendorCategoryId) {
+        console.log(`[Odoo Import] Will filter out contacts with Vendor category ID: ${vendorCategoryId}`);
+      } else {
+        console.log("[Odoo Import] WARNING: No 'Vendor' category found in Odoo - vendor filtering disabled");
+      }
       
       // Step 4: Fetch ALL partners from Odoo (companies and contacts) using pagination
       console.log("[Odoo Import] Fetching all partners from Odoo (this may take a moment)...");
@@ -10304,14 +10308,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
-      // Step 4: Delete vendor customers (cascade will handle related records)
+      // Step 4: Delete vendor customers using batch delete with IN clause
+      console.log(`[Odoo Cleanup] Deleting ${vendorCustomerIds.length} vendor customers in batch...`);
       let removed = 0;
-      for (const customerId of vendorCustomerIds) {
+      
+      // Use batch delete with IN clause for efficiency
+      const DELETE_BATCH_SIZE = 50;
+      for (let i = 0; i < vendorCustomerIds.length; i += DELETE_BATCH_SIZE) {
+        const batchIds = vendorCustomerIds.slice(i, i + DELETE_BATCH_SIZE);
         try {
-          await db.delete(customers).where(eq(customers.id, customerId));
-          removed++;
+          await db.delete(customers).where(sql`${customers.id} IN (${sql.join(batchIds.map(id => sql`${id}`), sql`, `)})`);
+          removed += batchIds.length;
         } catch (deleteError: any) {
-          console.error(`[Odoo Cleanup] Error deleting customer ${customerId}:`, deleteError.message);
+          console.error(`[Odoo Cleanup] Error deleting batch:`, deleteError.message);
         }
       }
       

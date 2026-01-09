@@ -650,11 +650,25 @@ class OdooClient {
   }
 
   // Check if a partner has the Vendor tag
+  // Handles both simple arrays [1,2,3] and tuple-style arrays [[1,"Vendor"],[2,"Customer"]]
   hasVendorTag(partner: OdooPartner, vendorCategoryId: number): boolean {
     if (!partner.category_id || !Array.isArray(partner.category_id)) {
       return false;
     }
-    return partner.category_id.includes(vendorCategoryId);
+    
+    // Check each category entry
+    for (const category of partner.category_id) {
+      // Handle simple number array: [1, 2, 3]
+      if (typeof category === 'number' && category === vendorCategoryId) {
+        return true;
+      }
+      // Handle tuple-style array: [[1, "Vendor"], [2, "Customer"]]
+      if (Array.isArray(category) && category.length >= 1 && category[0] === vendorCategoryId) {
+        return true;
+      }
+    }
+    
+    return false;
   }
 }
 
