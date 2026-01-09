@@ -622,6 +622,10 @@ router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
     console.log("Fetching product pricing from database...");
     const allPricingData = await storage.getAllProductPricingMaster();
     
+    // Fetch product categories for lookup
+    const categories = await storage.getProductCategories();
+    const categoryMap = new Map(categories.map(c => [c.id, c.name]));
+    
     // Filter to only show MAPPED products (have catalogCategoryId) and not archived
     const pricingData = allPricingData.filter(item => 
       item.catalogCategoryId && !item.isArchived
@@ -637,8 +641,10 @@ router.get("/product-pricing-database", isAuthenticated, async (req, res) => {
     }
     
     // Transform decimal strings to numbers for frontend compatibility
+    // Also add categoryName from the lookup
     const transformedData = pricingData.map(item => ({
       ...item,
+      categoryName: item.catalogCategoryId ? categoryMap.get(item.catalogCategoryId) || item.productName : item.productName,
       totalSqm: parseFloat(String(item.totalSqm || 0)),
       exportPrice: parseFloat(String(item.exportPrice || 0)),
       masterDistributorPrice: parseFloat(String(item.masterDistributorPrice || 0)),

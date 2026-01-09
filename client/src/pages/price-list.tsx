@@ -471,8 +471,12 @@ export default function PriceList() {
   const availableTypes = useMemo(() => {
     if (!selectedCategory || !productData.length) return [];
     
+    // Use categoryName field which is the actual category from product_categories table
     const typesForCategory = productData
-      .filter(item => (item.productName || item.product_name)?.toLowerCase() === selectedCategory.toLowerCase())
+      .filter(item => {
+        const categoryName = (item as any).categoryName || item.productName || item.product_name;
+        return categoryName?.toLowerCase() === selectedCategory.toLowerCase();
+      })
       .map(item => item.productType || item.ProductType || '')
       .filter(type => type && type.trim().length > 0);
     
@@ -566,7 +570,9 @@ export default function PriceList() {
 
     const filteredProducts = productData.filter(
       (item) => {
-        const matchesCategory = (item.productName || item.product_name)?.toLowerCase() === selectedCategory?.toLowerCase();
+        // Use categoryName from API which maps to product_categories table
+        const categoryName = (item as any).categoryName || item.productName || item.product_name;
+        const matchesCategory = categoryName?.toLowerCase() === selectedCategory?.toLowerCase();
         const itemType = (item.productType || item.ProductType || '').toLowerCase();
         const matchesType = selectedTypes.some(t => t.toLowerCase() === itemType);
         return matchesCategory && matchesType;
