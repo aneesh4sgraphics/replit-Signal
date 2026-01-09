@@ -1708,27 +1708,27 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                       }
                     </span>
                   </div>
-                  {/* Available Stock from Odoo */}
+                  {/* Available Stock from Odoo - Larger/More Prominent */}
                   {selectedProduct && !isCustomSize && (
-                    <div className="flex justify-between items-center">
-                      <span className="text-sm text-gray-600 flex items-center gap-1">
-                        <Package className="h-3 w-3" />
+                    <div className="flex justify-between items-center pt-2 mt-2 border-t border-gray-100">
+                      <span className="text-base font-medium text-gray-700 flex items-center gap-1.5">
+                        <Package className="h-4 w-4" />
                         Available Stock:
                       </span>
                       <span className="flex items-center gap-2">
                         {inventoryLoading ? (
-                          <span className="flex items-center gap-1 text-sm text-gray-500">
-                            <Loader2 className="h-3 w-3 animate-spin" />
+                          <span className="flex items-center gap-1 text-base text-gray-500">
+                            <Loader2 className="h-4 w-4 animate-spin" />
                             Loading...
                           </span>
                         ) : inventoryData ? (
-                          <span className={`text-sm font-medium ${
+                          <span className={`text-lg font-bold ${
                             inventoryData.qtyAvailable > 0 ? 'text-green-600' : 'text-red-500'
                           }`}>
-                            {Math.floor(inventoryData.qtyAvailable)} {isRollFormat(selectedProduct.size) ? 'Rolls' : 'Sheets'}
+                            {Math.floor(inventoryData.qtyAvailable)}
                           </span>
                         ) : (
-                          <span className="text-sm text-gray-400">Unavailable</span>
+                          <span className="text-base text-gray-400">Unavailable</span>
                         )}
                         <Button
                           variant="ghost"
@@ -1738,7 +1738,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                           disabled={inventoryLoading}
                           title="Sync inventory from Odoo"
                         >
-                          <RefreshCw className={`h-3 w-3 ${inventoryLoading ? 'animate-spin' : ''}`} />
+                          <RefreshCw className={`h-4 w-4 ${inventoryLoading ? 'animate-spin' : ''}`} />
                         </Button>
                         {inventoryData?.odooUrl && (
                           <a
@@ -1748,7 +1748,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                             className="text-[#875A7B] hover:text-[#6B4563] transition-colors"
                             title="Open in Odoo"
                           >
-                            <ExternalLink className="h-3 w-3" />
+                            <ExternalLink className="h-4 w-4" />
                           </a>
                         )}
                       </span>
