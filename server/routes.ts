@@ -123,7 +123,8 @@ import {
   QUOTE_FOLLOW_UP_STAGES,
   JOURNEY_PROGRESS_STAGES,
   insertCustomerJourneyProgressSchema,
-  productMergeSuggestions
+  productMergeSuggestions,
+  users
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -6062,6 +6063,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const userId = req.user?.claims?.sub || req.user?.id;
       const userEmail = req.user?.email || req.user?.claims?.email;
       const maxMessages = parseInt(req.body.maxMessages) || 50;
+      
+      // Ensure user exists in users table (required for foreign key constraints)
+      const existingUser = await storage.getUserById(userId);
+      if (!existingUser) {
+        // Create a minimal user record for Gmail sync to work
+        await db.insert(users).values({
+          id: userId,
+          email: userEmail,
+          role: req.user?.role || 'user',
+          status: 'approved',
+        }).onConflictDoNothing();
+      }
       
       // Sync messages from Gmail
       const syncResult = await syncGmailMessages(userId, userEmail, maxMessages);
