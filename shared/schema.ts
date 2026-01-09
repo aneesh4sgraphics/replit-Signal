@@ -2313,3 +2313,117 @@ export const insertMediaUploadSchema = createInsertSchema(mediaUploads).omit({
 });
 export type MediaUpload = typeof mediaUploads.$inferSelect;
 export type InsertMediaUpload = z.infer<typeof insertMediaUploadSchema>;
+
+// ===== GMAIL INTELLIGENCE =====
+
+// Gmail Sync State - track sync progress per user
+export const gmailSyncState = pgTable("gmail_sync_state", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  lastHistoryId: varchar("last_history_id", { length: 100 }), // Gmail historyId for incremental sync
+  lastSyncedAt: timestamp("last_synced_at"),
+  syncStatus: varchar("sync_status", { length: 20 }).default("idle"), // idle, syncing, error
+  lastError: text("last_error"),
+  messagesProcessed: integer("messages_processed").default(0),
+  insightsExtracted: integer("insights_extracted").default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertGmailSyncStateSchema = createInsertSchema(gmailSyncState).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type GmailSyncState = typeof gmailSyncState.$inferSelect;
+export type InsertGmailSyncState = z.infer<typeof insertGmailSyncStateSchema>;
+
+// Gmail Messages - store processed email messages
+export const gmailMessages = pgTable("gmail_messages", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  gmailMessageId: varchar("gmail_message_id", { length: 100 }).notNull(),
+  threadId: varchar("thread_id", { length: 100 }),
+  direction: varchar("direction", { length: 10 }).notNull(), // 'inbound' or 'outbound'
+  fromEmail: varchar("from_email", { length: 255 }),
+  fromName: varchar("from_name", { length: 255 }),
+  toEmail: varchar("to_email", { length: 255 }),
+  toName: varchar("to_name", { length: 255 }),
+  subject: varchar("subject", { length: 1000 }),
+  snippet: text("snippet"),
+  bodyText: text("body_text"), // Plain text version
+  sentAt: timestamp("sent_at"),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }), // Matched customer
+  analysisStatus: varchar("analysis_status", { length: 20 }).default("pending"), // pending, processing, completed, failed
+  analyzedAt: timestamp("analyzed_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  gmailMessageIdIdx: index("gmail_messages_gmail_id_idx").on(table.gmailMessageId),
+  userIdIdx: index("gmail_messages_user_id_idx").on(table.userId),
+  customerIdIdx: index("gmail_messages_customer_id_idx").on(table.customerId),
+}));
+
+export const insertGmailMessageSchema = createInsertSchema(gmailMessages).omit({
+  id: true,
+  createdAt: true,
+});
+export type GmailMessage = typeof gmailMessages.$inferSelect;
+export type InsertGmailMessage = z.infer<typeof insertGmailMessageSchema>;
+
+// Gmail Insights - AI-extracted insights from emails
+export const gmailInsights = pgTable("gmail_insights", {
+  id: serial("id").primaryKey(),
+  messageId: integer("message_id").notNull().references(() => gmailMessages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  insightType: varchar("insight_type", { length: 50 }).notNull(), // 'sales_opportunity', 'promise', 'follow_up', 'task', 'question'
+  summary: text("summary").notNull(), // Brief description of the insight
+  details: text("details"), // Full context from the email
+  confidence: decimal("confidence", { precision: 3, scale: 2 }), // 0.00 - 1.00
+  dueDate: timestamp("due_date"), // When action is needed (for promises/follow-ups)
+  priority: varchar("priority", { length: 10 }).default("medium"), // low, medium, high, urgent
+  status: varchar("status", { length: 20 }).default("pending"), // pending, acknowledged, completed, dismissed
+  completedAt: timestamp("completed_at"),
+  completedBy: varchar("completed_by", { length: 255 }),
+  dismissedAt: timestamp("dismissed_at"),
+  dismissedReason: text("dismissed_reason"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}), // Additional AI context
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("gmail_insights_user_id_idx").on(table.userId),
+  customerIdIdx: index("gmail_insights_customer_id_idx").on(table.customerId),
+  statusIdx: index("gmail_insights_status_idx").on(table.status),
+  dueDateIdx: index("gmail_insights_due_date_idx").on(table.dueDate),
+}));
+
+export const insertGmailInsightSchema = createInsertSchema(gmailInsights).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type GmailInsight = typeof gmailInsights.$inferSelect;
+export type InsertGmailInsight = z.infer<typeof insertGmailInsightSchema>;
+
+// Gmail Deliverability Stats - track email deliverability health
+export const gmailDeliverabilityStats = pgTable("gmail_deliverability_stats", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  date: timestamp("date").notNull(),
+  emailsSent: integer("emails_sent").default(0),
+  emailsOpened: integer("emails_opened").default(0),
+  emailsClicked: integer("emails_clicked").default(0),
+  bounces: integer("bounces").default(0),
+  spamReports: integer("spam_reports").default(0),
+  openRate: decimal("open_rate", { precision: 5, scale: 2 }),
+  clickRate: decimal("click_rate", { precision: 5, scale: 2 }),
+  bounceRate: decimal("bounce_rate", { precision: 5, scale: 2 }),
+  createdAt: timestamp("created_at").defaultNow(),
+});
+
+export const insertGmailDeliverabilityStatsSchema = createInsertSchema(gmailDeliverabilityStats).omit({
+  id: true,
+  createdAt: true,
+});
+export type GmailDeliverabilityStats = typeof gmailDeliverabilityStats.$inferSelect;
+export type InsertGmailDeliverabilityStats = z.infer<typeof insertGmailDeliverabilityStatsSchema>;
