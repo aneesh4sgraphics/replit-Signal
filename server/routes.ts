@@ -6065,7 +6065,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const maxMessages = parseInt(req.body.maxMessages) || 50;
       
       // Ensure user exists in users table (required for foreign key constraints)
-      const existingUser = await storage.getUserById(userId);
+      const [existingUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
       if (!existingUser) {
         // Create a minimal user record for Gmail sync to work
         await db.insert(users).values({
@@ -6074,6 +6074,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           role: req.user?.role || 'user',
           status: 'approved',
         }).onConflictDoNothing();
+        console.log(`[Gmail Sync] Created user record for: ${userId}`);
       }
       
       // Sync messages from Gmail
