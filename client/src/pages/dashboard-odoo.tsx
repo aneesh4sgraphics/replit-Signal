@@ -31,7 +31,8 @@ import {
   AlertTriangle,
   Flame,
   Lightbulb,
-  Calendar
+  Calendar,
+  Zap
 } from "lucide-react";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
@@ -89,6 +90,21 @@ interface ConnectionStatus {
   odoo: { connected: boolean; error: string | null };
   gmail: { connected: boolean; error: string | null };
   calendar: { connected: boolean; error: string | null };
+}
+
+interface ApiCostStats {
+  summary: {
+    totalCost: number;
+    totalCalls: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    avgDurationMs: number;
+    periodDays: number;
+  };
+  byOperation: { operation: string; function_name: string; call_count: string; total_cost: string }[];
+  byModel: { model: string; call_count: string; total_cost: string }[];
+  daily: { date: string; api_provider: string; daily_cost: string; call_count: string }[];
+  timestamp: string;
 }
 
 // Grouped app tiles by category
@@ -158,6 +174,13 @@ export default function Dashboard() {
     retry: 1,
     enabled: isAdminUser,
     staleTime: 5 * 60 * 1000, // Keep fresh for 5 minutes
+  });
+
+  const { data: apiCosts } = useQuery<ApiCostStats>({
+    queryKey: ["/api/dashboard/api-costs", { days: '30' }],
+    retry: 1,
+    enabled: isAdminUser,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: objections = [] } = useQuery<{ id: number; status: string }[]>({
@@ -1364,6 +1387,131 @@ export default function Dashboard() {
 
                 <div style={{ marginTop: '12px', fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>
                   Updated: {new Date(usageStats.timestamp).toLocaleTimeString()}
+                </div>
+              </div>
+            )}
+
+            {/* API Cost Tracking for Admins */}
+            {apiCosts && (
+              <div style={{
+                marginTop: '24px',
+                background: 'rgba(255, 255, 255, 0.6)',
+                backdropFilter: 'blur(60px) saturate(150%)',
+                WebkitBackdropFilter: 'blur(60px) saturate(150%)',
+                border: '1px solid rgba(255, 255, 255, 0.8)',
+                borderRadius: '24px',
+                padding: '24px',
+                boxShadow: '0 8px 32px rgba(148, 163, 184, 0.08)'
+              }} data-testid="api-cost-indicator">
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
+                  <div style={{
+                    width: '40px',
+                    height: '40px',
+                    borderRadius: '12px',
+                    background: 'linear-gradient(135deg, rgba(139, 92, 246, 0.3), rgba(124, 58, 237, 0.2))',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'center',
+                    border: '1px solid rgba(139, 92, 246, 0.3)'
+                  }}>
+                    <DollarSign size={20} style={{ color: '#7c3aed' }} />
+                  </div>
+                  <div>
+                    <h3 style={{ fontSize: '16px', fontWeight: '600', color: '#1e293b', margin: 0 }}>
+                      API Spending
+                    </h3>
+                    <p style={{ fontSize: '12px', color: '#64748b', margin: 0 }}>
+                      Last {apiCosts.summary.periodDays} days - OpenAI usage tracking
+                    </p>
+                  </div>
+                </div>
+
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '16px' }}>
+                  {/* Total Spend */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.5)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.6)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <DollarSign size={16} style={{ color: '#22c55e' }} />
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Total Spend</span>
+                    </div>
+                    <div style={{ fontSize: '28px', fontWeight: '700', color: '#1e293b', marginBottom: '4px' }}>
+                      ${apiCosts.summary.totalCost.toFixed(2)}
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#64748b' }}>
+                      {apiCosts.summary.totalCalls.toLocaleString()} API calls
+                    </div>
+                    <div style={{ fontSize: '11px', color: '#94a3b8', marginTop: '4px' }}>
+                      {((apiCosts.summary.totalInputTokens + apiCosts.summary.totalOutputTokens) / 1000).toFixed(1)}K tokens used
+                    </div>
+                  </div>
+
+                  {/* Top Operations */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.5)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.6)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <Activity size={16} style={{ color: '#f59e0b' }} />
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>Top Spenders</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {apiCosts.byOperation.slice(0, 4).map((op, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', color: '#475569' }}>
+                            {op.operation.replace(/_/g, ' ')}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '600' }}>
+                            ${parseFloat(op.total_cost || '0').toFixed(2)}
+                          </span>
+                        </div>
+                      ))}
+                      {apiCosts.byOperation.length === 0 && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                          No API calls recorded yet
+                        </div>
+                      )}
+                    </div>
+                  </div>
+
+                  {/* Models Used */}
+                  <div style={{
+                    background: 'rgba(255, 255, 255, 0.5)',
+                    borderRadius: '16px',
+                    padding: '16px',
+                    border: '1px solid rgba(255, 255, 255, 0.6)'
+                  }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
+                      <Zap size={16} style={{ color: '#8b5cf6' }} />
+                      <span style={{ fontSize: '13px', fontWeight: '600', color: '#475569' }}>By Model</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
+                      {apiCosts.byModel.map((model, i) => (
+                        <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                          <span style={{ fontSize: '11px', color: '#475569', fontFamily: 'monospace' }}>
+                            {model.model}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#64748b', fontWeight: '500' }}>
+                            ${parseFloat(model.total_cost || '0').toFixed(2)} ({model.call_count} calls)
+                          </span>
+                        </div>
+                      ))}
+                      {apiCosts.byModel.length === 0 && (
+                        <div style={{ fontSize: '11px', color: '#94a3b8', fontStyle: 'italic' }}>
+                          No models used yet
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                </div>
+
+                <div style={{ marginTop: '12px', fontSize: '10px', color: '#94a3b8', textAlign: 'right' }}>
+                  Updated: {new Date(apiCosts.timestamp).toLocaleTimeString()}
                 </div>
               </div>
             )}

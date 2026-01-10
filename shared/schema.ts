@@ -2523,3 +2523,34 @@ export const insertShipmentFollowUpTaskSchema = createInsertSchema(shipmentFollo
 });
 export type ShipmentFollowUpTask = typeof shipmentFollowUpTasks.$inferSelect;
 export type InsertShipmentFollowUpTask = z.infer<typeof insertShipmentFollowUpTaskSchema>;
+
+// API Cost Tracking - monitor usage and spending on external APIs
+export const apiCostLogs = pgTable("api_cost_logs", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "set null" }),
+  apiProvider: varchar("api_provider", { length: 50 }).notNull(), // 'openai', 'perplexity', 'google', etc.
+  model: varchar("model", { length: 100 }), // 'gpt-4o', 'gpt-4o-mini', etc.
+  operation: varchar("operation", { length: 100 }).notNull(), // 'gmail_analysis', 'chatbot', 'email_draft', etc.
+  functionName: varchar("function_name", { length: 255 }), // The exact function that made the call
+  inputTokens: integer("input_tokens").default(0),
+  outputTokens: integer("output_tokens").default(0),
+  totalTokens: integer("total_tokens").default(0),
+  estimatedCost: decimal("estimated_cost", { precision: 10, scale: 6 }).default('0'), // In USD
+  requestDurationMs: integer("request_duration_ms"), // How long the API call took
+  success: boolean("success").default(true),
+  errorMessage: text("error_message"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userIdIdx: index("api_cost_logs_user_id_idx").on(table.userId),
+  apiProviderIdx: index("api_cost_logs_api_provider_idx").on(table.apiProvider),
+  operationIdx: index("api_cost_logs_operation_idx").on(table.operation),
+  createdAtIdx: index("api_cost_logs_created_at_idx").on(table.createdAt),
+}));
+
+export const insertApiCostLogSchema = createInsertSchema(apiCostLogs).omit({
+  id: true,
+  createdAt: true,
+});
+export type ApiCostLog = typeof apiCostLogs.$inferSelect;
+export type InsertApiCostLog = z.infer<typeof insertApiCostLogSchema>;

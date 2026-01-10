@@ -754,6 +754,87 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // API Cost tracking for admins - shows spending on OpenAI and other APIs
+  app.get("/api/dashboard/api-costs", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { days = '30' } = req.query;
+      const daysNum = parseInt(days as string) || 30;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      
+      // Get total costs by operation
+      const costsByOperation = await db.execute(sql`
+        SELECT 
+          operation,
+          function_name,
+          COUNT(*) as call_count,
+          SUM(input_tokens) as total_input_tokens,
+          SUM(output_tokens) as total_output_tokens,
+          SUM(estimated_cost::numeric) as total_cost,
+          AVG(request_duration_ms) as avg_duration_ms
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate}
+        GROUP BY operation, function_name
+        ORDER BY total_cost DESC
+      `);
+      
+      // Get daily costs for chart
+      const dailyCosts = await db.execute(sql`
+        SELECT 
+          DATE(created_at) as date,
+          api_provider,
+          SUM(estimated_cost::numeric) as daily_cost,
+          COUNT(*) as call_count
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate}
+        GROUP BY DATE(created_at), api_provider
+        ORDER BY date DESC
+      `);
+      
+      // Get total summary
+      const totalSummary = await db.execute(sql`
+        SELECT 
+          SUM(estimated_cost::numeric) as total_cost,
+          SUM(input_tokens) as total_input_tokens,
+          SUM(output_tokens) as total_output_tokens,
+          COUNT(*) as total_calls,
+          AVG(request_duration_ms) as avg_duration_ms
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate}
+      `);
+      
+      // Get costs by model
+      const costsByModel = await db.execute(sql`
+        SELECT 
+          model,
+          COUNT(*) as call_count,
+          SUM(estimated_cost::numeric) as total_cost
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate} AND model IS NOT NULL
+        GROUP BY model
+        ORDER BY total_cost DESC
+      `);
+      
+      res.json({
+        summary: {
+          totalCost: parseFloat(totalSummary.rows[0]?.total_cost || '0'),
+          totalCalls: parseInt(totalSummary.rows[0]?.total_calls || '0'),
+          totalInputTokens: parseInt(totalSummary.rows[0]?.total_input_tokens || '0'),
+          totalOutputTokens: parseInt(totalSummary.rows[0]?.total_output_tokens || '0'),
+          avgDurationMs: Math.round(parseFloat(totalSummary.rows[0]?.avg_duration_ms || '0')),
+          periodDays: daysNum,
+        },
+        byOperation: costsByOperation.rows,
+        byModel: costsByModel.rows,
+        daily: dailyCosts.rows,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      console.error("API costs error:", error);
+      res.status(500).json({ error: "Failed to fetch API cost statistics" });
+    }
+  });
+
   // Critical clients to work on today - AI-guided daily focus
   app.get("/api/dashboard/critical-clients", isAuthenticated, async (req: any, res) => {
     try {

@@ -5,6 +5,7 @@ import { getMessages, getMessage } from "./gmail-client";
 import { getImapMessages, getImapMessage, hasAnyImapCredentials } from "./imap-client";
 import { getUserGmailConnection, getUserGmailMessages, getUserGmailMessage } from "./user-gmail-oauth";
 import OpenAI from "openai";
+import { logApiCost } from "./cost-tracker";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -408,6 +409,7 @@ Only extract insights with confidence >= 0.6. Return empty array [] if no action
 Ignore auto-replies, newsletters, spam, and marketing emails.`;
 
   try {
+    const startTime = Date.now();
     const response = await openai.chat.completions.create({
       model: 'gpt-4o',
       messages: [
@@ -417,6 +419,19 @@ Ignore auto-replies, newsletters, spam, and marketing emails.`;
       response_format: { type: 'json_object' },
       temperature: 0.3,
       max_tokens: 1000,
+    });
+    const duration = Date.now() - startTime;
+
+    await logApiCost({
+      userId: message.userId,
+      apiProvider: 'openai',
+      model: 'gpt-4o',
+      operation: 'gmail_analysis',
+      functionName: 'extractInsightsFromEmail',
+      inputTokens: response.usage?.prompt_tokens || 0,
+      outputTokens: response.usage?.completion_tokens || 0,
+      requestDurationMs: duration,
+      success: true,
     });
 
     const content = response.choices[0]?.message?.content;
