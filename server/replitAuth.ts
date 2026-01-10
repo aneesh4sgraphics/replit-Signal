@@ -72,19 +72,28 @@ function createSessionMiddleware(): ReturnType<typeof session> {
   
   console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${isProduction ? 'none' : 'lax'}`);
 
+  // Cookie configuration for cross-site contexts (Replit published apps)
+  // Modern browsers require Partitioned attribute for third-party cookies
+  const cookieConfig: session.CookieOptions = {
+    httpOnly: true,
+    secure: isProduction,
+    sameSite: isProduction ? "none" : "lax",
+    maxAge: SESSION_TTL,
+    path: "/",
+  };
+  
+  // Add partitioned attribute for production (required by Chrome for cross-site cookies)
+  if (isProduction) {
+    (cookieConfig as any).partitioned = true;
+  }
+
   return session({
     secret: process.env.SESSION_SECRET!,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
     rolling: true,
-    cookie: {
-      httpOnly: true,
-      secure: isProduction,
-      sameSite: isProduction ? "none" : "lax",
-      maxAge: SESSION_TTL,
-      path: "/",
-    },
+    cookie: cookieConfig,
   });
 }
 
