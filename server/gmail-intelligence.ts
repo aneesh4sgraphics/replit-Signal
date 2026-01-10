@@ -26,6 +26,16 @@ const EXCLUDED_EMAIL_DOMAINS = [
   
   // Personal/Internal (user-specific)
   'technovaindia.com',
+  'polyplex.com',
+  'meruaccounts.com',
+  
+  // Telecom
+  'verizon.com',
+  'vzwpix.com',
+  
+  // Government/Public notifications
+  'public.govdelivery.com',
+  'govdelivery.com',
   
   // Common marketing/transactional senders
   'sunpass.com',
