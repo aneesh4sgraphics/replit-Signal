@@ -1184,10 +1184,39 @@ export default function GmailInsightsPage() {
             AI-powered insights from your email conversations
           </p>
         </div>
-        <div className="flex gap-2 flex-wrap">
+        <div className="flex gap-2 flex-wrap items-center">
+          {/* Gmail Connection Status - compact */}
+          {!gmailConnectionLoading && (
+            gmailConnection?.connected ? (
+              <div className="flex items-center gap-2 px-3 py-1.5 bg-green-100 dark:bg-green-900 rounded-full">
+                <CheckCircle2 className="h-4 w-4 text-green-600 dark:text-green-400" />
+                <span className="text-sm text-green-700 dark:text-green-300">{gmailConnection.email}</span>
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="h-6 px-2 text-xs text-green-600 hover:text-red-600 hover:bg-red-100"
+                  onClick={() => disconnectGmailMutation.mutate()}
+                  disabled={disconnectGmailMutation.isPending}
+                >
+                  <X className="h-3 w-3" />
+                </Button>
+              </div>
+            ) : (
+              <Button 
+                variant="outline"
+                size="sm"
+                onClick={() => connectGmailMutation.mutate()}
+                disabled={connectGmailMutation.isPending}
+                className="border-amber-300 text-amber-700 hover:bg-amber-50"
+              >
+                <PlugZap className="h-4 w-4 mr-2" />
+                {connectGmailMutation.isPending ? "Connecting..." : "Connect Gmail"}
+              </Button>
+            )
+          )}
           <Button
             onClick={() => syncMutation.mutate()}
-            disabled={syncMutation.isPending}
+            disabled={syncMutation.isPending || !gmailConnection?.connected}
             className="bg-[#875A7B] hover:bg-[#6d4863]"
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
@@ -1195,64 +1224,6 @@ export default function GmailInsightsPage() {
           </Button>
         </div>
       </div>
-
-
-      {/* Gmail Connection Card - show prominently if not connected */}
-      {!gmailConnectionLoading && !gmailConnection?.connected && (
-        <Card className="border-amber-200 bg-amber-50 dark:border-amber-800 dark:bg-amber-950">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-base font-medium flex items-center gap-2">
-              <PlugZap className="h-5 w-5 text-amber-600" />
-              Connect Your Gmail
-            </CardTitle>
-            <CardDescription>
-              Connect your Gmail account to enable email intelligence for your inbox
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            <div className="flex items-center gap-4">
-              <Button 
-                onClick={() => connectGmailMutation.mutate()}
-                disabled={connectGmailMutation.isPending}
-                className="bg-[#875A7B] hover:bg-[#6d4863]"
-              >
-                <Mail className="h-4 w-4 mr-2" />
-                {connectGmailMutation.isPending ? "Connecting..." : "Connect Gmail"}
-              </Button>
-              <p className="text-sm text-muted-foreground">
-                We only read emails to find sales insights. Your data stays private.
-              </p>
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Connected Gmail Card */}
-      {gmailConnection?.connected && (
-        <Card className="border-green-200 bg-green-50 dark:border-green-800 dark:bg-green-950">
-          <CardContent className="py-3">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="p-2 rounded-full bg-green-100 dark:bg-green-900">
-                  <CheckCircle2 className="h-5 w-5 text-green-600 dark:text-green-400" />
-                </div>
-                <div>
-                  <p className="font-medium text-green-800 dark:text-green-200">Gmail Connected</p>
-                  <p className="text-sm text-green-600 dark:text-green-400">{gmailConnection.email}</p>
-                </div>
-              </div>
-              <Button 
-                variant="outline" 
-                size="sm"
-                onClick={() => disconnectGmailMutation.mutate()}
-                disabled={disconnectGmailMutation.isPending}
-              >
-                Disconnect
-              </Button>
-            </div>
-          </CardContent>
-        </Card>
-      )}
 
       {/* Daily Performance Card */}
       <div className="grid gap-4 md:grid-cols-3">
