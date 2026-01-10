@@ -23,6 +23,14 @@ const EXCLUDED_EMAIL_DOMAINS = [
   'bankofamerica.com',
   'wellsfargo.com',
   'paypal.com',
+  'americanexpress.com',
+  'welcome.americanexpress.com',
+  'amex.com',
+  
+  // Accounting/Business tools notifications
+  'intuit.com',
+  'notification.intuit.com',
+  'quickbooks.com',
   
   // Personal/Internal (user-specific)
   'technovaindia.com',
@@ -49,6 +57,16 @@ const EXCLUDED_EMAIL_DOMAINS = [
   'facebook.com',
   'twitter.com',
   'instagram.com',
+  
+  // Billing/SaaS notifications
+  'nutshell.com',
+  'leadforensics.com',
+  'afternic.com',
+  'mailmc.afternic.com',
+  'sam.gov',
+  
+  // Marketing/spam patterns
+  '163.com',
 ];
 
 // Check if an email should be excluded based on sender domain

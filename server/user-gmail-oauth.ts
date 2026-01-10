@@ -148,6 +148,28 @@ export async function getGmailClientForUser(userId: string) {
   return google.gmail({ version: 'v1', auth: oauth2Client });
 }
 
+// Recursively extract text body from nested email parts
+function extractBodyFromParts(parts: any[], preferPlainText: boolean = true): string {
+  let plainText = '';
+  let htmlText = '';
+  
+  for (const part of parts) {
+    if (part.mimeType === 'text/plain' && part.body?.data) {
+      plainText = Buffer.from(part.body.data, 'base64').toString('utf8');
+    } else if (part.mimeType === 'text/html' && part.body?.data) {
+      htmlText = Buffer.from(part.body.data, 'base64').toString('utf8');
+    } else if (part.parts) {
+      // Recursively search nested parts
+      const nested = extractBodyFromParts(part.parts, preferPlainText);
+      if (nested && !plainText) {
+        plainText = nested;
+      }
+    }
+  }
+  
+  return plainText || htmlText;
+}
+
 export async function getUserGmailMessages(userId: string, labelId: string = 'INBOX', maxResults: number = 50) {
   const gmail = await getGmailClientForUser(userId);
   
@@ -177,15 +199,7 @@ export async function getUserGmailMessages(userId: string, labelId: string = 'IN
       if (payload?.body?.data) {
         body = Buffer.from(payload.body.data, 'base64').toString('utf8');
       } else if (payload?.parts) {
-        for (const part of payload.parts) {
-          if (part.mimeType === 'text/plain' && part.body?.data) {
-            body = Buffer.from(part.body.data, 'base64').toString('utf8');
-            break;
-          }
-          if (part.mimeType === 'text/html' && part.body?.data && !body) {
-            body = Buffer.from(part.body.data, 'base64').toString('utf8');
-          }
-        }
+        body = extractBodyFromParts(payload.parts);
       }
       
       return {
@@ -222,15 +236,7 @@ export async function getUserGmailMessage(userId: string, messageId: string) {
   if (payload?.body?.data) {
     body = Buffer.from(payload.body.data, 'base64').toString('utf8');
   } else if (payload?.parts) {
-    for (const part of payload.parts) {
-      if (part.mimeType === 'text/plain' && part.body?.data) {
-        body = Buffer.from(part.body.data, 'base64').toString('utf8');
-        break;
-      }
-      if (part.mimeType === 'text/html' && part.body?.data && !body) {
-        body = Buffer.from(part.body.data, 'base64').toString('utf8');
-      }
-    }
+    body = extractBodyFromParts(payload.parts);
   }
   
   return {
