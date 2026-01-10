@@ -14470,6 +14470,13 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     res.status(404).json({ error: `API endpoint not found: ${req.path}` });
   });
 
+  // Start automatic daily Gmail sync for all connected users
+  import("./gmail-intelligence").then(({ startDailyEmailSync }) => {
+    startDailyEmailSync();
+  }).catch(err => {
+    console.error('[Gmail Auto-Sync] Failed to start daily sync scheduler:', err.message);
+  });
+
   const httpServer = createServer(app);
   return httpServer;
 }

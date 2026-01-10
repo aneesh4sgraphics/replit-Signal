@@ -741,3 +741,80 @@ export async function markReminderSent(taskId: number) {
     })
     .where(eq(shipmentFollowUpTasks.id, taskId));
 }
+
+// Automatic daily sync for all connected Gmail users
+export async function syncAllConnectedUsers(): Promise<{ synced: number; failed: number }> {
+  console.log('[Gmail Auto-Sync] Starting automatic sync for all connected users');
+  
+  const activeConnections = await db.select()
+    .from(userGmailConnections)
+    .where(eq(userGmailConnections.isActive, true));
+  
+  console.log(`[Gmail Auto-Sync] Found ${activeConnections.length} active Gmail connections`);
+  
+  let synced = 0;
+  let failed = 0;
+  
+  for (const connection of activeConnections) {
+    try {
+      console.log(`[Gmail Auto-Sync] Syncing user ${connection.userId} (${connection.email})`);
+      
+      // Sync emails for this user
+      const result = await syncUserGmailMessages(connection.userId, 100);
+      console.log(`[Gmail Auto-Sync] User ${connection.userId}: ${result.newMessages} new emails`);
+      
+      // Run AI analysis on pending messages
+      const analysisResult = await analyzeMessages(connection.userId, 50);
+      console.log(`[Gmail Auto-Sync] User ${connection.userId}: ${analysisResult.insights} insights extracted`);
+      
+      synced++;
+    } catch (error: any) {
+      console.error(`[Gmail Auto-Sync] Failed for user ${connection.userId}:`, error.message);
+      failed++;
+    }
+  }
+  
+  console.log(`[Gmail Auto-Sync] Complete. Synced: ${synced}, Failed: ${failed}`);
+  return { synced, failed };
+}
+
+// Schedule daily sync at 6 AM
+let dailySyncInterval: NodeJS.Timeout | null = null;
+
+export function startDailyEmailSync() {
+  if (dailySyncInterval) {
+    console.log('[Gmail Auto-Sync] Daily sync already running');
+    return;
+  }
+  
+  // Calculate time until next 6 AM
+  const now = new Date();
+  const next6AM = new Date(now);
+  next6AM.setHours(6, 0, 0, 0);
+  if (now >= next6AM) {
+    next6AM.setDate(next6AM.getDate() + 1);
+  }
+  
+  const msUntil6AM = next6AM.getTime() - now.getTime();
+  
+  console.log(`[Gmail Auto-Sync] Scheduling daily sync. First run in ${Math.round(msUntil6AM / 1000 / 60)} minutes at ${next6AM.toLocaleString()}`);
+  
+  // Schedule first run at 6 AM
+  setTimeout(() => {
+    syncAllConnectedUsers();
+    // Then run every 24 hours
+    dailySyncInterval = setInterval(() => {
+      syncAllConnectedUsers();
+    }, 24 * 60 * 60 * 1000);
+  }, msUntil6AM);
+  
+  console.log('[Gmail Auto-Sync] Daily email sync scheduler started');
+}
+
+export function stopDailyEmailSync() {
+  if (dailySyncInterval) {
+    clearInterval(dailySyncInterval);
+    dailySyncInterval = null;
+    console.log('[Gmail Auto-Sync] Daily sync stopped');
+  }
+}
