@@ -78,6 +78,7 @@ import {
   customerJourneyProgress,
   customerActivityEvents,
   emailSends,
+  shipmentFollowUpTasks,
   shopifyOrders,
   shopifyProductMappings,
   shopifyCustomerMappings,
@@ -6318,6 +6319,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error dismissing shipment task:", error);
       res.status(500).json({ error: "Failed to dismiss task" });
+    }
+  });
+
+  // Reschedule a shipment follow-up task (remind me next week)
+  app.patch("/api/shipment-followups/:id/remind", isAuthenticated, async (req: any, res) => {
+    try {
+      const taskId = parseInt(req.params.id);
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { followUpDueDate } = req.body;
+
+      await db.update(shipmentFollowUpTasks)
+        .set({ 
+          followUpDueDate: new Date(followUpDueDate),
+          reminderCount: sql`${shipmentFollowUpTasks.reminderCount} + 1`,
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(shipmentFollowUpTasks.id, taskId),
+          eq(shipmentFollowUpTasks.userId, userId)
+        ));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error rescheduling shipment task:", error);
+      res.status(500).json({ error: "Failed to reschedule task" });
     }
   });
 
