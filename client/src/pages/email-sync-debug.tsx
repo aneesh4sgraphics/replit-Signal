@@ -150,7 +150,7 @@ export default function EmailSyncDebug() {
     onSuccess: (data: any) => {
       toast({
         title: "Sync Complete",
-        description: `Processed ${data.sync?.messagesProcessed || 0} messages, extracted ${data.eventsExtracted || 0} events`,
+        description: `Processed ${data.sync?.messagesProcessed || 0} messages, extracted ${data.eventsExtracted || 0} events, created ${data.tasksCreated || 0} tasks`,
       });
       queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence"] });
       refetchStatus();

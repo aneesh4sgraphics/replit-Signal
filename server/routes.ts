@@ -6508,7 +6508,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/email-intelligence/sync", isAuthenticated, async (req: any, res) => {
     try {
       const { syncGmailMessages, ensureSyncState } = await import("./gmail-sync-worker");
-      const { processUnanalyzedMessages, detectStaleThreads } = await import("./email-event-extractor");
+      const { processUnanalyzedMessages, detectStaleThreads, createFollowUpTasksFromEvents } = await import("./email-event-extractor");
       const userId = req.user?.claims?.sub || req.user?.id;
       const userEmail = req.user?.email || req.user?.claims?.email;
       
@@ -6526,12 +6526,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const syncStats = await syncGmailMessages(userId);
       const eventsExtracted = await processUnanalyzedMessages(userId, 200);
       const staleThreads = await detectStaleThreads(userId);
+      const tasksCreated = await createFollowUpTasksFromEvents(userId, 100);
       
       res.json({ 
         success: true, 
         sync: syncStats,
         eventsExtracted,
         staleThreadsDetected: staleThreads,
+        tasksCreated,
       });
     } catch (error: any) {
       console.error("Error syncing Gmail:", error);
