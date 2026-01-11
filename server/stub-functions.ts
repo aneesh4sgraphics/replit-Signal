@@ -593,24 +593,6 @@ export async function generatePriceListHTML(data: any): Promise<string> {
   // Generate list number if not provided
   const listNumber = quoteNumber || `PL-${Date.now().toString().slice(-6)}`;
 
-  // Get tier display name for header - normalize tier key to lowercase for matching
-  const tierDisplayNames: Record<string, string> = {
-    'export': 'EXPORT ONLY',
-    'landed': 'LANDED COST',
-    'm.distributor': 'MASTER DISTRIBUTOR',
-    'masterdistributor': 'MASTER DISTRIBUTOR',
-    'dealer': 'DEALER-VIP',
-    'dealer2': 'DEALER',
-    'approvalneeded': 'SHOPIFY LOWEST',
-    'tierstage25': 'SHOPIFY 3',
-    'tierstage2': 'SHOPIFY 2',
-    'tierstage15': 'SHOPIFY 1',
-    'tierstage1': 'SHOPIFY-ACCOUNT',
-    'retail': 'RETAIL',
-  };
-  const normalizedTierName = tierName?.toLowerCase()?.replace(/price$/i, '') || '';
-  const tierDisplay = tierDisplayNames[normalizedTierName] || tierName?.toUpperCase()?.replace(/_/g, ' ') || 'PRICING';
-  
   // Format category name for display
   const formatCategoryName = (name: string): string => {
     if (!name) return 'Price List';
@@ -831,18 +813,6 @@ export async function generatePriceListHTML(data: any): Promise<string> {
         
         .info-right {
           text-align: right;
-        }
-        
-        .tier-badge {
-          display: inline-block;
-          background: linear-gradient(180deg, #28a745 0%, #1e7e34 100%);
-          color: white;
-          padding: 6px 16px;
-          font-size: 11px;
-          font-weight: 700;
-          letter-spacing: 0.5px;
-          border-radius: 2px;
-          margin-bottom: 5px;
         }
         
         .date-info {
