@@ -2490,13 +2490,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       // Log activity
       const user = req.user as any;
-      await storage.createActivityLog({
-        userId: user?.id || 'system',
-        action: 'bulk_update_customers',
-        entityType: 'customer',
-        details: `Bulk updated ${updatedCount} customers - fields: ${Object.keys(fields).join(', ')}`,
-        entityId: customerIds.join(',').substring(0, 255),
-      });
+      try {
+        await storage.createActivityEvent({
+          customerId: customerIds[0], // Use first customer as reference
+          eventType: 'bulk_update',
+          eventData: { 
+            action: 'bulk_update_customers', 
+            updatedCount, 
+            fields: Object.keys(fields),
+            customerIds: customerIds.slice(0, 10) // Limit for storage
+          },
+          createdBy: user?.email || 'system',
+        });
+      } catch (activityError) {
+        console.log('Activity logging skipped:', activityError);
+      }
       
       res.json({ 
         success: true, 
