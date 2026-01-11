@@ -624,13 +624,15 @@ export async function generatePriceListHTML(data: any): Promise<string> {
     return aSortOrder - bSortOrder;
   });
 
-  // Determine primary product logo and features from first product type
-  const primaryProductType = sortedProductTypes[0] || categoryName || '';
-  const productLogo = await getProductLogoBase64(primaryProductType);
-  const productFeatures = await getProductFeatures(primaryProductType);
+  // Use the selected category name (not product type) for header/features lookup
+  // This ensures "Graffiti_Polyester_Paper" category shows Graffiti features
+  // even when listing products like "AURABOARD" under that category
+  const categoryForLookup = categoryName || sortedProductTypes[0] || '';
+  const productLogo = await getProductLogoBase64(categoryForLookup);
+  const productFeatures = await getProductFeatures(categoryForLookup);
   
   // Get compatibleWith text from database (for the header info)
-  const categoryKey = findMatchingCategoryKey(primaryProductType);
+  const categoryKey = findMatchingCategoryKey(categoryForLookup);
   const dbCategories = await getPdfCategoryDetailsFromDb();
   const dbCategory = dbCategories.find(c => c.categoryKey === categoryKey);
   const compatibleWith = dbCategory?.compatibleWith || 'Compatible with All Digital Toner Press - HP Indigo, Xerox, Konica Minolta, Ricoh, Fuji Inkjet and others';
