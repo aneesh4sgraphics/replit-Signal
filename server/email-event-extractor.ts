@@ -1,0 +1,334 @@
+import { db } from './db';
+import { eq, and, isNull, sql, desc } from 'drizzle-orm';
+import { 
+  gmailMessages, 
+  emailSalesEvents,
+  customers,
+  InsertEmailSalesEvent,
+  EMAIL_SALES_EVENT_TYPES,
+} from '@shared/schema';
+
+interface EventRule {
+  eventType: typeof EMAIL_SALES_EVENT_TYPES[number];
+  keywords: string[];
+  regexPatterns: RegExp[];
+  baseConfidence: number;
+  direction?: 'inbound' | 'outbound' | 'both';
+}
+
+const EVENT_RULES: EventRule[] = [
+  {
+    eventType: 'quote_requested',
+    keywords: [
+      'quote', 'pricing', 'price list', 'cost', 'how much', 
+      'estimate', 'quotation', 'pricing info', 'rates',
+      'can you send me pricing', 'need a quote', 'requesting quote'
+    ],
+    regexPatterns: [
+      /can you (send|provide|give).*(quote|pricing|estimate)/i,
+      /need.*(quote|pricing|estimate)/i,
+      /what.*(price|cost)/i,
+      /interested in.*(pricing|quote)/i,
+      /please (send|provide).*(quote|pricing)/i,
+    ],
+    baseConfidence: 0.75,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'quote_sent',
+    keywords: [
+      'attached quote', 'here is your quote', 'quote attached',
+      'pricing attached', 'please find attached', 'quotation',
+      'as quoted', 'per your request', 'proposal attached'
+    ],
+    regexPatterns: [
+      /attached.*(quote|pricing|proposal)/i,
+      /here is.*(quote|pricing|estimate)/i,
+      /please (find|see) attached/i,
+      /sending.*(quote|pricing)/i,
+    ],
+    baseConfidence: 0.80,
+    direction: 'outbound',
+  },
+  {
+    eventType: 'sample_requested',
+    keywords: [
+      'sample', 'samples', 'swatch', 'swatchbook', 'press test',
+      'test material', 'sample order', 'send samples', 'sample kit',
+      'need samples', 'request samples'
+    ],
+    regexPatterns: [
+      /send.*(sample|swatch)/i,
+      /need.*(sample|swatch|test)/i,
+      /can (you|we) (get|have|order).*(sample|swatch)/i,
+      /request.*(sample|swatch)/i,
+      /interested in.*(sample|testing)/i,
+    ],
+    baseConfidence: 0.80,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'objection_price',
+    keywords: [
+      'too expensive', 'too high', 'budget', 'cheaper', 'lower price',
+      'price too', 'cost prohibitive', 'out of budget', 'discount',
+      'competitive pricing', 'better price', 'price match'
+    ],
+    regexPatterns: [
+      /too (expensive|high|much)/i,
+      /out of.*(budget|range)/i,
+      /(need|want).*(discount|lower|cheaper)/i,
+      /price.*(too|is) (high|expensive)/i,
+      /can.*(reduce|lower|discount)/i,
+      /competitor.*(cheaper|better price)/i,
+    ],
+    baseConfidence: 0.85,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'objection_compatibility',
+    keywords: [
+      'compatible', 'compatibility', 'work with', 'printer',
+      'won\'t work', 'doesn\'t work', 'not compatible', 'machine',
+      'press', 'ink', 'adhesion', 'lamination'
+    ],
+    regexPatterns: [
+      /will.*(work|compatible).*(printer|press|machine)/i,
+      /(not|doesn't|won't) (work|compatible)/i,
+      /compatibility.*(issue|concern|question)/i,
+      /tested.*(printer|press|machine)/i,
+      /(adhesion|lamination|ink).*(issue|problem)/i,
+    ],
+    baseConfidence: 0.75,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'ready_to_buy',
+    keywords: [
+      'purchase order', 'PO', 'order', 'ready to order', 'proceed',
+      'go ahead', 'place order', 'confirm order', 'buy', 'purchasing',
+      'ready to purchase', 'finalize order', 'submit order'
+    ],
+    regexPatterns: [
+      /ready to (order|buy|purchase|proceed)/i,
+      /go ahead.*(order|purchase)/i,
+      /place.*(order|PO)/i,
+      /purchase order.*#?\d+/i,
+      /confirm.*(order|purchase)/i,
+      /want to (order|buy|purchase)/i,
+      /send.*(PO|purchase order)/i,
+    ],
+    baseConfidence: 0.90,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'timing_delay',
+    keywords: [
+      'next month', 'next quarter', 'later', 'not now', 'hold off',
+      'delay', 'postpone', 'wait', 'busy', 'not ready', 'circle back',
+      'touch base later', 'reach out later', 'on hold'
+    ],
+    regexPatterns: [
+      /not (ready|now|yet)/i,
+      /next (month|quarter|year|week)/i,
+      /(hold|put).*(off|on hold)/i,
+      /circle back.*(later|next)/i,
+      /reach out.*(later|next|when)/i,
+      /(busy|swamped).*(right now|currently)/i,
+      /revisit.*(later|next)/i,
+    ],
+    baseConfidence: 0.70,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'stale_thread',
+    keywords: [],
+    regexPatterns: [],
+    baseConfidence: 0.60,
+    direction: 'both',
+  },
+];
+
+function countKeywordMatches(text: string, keywords: string[]): { count: number; matched: string[] } {
+  const lowerText = text.toLowerCase();
+  const matched: string[] = [];
+  
+  for (const keyword of keywords) {
+    if (lowerText.includes(keyword.toLowerCase())) {
+      matched.push(keyword);
+    }
+  }
+  
+  return { count: matched.length, matched };
+}
+
+function countRegexMatches(text: string, patterns: RegExp[]): { count: number; matchedText: string[] } {
+  const matchedText: string[] = [];
+  
+  for (const pattern of patterns) {
+    const match = text.match(pattern);
+    if (match) {
+      matchedText.push(match[0]);
+    }
+  }
+  
+  return { count: matchedText.length, matchedText };
+}
+
+interface ExtractedEvent {
+  eventType: typeof EMAIL_SALES_EVENT_TYPES[number];
+  confidence: number;
+  triggerText: string;
+  triggerKeywords: string;
+}
+
+export function extractEventsFromEmail(
+  subject: string, 
+  bodyText: string, 
+  direction: 'inbound' | 'outbound'
+): ExtractedEvent[] {
+  const events: ExtractedEvent[] = [];
+  const fullText = `${subject}\n${bodyText}`;
+  
+  for (const rule of EVENT_RULES) {
+    if (rule.eventType === 'stale_thread') continue;
+    
+    if (rule.direction && rule.direction !== 'both' && rule.direction !== direction) {
+      continue;
+    }
+    
+    const keywordResult = countKeywordMatches(fullText, rule.keywords);
+    const regexResult = countRegexMatches(fullText, rule.regexPatterns);
+    
+    if (keywordResult.count === 0 && regexResult.count === 0) {
+      continue;
+    }
+    
+    let confidence = rule.baseConfidence;
+    confidence += Math.min(keywordResult.count * 0.05, 0.15);
+    confidence += Math.min(regexResult.count * 0.05, 0.10);
+    confidence = Math.min(confidence, 1.00);
+    
+    const allMatches = [...keywordResult.matched, ...regexResult.matchedText];
+    const triggerText = regexResult.matchedText[0] || keywordResult.matched[0] || '';
+    
+    events.push({
+      eventType: rule.eventType,
+      confidence: parseFloat(confidence.toFixed(2)),
+      triggerText: triggerText.substring(0, 500),
+      triggerKeywords: allMatches.join(', ').substring(0, 500),
+    });
+  }
+  
+  return events;
+}
+
+export async function processUnanalyzedMessages(userId: string, limit: number = 100): Promise<number> {
+  const pendingMessages = await db.select()
+    .from(gmailMessages)
+    .where(and(
+      eq(gmailMessages.userId, userId),
+      eq(gmailMessages.analysisStatus, 'pending')
+    ))
+    .orderBy(desc(gmailMessages.sentAt))
+    .limit(limit);
+  
+  let eventsCreated = 0;
+  
+  for (const message of pendingMessages) {
+    const direction = message.direction as 'inbound' | 'outbound';
+    const events = extractEventsFromEmail(
+      message.subject || '',
+      message.bodyText || '',
+      direction
+    );
+    
+    for (const event of events) {
+      const eventData: InsertEmailSalesEvent = {
+        gmailMessageId: message.id,
+        userId: message.userId,
+        customerId: message.customerId,
+        eventType: event.eventType,
+        confidence: event.confidence.toFixed(2),
+        triggerText: event.triggerText,
+        triggerKeywords: event.triggerKeywords,
+        occurredAt: message.sentAt || new Date(),
+        isProcessed: false,
+      };
+      
+      await db.insert(emailSalesEvents).values(eventData);
+      eventsCreated++;
+    }
+    
+    await db.update(gmailMessages)
+      .set({ 
+        analysisStatus: 'completed',
+        analyzedAt: new Date(),
+      })
+      .where(eq(gmailMessages.id, message.id));
+  }
+  
+  console.log(`[Email Events] Extracted ${eventsCreated} events from ${pendingMessages.length} messages`);
+  return eventsCreated;
+}
+
+export async function detectStaleThreads(userId: string, staleDays: number = 7): Promise<number> {
+  const cutoffDate = new Date();
+  cutoffDate.setDate(cutoffDate.getDate() - staleDays);
+  
+  const staleThreads = await db.execute(sql`
+    WITH thread_activity AS (
+      SELECT 
+        thread_id,
+        customer_id,
+        MAX(sent_at) as last_activity,
+        MAX(CASE WHEN direction = 'inbound' THEN sent_at END) as last_inbound,
+        MAX(CASE WHEN direction = 'outbound' THEN sent_at END) as last_outbound
+      FROM gmail_messages
+      WHERE user_id = ${userId}
+        AND thread_id IS NOT NULL
+        AND customer_id IS NOT NULL
+      GROUP BY thread_id, customer_id
+      HAVING MAX(CASE WHEN direction = 'outbound' THEN sent_at END) > 
+             COALESCE(MAX(CASE WHEN direction = 'inbound' THEN sent_at END), '1970-01-01')
+    )
+    SELECT * FROM thread_activity
+    WHERE last_activity < ${cutoffDate}
+      AND NOT EXISTS (
+        SELECT 1 FROM email_sales_events e
+        JOIN gmail_messages m ON e.gmail_message_id = m.id
+        WHERE m.thread_id = thread_activity.thread_id
+          AND e.event_type = 'stale_thread'
+          AND e.created_at > ${cutoffDate}
+      )
+  `);
+  
+  let staleCount = 0;
+  for (const thread of (staleThreads as any).rows || []) {
+    const [latestMessage] = await db.select()
+      .from(gmailMessages)
+      .where(and(
+        eq(gmailMessages.threadId, thread.thread_id),
+        eq(gmailMessages.userId, userId)
+      ))
+      .orderBy(desc(gmailMessages.sentAt))
+      .limit(1);
+    
+    if (latestMessage) {
+      await db.insert(emailSalesEvents).values({
+        gmailMessageId: latestMessage.id,
+        userId,
+        customerId: thread.customer_id,
+        eventType: 'stale_thread',
+        confidence: '0.60',
+        triggerText: `No response for ${staleDays}+ days`,
+        occurredAt: new Date(),
+        isProcessed: false,
+      });
+      staleCount++;
+    }
+  }
+  
+  console.log(`[Email Events] Detected ${staleCount} stale threads`);
+  return staleCount;
+}

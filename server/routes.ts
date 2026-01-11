@@ -126,7 +126,11 @@ import {
   JOURNEY_PROGRESS_STAGES,
   insertCustomerJourneyProgressSchema,
   productMergeSuggestions,
-  users
+  users,
+  gmailUnmatchedEmails,
+  emailSalesEvents,
+  gmailMessages,
+  gmailMessageMatches,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -6478,6 +6482,218 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error analyzing messages:", error);
       res.status(500).json({ error: "Failed to analyze messages" });
+    }
+  });
+
+  // ========================================
+  // Email Intelligence V2 Routes (Sync Debug Panel)
+  // ========================================
+
+  // Get comprehensive sync status for debug panel
+  app.get("/api/email-intelligence/sync-status", isAuthenticated, async (req: any, res) => {
+    try {
+      const { getSyncStatus, ensureSyncState, getGmailConnectionInfo } = await import("./gmail-sync-worker");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      
+      await ensureSyncState(userId);
+      const status = await getSyncStatus(userId);
+      res.json(status);
+    } catch (error: any) {
+      console.error("Error fetching sync status:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch sync status" });
+    }
+  });
+
+  // Trigger full Gmail sync (30 days, with pagination)
+  app.post("/api/email-intelligence/sync", isAuthenticated, async (req: any, res) => {
+    try {
+      const { syncGmailMessages, ensureSyncState } = await import("./gmail-sync-worker");
+      const { processUnanalyzedMessages, detectStaleThreads } = await import("./email-event-extractor");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const userEmail = req.user?.email || req.user?.claims?.email;
+      
+      const [existingUser] = await db.select().from(users).where(eq(users.id, userId)).limit(1);
+      if (!existingUser) {
+        await db.insert(users).values({
+          id: userId,
+          email: userEmail,
+          role: req.user?.role || 'user',
+          status: 'approved',
+        }).onConflictDoNothing();
+      }
+      
+      await ensureSyncState(userId);
+      const syncStats = await syncGmailMessages(userId);
+      const eventsExtracted = await processUnanalyzedMessages(userId, 200);
+      const staleThreads = await detectStaleThreads(userId);
+      
+      res.json({ 
+        success: true, 
+        sync: syncStats,
+        eventsExtracted,
+        staleThreadsDetected: staleThreads,
+      });
+    } catch (error: any) {
+      console.error("Error syncing Gmail:", error);
+      if (error.message?.includes('Insufficient Permission') || error.code === 403) {
+        return res.status(403).json({ 
+          error: "Gmail permissions limited - reading inbox requires full Gmail access permissions.",
+          code: "INSUFFICIENT_SCOPE"
+        });
+      }
+      res.status(500).json({ error: error.message || "Failed to sync Gmail" });
+    }
+  });
+
+  // Get unmatched emails for manual linking
+  app.get("/api/email-intelligence/unmatched", isAuthenticated, async (req: any, res) => {
+    try {
+      const limit = parseInt(req.query.limit as string) || 50;
+      const unmatched = await db.select({
+        id: gmailUnmatchedEmails.id,
+        email: gmailUnmatchedEmails.email,
+        domain: gmailUnmatchedEmails.domain,
+        senderName: gmailUnmatchedEmails.senderName,
+        subject: gmailUnmatchedEmails.subject,
+        messageDate: gmailUnmatchedEmails.messageDate,
+        status: gmailUnmatchedEmails.status,
+      })
+        .from(gmailUnmatchedEmails)
+        .where(eq(gmailUnmatchedEmails.status, 'pending'))
+        .orderBy(desc(gmailUnmatchedEmails.messageDate))
+        .limit(limit);
+      
+      res.json(unmatched);
+    } catch (error: any) {
+      console.error("Error fetching unmatched emails:", error);
+      res.status(500).json({ error: "Failed to fetch unmatched emails" });
+    }
+  });
+
+  // Manually link an unmatched email to a customer
+  app.post("/api/email-intelligence/unmatched/:id/link", isAuthenticated, async (req: any, res) => {
+    try {
+      const unmatchedId = parseInt(req.params.id);
+      const { customerId } = req.body;
+      const userId = req.user?.claims?.sub || req.user?.id;
+      
+      if (!customerId) {
+        return res.status(400).json({ error: "customerId is required" });
+      }
+      
+      const [unmatched] = await db.select()
+        .from(gmailUnmatchedEmails)
+        .where(eq(gmailUnmatchedEmails.id, unmatchedId))
+        .limit(1);
+      
+      if (!unmatched) {
+        return res.status(404).json({ error: "Unmatched email not found" });
+      }
+      
+      await db.insert(gmailMessageMatches).values({
+        gmailMessageId: unmatched.gmailMessageId,
+        customerId,
+        matchType: 'manual',
+        matchedEmail: unmatched.email,
+        confidence: '1.00',
+        isConfirmed: true,
+        confirmedBy: userId,
+        confirmedAt: new Date(),
+      });
+      
+      await db.update(gmailMessages)
+        .set({ customerId })
+        .where(eq(gmailMessages.id, unmatched.gmailMessageId));
+      
+      await db.update(gmailUnmatchedEmails)
+        .set({ 
+          status: 'linked',
+          linkedCustomerId: customerId,
+          linkedBy: userId,
+          linkedAt: new Date(),
+        })
+        .where(eq(gmailUnmatchedEmails.id, unmatchedId));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error linking email:", error);
+      res.status(500).json({ error: "Failed to link email" });
+    }
+  });
+
+  // Ignore an unmatched email
+  app.post("/api/email-intelligence/unmatched/:id/ignore", isAuthenticated, async (req: any, res) => {
+    try {
+      const unmatchedId = parseInt(req.params.id);
+      const { reason } = req.body;
+      
+      await db.update(gmailUnmatchedEmails)
+        .set({ 
+          status: 'ignored',
+          ignoredReason: reason || 'Manually ignored',
+        })
+        .where(eq(gmailUnmatchedEmails.id, unmatchedId));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error ignoring email:", error);
+      res.status(500).json({ error: "Failed to ignore email" });
+    }
+  });
+
+  // Get extracted sales events
+  app.get("/api/email-intelligence/events", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { eventType, customerId, limit: limitParam } = req.query;
+      const limit = parseInt(limitParam as string) || 50;
+      
+      let query = db.select({
+        id: emailSalesEvents.id,
+        eventType: emailSalesEvents.eventType,
+        confidence: emailSalesEvents.confidence,
+        triggerText: emailSalesEvents.triggerText,
+        occurredAt: emailSalesEvents.occurredAt,
+        customerId: emailSalesEvents.customerId,
+        customerName: customers.company,
+        isProcessed: emailSalesEvents.isProcessed,
+        coachingTip: emailSalesEvents.coachingTip,
+      })
+        .from(emailSalesEvents)
+        .leftJoin(customers, eq(emailSalesEvents.customerId, customers.id))
+        .where(eq(emailSalesEvents.userId, userId))
+        .orderBy(desc(emailSalesEvents.occurredAt))
+        .limit(limit);
+      
+      const events = await query;
+      res.json(events);
+    } catch (error: any) {
+      console.error("Error fetching sales events:", error);
+      res.status(500).json({ error: "Failed to fetch sales events" });
+    }
+  });
+
+  // Get sales events summary by type
+  app.get("/api/email-intelligence/events/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      
+      const summary = await db.execute(sql`
+        SELECT 
+          event_type,
+          COUNT(*) as count,
+          AVG(confidence::numeric) as avg_confidence,
+          COUNT(CASE WHEN is_processed THEN 1 END) as processed_count
+        FROM email_sales_events
+        WHERE user_id = ${userId}
+        GROUP BY event_type
+        ORDER BY count DESC
+      `);
+      
+      res.json((summary as any).rows || []);
+    } catch (error: any) {
+      console.error("Error fetching events summary:", error);
+      res.status(500).json({ error: "Failed to fetch summary" });
     }
   });
 
