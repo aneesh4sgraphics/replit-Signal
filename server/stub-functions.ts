@@ -920,8 +920,12 @@ export async function generatePriceListHTML(data: any): Promise<string> {
           ${productLogo ? `<img src="${productLogo}" alt="Product Logo" class="product-logo" />` : ''}
           
           <!-- Category Title - directly below logo -->
-          <div style="background: linear-gradient(180deg, #875A7B 0%, #6d4763 100%); color: white; padding: 12px 16px; margin-bottom: 10px; border-radius: 4px;">
+          <div style="background: linear-gradient(180deg, #875A7B 0%, #6d4763 100%); color: white; padding: 12px 16px; margin-bottom: 10px; border-radius: 4px; display: flex; justify-content: space-between; align-items: center;">
             <h2 style="font-family: 'Roboto', sans-serif; margin: 0; font-size: 14px; font-weight: 700; text-transform: uppercase; letter-spacing: 1px;">${displayCategoryName}</h2>
+            <div style="text-align: right; font-size: 9px; line-height: 1.5;">
+              <div><strong>Date of Issue:</strong> ${issueDateStr}</div>
+              <div><strong>Valid Until:</strong> ${validUntilStr}</div>
+            </div>
           </div>
           
           <!-- Features Banner -->
@@ -936,12 +940,6 @@ export async function generatePriceListHTML(data: any): Promise<string> {
           <div class="info-left">
             <div style="font-size: 10px; color: #495057; margin-bottom: 3px;">${compatibleWith}</div>
             <div style="font-size: 9px; color: #6c757d;">List #: <strong style="color: #495057;">${listNumber}</strong></div>
-          </div>
-          <div class="info-right">
-            <div class="date-info">
-              <div><strong>Date of Issue:</strong> ${issueDateStr}</div>
-              <div><strong>Valid Until:</strong> ${validUntilStr}</div>
-            </div>
           </div>
         </div>
         
