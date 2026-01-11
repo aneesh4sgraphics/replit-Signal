@@ -34,9 +34,10 @@ import {
   Lightbulb,
   Calendar,
   Zap,
-  Building2
+  Building2,
+  FileText
 } from "lucide-react";
-import { QuickQuotesIcon, SavedQuotesIcon, PdfSettingsIcon } from "@/components/CommandPalette";
+import { QuickQuotesIcon, SavedQuotesIcon } from "@/components/CommandPalette";
 import { useAuth } from "@/hooks/useAuth";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
 import ShipmentFollowUpWidget from "@/components/ShipmentFollowUpWidget";
@@ -133,7 +134,7 @@ const adminApps = [
   { path: '/admin', icon: Users, label: 'Users', color: '#6F42C1' },
   { path: '/activity-logs', icon: Activity, label: 'Activity', color: '#17A2B8' },
   { path: '/product-pricing-management', icon: Database, label: 'Products', color: '#0D6EFD' },
-  { path: '/pdf-settings', icon: PdfSettingsIcon, label: 'PDF Settings', color: '#28A745' },
+  { path: '/pdf-settings', icon: FileText, label: 'PDF Settings', color: '#28A745' },
 ];
 
 export default function Dashboard() {
