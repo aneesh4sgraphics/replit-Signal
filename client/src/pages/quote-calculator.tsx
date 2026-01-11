@@ -175,6 +175,17 @@ export default function QuoteCalculator() {
       description: "All filters have been cleared",
     });
   };
+
+  // Handle category change - reset dependent fields to avoid mismatched selections
+  const handleCategoryChange = (newCategory: string) => {
+    setSelectedCategory(newCategory);
+    setSelectedType("");
+    setSelectedSize("");
+    setQuantity(1);
+    setIsCustomSize(false);
+    setCustomWidth("");
+    setCustomHeight("");
+  };
   
   // Get user role and filter pricing tiers accordingly
   // Use role from user object directly, fallback to email-based detection
@@ -1287,7 +1298,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               {/* Product Category */}
               <div className="space-y-2">
                 <label className="block label-medium text-gray-800">Product Category</label>
-                <Select value={selectedCategory} onValueChange={setSelectedCategory}>
+                <Select value={selectedCategory} onValueChange={handleCategoryChange}>
                   <SelectTrigger className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white">
                   <SelectValue placeholder="Select product category">
                     {selectedCategory && (() => {
