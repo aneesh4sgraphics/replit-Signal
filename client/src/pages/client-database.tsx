@@ -3291,13 +3291,11 @@ export default function ClientDatabase() {
                   <SelectValue placeholder="-- Keep Existing --" />
                 </SelectTrigger>
                 <SelectContent>
-                  {apiUsers
-                    .filter(u => u.role === 'sales' || u.role === 'admin')
-                    .map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.displayName || user.email}
-                      </SelectItem>
-                    ))}
+                  {teamUsers.map(user => (
+                    <SelectItem key={user.id} value={user.id}>
+                      {user.displayName || user.email}
+                    </SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
               <p className="text-xs text-muted-foreground">Leave unselected to keep existing values</p>
