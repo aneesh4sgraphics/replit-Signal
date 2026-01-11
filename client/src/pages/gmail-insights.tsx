@@ -983,6 +983,27 @@ export default function GmailInsightsPage() {
     },
   });
 
+  const analyzeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/gmail-intelligence/analyze", { limit: 50 });
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/gmail-intelligence"] });
+      toast({
+        title: "Analysis Complete",
+        description: `Analyzed ${data.analyzed || 0} emails, extracted ${data.insights || 0} insights`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Analysis Failed",
+        description: error.message || "Failed to analyze pending emails",
+        variant: "destructive",
+      });
+    },
+  });
+
   const updateStatusMutation = useMutation({
     mutationFn: async ({ id, status, reason }: { id: number; status: string; reason?: string }) => {
       const res = await apiRequest("PATCH", `/api/gmail-intelligence/insights/${id}`, { status, reason });
@@ -1221,6 +1242,15 @@ export default function GmailInsightsPage() {
           >
             <RefreshCw className={`h-4 w-4 mr-2 ${syncMutation.isPending ? 'animate-spin' : ''}`} />
             {syncMutation.isPending ? "Syncing..." : "Sync Emails"}
+          </Button>
+          <Button
+            onClick={() => analyzeMutation.mutate()}
+            disabled={analyzeMutation.isPending}
+            variant="outline"
+            className="border-[#875A7B] text-[#875A7B] hover:bg-[#875A7B]/10"
+          >
+            <Zap className={`h-4 w-4 mr-2 ${analyzeMutation.isPending ? 'animate-pulse' : ''}`} />
+            {analyzeMutation.isPending ? "Analyzing..." : "Analyze Pending"}
           </Button>
         </div>
       </div>

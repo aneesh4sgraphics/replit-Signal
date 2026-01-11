@@ -255,15 +255,18 @@ export async function syncGmailMessages(userId: string, userEmail: string, maxMe
   }
 }
 
-export async function analyzeMessagesForInsights(userId: string, limit: number = 20) {
-  console.log(`[Gmail Intelligence] Analyzing messages for user ${userId}`);
+export async function analyzeMessagesForInsights(userId: string, limit: number = 20, analyzeAll: boolean = false) {
+  console.log(`[Gmail Intelligence] Analyzing messages for user ${userId}${analyzeAll ? ' (analyzing all users)' : ''}`);
   
   const pendingMessages = await db.select()
     .from(gmailMessages)
-    .where(and(
-      eq(gmailMessages.userId, userId),
-      eq(gmailMessages.analysisStatus, 'pending')
-    ))
+    .where(analyzeAll 
+      ? eq(gmailMessages.analysisStatus, 'pending')
+      : and(
+          eq(gmailMessages.userId, userId),
+          eq(gmailMessages.analysisStatus, 'pending')
+        )
+    )
     .limit(limit);
 
   if (pendingMessages.length === 0) {
@@ -472,6 +475,7 @@ export async function getInsightsForUser(userId: string, filters?: {
   type?: string; 
   customerId?: string;
   limit?: number;
+  showAll?: boolean;
 }) {
   let query = db.select({
     insight: gmailInsights,
@@ -481,9 +485,12 @@ export async function getInsightsForUser(userId: string, filters?: {
     .from(gmailInsights)
     .leftJoin(gmailMessages, eq(gmailInsights.messageId, gmailMessages.id))
     .leftJoin(customers, eq(gmailInsights.customerId, customers.id))
-    .where(eq(gmailInsights.userId, userId))
     .orderBy(desc(gmailInsights.createdAt))
     .limit(filters?.limit || 50);
+  
+  if (!filters?.showAll) {
+    query = query.where(eq(gmailInsights.userId, userId)) as typeof query;
+  }
 
   const results = await query;
   
@@ -528,15 +535,20 @@ export async function updateInsightStatus(insightId: number, status: string, use
     ));
 }
 
-export async function getInsightsSummary(userId: string) {
-  const stats = await db.select({
+export async function getInsightsSummary(userId: string, showAll: boolean = false) {
+  let query = db.select({
     status: gmailInsights.status,
     type: gmailInsights.insightType,
     count: sql<number>`count(*)::int`,
   })
     .from(gmailInsights)
-    .where(eq(gmailInsights.userId, userId))
     .groupBy(gmailInsights.status, gmailInsights.insightType);
+  
+  if (!showAll) {
+    query = query.where(eq(gmailInsights.userId, userId)) as typeof query;
+  }
+  
+  const stats = await query;
 
   const pending = stats.filter(s => s.status === 'pending');
   const byType: Record<string, number> = {};

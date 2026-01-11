@@ -6367,11 +6367,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get insights for current user
+  // Get insights for current user (admins can see all)
   app.get("/api/gmail-intelligence/insights", isAuthenticated, async (req: any, res) => {
     try {
       const { getInsightsForUser } = await import("./gmail-intelligence");
       const userId = req.user?.claims?.sub || req.user?.id;
+      const userRole = req.user?.role || req.user?.claims?.role;
+      const isAdmin = userRole === 'admin';
       const { status, type, customerId, limit } = req.query;
       
       const insights = await getInsightsForUser(userId, {
@@ -6379,6 +6381,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         type: type as string,
         customerId: customerId as string,
         limit: limit ? parseInt(limit as string) : 50,
+        showAll: isAdmin,
       });
       
       res.json(insights);
@@ -6393,8 +6396,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { getInsightsSummary } = await import("./gmail-intelligence");
       const userId = req.user?.claims?.sub || req.user?.id;
+      const userRole = req.user?.role || req.user?.claims?.role;
+      const isAdmin = userRole === 'admin';
       
-      const summary = await getInsightsSummary(userId);
+      const summary = await getInsightsSummary(userId, isAdmin);
       res.json(summary);
     } catch (error: any) {
       console.error("Error fetching Gmail insights summary:", error);
@@ -6422,14 +6427,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Re-analyze pending messages
+  // Re-analyze pending messages (admins analyze all users' messages)
   app.post("/api/gmail-intelligence/analyze", isAuthenticated, async (req: any, res) => {
     try {
       const { analyzeMessagesForInsights } = await import("./gmail-intelligence");
       const userId = req.user?.claims?.sub || req.user?.id;
+      const userRole = req.user?.role || req.user?.claims?.role;
+      const isAdmin = userRole === 'admin';
       const limit = parseInt(req.body.limit) || 20;
       
-      const result = await analyzeMessagesForInsights(userId, limit);
+      const result = await analyzeMessagesForInsights(userId, limit, isAdmin);
       res.json(result);
     } catch (error: any) {
       console.error("Error analyzing messages:", error);
