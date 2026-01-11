@@ -1152,7 +1152,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       ok: true, 
       env: process.env.NODE_ENV, 
       time: new Date().toISOString(),
-      version: "1.0.0",
+      version: "2.0.0",
       database: "connected",
       cache: cache.size
     });
