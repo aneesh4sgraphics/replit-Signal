@@ -62,6 +62,7 @@ interface PriceListItem {
   pricePerPack: number;
   squareMeters: number;
   sortOrder?: number;
+  rollSheet?: string;
 }
 
 interface Customer {
@@ -264,6 +265,7 @@ export default function PriceList() {
               pricePerSheet: item.pricePerSheet,
               total: item.pricePerPack,
               sortOrder: item.sortOrder,
+              rollSheet: item.rollSheet,
               shippingCost: includeShipping ? (shippingCosts[item.itemCode] || 0) : undefined
             }))
           })
@@ -821,6 +823,7 @@ export default function PriceList() {
         pricePerPack,
         squareMeters: sqmPerSheet,
         sortOrder: product.sortOrder,
+        rollSheet: (product as any).rollSheet || (product as any).roll_sheet || null,
       };
     });
 

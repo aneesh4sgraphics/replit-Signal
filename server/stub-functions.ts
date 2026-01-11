@@ -671,22 +671,15 @@ export async function generatePriceListHTML(data: any): Promise<string> {
   const itemsPerPage = 25;
   const totalPages = Math.ceil(totalItems / itemsPerPage);
 
-  const sections = sortedProductTypes.map((type) => {
-    const rows = grouped[type];
-    const rowHtml = (rows as any[]).map((row: any, index: number) => {
-      // Parse all numeric values properly to ensure correct calculations
+  // Helper function to generate table rows
+  const generateRowHtml = (rows: any[], startIndex: number = 0) => {
+    return rows.map((row: any, index: number) => {
       const minQtyValue = Number(row.minOrderQty || row.minQty || row.minQuantity || row.min_quantity) || 1;
-      const unitLabel = minQtyValue === 1 ? 'roll' : 'sheet';
-      
-      // Price per sheet = price of ONE sheet at selected size
       const pricePerSheet = Number(row.pricePerSheet) || 0;
-      
-      // Price per pack = pricePerSheet × packing quantity (minQty)
-      // Use provided total/pricePerPack if available, otherwise calculate
       const pricePerPack = Number(row.total || row.pricePerPack) || (pricePerSheet * minQtyValue);
       
       return `
-      <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f5f5f5'}; border-bottom: 1px solid #ddd;">
+      <tr style="background-color: ${(startIndex + index) % 2 === 0 ? '#ffffff' : '#f5f5f5'}; border-bottom: 1px solid #ddd;">
         <td style="font-family: 'Roboto Mono', 'Courier New', monospace; padding: 6px 8px; font-size: 9px; font-weight: 500; border-left: 1px solid #ccc;">${row.itemCode || '-'}</td>
         <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; font-size: 9px;">${row.size || 'N/A'}</td>
         <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; text-align: center; font-size: 9px;">${minQtyValue}</td>
@@ -695,30 +688,79 @@ export async function generatePriceListHTML(data: any): Promise<string> {
       </tr>
       `;
     }).join('');
-
+  };
+  
+  // Helper function to generate a table with appropriate headers
+  const generateTable = (type: string, rows: any[], isRoll: boolean, subLabel?: string) => {
+    const priceUnitLabel = isRoll ? 'Price/Roll' : 'Price/Sheet';
+    const priceTotalLabel = isRoll ? 'Price' : 'Price/Pack';
+    const typeLabel = subLabel ? `${type} - ${subLabel}` : type;
+    
     return `
       <div style="page-break-inside: avoid; margin-bottom: 20px;">
         <table width="100%" style="border-collapse: collapse; margin-bottom: 0;">
           <thead>
             <tr style="background: linear-gradient(180deg, #2c3e50 0%, #1a252f 100%);">
               <th colspan="5" style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 10px 12px; color: white; font-weight: 700; text-align: left; font-size: 11px; text-transform: uppercase; letter-spacing: 0.5px; border: 1px solid #1a252f;">
-                ${type}
+                ${typeLabel}
               </th>
             </tr>
             <tr style="background: #e8e8e8;">
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: left; font-size: 9px; width: 25%;">Product Code</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: left; font-size: 9px; width: 20%;">Size</th>
               <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: center; font-size: 9px; width: 15%;">Packing</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 18%;">Price/Sheet</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 22%;">Price/Pack</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 18%;">${priceUnitLabel}</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 22%;">${priceTotalLabel}</th>
             </tr>
           </thead>
           <tbody>
-            ${rowHtml}
+            ${generateRowHtml(rows)}
           </tbody>
         </table>
       </div>
     `;
+  };
+
+  const sections = sortedProductTypes.map((type) => {
+    const rows = grouped[type] as any[];
+    
+    // Separate rolls and sheets
+    const rollItems = rows.filter(row => row.rollSheet?.toLowerCase() === 'roll');
+    const sheetItems = rows.filter(row => row.rollSheet?.toLowerCase() === 'sheet');
+    const unknownItems = rows.filter(row => !row.rollSheet || (row.rollSheet.toLowerCase() !== 'roll' && row.rollSheet.toLowerCase() !== 'sheet'));
+    
+    // Determine if we have mixed types
+    const hasRolls = rollItems.length > 0;
+    const hasSheets = sheetItems.length > 0;
+    const hasMixed = hasRolls && hasSheets;
+    
+    if (hasMixed) {
+      // Create separate tables for rolls and sheets
+      let tables = '';
+      if (rollItems.length > 0) {
+        tables += generateTable(type, rollItems, true, 'Rolls');
+      }
+      if (sheetItems.length > 0) {
+        tables += generateTable(type, sheetItems, false, 'Sheets');
+      }
+      if (unknownItems.length > 0) {
+        tables += generateTable(type, unknownItems, false);
+      }
+      return tables;
+    } else if (hasRolls) {
+      // All rolls
+      return generateTable(type, [...rollItems, ...unknownItems], true);
+    } else if (hasSheets) {
+      // All sheets
+      return generateTable(type, [...sheetItems, ...unknownItems], false);
+    } else {
+      // Unknown/default - check minQty to determine (if minQty=1, likely roll)
+      const allItemsAreRolls = unknownItems.every(row => {
+        const minQty = Number(row.minOrderQty || row.minQty || row.minQuantity || 1);
+        return minQty === 1;
+      });
+      return generateTable(type, unknownItems, allItemsAreRolls);
+    }
   }).join('');
 
   return `
