@@ -187,6 +187,14 @@ import {
   type InsertDripCampaignStepStatus,
   type MediaUpload,
   type InsertMediaUpload,
+  // Coaching Moments
+  coachingMoments,
+  type CoachingMoment,
+  type InsertCoachingMoment,
+  dailyMomentCaps,
+  type DailyMomentCap,
+  followUpTasks,
+  customerCoachState,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -593,6 +601,17 @@ export interface IStorage {
   getMediaUploads(): Promise<MediaUpload[]>;
   createMediaUpload(data: InsertMediaUpload): Promise<MediaUpload>;
   deleteMediaUpload(id: number): Promise<void>;
+
+  // ========================================
+  // Now Mode Coaching Moments
+  // ========================================
+  getCurrentMoment(userId: string): Promise<CoachingMoment | undefined>;
+  getMomentsForUser(userId: string, status?: string): Promise<CoachingMoment[]>;
+  createCoachingMoment(data: InsertCoachingMoment): Promise<CoachingMoment>;
+  completeMoment(id: number, outcome: string, notes?: string): Promise<CoachingMoment | undefined>;
+  getDailyMomentCount(userId: string, dateKey: string): Promise<number>;
+  incrementDailyMomentCount(userId: string, dateKey: string): Promise<void>;
+  generateMomentsForUser(userId: string): Promise<CoachingMoment[]>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -3208,6 +3227,179 @@ export class DatabaseStorage implements IStorage {
 
   async deleteMediaUpload(id: number): Promise<void> {
     await db.delete(mediaUploads).where(eq(mediaUploads.id, id));
+  }
+
+  // ========================================
+  // Now Mode Coaching Moments
+  // ========================================
+
+  async getCurrentMoment(userId: string): Promise<CoachingMoment | undefined> {
+    const now = new Date();
+    const [moment] = await db
+      .select()
+      .from(coachingMoments)
+      .where(and(
+        eq(coachingMoments.assignedTo, userId),
+        eq(coachingMoments.status, 'pending'),
+        sql`${coachingMoments.scheduledFor} <= ${now}`
+      ))
+      .orderBy(desc(coachingMoments.priority), coachingMoments.scheduledFor)
+      .limit(1);
+    return moment;
+  }
+
+  async getMomentsForUser(userId: string, status?: string): Promise<CoachingMoment[]> {
+    if (status) {
+      return await db
+        .select()
+        .from(coachingMoments)
+        .where(and(
+          eq(coachingMoments.assignedTo, userId),
+          eq(coachingMoments.status, status)
+        ))
+        .orderBy(desc(coachingMoments.priority), coachingMoments.scheduledFor);
+    }
+    return await db
+      .select()
+      .from(coachingMoments)
+      .where(eq(coachingMoments.assignedTo, userId))
+      .orderBy(desc(coachingMoments.priority), coachingMoments.scheduledFor);
+  }
+
+  async createCoachingMoment(data: InsertCoachingMoment): Promise<CoachingMoment> {
+    const [moment] = await db.insert(coachingMoments).values(data).returning();
+    return moment;
+  }
+
+  async completeMoment(id: number, outcome: string, notes?: string): Promise<CoachingMoment | undefined> {
+    const [moment] = await db
+      .update(coachingMoments)
+      .set({
+        status: 'completed',
+        outcome,
+        outcomeNotes: notes,
+        completedAt: new Date(),
+        updatedAt: new Date(),
+      })
+      .where(eq(coachingMoments.id, id))
+      .returning();
+    return moment;
+  }
+
+  async getDailyMomentCount(userId: string, dateKey: string): Promise<number> {
+    const [cap] = await db
+      .select()
+      .from(dailyMomentCaps)
+      .where(and(
+        eq(dailyMomentCaps.userId, userId),
+        eq(dailyMomentCaps.dateKey, dateKey)
+      ));
+    return cap?.momentsCompleted || 0;
+  }
+
+  async incrementDailyMomentCount(userId: string, dateKey: string): Promise<void> {
+    const existing = await db
+      .select()
+      .from(dailyMomentCaps)
+      .where(and(
+        eq(dailyMomentCaps.userId, userId),
+        eq(dailyMomentCaps.dateKey, dateKey)
+      ));
+    
+    if (existing.length > 0) {
+      await db
+        .update(dailyMomentCaps)
+        .set({ momentsCompleted: sql`${dailyMomentCaps.momentsCompleted} + 1` })
+        .where(eq(dailyMomentCaps.id, existing[0].id));
+    } else {
+      await db.insert(dailyMomentCaps).values({
+        userId,
+        dateKey,
+        momentsCompleted: 1,
+        momentsCap: 6,
+      });
+    }
+  }
+
+  async generateMomentsForUser(userId: string): Promise<CoachingMoment[]> {
+    const dateKey = new Date().toISOString().split('T')[0];
+    const existingCount = await this.getDailyMomentCount(userId, dateKey);
+    const dailyCap = 6;
+    
+    if (existingCount >= dailyCap) {
+      return [];
+    }
+    
+    const pendingMoments = await db
+      .select()
+      .from(coachingMoments)
+      .where(and(
+        eq(coachingMoments.assignedTo, userId),
+        eq(coachingMoments.status, 'pending')
+      ));
+    
+    if (pendingMoments.length >= dailyCap - existingCount) {
+      return pendingMoments;
+    }
+    
+    const slotsAvailable = dailyCap - existingCount - pendingMoments.length;
+    const newMoments: CoachingMoment[] = [];
+    
+    const overdueTasks = await db
+      .select()
+      .from(followUpTasks)
+      .where(and(
+        or(
+          eq(followUpTasks.assignedTo, userId),
+          isNull(followUpTasks.assignedTo)
+        ),
+        eq(followUpTasks.status, 'pending'),
+        sql`${followUpTasks.dueDate} <= CURRENT_DATE`
+      ))
+      .orderBy(followUpTasks.dueDate)
+      .limit(slotsAvailable);
+    
+    for (const task of overdueTasks) {
+      if (!task.customerId) continue;
+      
+      const existingMoment = await db
+        .select()
+        .from(coachingMoments)
+        .where(and(
+          eq(coachingMoments.customerId, task.customerId),
+          eq(coachingMoments.status, 'pending'),
+          eq(coachingMoments.sourceType, 'follow_up_task'),
+          eq(coachingMoments.sourceId, task.id)
+        ));
+      
+      if (existingMoment.length > 0) continue;
+      
+      const actionMap: Record<string, string> = {
+        quote_follow_up: 'follow_up_quote',
+        sample_follow_up: 'follow_up_sample',
+        check_in: 'schedule_call',
+        reorder_check: 'check_reorder',
+      };
+      
+      const action = actionMap[task.taskType] || 'schedule_call';
+      const whyNow = task.notes || `${task.taskType.replace(/_/g, ' ')} is overdue`;
+      
+      const [moment] = await db.insert(coachingMoments).values({
+        customerId: task.customerId,
+        assignedTo: userId,
+        action,
+        whyNow,
+        priority: task.priority === 'high' ? 80 : task.priority === 'urgent' ? 100 : 50,
+        scheduledFor: new Date(),
+        status: 'pending',
+        sourceType: 'follow_up_task',
+        sourceId: task.id,
+      }).returning();
+      
+      newMoments.push(moment);
+    }
+    
+    return [...pendingMoments, ...newMoments];
   }
 }
 
