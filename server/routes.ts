@@ -2462,6 +2462,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk update customers (Admin only) - for updating Pricing Tier and Sales Rep on multiple customers
+  app.post("/api/customers/bulk-update", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { customerIds, pricingTier, salesRepId } = req.body;
+      
+      if (!customerIds || !Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({ error: "customerIds must be a non-empty array" });
+      }
+      
+      if (pricingTier === undefined && salesRepId === undefined) {
+        return res.status(400).json({ error: "At least one field (pricingTier or salesRepId) must be provided" });
+      }
+      
+      const fields: { pricingTier?: string; salesRepId?: string } = {};
+      if (pricingTier !== undefined) {
+        fields.pricingTier = pricingTier;
+      }
+      if (salesRepId !== undefined) {
+        fields.salesRepId = salesRepId;
+      }
+      
+      const updatedCount = await storage.bulkUpdateCustomerFields(customerIds, fields);
+      
+      // Clear cache
+      setCachedData("customers", null);
+      
+      // Log activity
+      const user = req.user as any;
+      await storage.createActivityLog({
+        userId: user?.id || 'system',
+        action: 'bulk_update_customers',
+        entityType: 'customer',
+        details: `Bulk updated ${updatedCount} customers - fields: ${Object.keys(fields).join(', ')}`,
+        entityId: customerIds.join(',').substring(0, 255),
+      });
+      
+      res.json({ 
+        success: true, 
+        updatedCount,
+        message: `Successfully updated ${updatedCount} customers` 
+      });
+    } catch (error) {
+      console.error("Error bulk updating customers:", error);
+      res.status(500).json({ error: "Failed to bulk update customers" });
+    }
+  });
+
   // Configure multer for CSV/Excel file uploads
   const upload = multer({
     dest: 'uploads/',

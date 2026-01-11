@@ -197,7 +197,7 @@ import {
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
-import { eq, desc, and, sql, ilike, or, gte, isNull, isNotNull } from "drizzle-orm";
+import { eq, desc, and, sql, ilike, or, gte, isNull, isNotNull, inArray } from "drizzle-orm";
 
 export interface IStorage {
   // User operations for Replit Auth
@@ -247,6 +247,7 @@ export interface IStorage {
   createCustomersBatch(customers: InsertCustomer[]): Promise<Customer[]>;
   updateCustomer(id: string, customer: Partial<InsertCustomer>): Promise<Customer | undefined>;
   updateCustomersBatch(customers: Array<{ id: string; data: InsertCustomer }>): Promise<void>;
+  bulkUpdateCustomerFields(customerIds: string[], fields: { pricingTier?: string; salesRepId?: string }): Promise<number>;
   deleteCustomer(id: string): Promise<boolean>;
   
   // Sent Quotes
@@ -1075,6 +1076,33 @@ export class DatabaseStorage implements IStorage {
       console.log(`Successfully updated ${customerUpdates.length} customers in parallel`);
     } catch (error) {
       console.error('Error updating customer batch:', error);
+      throw error;
+    }
+  }
+
+  async bulkUpdateCustomerFields(customerIds: string[], fields: { pricingTier?: string; salesRepId?: string }): Promise<number> {
+    if (customerIds.length === 0) return 0;
+    
+    const updateData: Partial<InsertCustomer> = {};
+    if (fields.pricingTier !== undefined) {
+      updateData.pricingTier = fields.pricingTier;
+    }
+    if (fields.salesRepId !== undefined) {
+      updateData.salesRepId = fields.salesRepId;
+    }
+    
+    if (Object.keys(updateData).length === 0) return 0;
+    
+    try {
+      const result = await db
+        .update(customers)
+        .set(updateData)
+        .where(inArray(customers.id, customerIds));
+      
+      console.log(`Bulk updated ${result.rowCount} customers with fields:`, Object.keys(updateData));
+      return result.rowCount ?? 0;
+    } catch (error) {
+      console.error('Error in bulk update customers:', error);
       throw error;
     }
   }
