@@ -797,9 +797,13 @@ export default function PriceList() {
       
       const tierField = tierMapping[selectedTier];
       const pricePerSqM = Number((product as any)[tierField]) || 0;
-      const sqm = parseFloat(String(product.totalSqm || 0));
-      const pricePerSheet = +(pricePerSqM * sqm).toFixed(2);
+      const totalSqm = parseFloat(String(product.totalSqm || 0));
       const minQty = Number(product.minQuantity) || 1;
+      
+      // totalSqm is for the entire pack, divide by minQty to get sqm per sheet
+      // For rolls (minQty=1), sqmPerSheet equals totalSqm
+      const sqmPerSheet = minQty > 1 ? totalSqm / minQty : totalSqm;
+      const pricePerSheet = +(pricePerSqM * sqmPerSheet).toFixed(2);
       
       // Apply retail rounding for RETAIL tier only to Price Per Pack
       const isRetailTier = selectedTier === 'Retail';
@@ -815,7 +819,7 @@ export default function PriceList() {
         pricePerSqM,
         pricePerSheet,
         pricePerPack,
-        squareMeters: sqm,
+        squareMeters: sqmPerSheet,
         sortOrder: product.sortOrder,
       };
     });
