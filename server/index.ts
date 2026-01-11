@@ -1,6 +1,9 @@
 import express, { type Request, Response, NextFunction } from "express";
 import cors from 'cors';
 import cookieParser from 'cookie-parser';
+import compression from 'compression';
+import helmet from 'helmet';
+import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startDripEmailWorker } from "./drip-email-worker";
@@ -12,6 +15,12 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
 }
 
 const app = express();
+
+// Disable x-powered-by header
+app.disable('x-powered-by');
+
+// Compression middleware (gzip/brotli)
+app.use(compression());
 
 // Shopify webhook routes need raw body for HMAC verification
 // Must be registered BEFORE express.json() middleware
@@ -65,37 +74,59 @@ app.use(cors({
   credentials: true,
 }));
 
-// Unified security headers middleware (CSP + X-Frame-Options computed once)
+// Helmet security headers (with custom CSP for Shopify embedding)
 app.use((req, res, next) => {
-  // Prevent search engines from indexing
-  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
-  
-  // Determine if this is a Shopify embedded context
   const isShopifyEmbedded = req.path.startsWith('/app') || 
                              req.query.embedded === 'true' || 
                              Boolean(req.query.shop);
   
-  // Compute CSP frame-ancestors based on context
-  if (isShopifyEmbedded) {
-    // Allow Shopify Admin iframe embedding
-    res.setHeader(
-      'Content-Security-Policy',
-      "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.replit.app https://*.replit.dev"
-    );
-    // Remove X-Frame-Options to defer to CSP for Shopify embedding
-    res.removeHeader('X-Frame-Options');
-  } else {
-    // Restrict embedding to same-origin and Replit domains only
-    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://*.replit.app https://*.replit.dev");
-    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
-  }
-  
-  // Additional security headers
-  res.setHeader('X-Content-Type-Options', 'nosniff');
-  res.setHeader('Referrer-Policy', 'no-referrer');
-  
+  // Use Helmet with context-specific CSP
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.shopify.com"],
+        styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com"],
+        fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
+        imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
+        connectSrc: ["'self'", "https:", "wss:"],
+        frameAncestors: isShopifyEmbedded 
+          ? ["'self'", "https://*.myshopify.com", "https://admin.shopify.com", "https://*.replit.app", "https://*.replit.dev"]
+          : ["'self'", "https://*.replit.app", "https://*.replit.dev"],
+      },
+    },
+    crossOriginEmbedderPolicy: false,
+    crossOriginOpenerPolicy: false,
+    crossOriginResourcePolicy: { policy: "cross-origin" },
+    frameguard: isShopifyEmbedded ? false : { action: 'sameorigin' },
+  })(req, res, next);
+});
+
+// Additional custom headers
+app.use((req, res, next) => {
+  res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
   next();
 });
+
+// Rate limiting for auth endpoints (stricter)
+const authRateLimiter = rateLimit({
+  windowMs: 15 * 60 * 1000, // 15 minutes
+  max: 20, // 20 attempts per window
+  message: { error: 'Too many authentication attempts, please try again later' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/auth', authRateLimiter);
+
+// Rate limiting for webhook endpoints
+const webhookRateLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute
+  message: { error: 'Too many webhook requests' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api/webhooks', webhookRateLimiter);
 
 // Request timing logger (no response body logging to avoid PII exposure)
 app.use((req, res, next) => {
