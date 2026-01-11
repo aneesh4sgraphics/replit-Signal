@@ -34,27 +34,6 @@ app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(cookieParser());
 
-// Allow embedding from email clients and Shopify Admin
-app.use((req, res, next) => {
-  // Allow Shopify Admin iframe embedding for /app route
-  const isShopifyEmbedded = req.path === '/app' || req.query.embedded === 'true' || req.query.shop;
-  
-  if (isShopifyEmbedded) {
-    res.setHeader(
-      "Content-Security-Policy",
-      "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.replit.app https://*.replit.dev"
-    );
-    res.removeHeader("X-Frame-Options");
-  } else {
-    res.setHeader(
-      "Content-Security-Policy",
-      "frame-ancestors 'self' https://*.replit.app https://*.replit.dev"
-    );
-    res.removeHeader("X-Frame-Options");
-  }
-  next();
-});
-
 // --- CORS ---
 const allowedOrigins = [
   process.env.FRONTEND_ORIGIN || '',
@@ -94,14 +73,30 @@ app.use(cors({
   credentials: true,
 }));
 
-// Security headers to prevent indexing and embedding
+// Unified security headers middleware (CSP + X-Frame-Options computed once)
 app.use((req, res, next) => {
   // Prevent search engines from indexing
   res.setHeader('X-Robots-Tag', 'noindex, nofollow, noarchive, nosnippet, noimageindex');
   
-  // Prevent site from being embedded in iframes
-  res.setHeader('X-Frame-Options', 'DENY');
-  res.setHeader('Content-Security-Policy', "frame-ancestors 'none'");
+  // Determine if this is a Shopify embedded context
+  const isShopifyEmbedded = req.path.startsWith('/app') || 
+                             req.query.embedded === 'true' || 
+                             Boolean(req.query.shop);
+  
+  // Compute CSP frame-ancestors based on context
+  if (isShopifyEmbedded) {
+    // Allow Shopify Admin iframe embedding
+    res.setHeader(
+      'Content-Security-Policy',
+      "frame-ancestors 'self' https://*.myshopify.com https://admin.shopify.com https://*.replit.app https://*.replit.dev"
+    );
+    // Remove X-Frame-Options to defer to CSP for Shopify embedding
+    res.removeHeader('X-Frame-Options');
+  } else {
+    // Restrict embedding to same-origin and Replit domains only
+    res.setHeader('Content-Security-Policy', "frame-ancestors 'self' https://*.replit.app https://*.replit.dev");
+    res.setHeader('X-Frame-Options', 'SAMEORIGIN');
+  }
   
   // Additional security headers
   res.setHeader('X-Content-Type-Options', 'nosniff');
