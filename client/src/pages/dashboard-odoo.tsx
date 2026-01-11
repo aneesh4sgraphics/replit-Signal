@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
@@ -137,8 +137,20 @@ const adminApps = [
 
 export default function Dashboard() {
   const [hoveredTile, setHoveredTile] = useState<string | null>(null);
-  const [appsOpen, setAppsOpen] = useState(false);
+  const [appsOpen, setAppsOpen] = useState(true);
   const { user, isLoading } = useAuth();
+
+  useEffect(() => {
+    let lastScrollY = window.scrollY;
+    const handleScroll = () => {
+      if (window.scrollY > lastScrollY && window.scrollY > 50) {
+        setAppsOpen(false);
+      }
+      lastScrollY = window.scrollY;
+    };
+    window.addEventListener('scroll', handleScroll, { passive: true });
+    return () => window.removeEventListener('scroll', handleScroll);
+  }, []);
   const { trackUsage } = useAppUsage();
 
   const { data: stats } = useQuery<DashboardStats>({
@@ -486,7 +498,7 @@ export default function Dashboard() {
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
                     <Grid3X3 size={20} style={{ color: '#6F42C1' }} />
                     <span style={{ fontSize: '14px', fontWeight: 600, color: '#2C2C54' }}>
-                      App Launcher
+                      APPS
                     </span>
                     <span style={{ fontSize: '12px', color: '#6B6B8C' }}>
                       ({allApps.length} apps)
