@@ -38,6 +38,7 @@ import ProductMappingPage from "@/pages/product-mapping";
 import SalesAnalyticsPage from "@/pages/sales-analytics";
 import ReportsPage from "@/pages/reports";
 import GmailInsightsPage from "@/pages/gmail-insights";
+import NowMode from "@/pages/now-mode";
 
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
@@ -98,6 +99,7 @@ const AppRoutes = () => (
     <Route path="/product-mapping" component={ProductMappingPage} />
     <Route path="/sales-analytics" component={SalesAnalyticsPage} />
     <Route path="/reports" component={ReportsPage} />
+    <Route path="/now-mode" component={NowMode} />
     <Route><Redirect to="/" /></Route>
   </Switch>
 );

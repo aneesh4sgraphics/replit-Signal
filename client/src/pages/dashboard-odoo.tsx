@@ -534,6 +534,44 @@ export default function Dashboard() {
             </div>
           </Collapsible>
 
+          {/* Now Mode Entry Card */}
+          <Link href="/now-mode" style={{ textDecoration: 'none', display: 'block', marginBottom: '24px' }}>
+            <div style={{
+              background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
+              borderRadius: '2px',
+              boxShadow: '0 4px 16px rgba(111, 66, 193, 0.3)',
+              padding: '24px 32px',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'space-between',
+              cursor: 'pointer',
+              transition: 'all 0.2s ease-in-out',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+                <div style={{
+                  width: '56px',
+                  height: '56px',
+                  borderRadius: '2px',
+                  background: 'rgba(255,255,255,0.2)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                }}>
+                  <Zap size={28} style={{ color: '#FFFFFF' }} />
+                </div>
+                <div>
+                  <div style={{ fontSize: '20px', fontWeight: 700, color: '#FFFFFF', marginBottom: '4px' }}>
+                    Now Mode
+                  </div>
+                  <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.8)' }}>
+                    One customer. One action. Right now.
+                  </div>
+                </div>
+              </div>
+              <ChevronRight size={24} style={{ color: '#FFFFFF' }} />
+            </div>
+          </Link>
+
           {/* Start Your Day Dashboard */}
           <div style={{ marginBottom: '32px' }}>
             <StartYourDayDashboard />
