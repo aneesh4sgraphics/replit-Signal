@@ -33,7 +33,8 @@ import {
   Flame,
   Lightbulb,
   Calendar,
-  Zap
+  Zap,
+  Building2
 } from "lucide-react";
 import { QuickQuotesIcon, SavedQuotesIcon, PdfSettingsIcon } from "@/components/CommandPalette";
 import { useAuth } from "@/hooks/useAuth";
@@ -358,89 +359,6 @@ export default function Dashboard() {
           }}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', flexWrap: 'wrap', gap: '24px' }}>
               <div>
-                {/* Connection Status */}
-                <TooltipProvider>
-                  <div style={{ display: 'flex', gap: '12px', marginBottom: '16px' }}>
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          borderRadius: '2px',
-                          background: connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
-                          cursor: 'pointer',
-                        }}>
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D',
-                          }} />
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D' }}>
-                            Odoo
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent><p>{connectionStatus?.odoo?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
-                    </Tooltip>
-                    
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          borderRadius: '2px',
-                          background: connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
-                          cursor: 'pointer',
-                        }}>
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D',
-                          }} />
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D' }}>
-                            Gmail
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent><p>{connectionStatus?.gmail?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
-                    </Tooltip>
-                    
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          borderRadius: '2px',
-                          background: connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
-                          cursor: 'pointer',
-                        }}>
-                          <div style={{
-                            width: '8px',
-                            height: '8px',
-                            borderRadius: '50%',
-                            background: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D',
-                          }} />
-                          <span style={{ fontSize: '11px', fontWeight: 600, color: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D' }}>
-                            Calendar
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent><p>{connectionStatus?.calendar?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
-                    </Tooltip>
-                  </div>
-                </TooltipProvider>
-
                 <p style={{ fontSize: '12px', fontWeight: 600, color: '#6B6B8C', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
                   4S Graphics Dashboard
                 </p>
@@ -450,23 +368,121 @@ export default function Dashboard() {
                 <p style={{ fontSize: '14px', color: '#6B6B8C', margin: 0 }}>{dateString}</p>
               </div>
 
-              {/* Quick Stats */}
-              {stats && (
-                <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#6F42C1' }}>{stats.totalQuotes}</div>
-                    <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Total Quotes</div>
+              {/* Right side: Stats + Connection Icons */}
+              <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '16px' }}>
+                {/* Quick Stats */}
+                {stats && (
+                  <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#6F42C1' }}>{stats.totalQuotes}</div>
+                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Total Quotes</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#28A745' }}>{stats.totalCustomers}</div>
+                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Customers</div>
+                    </div>
+                    <div style={{ textAlign: 'center' }}>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#0D6EFD' }}>{stats.quotesThisMonth}</div>
+                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>This Month</div>
+                    </div>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#28A745' }}>{stats.totalCustomers}</div>
-                    <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Customers</div>
+                )}
+
+                {/* Connection Status Icons */}
+                <TooltipProvider>
+                  <div style={{ display: 'flex', gap: '8px' }}>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}>
+                          <Building2 size={18} style={{ color: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D' }} />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-2px',
+                            right: '-2px',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D',
+                            border: '2px solid white',
+                          }} />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Odoo: {connectionStatus?.odoo?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}>
+                          <Mail size={18} style={{ color: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D' }} />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-2px',
+                            right: '-2px',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D',
+                            border: '2px solid white',
+                          }} />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Gmail: {connectionStatus?.gmail?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
+                    </Tooltip>
+                    
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{
+                          width: '36px',
+                          height: '36px',
+                          borderRadius: '8px',
+                          background: connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          display: 'flex',
+                          alignItems: 'center',
+                          justifyContent: 'center',
+                          cursor: 'pointer',
+                          position: 'relative',
+                        }}>
+                          <Calendar size={18} style={{ color: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D' }} />
+                          <div style={{
+                            position: 'absolute',
+                            bottom: '-2px',
+                            right: '-2px',
+                            width: '10px',
+                            height: '10px',
+                            borderRadius: '50%',
+                            background: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D',
+                            border: '2px solid white',
+                          }} />
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent><p>Calendar: {connectionStatus?.calendar?.connected ? 'Connected' : 'Disconnected'}</p></TooltipContent>
+                    </Tooltip>
                   </div>
-                  <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '24px', fontWeight: 700, color: '#0D6EFD' }}>{stats.quotesThisMonth}</div>
-                    <div style={{ fontSize: '12px', color: '#6B6B8C' }}>This Month</div>
-                  </div>
-                </div>
-              )}
+                </TooltipProvider>
+              </div>
             </div>
           </div>
 
