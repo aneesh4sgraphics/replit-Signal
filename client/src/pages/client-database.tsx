@@ -1966,7 +1966,7 @@ export default function ClientDatabase() {
         </Card>
 
         {/* Stats Cards Grid */}
-        <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-5 gap-3">
+        <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Total Clients */}
           <Card className="glass-card border-0">
             <CardContent className="p-4">
@@ -2120,11 +2120,11 @@ export default function ClientDatabase() {
                 </p>
               </div>
               {isAdmin && customers.filter(c => !c.salesRepId || c.salesRepId.trim() === '').length > 0 && (
-                <div className="flex gap-2 mt-2">
+                <div className="grid grid-cols-2 gap-1.5 mt-2">
                   <Button 
                     size="sm" 
                     variant="outline"
-                    className="flex-1 h-7 text-xs"
+                    className="h-7 text-[10px] px-2"
                     onClick={(e) => { e.stopPropagation(); setFilters({...filters, salesRep: filters.salesRep === 'unassigned' ? '' : 'unassigned'}); }}
                     data-testid="button-filter-no-sales-rep"
                   >
@@ -2132,12 +2132,12 @@ export default function ClientDatabase() {
                   </Button>
                   <Button 
                     size="sm" 
-                    className="flex-1 h-7 text-xs bg-red-500 hover:bg-red-600"
+                    className="h-7 text-[10px] px-2 bg-red-500 hover:bg-red-600"
                     onClick={(e) => { e.stopPropagation(); autoAssignSalesRepsMutation.mutate(); }}
                     disabled={autoAssignSalesRepsMutation.isPending}
                     data-testid="button-auto-assign-sales-reps"
                   >
-                    {autoAssignSalesRepsMutation.isPending ? 'Assigning...' : 'Auto-Assign'}
+                    {autoAssignSalesRepsMutation.isPending ? '...' : 'Auto-Assign'}
                   </Button>
                 </div>
               )}
