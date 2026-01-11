@@ -8,6 +8,7 @@ import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
 import { startDripEmailWorker } from "./drip-email-worker";
 import { startQuoteFollowUpWorker } from "./quote-followup-worker";
+import { startDataRetentionWorker } from "./data-retention";
 
 // Configure Puppeteer to use system Chromium for PDF generation
 if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -201,5 +202,6 @@ app.use((req, res, next) => {
     // Start background workers (async, acquire advisory locks for singleton execution)
     startDripEmailWorker().catch(err => console.error('[Drip Worker] Failed to start:', err.message));
     startQuoteFollowUpWorker().catch(err => console.error('[Quote Follow-up Worker] Failed to start:', err.message));
+    startDataRetentionWorker().catch(err => console.error('[Data Retention] Failed to start:', err.message));
   });
 })();

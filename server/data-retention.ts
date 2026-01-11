@@ -36,6 +36,7 @@ export async function runDataRetention(): Promise<RetentionResult> {
     `);
     result.emailTrackingDeleted = Number((trackingResult as any).rowCount) || 0;
 
+    // Clean up old PDFs
     const uploadsDir = path.join(process.cwd(), 'uploads', 'pdfs');
     if (fs.existsSync(uploadsDir)) {
       const files = fs.readdirSync(uploadsDir);
@@ -43,6 +44,21 @@ export async function runDataRetention(): Promise<RetentionResult> {
         const filePath = path.join(uploadsDir, file);
         const stats = fs.statSync(filePath);
         if (stats.mtime < cutoffDate) {
+          fs.unlinkSync(filePath);
+          result.filesDeleted++;
+        }
+      }
+    }
+    
+    // Clean up expired PDF cache (24h TTL)
+    const pdfCacheDir = path.join(process.cwd(), 'uploads', 'pdf-cache');
+    if (fs.existsSync(pdfCacheDir)) {
+      const cacheFiles = fs.readdirSync(pdfCacheDir);
+      const cacheCutoff = new Date(Date.now() - 24 * 60 * 60 * 1000); // 24 hours
+      for (const file of cacheFiles) {
+        const filePath = path.join(pdfCacheDir, file);
+        const stats = fs.statSync(filePath);
+        if (stats.mtime < cacheCutoff) {
           fs.unlinkSync(filePath);
           result.filesDeleted++;
         }
