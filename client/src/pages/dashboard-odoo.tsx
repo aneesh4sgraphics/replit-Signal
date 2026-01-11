@@ -2,6 +2,7 @@ import { useState } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
   Calculator, 
   FileText, 
@@ -16,6 +17,7 @@ import {
   Printer,
   Layers,
   ChevronRight,
+  ChevronDown,
   Truck,
   Tag,
   Target,
@@ -135,6 +137,7 @@ const adminApps = [
 
 export default function Dashboard() {
   const [hoveredTile, setHoveredTile] = useState<string | null>(null);
+  const [appsOpen, setAppsOpen] = useState(false);
   const { user, isLoading } = useAuth();
   const { trackUsage } = useAppUsage();
 
@@ -455,6 +458,70 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {/* Collapsible App Launcher Tray */}
+          <Collapsible open={appsOpen} onOpenChange={setAppsOpen}>
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '12px',
+              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
+              marginBottom: '24px',
+              overflow: 'hidden',
+            }}>
+              <CollapsibleTrigger asChild>
+                <button
+                  style={{
+                    width: '100%',
+                    display: 'flex',
+                    alignItems: 'center',
+                    justifyContent: 'space-between',
+                    padding: '16px 24px',
+                    background: 'transparent',
+                    border: 'none',
+                    cursor: 'pointer',
+                    transition: 'background 0.2s ease',
+                  }}
+                  onMouseEnter={(e) => e.currentTarget.style.background = 'rgba(111, 66, 193, 0.05)'}
+                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                >
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <Grid3X3 size={20} style={{ color: '#6F42C1' }} />
+                    <span style={{ fontSize: '14px', fontWeight: 600, color: '#2C2C54' }}>
+                      App Launcher
+                    </span>
+                    <span style={{ fontSize: '12px', color: '#6B6B8C' }}>
+                      ({allApps.length} apps)
+                    </span>
+                  </div>
+                  <ChevronDown 
+                    size={20} 
+                    style={{ 
+                      color: '#6B6B8C',
+                      transition: 'transform 0.2s ease',
+                      transform: appsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
+                    }} 
+                  />
+                </button>
+              </CollapsibleTrigger>
+              
+              <CollapsibleContent>
+                <div style={{ padding: '0 24px 24px 24px' }}>
+                  <div 
+                    className="app-grid"
+                    style={{
+                      display: 'grid',
+                      gridTemplateColumns: 'repeat(6, 1fr)',
+                      gap: '24px',
+                    }}
+                  >
+                    {allApps.map((app, index) => (
+                      <AppTile key={app.path} app={app} index={index} />
+                    ))}
+                  </div>
+                </div>
+              </CollapsibleContent>
+            </div>
+          </Collapsible>
+
           {/* Start Your Day Dashboard */}
           <div style={{ marginBottom: '32px' }}>
             <StartYourDayDashboard />
@@ -491,33 +558,6 @@ export default function Dashboard() {
               </div>
             </Link>
           )}
-
-          {/* App Grid */}
-          <div style={{
-            background: '#FFFFFF',
-            borderRadius: '12px',
-            boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-            padding: '32px',
-            marginBottom: '32px',
-          }}>
-            <h2 style={{ fontSize: '20px', fontWeight: 700, color: '#2C2C54', marginBottom: '24px', display: 'flex', alignItems: 'center', gap: '12px' }}>
-              <Grid3X3 size={24} style={{ color: '#6B6B8C' }} />
-              Apps
-            </h2>
-            
-            <div 
-              className="app-grid"
-              style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(6, 1fr)',
-                gap: '24px',
-              }}
-            >
-              {allApps.map((app, index) => (
-                <AppTile key={app.path} app={app} index={index} />
-              ))}
-            </div>
-          </div>
 
           {/* CRM Pipeline Stats */}
           {crmStats && (
