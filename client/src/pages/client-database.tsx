@@ -188,6 +188,9 @@ export default function ClientDatabase() {
   const [showSamplesFilter, setShowSamplesFilter] = useState(false); // Filter for samples sent card
   const [showDataCleanupFilter, setShowDataCleanupFilter] = useState(false); // Filter for incomplete data
   const [statsOpen, setStatsOpen] = useState(true); // Collapsible stats tray
+  const [showBulkEditDialog, setShowBulkEditDialog] = useState(false); // Bulk edit dialog
+  const [bulkEditPricingTier, setBulkEditPricingTier] = useState<string>("");
+  const [bulkEditSalesRep, setBulkEditSalesRep] = useState<string>("");
   const [kanbanCardOrder, setKanbanCardOrder] = useState<Record<string, string[]>>({}); // Custom card order per column
   const [recentSearches, setRecentSearches] = useState<string[]>(() => {
     const saved = localStorage.getItem('clientDatabaseRecentSearches');
@@ -352,6 +355,58 @@ export default function ClientDatabase() {
     enabled: customers.length > 0,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Bulk update mutation for Pricing Tier and Sales Rep
+  const bulkUpdateMutation = useMutation({
+    mutationFn: async (data: { customerIds: string[]; pricingTier?: string; salesRepId?: string }) => {
+      const response = await apiRequest("POST", "/api/customers/bulk-update", data);
+      return response.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Bulk Update Complete",
+        description: data.message || `Updated ${data.updatedCount} customers`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      clearBulkSelection();
+      setShowBulkEditDialog(false);
+      setBulkEditPricingTier("");
+      setBulkEditSalesRep("");
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Bulk Update Failed",
+        description: error.message || "Failed to update customers",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleBulkEdit = () => {
+    if (bulkSelected.size === 0) return;
+    
+    const updateData: { customerIds: string[]; pricingTier?: string; salesRepId?: string } = {
+      customerIds: Array.from(bulkSelected),
+    };
+    
+    if (bulkEditPricingTier) {
+      updateData.pricingTier = bulkEditPricingTier;
+    }
+    if (bulkEditSalesRep) {
+      updateData.salesRepId = bulkEditSalesRep;
+    }
+    
+    if (!updateData.pricingTier && !updateData.salesRepId) {
+      toast({
+        title: "No Changes",
+        description: "Please select at least one field to update",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    bulkUpdateMutation.mutate(updateData);
+  };
   
   // Toggle card expansion
   const toggleCardExpansion = (customerId: string) => {
@@ -2595,6 +2650,23 @@ export default function ClientDatabase() {
                 <TooltipContent>Send email to selected clients</TooltipContent>
               </Tooltip>
             </TooltipProvider>
+            {isAdmin && (
+              <TooltipProvider>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <Button 
+                      size="sm" 
+                      className="gap-1 bg-purple-600 hover:bg-purple-700 text-white"
+                      onClick={() => setShowBulkEditDialog(true)}
+                      data-testid="button-bulk-edit"
+                    >
+                      <Edit className="h-3 w-3" /> Bulk Edit
+                    </Button>
+                  </TooltipTrigger>
+                  <TooltipContent>Edit Pricing Tier or Sales Rep for selected clients</TooltipContent>
+                </Tooltip>
+              </TooltipProvider>
+            )}
             {bulkSelected.size === 2 && isAdmin && (
               <TooltipProvider>
                 <Tooltip>
@@ -3121,6 +3193,76 @@ export default function ClientDatabase() {
           )}
         </CardContent>
       </Card>
+
+      {/* Bulk Edit Dialog */}
+      <Dialog open={showBulkEditDialog} onOpenChange={(open) => {
+        setShowBulkEditDialog(open);
+        if (!open) {
+          setBulkEditPricingTier("");
+          setBulkEditSalesRep("");
+        }
+      }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Edit className="h-5 w-5 text-purple-600" />
+              Bulk Edit Clients
+            </DialogTitle>
+            <DialogDescription>
+              Update {bulkSelected.size} selected client{bulkSelected.size > 1 ? 's' : ''}. Leave a field empty to keep existing values.
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="bulkPricingTier">Pricing Tier</Label>
+              <Select value={bulkEditPricingTier} onValueChange={setBulkEditPricingTier}>
+                <SelectTrigger id="bulkPricingTier">
+                  <SelectValue placeholder="Select pricing tier..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Keep Existing --</SelectItem>
+                  {PRICING_TIERS.map(tier => (
+                    <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            
+            <div className="space-y-2">
+              <Label htmlFor="bulkSalesRep">Sales Rep</Label>
+              <Select value={bulkEditSalesRep} onValueChange={setBulkEditSalesRep}>
+                <SelectTrigger id="bulkSalesRep">
+                  <SelectValue placeholder="Select sales rep..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">-- Keep Existing --</SelectItem>
+                  {apiUsers
+                    .filter(u => u.role === 'sales' || u.role === 'admin')
+                    .map(user => (
+                      <SelectItem key={user.id} value={user.id}>
+                        {user.displayName || user.email}
+                      </SelectItem>
+                    ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowBulkEditDialog(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleBulkEdit}
+              disabled={bulkUpdateMutation.isPending || (!bulkEditPricingTier && !bulkEditSalesRep)}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              {bulkUpdateMutation.isPending ? 'Updating...' : `Update ${bulkSelected.size} Client${bulkSelected.size > 1 ? 's' : ''}`}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Side-by-Side Merge Dialog */}
       <Dialog open={showMergeDialog} onOpenChange={(open) => {
