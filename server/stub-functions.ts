@@ -658,8 +658,8 @@ export async function generatePriceListHTML(data: any): Promise<string> {
       
       return `
       <tr style="background-color: ${index % 2 === 0 ? '#ffffff' : '#f5f5f5'}; border-bottom: 1px solid #ddd;">
-        <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; font-size: 9px; border-left: 1px solid #ccc;">${row.size || 'N/A'}</td>
-        <td style="font-family: 'Roboto Mono', 'Courier New', monospace; padding: 6px 8px; text-align: center; font-size: 9px; font-weight: 500;">${row.itemCode || '-'}</td>
+        <td style="font-family: 'Roboto Mono', 'Courier New', monospace; padding: 6px 8px; font-size: 9px; font-weight: 500; border-left: 1px solid #ccc;">${row.itemCode || '-'}</td>
+        <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; font-size: 9px;">${row.size || 'N/A'}</td>
         <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; text-align: center; font-size: 9px;">${minQtyValue}</td>
         <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; text-align: right; font-size: 9px;">$${pricePerSheet.toFixed(2)}</td>
         <td style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 6px 8px; text-align: right; font-size: 9px; font-weight: 600; border-right: 1px solid #ccc;">$${pricePerPack.toFixed(2)}</td>
@@ -677,11 +677,11 @@ export async function generatePriceListHTML(data: any): Promise<string> {
               </th>
             </tr>
             <tr style="background: #e8e8e8;">
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: left; font-size: 9px; width: 25%;">Size</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: center; font-size: 9px; width: 25%;">Product Code</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: center; font-size: 9px; width: 15%;">Packing/Carton</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 15%;">Price/Sheet</th>
-              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 20%;">Price/Pack</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: left; font-size: 9px; width: 25%;">Product Code</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: left; font-size: 9px; width: 20%;">Size</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: center; font-size: 9px; width: 15%;">Packing</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 18%;">Price/Sheet</th>
+              <th style="font-family: 'Roboto', 'Helvetica Neue', Helvetica, Arial, sans-serif; padding: 8px; border: 1px solid #ccc; color: #333; font-weight: 600; text-align: right; font-size: 9px; width: 22%;">Price/Pack</th>
             </tr>
           </thead>
           <tbody>
