@@ -2554,3 +2554,67 @@ export const insertApiCostLogSchema = createInsertSchema(apiCostLogs).omit({
 });
 export type ApiCostLog = typeof apiCostLogs.$inferSelect;
 export type InsertApiCostLog = z.infer<typeof insertApiCostLogSchema>;
+
+// Now Mode Coaching Moments - single-focus coaching stream
+export const MOMENT_OUTCOMES = ['called', 'emailed', 'no_answer', 'pause', 'completed', 'skipped'] as const;
+export type MomentOutcome = typeof MOMENT_OUTCOMES[number];
+
+export const MOMENT_ACTIONS = {
+  follow_up_quote: { label: 'Follow Up on Quote', icon: 'phone', category: 'sales' },
+  follow_up_sample: { label: 'Follow Up on Sample', icon: 'package', category: 'samples' },
+  check_reorder: { label: 'Check Reorder Status', icon: 'refresh-cw', category: 'retention' },
+  win_back: { label: 'Win Back Customer', icon: 'heart', category: 'retention' },
+  send_sample: { label: 'Send Sample', icon: 'package', category: 'samples' },
+  send_quote: { label: 'Send Quote', icon: 'file-text', category: 'sales' },
+  confirm_machine: { label: 'Confirm Machine Type', icon: 'settings', category: 'data' },
+  schedule_call: { label: 'Schedule a Call', icon: 'calendar', category: 'sales' },
+  check_feedback: { label: 'Check Sample Feedback', icon: 'message-circle', category: 'samples' },
+  introduce_category: { label: 'Introduce New Category', icon: 'layers', category: 'expansion' },
+} as const;
+export type MomentAction = keyof typeof MOMENT_ACTIONS;
+
+export const coachingMoments = pgTable("coaching_moments", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  assignedTo: varchar("assigned_to").notNull().references(() => users.id, { onDelete: "cascade" }),
+  action: varchar("action", { length: 100 }).notNull(),
+  whyNow: text("why_now").notNull(),
+  priority: integer("priority").notNull().default(50),
+  scheduledFor: timestamp("scheduled_for").notNull().defaultNow(),
+  status: varchar("status", { length: 20 }).notNull().default("pending"),
+  outcome: varchar("outcome", { length: 50 }),
+  outcomeNotes: text("outcome_notes"),
+  completedAt: timestamp("completed_at"),
+  sourceType: varchar("source_type", { length: 50 }),
+  sourceId: integer("source_id"),
+  nextMomentId: integer("next_moment_id"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => ({
+  assignedToIdx: index("coaching_moments_assigned_to_idx").on(table.assignedTo),
+  statusIdx: index("coaching_moments_status_idx").on(table.status),
+  scheduledForIdx: index("coaching_moments_scheduled_for_idx").on(table.scheduledFor),
+  customerIdx: index("coaching_moments_customer_id_idx").on(table.customerId),
+}));
+
+export const insertCoachingMomentSchema = createInsertSchema(coachingMoments).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type CoachingMoment = typeof coachingMoments.$inferSelect;
+export type InsertCoachingMoment = z.infer<typeof insertCoachingMomentSchema>;
+
+// Daily Moment Caps - track moments per rep per day
+export const dailyMomentCaps = pgTable("daily_moment_caps", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  dateKey: varchar("date_key", { length: 10 }).notNull(),
+  momentsCompleted: integer("moments_completed").default(0),
+  momentsCap: integer("moments_cap").default(6),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  userDateIdx: index("daily_moment_caps_user_date_idx").on(table.userId, table.dateKey),
+}));
+
+export type DailyMomentCap = typeof dailyMomentCaps.$inferSelect;
