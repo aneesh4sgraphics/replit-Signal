@@ -15842,6 +15842,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       const dateKey = new Date().toISOString().split('T')[0];
       const stats = await storage.getDailyStats(userId, dateKey);
       const targetTasks = DAILY_CAP + stats.skipped;
+      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
+      const requiredCalls = 2;
+      const callsRemaining = Math.max(0, requiredCalls - stats.calls);
       
       if (!moment) {
         return res.json({ 
@@ -15852,7 +15855,10 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
           dailyCap: DAILY_CAP,
           targetTasks,
           allDone: stats.completed >= targetTasks,
-          message: stats.completed >= targetTasks ? "All done for today! Great work!" : "No moments available right now"
+          message: stats.completed >= targetTasks ? "All done for today! Great work!" : "No moments available right now",
+          efficiencyScore,
+          callsToday: stats.calls,
+          callsRemaining,
         });
       }
 
@@ -15877,6 +15883,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         dailyCap: DAILY_CAP,
         targetTasks,
         remaining: Math.max(0, targetTasks - stats.completed),
+        efficiencyScore,
+        callsToday: stats.calls,
+        callsRemaining,
       });
     } catch (error) {
       console.error("Error getting current moment:", error);

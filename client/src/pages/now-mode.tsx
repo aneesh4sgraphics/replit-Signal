@@ -17,10 +17,28 @@ import {
   Clock,
   Zap,
   Trophy,
-  Sparkles
+  Sparkles,
+  SkipForward,
+  AlertCircle,
+  MapPin,
+  Tag,
+  Send,
+  BookOpen,
+  TestTube,
+  FileText,
+  Gauge,
+  RefreshCw,
+  Heart,
+  Settings,
+  Calendar,
+  MessageCircle,
+  Layers,
+  Package,
+  LucideIcon
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 interface Customer {
   id: string;
@@ -46,19 +64,31 @@ interface NowModeResponse {
   remaining: number;
   allDone?: boolean;
   message?: string;
+  efficiencyScore?: number;
+  callsToday?: number;
+  callsRemaining?: number;
 }
 
-const MOMENT_ACTIONS: Record<string, { label: string; icon: string }> = {
-  follow_up_quote: { label: 'Follow Up on Quote', icon: 'phone' },
-  follow_up_sample: { label: 'Follow Up on Sample', icon: 'package' },
-  check_reorder: { label: 'Check Reorder Status', icon: 'refresh-cw' },
-  win_back: { label: 'Win Back Customer', icon: 'heart' },
-  send_sample: { label: 'Send Sample', icon: 'package' },
-  send_quote: { label: 'Send Quote', icon: 'file-text' },
-  confirm_machine: { label: 'Confirm Machine Type', icon: 'settings' },
-  schedule_call: { label: 'Schedule a Call', icon: 'calendar' },
-  check_feedback: { label: 'Check Sample Feedback', icon: 'message-circle' },
-  introduce_category: { label: 'Introduce New Category', icon: 'layers' },
+const MOMENT_ACTIONS: Record<string, { label: string; Icon: LucideIcon; color: string }> = {
+  update_customer_data: { label: 'Update Customer Information', Icon: User, color: '#0D6EFD' },
+  sync_address: { label: 'Sync Address from Odoo', Icon: MapPin, color: '#17A2B8' },
+  sync_email: { label: 'Sync Email from Odoo', Icon: Mail, color: '#17A2B8' },
+  identify_no_contact: { label: 'Identify No-Contact Customer', Icon: AlertCircle, color: '#FD7E14' },
+  send_marketing_email: { label: 'Send Marketing Email', Icon: Send, color: '#28A745' },
+  send_swatchbook: { label: 'Send Swatchbook', Icon: BookOpen, color: '#6F42C1' },
+  send_press_test: { label: 'Send Press Test', Icon: TestTube, color: '#D63384' },
+  send_price_list: { label: 'Send Price List', Icon: FileText, color: '#0D6EFD' },
+  follow_up_quote: { label: 'Follow Up on Quote', Icon: Phone, color: '#28A745' },
+  follow_up_sample: { label: 'Follow Up on Sample', Icon: Package, color: '#6F42C1' },
+  daily_call: { label: 'Daily Call', Icon: Phone, color: '#28A745' },
+  check_reorder: { label: 'Check Reorder Status', Icon: RefreshCw, color: '#17A2B8' },
+  win_back: { label: 'Win Back Customer', Icon: Heart, color: '#DC3545' },
+  send_sample: { label: 'Send Sample', Icon: Package, color: '#6F42C1' },
+  send_quote: { label: 'Send Quote', Icon: FileText, color: '#0D6EFD' },
+  confirm_machine: { label: 'Confirm Machine Type', Icon: Settings, color: '#FD7E14' },
+  schedule_call: { label: 'Schedule a Call', Icon: Calendar, color: '#6F42C1' },
+  check_feedback: { label: 'Check Sample Feedback', Icon: MessageCircle, color: '#17A2B8' },
+  introduce_category: { label: 'Introduce New Category', Icon: Layers, color: '#6F42C1' },
 };
 
 export default function NowMode() {
@@ -79,12 +109,37 @@ export default function NowMode() {
       setNotes("");
       setShowNotes(false);
       queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/efficiency"] });
       refetch();
     },
     onError: (error) => {
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to complete moment",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const skipMutation = useMutation({
+    mutationFn: async ({ momentId }: { momentId: number }) => {
+      return apiRequest("POST", "/api/now-mode/complete", { momentId, outcome: 'skipped' });
+    },
+    onSuccess: () => {
+      setNotes("");
+      setShowNotes(false);
+      toast({
+        title: "Skipped",
+        description: "Task skipped. A new task has been added to maintain your daily target.",
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/efficiency"] });
+      refetch();
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to skip moment",
         variant: "destructive",
       });
     },
@@ -97,6 +152,11 @@ export default function NowMode() {
       outcome,
       notes: notes || undefined,
     });
+  };
+
+  const handleSkip = () => {
+    if (!data?.moment) return;
+    skipMutation.mutate({ momentId: data.moment.id });
   };
 
   const progress = data && data.dailyCap > 0 ? (data.completed / data.dailyCap) * 100 : 0;
@@ -213,7 +273,8 @@ export default function NowMode() {
   }
 
   const moment = data.moment;
-  const actionInfo = MOMENT_ACTIONS[moment.action] || { label: moment.action, icon: 'zap' };
+  const actionInfo = MOMENT_ACTIONS[moment.action] || { label: moment.action, Icon: Zap, color: '#6F42C1' };
+  const ActionIcon = actionInfo.Icon;
 
   return (
     <div style={{
@@ -229,11 +290,67 @@ export default function NowMode() {
               Back
             </Button>
           </Link>
-          <div style={{ textAlign: 'right' }}>
-            <div style={{ fontSize: '14px', fontWeight: 600, color: '#2C2C54' }}>
-              {data.completed} / {data.dailyCap}
+          <div style={{ display: 'flex', alignItems: 'center', gap: '16px' }}>
+            {/* Efficiency Score Badge */}
+            {data.efficiencyScore !== undefined && (
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <div style={{
+                    display: 'flex',
+                    alignItems: 'center',
+                    gap: '6px',
+                    padding: '6px 12px',
+                    borderRadius: '20px',
+                    background: data.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.1)' : 
+                               data.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.1)' : 
+                               'rgba(220, 53, 69, 0.1)',
+                    border: `1px solid ${data.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.3)' : 
+                                         data.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.3)' : 
+                                         'rgba(220, 53, 69, 0.3)'}`,
+                    cursor: 'pointer',
+                  }}>
+                    <Gauge size={16} style={{ 
+                      color: data.efficiencyScore >= 80 ? '#28A745' : 
+                             data.efficiencyScore >= 50 ? '#FFC107' : '#DC3545' 
+                    }} />
+                    <span style={{
+                      fontSize: '13px',
+                      fontWeight: 600,
+                      color: data.efficiencyScore >= 80 ? '#28A745' : 
+                             data.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
+                    }}>
+                      {data.efficiencyScore}%
+                    </span>
+                  </div>
+                </TooltipTrigger>
+                <TooltipContent>
+                  <p>Your 7-day efficiency score</p>
+                </TooltipContent>
+              </Tooltip>
+            )}
+            {/* Daily Calls Tracker */}
+            {data.callsRemaining !== undefined && data.callsRemaining > 0 && (
+              <div style={{
+                display: 'flex',
+                alignItems: 'center',
+                gap: '6px',
+                padding: '6px 12px',
+                borderRadius: '20px',
+                background: 'rgba(40, 167, 69, 0.1)',
+                border: '1px solid rgba(40, 167, 69, 0.3)',
+              }}>
+                <Phone size={14} style={{ color: '#28A745' }} />
+                <span style={{ fontSize: '12px', fontWeight: 600, color: '#28A745' }}>
+                  {data.callsRemaining} calls left
+                </span>
+              </div>
+            )}
+            <div style={{ textAlign: 'right' }}>
+              <div style={{ fontSize: '14px', fontWeight: 600, color: '#2C2C54' }}>
+                {data.completed} / {data.dailyCap}
+              </div>
+              <div style={{ fontSize: '12px', color: '#6B6B8C' }}>tasks today</div>
             </div>
-            <div style={{ fontSize: '12px', color: '#6B6B8C' }}>moments today</div>
           </div>
         </div>
 
@@ -399,6 +516,23 @@ export default function NowMode() {
                 <span style={{ fontSize: '14px', fontWeight: 600 }}>Pause</span>
               </Button>
             </div>
+
+            {/* Skip Button - adds replacement task */}
+            <Button
+              onClick={handleSkip}
+              disabled={skipMutation.isPending || completeMutation.isPending}
+              variant="ghost"
+              style={{
+                width: '100%',
+                marginTop: '12px',
+                color: '#DC3545',
+                borderColor: 'rgba(220, 53, 69, 0.3)',
+                border: '1px solid rgba(220, 53, 69, 0.2)',
+              }}
+            >
+              <SkipForward size={18} style={{ marginRight: '8px' }} />
+              Skip Task (adds replacement)
+            </Button>
 
             <Button
               variant="ghost"

@@ -217,13 +217,23 @@ export default function Dashboard() {
 
   const [showDormancyPopup, setShowDormancyPopup] = useState(false);
   const [dormancyDismissed, setDormancyDismissed] = useState(false);
+  const [lastDormancyCheck, setLastDormancyCheck] = useState<boolean | null>(null);
 
   // Show dormancy popup when user has been inactive for 3 hours
+  // Reset dismissed state when user becomes active again (to allow popup on next dormancy)
   useEffect(() => {
-    if (dormancyData?.isDormant && !dormancyDismissed) {
-      setShowDormancyPopup(true);
+    if (dormancyData?.isDormant !== undefined) {
+      // Reset dismissed state when user returns from dormancy (was dormant, now active)
+      if (lastDormancyCheck === true && !dormancyData.isDormant) {
+        setDormancyDismissed(false);
+      }
+      // Show popup when dormant and not dismissed
+      if (dormancyData.isDormant && !dormancyDismissed) {
+        setShowDormancyPopup(true);
+      }
+      setLastDormancyCheck(dormancyData.isDormant);
     }
-  }, [dormancyData?.isDormant, dormancyDismissed]);
+  }, [dormancyData?.isDormant, dormancyDismissed, lastDormancyCheck]);
 
   const openObjections = objections.filter(o => o.status === 'open').length;
 
