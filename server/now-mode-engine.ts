@@ -974,6 +974,236 @@ export class NowModeEngine {
         : "Day ended. Every bit of progress counts. See you tomorrow!"
     };
   }
+
+  // Admin Summary - brutally simple metrics
+  async getAdminSummary(days: number = 7): Promise<{
+    avgTasksPerRepPerDay: number;
+    skipRate: number;
+    avgTimeToFirstAction: string;
+    conversionByTaskType: Record<string, { total: number; converted: number; rate: number }>;
+    repCount: number;
+    totalSessions: number;
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startDateKey = startDate.toISOString().split('T')[0];
+
+    // Get all sessions in date range
+    const sessions = await db
+      .select()
+      .from(nowModeSessions)
+      .where(gte(nowModeSessions.dateKey, startDateKey));
+
+    if (sessions.length === 0) {
+      return {
+        avgTasksPerRepPerDay: 0,
+        skipRate: 0,
+        avgTimeToFirstAction: "N/A",
+        conversionByTaskType: {},
+        repCount: 0,
+        totalSessions: 0,
+      };
+    }
+
+    // Get all activities for conversion rates
+    const sessionIds = sessions.map(s => s.id);
+    const activities = await db
+      .select()
+      .from(nowModeActivities)
+      .where(sql`${nowModeActivities.sessionId} = ANY(${sessionIds})`);
+
+    // Calculate metrics - group by user+date for accurate averages
+    const userDays = new Map<string, { totalCompleted: number; totalSkips: number }>();
+    for (const session of sessions) {
+      const key = `${session.userId}-${session.dateKey}`;
+      if (!userDays.has(key)) {
+        userDays.set(key, { totalCompleted: 0, totalSkips: 0 });
+      }
+      const ud = userDays.get(key)!;
+      ud.totalCompleted += session.totalCompleted || 0;
+      ud.totalSkips += session.totalSkips || 0;
+    }
+    
+    const uniqueReps = new Set(sessions.map(s => s.userId));
+    const totalCompleted = sessions.reduce((sum, s) => sum + (s.totalCompleted || 0), 0);
+    const totalSkips = sessions.reduce((sum, s) => sum + (s.totalSkips || 0), 0);
+    const totalActions = totalCompleted + totalSkips;
+
+    // Avg tasks per rep per day (using user-day pairs for accurate calculation)
+    const avgTasksPerRepPerDay = userDays.size > 0 
+      ? Math.round((totalCompleted / userDays.size) * 10) / 10 
+      : 0;
+
+    // Skip rate
+    const skipRate = totalActions > 0 
+      ? Math.round((totalSkips / totalActions) * 1000) / 10 
+      : 0;
+
+    // Time to first action (from session start to first activity)
+    let totalMinutesToFirst = 0;
+    let sessionsWithActivity = 0;
+    for (const session of sessions) {
+      const firstActivity = activities.find(a => a.sessionId === session.id);
+      if (firstActivity && session.startedAt && firstActivity.completedAt) {
+        const start = new Date(session.startedAt);
+        const first = new Date(firstActivity.completedAt);
+        const minutes = Math.floor((first.getTime() - start.getTime()) / (1000 * 60));
+        if (minutes >= 0 && minutes < 120) { // Ignore outliers > 2 hours
+          totalMinutesToFirst += minutes;
+          sessionsWithActivity++;
+        }
+      }
+    }
+    const avgMinutes = sessionsWithActivity > 0 
+      ? Math.round(totalMinutesToFirst / sessionsWithActivity) 
+      : 0;
+    const avgTimeToFirstAction = avgMinutes > 0 ? `${avgMinutes} min` : "N/A";
+
+    // Conversion by task type (exclude skips from totals for accurate conversion rates)
+    const conversionByTaskType: Record<string, { total: number; converted: number; rate: number }> = {};
+    const highValueOutcomes = ['call_connected', 'voicemail_left', 'follow_up_scheduled', 'quote_sent', 'sample_sent', 'send_swatchbook', 'send_price_list'];
+    const skipOutcomes = ['skip', 'skipped'];
+    
+    for (const activity of activities) {
+      // Skip outcomes don't count toward conversion totals
+      if (skipOutcomes.includes(activity.outcome?.toLowerCase() || '')) continue;
+      
+      const bucket = activity.bucket || 'unknown';
+      if (!conversionByTaskType[bucket]) {
+        conversionByTaskType[bucket] = { total: 0, converted: 0, rate: 0 };
+      }
+      conversionByTaskType[bucket].total++;
+      if (highValueOutcomes.includes(activity.outcome)) {
+        conversionByTaskType[bucket].converted++;
+      }
+    }
+    
+    for (const bucket in conversionByTaskType) {
+      const data = conversionByTaskType[bucket];
+      data.rate = data.total > 0 ? Math.round((data.converted / data.total) * 100) : 0;
+    }
+
+    return {
+      avgTasksPerRepPerDay,
+      skipRate,
+      avgTimeToFirstAction,
+      conversionByTaskType,
+      repCount: uniqueReps.size,
+      totalSessions: sessions.length,
+    };
+  }
+
+  // Red Flag Report - patterns that need attention
+  async getRedFlags(days: number = 7): Promise<{
+    highActivityLowOutcome: Array<{ userId: string; email: string; avgTasks: number; conversionRate: number; recommendation: string }>;
+    lowActivity: Array<{ userId: string; email: string; avgTasks: number; daysActive: number; recommendation: string }>;
+  }> {
+    const startDate = new Date();
+    startDate.setDate(startDate.getDate() - days);
+    const startDateKey = startDate.toISOString().split('T')[0];
+
+    // Get all sessions with user info
+    const sessionsWithUsers = await db
+      .select({
+        session: nowModeSessions,
+        user: users,
+      })
+      .from(nowModeSessions)
+      .leftJoin(users, eq(nowModeSessions.userId, users.id))
+      .where(gte(nowModeSessions.dateKey, startDateKey));
+
+    // Group by user
+    const userStats: Record<string, {
+      email: string;
+      totalCompleted: number;
+      totalSkips: number;
+      daysActive: number;
+      sessionIds: number[];
+    }> = {};
+
+    for (const { session, user } of sessionsWithUsers) {
+      const userId = session.userId;
+      if (!userStats[userId]) {
+        userStats[userId] = {
+          email: user?.email || 'Unknown',
+          totalCompleted: 0,
+          totalSkips: 0,
+          daysActive: 0,
+          sessionIds: [],
+        };
+      }
+      userStats[userId].totalCompleted += session.totalCompleted || 0;
+      userStats[userId].totalSkips += session.totalSkips || 0;
+      userStats[userId].daysActive++;
+      userStats[userId].sessionIds.push(session.id);
+    }
+
+    // Get activities for conversion calculation
+    const allSessionIds = sessionsWithUsers.map(s => s.session.id);
+    const activities = allSessionIds.length > 0 
+      ? await db.select().from(nowModeActivities).where(sql`${nowModeActivities.sessionId} = ANY(${allSessionIds})`)
+      : [];
+
+    const highValueOutcomes = ['call_connected', 'voicemail_left', 'follow_up_scheduled', 'quote_sent', 'sample_sent', 'send_swatchbook', 'send_price_list'];
+
+    // Calculate per-user conversion (exclude skips for accurate rates)
+    const userConversions: Record<string, { total: number; converted: number }> = {};
+    const skipOutcomes = ['skip', 'skipped'];
+    
+    for (const activity of activities) {
+      // Skip outcomes don't count toward conversion
+      if (skipOutcomes.includes(activity.outcome?.toLowerCase() || '')) continue;
+      
+      const session = sessionsWithUsers.find(s => s.session.id === activity.sessionId);
+      if (!session) continue;
+      const userId = session.session.userId;
+      if (!userConversions[userId]) {
+        userConversions[userId] = { total: 0, converted: 0 };
+      }
+      userConversions[userId].total++;
+      if (highValueOutcomes.includes(activity.outcome)) {
+        userConversions[userId].converted++;
+      }
+    }
+
+    // Thresholds
+    const HIGH_ACTIVITY_THRESHOLD = DAILY_TARGET * 0.8; // 80% of target = 8 tasks/day
+    const LOW_OUTCOME_THRESHOLD = 20; // <20% conversion
+    const LOW_ACTIVITY_THRESHOLD = DAILY_TARGET * 0.4; // <40% of target = 4 tasks/day
+
+    const highActivityLowOutcome: Array<{ userId: string; email: string; avgTasks: number; conversionRate: number; recommendation: string }> = [];
+    const lowActivity: Array<{ userId: string; email: string; avgTasks: number; daysActive: number; recommendation: string }> = [];
+
+    for (const [userId, stats] of Object.entries(userStats)) {
+      const avgTasks = stats.daysActive > 0 ? Math.round((stats.totalCompleted / stats.daysActive) * 10) / 10 : 0;
+      const conversion = userConversions[userId] || { total: 0, converted: 0 };
+      const conversionRate = conversion.total > 0 ? Math.round((conversion.converted / conversion.total) * 100) : 0;
+
+      // High activity but low outcomes
+      if (avgTasks >= HIGH_ACTIVITY_THRESHOLD && conversionRate < LOW_OUTCOME_THRESHOLD) {
+        highActivityLowOutcome.push({
+          userId,
+          email: stats.email,
+          avgTasks,
+          conversionRate,
+          recommendation: "Coaching needed: high effort but low conversion. Review call scripts and objection handling.",
+        });
+      }
+
+      // Low activity
+      if (avgTasks < LOW_ACTIVITY_THRESHOLD && stats.daysActive >= 2) {
+        lowActivity.push({
+          userId,
+          email: stats.email,
+          avgTasks,
+          daysActive: stats.daysActive,
+          recommendation: "Workflow issue: not engaging with NOW MODE. Check for blockers or training gaps.",
+        });
+      }
+    }
+
+    return { highActivityLowOutcome, lowActivity };
+  }
 }
 
 export const nowModeEngine = new NowModeEngine();

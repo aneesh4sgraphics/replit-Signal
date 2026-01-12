@@ -16394,6 +16394,38 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // NOW MODE Admin Summary - brutally simple metrics
+  app.get("/api/now-mode/admin/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      const days = parseInt(req.query.days as string) || 7;
+      const summary = await nowModeEngine.getAdminSummary(days);
+      res.json(summary);
+    } catch (error) {
+      console.error("Error getting admin summary:", error);
+      res.status(500).json({ error: "Failed to get admin summary" });
+    }
+  });
+
+  // NOW MODE Admin Red Flags - patterns that need attention
+  app.get("/api/now-mode/admin/red-flags", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      const days = parseInt(req.query.days as string) || 7;
+      const redFlags = await nowModeEngine.getRedFlags(days);
+      res.json(redFlags);
+    } catch (error) {
+      console.error("Error getting red flags:", error);
+      res.status(500).json({ error: "Failed to get red flags" });
+    }
+  });
+
   app.post("/api/customers/:id/do-not-contact", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
