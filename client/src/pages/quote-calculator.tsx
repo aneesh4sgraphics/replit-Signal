@@ -128,8 +128,9 @@ export default function QuoteCalculator() {
   const [isCreatingOdooOrder, setIsCreatingOdooOrder] = useState(false);
   const [isCreatingShopifyDraft, setIsCreatingShopifyDraft] = useState(false);
   const [emailSelectDialogOpen, setEmailSelectDialogOpen] = useState(false);
-  const [emailSelectAction, setEmailSelectAction] = useState<'shopify' | 'odoo' | null>(null);
+  const [emailSelectAction, setEmailSelectAction] = useState<'set_primary' | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<string>('');
+  const [pendingCustomer, setPendingCustomer] = useState<Customer | null>(null);
   const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([
     { id: 'cc', type: 'credit_card', label: 'Credit Card Fee (4.5%)', odooProductCode: 'CC-FEE', amount: 0, enabled: true, percentage: 4.5 },
     { id: 'ship', type: 'shipping', label: 'Shipping Cost', odooProductCode: 'SHIPPING', amount: 55, enabled: true },
@@ -807,7 +808,81 @@ export default function QuoteCalculator() {
     return emails;
   };
 
-  // Check if customer has multiple emails and prompt selection if needed
+  // Handle customer selection - check for multiple emails and prompt if needed
+  const handleCustomerSelect = (customer: Customer | null) => {
+    if (!customer) {
+      setSelectedCustomer(null);
+      return;
+    }
+
+    const emails = getCustomerEmails(customer);
+    if (emails.length > 1) {
+      // Customer has multiple emails - prompt user to select primary
+      setPendingCustomer(customer);
+      setSelectedEmail(customer.email || emails[0]);
+      setEmailSelectAction('set_primary');
+      setEmailSelectDialogOpen(true);
+    } else {
+      // Single email or no email - just select directly
+      setSelectedCustomer(customer);
+    }
+  };
+
+  // Handle email selection confirmation - update customer's primary email in database
+  const handleEmailSelectConfirm = async () => {
+    setEmailSelectDialogOpen(false);
+    
+    if (emailSelectAction === 'set_primary' && pendingCustomer) {
+      const currentPrimary = pendingCustomer.email;
+      const currentSecondary = pendingCustomer.email2;
+      
+      // If user selected a different email than current primary, swap them
+      if (selectedEmail !== currentPrimary && selectedEmail === currentSecondary) {
+        try {
+          // Update customer in database - swap email and email2
+          const response = await fetch(`/api/customers/${pendingCustomer.id}`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+            body: JSON.stringify({
+              email: currentSecondary,  // Make selected (secondary) the new primary
+              email2: currentPrimary,   // Move old primary to secondary
+            }),
+          });
+
+          if (response.ok) {
+            const updatedCustomer = await response.json();
+            setSelectedCustomer(updatedCustomer);
+            queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+            toast({
+              title: "Primary Email Updated",
+              description: `${selectedEmail} is now the primary email for this customer`,
+            });
+          } else {
+            // If update fails, still use customer but with original email order
+            setSelectedCustomer(pendingCustomer);
+            toast({
+              title: "Note",
+              description: "Could not update primary email, using original order",
+              variant: "destructive",
+            });
+          }
+        } catch (error) {
+          console.error('Error updating customer email:', error);
+          setSelectedCustomer(pendingCustomer);
+        }
+      } else {
+        // User kept the current primary - just set the customer
+        setSelectedCustomer(pendingCustomer);
+      }
+      
+      setPendingCustomer(null);
+    }
+    
+    setEmailSelectAction(null);
+  };
+
+  // Handle Shopify draft click - uses primary email directly (already selected during customer selection)
   const handleShopifyDraftClick = () => {
     if (!selectedCustomer) {
       toast({
@@ -826,21 +901,8 @@ export default function QuoteCalculator() {
       return;
     }
 
-    const emails = getCustomerEmails(selectedCustomer);
-    console.log('DEBUG handleShopifyDraftClick - selectedCustomer:', selectedCustomer);
-    console.log('DEBUG handleShopifyDraftClick - email:', selectedCustomer.email, 'email2:', selectedCustomer.email2);
-    console.log('DEBUG handleShopifyDraftClick - emails array:', emails);
-    
-    if (emails.length > 1) {
-      console.log('DEBUG: Multiple emails detected, opening dialog');
-      setSelectedEmail(emails[0]);
-      setEmailSelectAction('shopify');
-      setEmailSelectDialogOpen(true);
-    } else {
-      console.log('DEBUG: Single email, proceeding directly');
-      setSelectedEmail(emails[0] || '');
-      handleCreateShopifyDraft(emails[0] || '');
-    }
+    // Use the primary email directly (user already selected during customer selection)
+    handleCreateShopifyDraft(selectedCustomer.email);
   };
 
   const handleOdooOrderClick = () => {
@@ -869,24 +931,8 @@ export default function QuoteCalculator() {
       return;
     }
 
-    const emails = getCustomerEmails(selectedCustomer);
-    if (emails.length > 1) {
-      setSelectedEmail(emails[0]);
-      setEmailSelectAction('odoo');
-      setEmailSelectDialogOpen(true);
-    } else {
-      handleCreateOdooOrder();
-    }
-  };
-
-  const handleEmailSelectConfirm = () => {
-    setEmailSelectDialogOpen(false);
-    if (emailSelectAction === 'shopify') {
-      handleCreateShopifyDraft(selectedEmail);
-    } else if (emailSelectAction === 'odoo') {
-      handleCreateOdooOrder();
-    }
-    setEmailSelectAction(null);
+    // Use the primary email directly (user already selected during customer selection)
+    handleCreateOdooOrder();
   };
 
   const handleCreateOdooOrder = async () => {
@@ -1378,7 +1424,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
             </h3>
             <SearchableCustomerSelect
               selectedCustomer={selectedCustomer}
-              onCustomerSelect={setSelectedCustomer}
+              onCustomerSelect={handleCustomerSelect}
               placeholder="Search by name, company, or email"
               className="w-full rounded-md border border-gray-300 px-4 py-2 text-sm focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
@@ -2524,13 +2570,13 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
       <Dialog open={emailSelectDialogOpen} onOpenChange={setEmailSelectDialogOpen}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
-            <DialogTitle>Select Email Address</DialogTitle>
+            <DialogTitle>Select Primary Email</DialogTitle>
             <DialogDescription>
-              This customer has multiple email addresses. Please select which email to use for {emailSelectAction === 'shopify' ? 'the Shopify draft order' : 'the Odoo sales order'}.
+              This customer has multiple email addresses. Please select which email to use as the primary email for Shopify drafts and Odoo orders.
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-3 py-4">
-            {selectedCustomer && getCustomerEmails(selectedCustomer).map((email, index) => (
+            {pendingCustomer && getCustomerEmails(pendingCustomer).map((email, index) => (
               <label
                 key={email}
                 className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
@@ -2550,7 +2596,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                 <div className="flex-1">
                   <span className="font-medium text-gray-900">{email}</span>
                   {index === 0 && (
-                    <span className="ml-2 text-xs text-gray-500">(Primary)</span>
+                    <span className="ml-2 text-xs text-gray-500">(Current Primary)</span>
                   )}
                   {index === 1 && (
                     <span className="ml-2 text-xs text-gray-500">(Secondary)</span>
@@ -2560,11 +2606,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
             ))}
           </div>
           <DialogFooter>
-            <Button variant="outline" onClick={() => setEmailSelectDialogOpen(false)}>
+            <Button variant="outline" onClick={() => { setEmailSelectDialogOpen(false); setPendingCustomer(null); }}>
               Cancel
             </Button>
             <Button onClick={handleEmailSelectConfirm} disabled={!selectedEmail}>
-              Continue
+              Set as Primary
             </Button>
           </DialogFooter>
         </DialogContent>
