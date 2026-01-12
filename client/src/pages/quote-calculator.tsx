@@ -926,14 +926,8 @@ export default function QuoteCalculator() {
     setIsCreatingShopifyDraft(true);
 
     try {
-      // Get shipping cost from additional charges
-      const shippingCharge = additionalCharges.find(c => c.type === 'shipping' && c.enabled);
-      const shippingCost = shippingCharge?.amount || 0;
-
-      // Get other charges (like CC fee)
-      const otherCharges = additionalCharges.filter(c => c.type !== 'shipping' && c.enabled && c.amount > 0);
-
       // Build line items with SKU, price per packet (pricePerSheet), and quantity
+      // Note: Shipping and CC fees are not sent to Shopify draft - those are handled separately in Shopify
       const lineItems = quoteItems.map(item => ({
         itemCode: item.itemCode, // SKU for matching
         productName: item.productName,
@@ -952,8 +946,6 @@ export default function QuoteCalculator() {
           customerId: String(selectedCustomer.id),
           customerName: selectedCustomer.company || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`,
           lineItems,
-          shippingCost,
-          additionalCharges: otherCharges,
           note: `QuickQuote for ${selectedCustomer.company || selectedCustomer.email}`,
         }),
       });

@@ -14057,7 +14057,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Shopify not configured. Please add SHOPIFY_ACCESS_TOKEN and SHOPIFY_STORE_DOMAIN to your secrets." });
       }
 
-      const { quoteNumber, customerEmail, customerId, customerName, lineItems, note, shippingCost, additionalCharges } = req.body;
+      const { quoteNumber, customerEmail, customerId, customerName, lineItems, note } = req.body;
 
       if (!lineItems || lineItems.length === 0) {
         return res.status(400).json({ error: "At least one line item is required" });
@@ -14190,30 +14190,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           });
           if (sku) {
             unmappedItems.push(`${itemTitle} (SKU: ${sku})`);
-          }
-        }
-      }
-
-      // Add shipping as a line item if provided
-      if (shippingCost && shippingCost > 0) {
-        shopifyLineItems.push({
-          title: 'Shipping',
-          price: String(shippingCost.toFixed(2)),
-          quantity: 1,
-          taxable: false,
-        });
-      }
-
-      // Add additional charges (like CC fee) as line items if provided
-      if (additionalCharges && Array.isArray(additionalCharges)) {
-        for (const charge of additionalCharges) {
-          if (charge.enabled && charge.amount > 0) {
-            shopifyLineItems.push({
-              title: charge.label || charge.type || 'Additional Charge',
-              price: String(charge.amount.toFixed(2)),
-              quantity: 1,
-              taxable: false,
-            });
           }
         }
       }
