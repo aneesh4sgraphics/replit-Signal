@@ -982,36 +982,106 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               </div>
               {/* Contact Lines */}
               <div className="mt-1 space-y-0.5">
-                {/* Primary customer contact */}
-                {(customer.email || customer.phone) && (
-                  <div className="flex items-center gap-3 text-sm">
-                    <span className="text-gray-600 font-medium min-w-[100px] truncate">
-                      {`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary'}
-                    </span>
-                    {customer.email && (
-                      <button 
-                        onClick={() => openEmailComposer({
-                          to: customer.email!,
-                          customerId: customer.id,
-                          customerName: customerName,
-                          usageType: 'client_email',
-                          variables: { 'client.name': customerName, 'client.company': customer.company || '' }
-                        })}
-                        className="text-blue-600 hover:underline flex items-center gap-1"
-                        data-testid="btn-email-customer"
-                      >
-                        <Mail className="h-3 w-3" />
-                        {customer.email}
-                      </button>
-                    )}
-                    {customer.phone && (
-                      <a href={`tel:${customer.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
-                        <Phone className="h-3 w-3" />
-                        {customer.phone}
-                      </a>
-                    )}
-                  </div>
-                )}
+                {/* Primary customer contact with email dropdown */}
+                {(() => {
+                  const allEmails: { email: string; source: string }[] = [];
+                  if (customer.email) allEmails.push({ email: customer.email, source: 'Primary' });
+                  if ((customer as any).email2) allEmails.push({ email: (customer as any).email2, source: 'Secondary' });
+                  customerContacts.forEach(c => {
+                    if (c.email && !allEmails.find(e => e.email.toLowerCase() === c.email!.toLowerCase())) {
+                      allEmails.push({ email: c.email, source: c.name || 'Contact' });
+                    }
+                  });
+                  companyContacts.forEach(c => {
+                    if (c.email && c.id !== customer.id && !allEmails.find(e => e.email.toLowerCase() === c.email!.toLowerCase())) {
+                      allEmails.push({ email: c.email, source: `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Company' });
+                    }
+                  });
+                  
+                  const hasPrimaryOrPhone = customer.email || customer.phone;
+                  const hasAlternativeEmails = allEmails.length > 0;
+                  
+                  if (!hasPrimaryOrPhone && !hasAlternativeEmails) return null;
+                  
+                  return (
+                    <div className="flex items-center gap-3 text-sm">
+                      <span className="text-gray-600 font-medium min-w-[100px] truncate">
+                        {`${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Primary'}
+                      </span>
+                      {allEmails.length > 1 ? (
+                        <Popover>
+                          <PopoverTrigger asChild>
+                            <button className="text-blue-600 hover:underline flex items-center gap-1" data-testid="btn-email-dropdown">
+                              <Mail className="h-3 w-3" />
+                              {customer.email || <span className="text-amber-600 italic">No primary email</span>}
+                              <ChevronsUpDown className="h-3 w-3 ml-1 text-gray-400" />
+                            </button>
+                          </PopoverTrigger>
+                          <PopoverContent className="w-80 p-2" align="start">
+                            <div className="text-xs text-gray-500 mb-2 font-medium">Select Primary Email for Shopify/Odoo</div>
+                            <div className="space-y-1">
+                              {allEmails.map((item, idx) => (
+                                <button
+                                  key={idx}
+                                  onClick={() => {
+                                    if (item.email !== customer.email) {
+                                      fixEmailMutation.mutate(item.email);
+                                    }
+                                  }}
+                                  className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between hover:bg-gray-100 ${item.email === customer.email ? 'bg-blue-50 border border-blue-200' : ''}`}
+                                >
+                                  <div className="flex items-center gap-2">
+                                    <Mail className="h-3 w-3 text-gray-400" />
+                                    <span className="truncate">{item.email}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2">
+                                    <span className="text-xs text-gray-400">{item.source}</span>
+                                    {item.email === customer.email && <Check className="h-3 w-3 text-blue-600" />}
+                                  </div>
+                                </button>
+                              ))}
+                            </div>
+                          </PopoverContent>
+                        </Popover>
+                      ) : allEmails.length === 1 && !customer.email ? (
+                        <button
+                          onClick={() => fixEmailMutation.mutate(allEmails[0].email)}
+                          className="text-amber-600 hover:underline flex items-center gap-1"
+                          data-testid="btn-fix-email"
+                        >
+                          <AlertTriangle className="h-3 w-3" />
+                          Set {allEmails[0].email} as primary
+                        </button>
+                      ) : customer.email ? (
+                        <button 
+                          onClick={() => openEmailComposer({
+                            to: customer.email!,
+                            customerId: customer.id,
+                            customerName: customerName,
+                            usageType: 'client_email',
+                            variables: { 'client.name': customerName, 'client.company': customer.company || '' }
+                          })}
+                          className="text-blue-600 hover:underline flex items-center gap-1"
+                          data-testid="btn-email-customer"
+                        >
+                          <Mail className="h-3 w-3" />
+                          {customer.email}
+                        </button>
+                      ) : (
+                        <span className="text-amber-600 italic flex items-center gap-1">
+                          <AlertTriangle className="h-3 w-3" />
+                          No email address
+                        </span>
+                      )}
+                      {customer.phone && (
+                        <a href={`tel:${customer.phone}`} className="text-green-600 hover:underline flex items-center gap-1">
+                          <Phone className="h-3 w-3" />
+                          {customer.phone}
+                        </a>
+                      )}
+                    </div>
+                  );
+                })()}
                 {/* Company contacts */}
                 {companyContacts.filter(c => c.id !== customer.id).slice(0, 3).map(contact => (
                   <div key={contact.id} className="flex items-center gap-3 text-sm">

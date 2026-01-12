@@ -14050,6 +14050,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Validate SKUs against Shopify before creating draft order
+  app.post("/api/shopify/validate-skus", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!SHOPIFY_ACCESS_TOKEN || !SHOPIFY_STORE_DOMAIN) {
+        return res.json({ unmappedSkus: [] }); // Can't validate if Shopify not configured
+      }
+
+      const { skus } = req.body;
+      if (!skus || !Array.isArray(skus) || skus.length === 0) {
+        return res.json({ unmappedSkus: [] });
+      }
+
+      const axios = (await import('axios')).default;
+
+      // Get existing variant mappings from database
+      const allMappings = await db.select().from(shopifyVariantMappings)
+        .where(eq(shopifyVariantMappings.isActive, true));
+      
+      const mappingsBySku = new Map<string, boolean>();
+      for (const mapping of allMappings) {
+        if (mapping.itemCode) {
+          mappingsBySku.set(mapping.itemCode.trim().toLowerCase(), true);
+        }
+      }
+
+      // Fetch all Shopify variants with pagination
+      let shopifySkus = new Set<string>();
+      try {
+        let hasNextPage = true;
+        let cursor: string | null = null;
+        
+        while (hasNextPage) {
+          const graphqlQuery = `
+            {
+              productVariants(first: 250${cursor ? `, after: "${cursor}"` : ''}) {
+                edges {
+                  node {
+                    sku
+                  }
+                  cursor
+                }
+                pageInfo {
+                  hasNextPage
+                }
+              }
+            }
+          `;
+          
+          const graphqlResponse = await axios.post(
+            `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/graphql.json`,
+            { query: graphqlQuery },
+            {
+              headers: {
+                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+                'Content-Type': 'application/json',
+              },
+            }
+          );
+          
+          const data = graphqlResponse.data?.data?.productVariants;
+          const variants = data?.edges || [];
+          
+          for (const edge of variants) {
+            const sku = edge.node.sku;
+            if (sku) {
+              shopifySkus.add(sku.trim().toLowerCase());
+            }
+            cursor = edge.cursor;
+          }
+          
+          hasNextPage = data?.pageInfo?.hasNextPage || false;
+        }
+        
+        console.log(`[Shopify] SKU validation loaded ${shopifySkus.size} Shopify SKUs`);
+      } catch (err: any) {
+        console.error('[Shopify] Failed to fetch variants for SKU validation:', err.message);
+      }
+
+      // Check each SKU - only report as unmapped if not in database mappings AND not in Shopify
+      const unmappedSkus: string[] = [];
+      for (const sku of skus) {
+        const skuLower = sku.trim().toLowerCase();
+        const isMapped = mappingsBySku.has(skuLower) || shopifySkus.has(skuLower);
+        if (!isMapped) {
+          unmappedSkus.push(sku);
+        }
+      }
+
+      res.json({ unmappedSkus });
+    } catch (error: any) {
+      console.error("Error validating SKUs:", error);
+      res.json({ unmappedSkus: [] }); // On error, return empty to allow proceeding
+    }
+  });
+
   // Create Shopify draft order from QuickQuote
   app.post("/api/shopify/draft-orders", isAuthenticated, async (req: any, res) => {
     try {

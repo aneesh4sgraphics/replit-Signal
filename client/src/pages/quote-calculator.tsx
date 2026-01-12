@@ -130,6 +130,9 @@ export default function QuoteCalculator() {
   const [emailSelectDialogOpen, setEmailSelectDialogOpen] = useState(false);
   const [emailSelectAction, setEmailSelectAction] = useState<'set_primary' | 'fix_missing' | null>(null);
   const [selectedEmail, setSelectedEmail] = useState<string>('');
+  const [skuValidationDialogOpen, setSkuValidationDialogOpen] = useState(false);
+  const [unmappedSkus, setUnmappedSkus] = useState<{ sku: string; name: string }[]>([]);
+  const [isValidatingSkus, setIsValidatingSkus] = useState(false);
   const [pendingCustomer, setPendingCustomer] = useState<Customer | null>(null);
   const [availableContactEmails, setAvailableContactEmails] = useState<{ email: string; source: string }[]>([]);
   const [isLoadingContacts, setIsLoadingContacts] = useState(false);
@@ -975,8 +978,8 @@ export default function QuoteCalculator() {
     setEmailSelectAction(null);
   };
 
-  // Handle Shopify draft click - uses primary email directly (already selected during customer selection)
-  const handleShopifyDraftClick = () => {
+  // Handle Shopify draft click - validates SKUs first and shows warning if any are unmapped
+  const handleShopifyDraftClick = async () => {
     if (!selectedCustomer) {
       toast({
         title: "No Client Selected",
@@ -994,8 +997,43 @@ export default function QuoteCalculator() {
       return;
     }
 
-    // Use the primary email directly (user already selected during customer selection)
-    handleCreateShopifyDraft(selectedCustomer.email);
+    // Validate SKUs before creating draft order
+    setIsValidatingSkus(true);
+    try {
+      const skus = quoteItems.map(item => item.itemCode).filter(Boolean);
+      const response = await fetch('/api/shopify/validate-skus', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ skus }),
+      });
+      
+      const data = await response.json();
+      
+      if (data.unmappedSkus && data.unmappedSkus.length > 0) {
+        // Build list with product names for user-friendly display
+        const unmappedWithNames = data.unmappedSkus.map((sku: string) => {
+          const item = quoteItems.find(q => q.itemCode === sku);
+          return { sku, name: item?.productName || sku };
+        });
+        setUnmappedSkus(unmappedWithNames);
+        setSkuValidationDialogOpen(true);
+        return;
+      }
+      
+      // All SKUs mapped - proceed directly
+      handleCreateShopifyDraft(selectedCustomer.email);
+    } catch (error: any) {
+      console.error('SKU validation error:', error);
+      // On error, proceed anyway but warn user
+      toast({
+        title: "Warning",
+        description: "Could not validate SKU mappings. Proceeding anyway.",
+      });
+      handleCreateShopifyDraft(selectedCustomer.email);
+    } finally {
+      setIsValidatingSkus(false);
+    }
   };
 
   const handleOdooOrderClick = () => {
@@ -2621,16 +2659,16 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   </button>
                   <button
                     onClick={handleShopifyDraftClick}
-                    disabled={!selectedCustomer || isCreatingShopifyDraft || quoteItems.length === 0}
+                    disabled={!selectedCustomer || isCreatingShopifyDraft || isValidatingSkus || quoteItems.length === 0}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="btn-create-shopify-draft"
                   >
-                    {isCreatingShopifyDraft ? (
+                    {(isCreatingShopifyDraft || isValidatingSkus) ? (
                       <Loader2 className="h-4 w-4 animate-spin" />
                     ) : (
                       <ShoppingCart className="h-4 w-4" />
                     )}
-                    {isCreatingShopifyDraft ? 'Creating...' : 'Shopify Draft'}
+                    {isValidatingSkus ? 'Validating...' : isCreatingShopifyDraft ? 'Creating...' : 'Shopify Draft'}
                   </button>
                 </div>
                 
@@ -2658,6 +2696,62 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
           </div>
         </div>
       )}
+
+      {/* SKU Validation Warning Dialog */}
+      <Dialog open={skuValidationDialogOpen} onOpenChange={(open) => {
+        if (!open) {
+          setSkuValidationDialogOpen(false);
+          setUnmappedSkus([]);
+        }
+      }}>
+        <DialogContent className="sm:max-w-lg">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-amber-600">
+              <AlertTriangle className="h-5 w-5" />
+              Some Products Not Found in Shopify
+            </DialogTitle>
+            <DialogDescription>
+              The following products don't have matching SKUs in Shopify. They will be created as custom line items.
+              You may need to manually select the correct products in Shopify after the draft is created.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="py-4 max-h-60 overflow-y-auto">
+            <div className="space-y-2">
+              {unmappedSkus.map((item, idx) => (
+                <div key={idx} className="flex items-center gap-3 p-2 bg-amber-50 rounded border border-amber-200">
+                  <div className="flex-1">
+                    <div className="text-sm font-medium text-gray-900">{item.name}</div>
+                    <div className="text-xs text-gray-500">SKU: {item.sku}</div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </div>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setSkuValidationDialogOpen(false);
+                setUnmappedSkus([]);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={() => {
+                setSkuValidationDialogOpen(false);
+                setUnmappedSkus([]);
+                if (selectedCustomer) {
+                  handleCreateShopifyDraft(selectedCustomer.email);
+                }
+              }}
+              className="bg-amber-600 hover:bg-amber-700"
+            >
+              Proceed Anyway
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       {/* Email Selection Dialog */}
       <Dialog open={emailSelectDialogOpen} onOpenChange={(open) => {
