@@ -330,7 +330,17 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
       })
       .where(eq(gmailSyncState.userId, userId));
     
-    console.log(`[Gmail Sync] Completed for user ${userId}:`, stats);
+    console.log(`[Gmail Sync] Completed for user ${userId}:`, {
+      threadsFound: stats.threadsFound,
+      messagesProcessed: stats.messagesProcessed,
+      messagesStored: stats.messagesStored,
+      matchedToCustomers: stats.matchedToCustomers,
+      unmatchedCount: stats.unmatchedCount,
+      matchRate: stats.messagesStored > 0 
+        ? `${Math.round((stats.matchedToCustomers / stats.messagesStored) * 100)}%`
+        : '0%',
+      errors: stats.errors.length > 0 ? stats.errors.slice(0, 3) : 'none',
+    });
     
   } catch (error: any) {
     console.error('[Gmail Sync] Fatal error:', error.message);
