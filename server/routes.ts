@@ -15953,6 +15953,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         });
       }
 
+      // Log card served event (async, don't block response)
+      nowModeEngine.logCardServed(userId, card.customerId, card.cardType, card.bucket);
+      
       res.json({
         card: {
           customerId: card.customerId,
@@ -16211,6 +16214,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       const aheadOfYesterday = todayCompleted > yesterdayStats.completed;
       
       if (isDormant) {
+        // Log dormancy popup shown event
+        nowModeEngine.logDormancyPopupShown(userId);
+        
         if (aheadOfYesterday && todayCompleted > 0) {
           coachingMessage = `Long day? You've completed ${todayCompleted} actions today — that already puts you ahead of yesterday. Want to finish strong with 2 quick wins?`;
         } else if (todayCompleted > 0) {

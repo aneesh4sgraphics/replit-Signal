@@ -2971,3 +2971,59 @@ export const nowModeAdminReports = pgTable("now_mode_admin_reports", {
 }));
 
 export type NowModeAdminReport = typeof nowModeAdminReports.$inferSelect;
+
+// NOW MODE Event Types - granular interaction logging
+export const NOW_MODE_EVENT_TYPES = [
+  'now_card_served',          // Card displayed to rep
+  'now_action_completed',     // Action completed (with outcome)
+  'now_action_skipped',       // Action skipped (with reason)
+  'now_session_started',      // Session started
+  'now_session_paused',       // Session paused intentionally
+  'now_session_resumed',      // Session resumed after pause
+  'now_session_idle_popup_shown',   // Dormancy popup displayed
+  'now_session_idle_dismissed',     // Dormancy popup dismissed (took action)
+  'now_session_idle_ignored',       // Dormancy popup ignored (closed without action)
+  'now_session_day_closed',   // End-of-day closure completed
+] as const;
+export type NowModeEventType = typeof NOW_MODE_EVENT_TYPES[number];
+
+// NOW MODE Events - granular event logging for analytics
+export const nowModeEvents = pgTable("now_mode_events", {
+  id: serial("id").primaryKey(),
+  eventType: varchar("event_type", { length: 50 }).notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  sessionId: integer("session_id").references(() => nowModeSessions.id, { onDelete: "cascade" }),
+  // Optional context - not all events have a customer
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  // Task context
+  taskType: varchar("task_type", { length: 20 }), // calls, follow_ups, outreach, data_hygiene, enablement
+  bucket: varchar("bucket", { length: 20 }),
+  // Outcome context (for action events)
+  outcome: varchar("outcome", { length: 50 }),
+  skipReason: varchar("skip_reason", { length: 50 }),
+  // Timing metrics
+  timeToActionSeconds: integer("time_to_action_seconds"), // Seconds from card served to action taken
+  // Day tracking (for early habit formation analysis)
+  dayIndex: integer("day_index"), // Which day of usage (1-10+ for habit formation)
+  // Efficiency impact
+  efficiencyDelta: integer("efficiency_delta"), // Points gained/lost from this action
+  efficiencyAfter: integer("efficiency_after"), // Efficiency score after this event
+  // Additional context (JSON for flexibility)
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  // Timestamp
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index("now_mode_events_event_type_idx").on(table.eventType),
+  userIdx: index("now_mode_events_user_idx").on(table.userId),
+  sessionIdx: index("now_mode_events_session_idx").on(table.sessionId),
+  customerIdx: index("now_mode_events_customer_idx").on(table.customerId),
+  createdAtIdx: index("now_mode_events_created_at_idx").on(table.createdAt),
+  dayIndexIdx: index("now_mode_events_day_index_idx").on(table.dayIndex),
+}));
+
+export const insertNowModeEventSchema = createInsertSchema(nowModeEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type NowModeEvent = typeof nowModeEvents.$inferSelect;
+export type InsertNowModeEvent = z.infer<typeof insertNowModeEventSchema>;

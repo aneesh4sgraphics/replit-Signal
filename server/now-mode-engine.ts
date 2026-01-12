@@ -5,6 +5,7 @@ import {
   nowModeSessions, 
   nowModeActivities,
   nowModeAdminReports,
+  nowModeEvents,
   customerActivityEvents,
   customerJourney,
   coachingMoments,
@@ -16,9 +17,10 @@ import {
   type NowModeBucket,
   type CardOutcome,
   type NowModeSession,
+  type NowModeEventType,
   type InsertNowModeActivity,
 } from "@shared/schema";
-import { eq, and, or, isNull, lt, gt, gte, desc, sql, ne, lte } from "drizzle-orm";
+import { eq, and, or, isNull, lt, gt, gte, desc, asc, sql, ne, lte, count } from "drizzle-orm";
 
 const DAILY_TARGET = 10;
 const SKIP_PENALTY_THRESHOLD = 3;
@@ -75,6 +77,55 @@ export class NowModeEngine {
     return new Date().toISOString().split("T")[0];
   }
 
+  // Get user's day index (which day of NOW MODE usage, 1-indexed for habit formation tracking)
+  private async getUserDayIndex(userId: string): Promise<number> {
+    const [result] = await db
+      .select({ count: count() })
+      .from(nowModeSessions)
+      .where(eq(nowModeSessions.userId, userId));
+    return (result?.count || 0) + 1; // Current day is count + 1
+  }
+
+  // Log a NOW MODE event for analytics (runs async, doesn't block)
+  private async logEvent(
+    eventType: NowModeEventType,
+    userId: string,
+    options: {
+      sessionId?: number;
+      customerId?: string;
+      taskType?: string;
+      bucket?: string;
+      outcome?: string;
+      skipReason?: string;
+      timeToActionSeconds?: number;
+      efficiencyDelta?: number;
+      efficiencyAfter?: number;
+      metadata?: Record<string, any>;
+    } = {}
+  ): Promise<void> {
+    try {
+      const dayIndex = await this.getUserDayIndex(userId);
+      await db.insert(nowModeEvents).values({
+        eventType,
+        userId,
+        sessionId: options.sessionId || null,
+        customerId: options.customerId || null,
+        taskType: options.taskType || null,
+        bucket: options.bucket || null,
+        outcome: options.outcome || null,
+        skipReason: options.skipReason || null,
+        timeToActionSeconds: options.timeToActionSeconds || null,
+        dayIndex,
+        efficiencyDelta: options.efficiencyDelta || null,
+        efficiencyAfter: options.efficiencyAfter || null,
+        metadata: options.metadata || {},
+      });
+    } catch (error) {
+      // Log but don't throw - event logging should never break the main flow
+      console.error("[NOW MODE Event] Failed to log event:", eventType, error);
+    }
+  }
+
   async getOrCreateSession(userId: string): Promise<NowModeSession> {
     const dateKey = this.getTodayKey();
     
@@ -111,6 +162,12 @@ export class NowModeEngine {
         startedAt: new Date(),
       })
       .returning();
+    
+    // Log session started event
+    this.logEvent('now_session_started', userId, {
+      sessionId: session.id,
+      efficiencyAfter: 0,
+    });
     
     return session;
   }
@@ -752,6 +809,13 @@ export class NowModeEngine {
     }).where(eq(nowModeSessions.id, session.id));
 
     const updatedSession = await this.getOrCreateSession(userId);
+    
+    // Log pause event
+    this.logEvent('now_session_paused', userId, {
+      sessionId: session.id,
+      efficiencyAfter: updatedSession.efficiencyScore || 0,
+    });
+    
     return { success: true, session: updatedSession };
   }
 
@@ -767,6 +831,13 @@ export class NowModeEngine {
     }).where(eq(nowModeSessions.id, session.id));
 
     const updatedSession = await this.getOrCreateSession(userId);
+    
+    // Log resume event
+    this.logEvent('now_session_resumed', userId, {
+      sessionId: session.id,
+      efficiencyAfter: updatedSession.efficiencyScore || 0,
+    });
+    
     return { success: true, session: updatedSession };
   }
 
@@ -774,14 +845,34 @@ export class NowModeEngine {
   async recordDormancyIgnored(userId: string): Promise<void> {
     const session = await this.getOrCreateSession(userId);
     
+    const newEfficiency = this.calculateEfficiency({
+      ...session,
+      dormancyWarningsIgnored: (session.dormancyWarningsIgnored || 0) + 1,
+    });
+    
     await db.update(nowModeSessions).set({
       dormancyWarningsIgnored: (session.dormancyWarningsIgnored || 0) + 1,
-      efficiencyScore: this.calculateEfficiency({
-        ...session,
-        dormancyWarningsIgnored: (session.dormancyWarningsIgnored || 0) + 1,
-      }),
+      efficiencyScore: newEfficiency,
       updatedAt: new Date(),
     }).where(eq(nowModeSessions.id, session.id));
+    
+    // Log dormancy ignored event
+    this.logEvent('now_session_idle_ignored', userId, {
+      sessionId: session.id,
+      efficiencyDelta: EFFICIENCY_POINTS.dormancy_ignored,
+      efficiencyAfter: newEfficiency,
+    });
+  }
+  
+  // Record that user dismissed dormancy popup by taking action
+  async recordDormancyDismissed(userId: string): Promise<void> {
+    const session = await this.getOrCreateSession(userId);
+    
+    // Log dormancy dismissed event (took action)
+    this.logEvent('now_session_idle_dismissed', userId, {
+      sessionId: session.id,
+      efficiencyAfter: session.efficiencyScore || 0,
+    });
   }
 
   async checkDormancy(userId: string): Promise<{ isDormant: boolean; minutesSinceActivity: number; session: NowModeSession }> {
@@ -967,12 +1058,94 @@ export class NowModeEngine {
       updatedAt: new Date(),
     }).where(eq(nowModeSessions.id, session.id));
 
+    // Log day closed event
+    this.logEvent('now_session_day_closed', userId, {
+      sessionId: session.id,
+      efficiencyAfter: recap.efficiencyScore,
+      metadata: {
+        totalCompleted: recap.totalCompleted,
+        dailyTarget: recap.dailyTarget,
+        isComplete: recap.isComplete,
+      },
+    });
+
     return { 
       success: true, 
       message: recap.isComplete 
         ? "Day complete! Great work. Rest up for tomorrow."
         : "Day ended. Every bit of progress counts. See you tomorrow!"
     };
+  }
+  
+  // Log when a card is served to a rep (called from routes)
+  async logCardServed(
+    userId: string, 
+    customerId: string, 
+    cardType: string, 
+    bucket: string
+  ): Promise<void> {
+    const session = await this.getOrCreateSession(userId);
+    this.logEvent('now_card_served', userId, {
+      sessionId: session.id,
+      customerId,
+      taskType: bucket,
+      bucket,
+      efficiencyAfter: session.efficiencyScore || 0,
+      metadata: { cardType },
+    });
+  }
+  
+  // Log when an action is completed (called from routes)
+  async logActionCompleted(
+    userId: string,
+    customerId: string,
+    bucket: string,
+    outcome: string,
+    timeToActionSeconds: number,
+    efficiencyDelta: number,
+    newEfficiency: number
+  ): Promise<void> {
+    const session = await this.getOrCreateSession(userId);
+    this.logEvent('now_action_completed', userId, {
+      sessionId: session.id,
+      customerId,
+      taskType: bucket,
+      bucket,
+      outcome,
+      timeToActionSeconds,
+      efficiencyDelta,
+      efficiencyAfter: newEfficiency,
+    });
+  }
+  
+  // Log when an action is skipped (called from routes)
+  async logActionSkipped(
+    userId: string,
+    customerId: string,
+    bucket: string,
+    skipReason: string,
+    efficiencyDelta: number,
+    newEfficiency: number
+  ): Promise<void> {
+    const session = await this.getOrCreateSession(userId);
+    this.logEvent('now_action_skipped', userId, {
+      sessionId: session.id,
+      customerId,
+      taskType: bucket,
+      bucket,
+      skipReason,
+      efficiencyDelta,
+      efficiencyAfter: newEfficiency,
+    });
+  }
+  
+  // Log dormancy popup shown
+  async logDormancyPopupShown(userId: string): Promise<void> {
+    const session = await this.getOrCreateSession(userId);
+    this.logEvent('now_session_idle_popup_shown', userId, {
+      sessionId: session.id,
+      efficiencyAfter: session.efficiencyScore || 0,
+    });
   }
 
   // Admin Summary - brutally simple metrics
