@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Input } from "@/components/ui/input";
+import { Progress } from "@/components/ui/progress";
 import { 
   Link2, 
   CheckCircle, 
@@ -49,6 +50,11 @@ import type { ProductOdooMapping, OdooPriceSyncQueue } from "@shared/schema";
 export default function OdooSettingsPage() {
   const { toast } = useToast();
   const [partnerSearchTerm, setPartnerSearchTerm] = useState("");
+  
+  // Import progress tracking
+  const [importProgress, setImportProgress] = useState(0);
+  const [importStage, setImportStage] = useState<string>("");
+  const progressIntervalRef = useRef<NodeJS.Timeout | null>(null);
 
   const { data: connectionTest, refetch: testConnection, isFetching: testingConnection } = useQuery<{
     success: boolean;
@@ -102,8 +108,68 @@ export default function OdooSettingsPage() {
     queryKey: ['/api/odoo/sync-status'],
   });
 
+  // Start animated progress for import
+  const startImportProgress = (mode: 'add_new' | 'full_reset') => {
+    setImportProgress(0);
+    setImportStage(mode === 'full_reset' ? "Preparing full reset..." : "Connecting to Odoo...");
+    
+    // Simulate progress stages
+    const stages = mode === 'full_reset' 
+      ? [
+          { progress: 10, stage: "Clearing existing customers..." },
+          { progress: 25, stage: "Fetching partners from Odoo..." },
+          { progress: 50, stage: "Processing customer data..." },
+          { progress: 75, stage: "Saving to database..." },
+          { progress: 90, stage: "Finalizing import..." },
+        ]
+      : [
+          { progress: 15, stage: "Checking existing customers..." },
+          { progress: 30, stage: "Fetching partners from Odoo..." },
+          { progress: 55, stage: "Identifying new customers..." },
+          { progress: 75, stage: "Importing new customers..." },
+          { progress: 90, stage: "Finalizing import..." },
+        ];
+    
+    let stageIndex = 0;
+    progressIntervalRef.current = setInterval(() => {
+      if (stageIndex < stages.length) {
+        setImportProgress(stages[stageIndex].progress);
+        setImportStage(stages[stageIndex].stage);
+        stageIndex++;
+      }
+    }, 2000);
+  };
+
+  const stopImportProgress = (success: boolean) => {
+    if (progressIntervalRef.current) {
+      clearInterval(progressIntervalRef.current);
+      progressIntervalRef.current = null;
+    }
+    if (success) {
+      setImportProgress(100);
+      setImportStage("Import complete!");
+    } else {
+      setImportStage("Import failed");
+    }
+    // Reset after a delay
+    setTimeout(() => {
+      setImportProgress(0);
+      setImportStage("");
+    }, 3000);
+  };
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      if (progressIntervalRef.current) {
+        clearInterval(progressIntervalRef.current);
+      }
+    };
+  }, []);
+
   const importFromOdooMutation = useMutation({
     mutationFn: async (params: { importMode: 'add_new' | 'full_reset' }) => {
+      startImportProgress(params.importMode);
       const res = await apiRequest('POST', '/api/odoo/import/partners', { 
         importMode: params.importMode,
         deleteExisting: params.importMode === 'full_reset'
@@ -111,6 +177,7 @@ export default function OdooSettingsPage() {
       return res.json();
     },
     onSuccess: (data: any) => {
+      stopImportProgress(true);
       queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/partners'] });
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/sync-status'] });
@@ -130,6 +197,7 @@ export default function OdooSettingsPage() {
       });
     },
     onError: (error: any) => {
+      stopImportProgress(false);
       toast({ title: "Import failed", description: error.message, variant: "destructive" });
     },
   });
@@ -670,6 +738,23 @@ export default function OdooSettingsPage() {
                         </div>
                       )}
                     </div>
+
+                    {/* Import Progress Bar */}
+                    {importFromOdooMutation.isPending && (
+                      <div className="space-y-2 bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+                        <div className="flex items-center justify-between text-sm">
+                          <span className="font-medium text-blue-700 dark:text-blue-300 flex items-center gap-2">
+                            <RefreshCw className="h-4 w-4 animate-spin" />
+                            {importStage || "Importing..."}
+                          </span>
+                          <span className="text-blue-600 dark:text-blue-400">{importProgress}%</span>
+                        </div>
+                        <Progress value={importProgress} className="h-2" />
+                        <p className="text-xs text-blue-600 dark:text-blue-400">
+                          Importing {odooPartners.length} partners from Odoo. This may take a few minutes...
+                        </p>
+                      </div>
+                    )}
 
                     {/* Advanced: Full Reset Option (hidden by default for incremental users) */}
                     {syncStatus?.hasPreviousSync && (
