@@ -17,6 +17,12 @@ import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from './advisory-lock';
 
 const SYNC_DAYS = 30;
 
+export const FREE_EMAIL_PROVIDERS = new Set([
+  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com',
+  'live.com', 'msn.com', 'protonmail.com', 'mail.com', 'yandex.com', 'gmx.com',
+  'zoho.com', 'fastmail.com', 'tutanota.com', 'hey.com'
+]);
+
 interface SyncStats {
   threadsFound: number;
   messagesProcessed: number;
@@ -79,7 +85,7 @@ function extractEmailAddress(emailHeader: string): string {
   return match ? match[1].toLowerCase() : emailHeader.toLowerCase();
 }
 
-function extractDomain(email: string): string {
+export function extractDomain(email: string): string {
   const parts = email.split('@');
   return parts.length > 1 ? parts[1].toLowerCase() : '';
 }
@@ -133,7 +139,7 @@ function extractBodyText(payload: gmail_v1.Schema$MessagePart | undefined): stri
   return '';
 }
 
-async function matchEmailToCustomer(
+export async function matchEmailToCustomer(
   email: string, 
   domain: string
 ): Promise<{ customerId: string | null; matchType: string; confidence: number }> {
@@ -157,7 +163,7 @@ async function matchEmailToCustomer(
     return { customerId: customerEmailMatch[0].id, matchType: 'exact_email', confidence: 1.00 };
   }
   
-  if (domain && !['gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com'].includes(domain)) {
+  if (domain && !FREE_EMAIL_PROVIDERS.has(domain)) {
     const domainMatch = await db.select({ id: customers.id })
       .from(customers)
       .where(sql`LOWER(${customers.email}) LIKE ${'%@' + domain}`)

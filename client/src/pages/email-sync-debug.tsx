@@ -154,7 +154,10 @@ export default function EmailSyncDebug() {
         title: "Sync Complete",
         description: `Processed ${data.sync?.messagesProcessed || 0} messages, extracted ${data.eventsExtracted || 0} events, created ${data.tasksCreated || 0} tasks`,
       });
-      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/unmatched"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/sync-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/events/summary"] });
       refetchStatus();
     },
     onError: (error: any) => {
@@ -208,6 +211,31 @@ export default function EmailSyncDebug() {
       toast({
         title: "Enrichment Failed",
         description: error.message || "Failed to generate coaching tips",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const rematchMutation = useMutation({
+    mutationFn: () => apiRequest("/api/email-intelligence/rematch", { 
+      method: "POST",
+      body: JSON.stringify({ limit: 500 }) 
+    }),
+    onSuccess: (data: any) => {
+      toast({
+        title: "Re-match Complete",
+        description: `Matched ${data.matched || 0} emails, ignored ${data.ignored || 0} (free/internal), ${data.stillUnmatched || 0} still need manual linking`,
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/unmatched"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/sync-status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/events"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/events/summary"] });
+      refetchStatus();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Re-match Failed",
+        description: error.message || "Failed to re-match emails",
         variant: "destructive",
       });
     },
@@ -333,18 +361,32 @@ export default function EmailSyncDebug() {
           <h1 className="text-2xl font-bold">Email Intelligence - Sync Debug</h1>
           <p className="text-muted-foreground">Monitor Gmail sync, customer matching, and event extraction</p>
         </div>
-        <Button 
-          onClick={() => syncMutation.mutate()} 
-          disabled={syncMutation.isPending}
-          size="lg"
-        >
-          {syncMutation.isPending ? (
-            <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
-          ) : (
-            <RefreshCw className="h-4 w-4 mr-2" />
-          )}
-          Sync Last 30 Days
-        </Button>
+        <div className="flex gap-2">
+          <Button 
+            onClick={() => rematchMutation.mutate()} 
+            disabled={rematchMutation.isPending}
+            variant="outline"
+          >
+            {rematchMutation.isPending ? (
+              <Link2 className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <Link2 className="h-4 w-4 mr-2" />
+            )}
+            Re-match Unmatched
+          </Button>
+          <Button 
+            onClick={() => syncMutation.mutate()} 
+            disabled={syncMutation.isPending}
+            size="lg"
+          >
+            {syncMutation.isPending ? (
+              <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+            ) : (
+              <RefreshCw className="h-4 w-4 mr-2" />
+            )}
+            Sync Last 30 Days
+          </Button>
+        </div>
       </div>
 
       <div className="grid grid-cols-1 md:grid-cols-2 gap-6">

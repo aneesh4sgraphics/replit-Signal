@@ -6643,6 +6643,80 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Re-match pending unmatched emails using current customer data
+  app.post("/api/email-intelligence/rematch", isAuthenticated, async (req: any, res) => {
+    try {
+      const { matchEmailToCustomer, extractDomain, FREE_EMAIL_PROVIDERS } = await import("./gmail-sync-worker");
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const limit = parseInt(req.body.limit) || 500;
+      
+      const pendingUnmatched = await db.select()
+        .from(gmailUnmatchedEmails)
+        .where(eq(gmailUnmatchedEmails.status, 'pending'))
+        .limit(limit);
+      
+      let matched = 0;
+      let ignored = 0;
+      let stillUnmatched = 0;
+      
+      for (const unmatched of pendingUnmatched) {
+        const email = unmatched.email?.toLowerCase() || '';
+        const domain = unmatched.domain?.toLowerCase() || extractDomain(email);
+        
+        if (!email || FREE_EMAIL_PROVIDERS.has(domain) || domain.includes('4sgraphics')) {
+          await db.update(gmailUnmatchedEmails)
+            .set({ 
+              status: 'ignored',
+              ignoredReason: domain.includes('4sgraphics') ? 'Internal email' : 'Free email provider - no company match possible',
+            })
+            .where(eq(gmailUnmatchedEmails.id, unmatched.id));
+          ignored++;
+          continue;
+        }
+        
+        const result = await matchEmailToCustomer(email, domain);
+        
+        if (result.customerId) {
+          await db.insert(gmailMessageMatches).values({
+            gmailMessageId: unmatched.gmailMessageId,
+            customerId: result.customerId,
+            matchType: result.matchType,
+            matchedEmail: email,
+            confidence: result.confidence.toFixed(2),
+            isConfirmed: false,
+          }).onConflictDoNothing();
+          
+          await db.update(gmailMessages)
+            .set({ customerId: result.customerId })
+            .where(eq(gmailMessages.id, unmatched.gmailMessageId));
+          
+          await db.update(gmailUnmatchedEmails)
+            .set({ 
+              status: 'linked',
+              linkedCustomerId: result.customerId,
+              linkedBy: userId,
+              linkedAt: new Date(),
+            })
+            .where(eq(gmailUnmatchedEmails.id, unmatched.id));
+          matched++;
+        } else {
+          stillUnmatched++;
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        processed: pendingUnmatched.length,
+        matched,
+        ignored,
+        stillUnmatched,
+      });
+    } catch (error: any) {
+      console.error("Error re-matching emails:", error);
+      res.status(500).json({ error: error.message || "Failed to re-match emails" });
+    }
+  });
+
   // Get extracted sales events
   app.get("/api/email-intelligence/events", isAuthenticated, async (req: any, res) => {
     try {
