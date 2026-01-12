@@ -1851,6 +1851,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Customer management routes
+  // Live customer count endpoint (lightweight, no caching)
+  app.get("/api/customers/count", async (req, res) => {
+    try {
+      const customers = await storage.getCustomers();
+      const floridaCount = customers.filter(c => 
+        c.province?.toUpperCase() === 'FL' || c.province?.toLowerCase() === 'florida'
+      ).length;
+      res.json({ 
+        total: customers.length, 
+        florida: floridaCount,
+        timestamp: new Date().toISOString()
+      });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to fetch customer count" });
+    }
+  });
+
   app.get("/api/customers", async (req, res) => {
     try {
       const page = parseInt(req.query.page as string) || 1;

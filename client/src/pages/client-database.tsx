@@ -256,6 +256,13 @@ export default function ClientDatabase() {
   });
   const odooBaseUrl = odooBaseUrlData?.baseUrl || '';
 
+  // Live customer count - refreshes every 10 seconds
+  const { data: liveCount } = useQuery<{ total: number; florida: number; timestamp: string }>({
+    queryKey: ['/api/customers/count'],
+    refetchInterval: 10000, // 10 seconds
+    staleTime: 5000, // 5 seconds
+  });
+
   // Fetch quote counts per customer - only after customers are loaded
   const { data: quoteCounts = {} } = useQuery<Record<string, number>>({
     queryKey: ['/api/customers/quote-counts'],
@@ -2109,13 +2116,16 @@ export default function ClientDatabase() {
 
         {/* Stats Cards Grid */}
         <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Total Clients */}
+          {/* Total Clients - Live Count */}
           <Card className="glass-card border-0">
             <CardContent className="p-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-500">Total Clients</p>
-                  <p className="text-2xl font-bold text-gray-900">{customers.length}</p>
+                  <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                    Total Clients
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Live" />
+                  </p>
+                  <p className="text-2xl font-bold text-gray-900">{liveCount?.total ?? customers.length}</p>
                 </div>
                 <div className="h-9 w-9 rounded-full bg-blue-50 flex items-center justify-center">
                   <Users className="h-4 w-4 text-blue-500" />
@@ -2124,7 +2134,7 @@ export default function ClientDatabase() {
               <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
                 <p className="text-xs font-medium text-gray-500">Florida</p>
                 <p className="text-sm font-semibold text-blue-600" data-testid="florida-count">
-                  {customers.filter(c => c.province?.toUpperCase() === 'FL' || c.province?.toLowerCase() === 'florida').length}
+                  {liveCount?.florida ?? customers.filter(c => c.province?.toUpperCase() === 'FL' || c.province?.toLowerCase() === 'florida').length}
                 </p>
               </div>
             </CardContent>
