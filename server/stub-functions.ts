@@ -208,8 +208,32 @@ export function validateQuoteNumber(quoteNumber: string): boolean {
 }
 
 export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
-  const { customerName, quoteNumber, quoteItems, totalAmount, title = "QUICK QUOTE" } = data;
+  const { customerName, customerCompany, customerEmail, customerAddress, quoteNumber, quoteItems, totalAmount, title = "QUICK QUOTE" } = data;
   const logo = await getLogoBase64FromURL();
+  
+  // Build address lines for Bill To / Ship To
+  const buildAddressLines = () => {
+    if (!customerAddress) return [];
+    const lines: string[] = [];
+    if (customerAddress.address1) lines.push(customerAddress.address1);
+    if (customerAddress.address2) lines.push(customerAddress.address2);
+    
+    // City, State ZIP line
+    const cityStateZip = [
+      customerAddress.city,
+      customerAddress.province,
+      customerAddress.zip
+    ].filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' $1');
+    if (cityStateZip) lines.push(cityStateZip);
+    
+    if (customerAddress.country && customerAddress.country !== 'US' && customerAddress.country !== 'USA') {
+      lines.push(customerAddress.country);
+    }
+    return lines;
+  };
+  
+  const addressLines = buildAddressLines();
+  const hasAddress = addressLines.length > 0;
 
   const currentDate = new Date().toLocaleDateString('en-US', {
     year: 'numeric',
@@ -438,7 +462,32 @@ export async function generateQuoteHTMLForDownload(data: any): Promise<string> {
       <div class="document-title">${title}</div>
 
       <div><strong>Quote #:</strong> ${quoteNumber} <span style="float:right;"><strong>Date:</strong> ${currentDate}</span></div>
-      <p><strong>Prepared for:</strong> ${customerName}</p>
+      
+      ${hasAddress ? `
+      <div style="display: flex; gap: 40px; margin: 20px 0; padding: 15px; border: 1px solid #e5e7eb; border-radius: 6px; background-color: #f9fafb;">
+        <div style="flex: 1;">
+          <div style="font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 8px; text-transform: uppercase;">Bill To</div>
+          <div style="font-size: 12px; line-height: 1.6; color: #1f2937;">
+            ${customerCompany ? `<div style="font-weight: 600;">${customerCompany}</div>` : ''}
+            <div>${customerName}</div>
+            ${addressLines.map(line => `<div>${line}</div>`).join('')}
+            ${customerEmail ? `<div style="color: #6b7280;">${customerEmail}</div>` : ''}
+            ${customerAddress?.phone ? `<div style="color: #6b7280;">Phone: ${customerAddress.phone}</div>` : ''}
+          </div>
+        </div>
+        <div style="flex: 1;">
+          <div style="font-weight: 700; font-size: 12px; color: #374151; margin-bottom: 8px; text-transform: uppercase;">Ship To</div>
+          <div style="font-size: 12px; line-height: 1.6; color: #1f2937;">
+            ${customerCompany ? `<div style="font-weight: 600;">${customerCompany}</div>` : ''}
+            <div>${customerName}</div>
+            ${addressLines.map(line => `<div>${line}</div>`).join('')}
+            ${customerAddress?.phone ? `<div style="color: #6b7280;">Phone: ${customerAddress.phone}</div>` : ''}
+          </div>
+        </div>
+      </div>
+      ` : `
+      <p><strong>Prepared for:</strong> ${customerCompany ? `${customerCompany} - ` : ''}${customerName}${customerEmail ? ` (${customerEmail})` : ''}</p>
+      `}
 
       <div class="items-section">
         ${productTables}

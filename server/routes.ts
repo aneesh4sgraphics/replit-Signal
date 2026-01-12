@@ -3823,7 +3823,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     console.log('Request body keys:', Object.keys(req.body || {}));
     
     try {
-      const { customerName, customerEmail, quoteItems, sentVia, additionalCharges = [] } = req.body;
+      const { customerName, customerEmail, customerCompany, customerAddress, quoteItems, sentVia, additionalCharges = [] } = req.body;
       
       if (!customerName || !quoteItems || !Array.isArray(quoteItems) || quoteItems.length === 0) {
         return res.status(400).json({ error: "Customer name and quote items are required" });
@@ -4012,25 +4012,63 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // === THREE CUSTOMER INFO BOXES ===
       let yPos = 100;
       const boxWidth = (contentWidth - 20) / 3; // 3 boxes with 10px gaps
-      const boxHeight = 80;
+      const boxHeight = 95; // Increased height for address
+      
+      // Build address lines
+      const buildAddressLines = () => {
+        if (!customerAddress) return [];
+        const lines: string[] = [];
+        if (customerAddress.address1) lines.push(customerAddress.address1);
+        if (customerAddress.address2) lines.push(customerAddress.address2);
+        const cityStateZip = [
+          customerAddress.city,
+          customerAddress.province,
+          customerAddress.zip
+        ].filter(Boolean).join(', ').replace(/, ([^,]+)$/, ' $1');
+        if (cityStateZip) lines.push(cityStateZip);
+        if (customerAddress.country && customerAddress.country !== 'US' && customerAddress.country !== 'USA') {
+          lines.push(customerAddress.country);
+        }
+        return lines;
+      };
+      const addressLines = buildAddressLines();
       
       // Customer Box (left)
       doc.rect(leftMargin, yPos, boxWidth, boxHeight).stroke(borderColor);
       doc.fontSize(10).font('Helvetica-Bold').fillColor(textDark);
       doc.text('Customer', leftMargin + 8, yPos + 8);
       doc.fontSize(9).font('Helvetica').fillColor(textDark);
-      doc.text(customerName, leftMargin + 8, yPos + 24, { width: boxWidth - 16 });
+      let customerBoxY = yPos + 24;
+      if (customerCompany) {
+        doc.font('Helvetica-Bold').text(customerCompany, leftMargin + 8, customerBoxY, { width: boxWidth - 16 });
+        customerBoxY += 11;
+        doc.font('Helvetica');
+      }
+      doc.text(customerName, leftMargin + 8, customerBoxY, { width: boxWidth - 16 });
+      customerBoxY += 11;
       if (customerEmail) {
-        doc.text(customerEmail, leftMargin + 8, yPos + 50, { width: boxWidth - 16 });
+        doc.fillColor(textMuted).text(customerEmail, leftMargin + 8, customerBoxY, { width: boxWidth - 16 });
+        doc.fillColor(textDark);
       }
       
       // Invoicing address Box (middle)
       const box2X = leftMargin + boxWidth + 10;
       doc.rect(box2X, yPos, boxWidth, boxHeight).stroke(borderColor);
       doc.fontSize(10).font('Helvetica-Bold').fillColor(textDark);
-      doc.text('Invoicing address', box2X + 8, yPos + 8);
+      doc.text('Invoicing Address', box2X + 8, yPos + 8);
       doc.fontSize(9).font('Helvetica').fillColor(textDark);
-      doc.text(customerName, box2X + 8, yPos + 24, { width: boxWidth - 16 });
+      let invoiceBoxY = yPos + 24;
+      if (customerCompany) {
+        doc.font('Helvetica-Bold').text(customerCompany, box2X + 8, invoiceBoxY, { width: boxWidth - 16 });
+        invoiceBoxY += 11;
+        doc.font('Helvetica');
+      }
+      doc.text(customerName, box2X + 8, invoiceBoxY, { width: boxWidth - 16 });
+      invoiceBoxY += 11;
+      addressLines.forEach(line => {
+        doc.text(line, box2X + 8, invoiceBoxY, { width: boxWidth - 16 });
+        invoiceBoxY += 11;
+      });
       
       // Shipping Address Box (right)
       const box3X = leftMargin + (boxWidth + 10) * 2;
@@ -4038,10 +4076,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.fontSize(10).font('Helvetica-Bold').fillColor(textDark);
       doc.text('Shipping Address', box3X + 8, yPos + 8);
       doc.fontSize(9).font('Helvetica').fillColor(textDark);
-      doc.text(customerName, box3X + 8, yPos + 24, { width: boxWidth - 16 });
+      let shipBoxY = yPos + 24;
+      if (customerCompany) {
+        doc.font('Helvetica-Bold').text(customerCompany, box3X + 8, shipBoxY, { width: boxWidth - 16 });
+        shipBoxY += 11;
+        doc.font('Helvetica');
+      }
+      doc.text(customerName, box3X + 8, shipBoxY, { width: boxWidth - 16 });
+      shipBoxY += 11;
+      addressLines.forEach(line => {
+        doc.text(line, box3X + 8, shipBoxY, { width: boxWidth - 16 });
+        shipBoxY += 11;
+      });
 
       // === ORDER INFO ROW ===
-      yPos = 195;
+      yPos = 210; // Adjusted for taller address boxes
       doc.fontSize(9).font('Helvetica-Bold').fillColor(textDark);
       doc.text('PO', leftMargin, yPos);
       doc.text('Order Date', leftMargin + 180, yPos);
@@ -4053,7 +4102,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.text(salesperson, leftMargin + 360, yPos + 14);
 
       // === PRODUCT TABLE ===
-      yPos = 250;
+      yPos = 265; // Adjusted for taller address boxes
       
       // Table column positions (removed Disc.% and Taxes columns)
       // Distribute columns to fit within contentWidth

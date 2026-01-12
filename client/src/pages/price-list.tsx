@@ -227,7 +227,9 @@ export default function PriceList() {
       }, 300);
 
       const customerName = selectedCustomer 
-        ? `${selectedCustomer.firstName} ${selectedCustomer.lastName}` 
+        ? (selectedCustomer.company 
+            ? `${selectedCustomer.company} (${selectedCustomer.firstName} ${selectedCustomer.lastName})`.trim()
+            : `${selectedCustomer.firstName} ${selectedCustomer.lastName}`.trim())
         : 'Customer';
 
       // Use adjusted items with shipping costs applied, sorted by productTypeOrder

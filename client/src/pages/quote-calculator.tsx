@@ -774,6 +774,16 @@ export default function QuoteCalculator() {
           body: JSON.stringify({
             customerName,
             customerEmail: selectedCustomer?.email || null,
+            customerCompany: selectedCustomer?.company || null,
+            customerAddress: {
+              address1: selectedCustomer?.address1 || '',
+              address2: selectedCustomer?.address2 || '',
+              city: selectedCustomer?.city || '',
+              province: selectedCustomer?.province || '',
+              country: selectedCustomer?.country || '',
+              zip: selectedCustomer?.zip || '',
+              phone: selectedCustomer?.phone || ''
+            },
             quoteItems: itemsToUse,
             totalAmount: grandTotal,
             additionalCharges: enabledCharges.map(c => ({
