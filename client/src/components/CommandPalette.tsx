@@ -6,7 +6,7 @@ import {
   Activity, Calculator, TrendingUp, Truck, Package, Tag, Search, Clock,
   Target, AlertTriangle, Mail, Building2, BarChart3, Plug, Layers, Sparkles
 } from 'lucide-react';
-import { SiShopify, SiOdoo } from 'react-icons/si';
+import { SiShopify } from 'react-icons/si';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
 import { queryClient } from '@/lib/queryClient';
@@ -37,6 +37,12 @@ export const PdfSettingsIcon: React.FC<{ className?: string }> = ({ className })
   </svg>
 );
 
+export const OdooIcon: React.FC<{ className?: string }> = ({ className }) => (
+  <svg className={className} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
+    <text x="5" y="18" fontSize="16" fontWeight="bold" fill="#714B67" stroke="none">O</text>
+  </svg>
+);
+
 interface NavItem {
   path: string;
   icon: IconComponent;
@@ -64,7 +70,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/integrations', icon: Plug, label: 'Integrations', keywords: ['gmail', 'calendar', 'odoo', 'connect', 'settings', 'google'], adminOnly: true },
   { path: '/product-mapping', icon: Layers, label: 'Product Mapping', keywords: ['map', 'category', 'type', 'size', 'sqm', 'fix', 'unmapped'], adminOnly: true },
   { path: '/shopify-settings', icon: SiShopify, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
-  { path: '/odoo-settings', icon: SiOdoo, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
+  { path: '/odoo-settings', icon: OdooIcon, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
   { path: '/admin', icon: Users, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
   { path: '/activity-logs', icon: Activity, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true },
   { path: '/product-pricing-management', icon: Database, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true },
