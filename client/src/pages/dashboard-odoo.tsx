@@ -219,7 +219,7 @@ export default function Dashboard() {
   const [dormancyDismissed, setDormancyDismissed] = useState(false);
   const [lastDormancyCheck, setLastDormancyCheck] = useState<boolean | null>(null);
 
-  // Show dormancy popup when user has been inactive for 3 hours
+  // Show dormancy popup when user has been inactive for 90 minutes
   // Reset dismissed state when user becomes active again (to allow popup on next dormancy)
   useEffect(() => {
     if (dormancyData?.isDormant !== undefined) {
@@ -851,7 +851,7 @@ export default function Dashboard() {
         </div>
       </div>
 
-      {/* Dormancy Popup - appears after 3 hours of inactivity */}
+      {/* Dormancy Popup - appears after 90 minutes of inactivity */}
       {showDormancyPopup && dormancyData && (
         <div style={{
           position: 'fixed',
@@ -888,66 +888,58 @@ export default function Dashboard() {
             </div>
             
             <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#2C2C54', marginBottom: '8px' }}>
-              Are you tired today?
+              Time for a check-in!
             </h2>
             
             <p style={{ fontSize: '14px', color: '#6B6B8C', marginBottom: '24px' }}>
-              You've been away for a while. Here's your current status:
+              No activity in 90 minutes. Here's your progress:
             </p>
 
-            {/* Efficiency Score Display */}
+            {/* Progress Display - x/10 format */}
             <div style={{
               display: 'flex',
               alignItems: 'center',
               justifyContent: 'center',
-              gap: '12px',
-              padding: '16px',
-              background: dormancyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.1)' : 
-                         dormancyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.1)' : 
-                         'rgba(220, 53, 69, 0.1)',
-              borderRadius: '2px',
+              gap: '16px',
+              padding: '20px',
+              background: '#F8F9FA',
+              borderRadius: '8px',
               marginBottom: '16px',
             }}>
-              <Gauge size={32} style={{
-                color: dormancyData.efficiencyScore >= 80 ? '#28A745' : 
-                       dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545'
-              }} />
-              <div>
+              <div style={{ textAlign: 'center' }}>
                 <div style={{
-                  fontSize: '28px',
+                  fontSize: '36px',
+                  fontWeight: 700,
+                  color: '#6F42C1',
+                  lineHeight: 1,
+                }}>
+                  {dormancyData.todayCompleted}/10
+                </div>
+                <div style={{ fontSize: '13px', color: '#6B6B8C', marginTop: '4px' }}>Today's Progress</div>
+              </div>
+              <div style={{
+                width: '1px',
+                height: '50px',
+                background: '#E0E0E0',
+              }} />
+              <div style={{ textAlign: 'center' }}>
+                <div style={{
+                  fontSize: '36px',
                   fontWeight: 700,
                   color: dormancyData.efficiencyScore >= 80 ? '#28A745' : 
-                         dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545'
+                         dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
+                  lineHeight: 1,
                 }}>
-                  {dormancyData.efficiencyScore}%
+                  {dormancyData.efficiencyScore}
                 </div>
-                <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Efficiency Score</div>
-              </div>
-            </div>
-
-            {/* Today's Progress */}
-            <div style={{
-              display: 'flex',
-              justifyContent: 'space-around',
-              padding: '12px',
-              background: '#F8F9FA',
-              borderRadius: '2px',
-              marginBottom: '20px',
-            }}>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#28A745' }}>{dormancyData.todayCompleted}</div>
-                <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Completed Today</div>
-              </div>
-              <div>
-                <div style={{ fontSize: '20px', fontWeight: 700, color: '#0D6EFD' }}>{dormancyData.todayRemaining}</div>
-                <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Remaining</div>
+                <div style={{ fontSize: '13px', color: '#6B6B8C', marginTop: '4px' }}>Efficiency Score</div>
               </div>
             </div>
 
             {/* Coaching Message */}
             <div style={{
               background: 'rgba(111, 66, 193, 0.08)',
-              borderRadius: '2px',
+              borderRadius: '8px',
               padding: '16px',
               marginBottom: '24px',
               textAlign: 'left',
@@ -961,18 +953,8 @@ export default function Dashboard() {
             </div>
 
             {/* Action Buttons */}
-            <div style={{ display: 'flex', gap: '12px' }}>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDormancyPopup(false);
-                  setDormancyDismissed(true);
-                }}
-                style={{ flex: 1 }}
-              >
-                Take a Break
-              </Button>
-              <Link href="/now-mode" style={{ flex: 1, textDecoration: 'none' }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+              <Link href="/now-mode" style={{ textDecoration: 'none' }}>
                 <Button
                   onClick={() => {
                     setShowDormancyPopup(false);
@@ -982,12 +964,25 @@ export default function Dashboard() {
                     width: '100%',
                     background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
                     color: '#FFFFFF',
+                    padding: '12px 24px',
                   }}
                 >
                   <Zap size={18} style={{ marginRight: '8px' }} />
-                  Start NOW MODE
+                  Resume NOW MODE
                 </Button>
               </Link>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDormancyPopup(false);
+                  setDormancyDismissed(true);
+                  setTimeout(() => setDormancyDismissed(false), 60 * 60 * 1000);
+                }}
+                style={{ width: '100%' }}
+              >
+                <Clock size={16} style={{ marginRight: '8px' }} />
+                Snooze 60 mins
+              </Button>
             </div>
           </div>
         </div>

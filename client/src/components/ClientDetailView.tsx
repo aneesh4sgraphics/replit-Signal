@@ -80,6 +80,8 @@ import {
   RefreshCw,
   Link2,
   Receipt,
+  UserX,
+  Ban,
 } from "lucide-react";
 import {
   Tooltip,
@@ -615,6 +617,28 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message || "Failed to update hot prospect status", variant: "destructive" });
+    },
+  });
+
+  const toggleDoNotContactMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/customers/${customer.id}/do-not-contact`, {
+        doNotContact: !(customer as any).doNotContact,
+        reason: (customer as any).doNotContact ? undefined : "Marked as bad fit via CRM"
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      toast({ 
+        title: (customer as any).doNotContact ? "Removed Do Not Contact" : "Marked as Do Not Contact",
+        description: (customer as any).doNotContact 
+          ? `${customerName} is now active and will appear in NOW MODE`
+          : `${customerName} is marked as Bad Fit and excluded from NOW MODE`
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Error", description: error.message || "Failed to update Do Not Contact status", variant: "destructive" });
     },
   });
 
@@ -1173,6 +1197,28 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 </TooltipTrigger>
                 <TooltipContent>
                   {customer.isHotProspect ? 'Remove hot prospect status' : 'Mark as hot prospect for priority follow-up'}
+                </TooltipContent>
+              </Tooltip>
+            </TooltipProvider>
+            <TooltipProvider delayDuration={200}>
+              <Tooltip>
+                <TooltipTrigger asChild>
+                  <Button 
+                    variant={(customer as any).doNotContact ? "destructive" : "outline"}
+                    size="sm"
+                    onClick={() => toggleDoNotContactMutation.mutate()} 
+                    className={`gap-1 h-8 ${(customer as any).doNotContact ? '' : 'text-gray-500 hover:text-red-600 hover:border-red-300'}`}
+                    data-testid="btn-do-not-contact"
+                    disabled={toggleDoNotContactMutation.isPending}
+                  >
+                    <Ban className="h-3.5 w-3.5" />
+                    <span className="hidden sm:inline">{(customer as any).doNotContact ? 'DNC Active' : 'Bad Fit'}</span>
+                  </Button>
+                </TooltipTrigger>
+                <TooltipContent>
+                  {(customer as any).doNotContact 
+                    ? 'Remove Do Not Contact status and include in NOW MODE' 
+                    : 'Mark as Bad Fit / Do Not Contact - excludes from NOW MODE forever'}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
