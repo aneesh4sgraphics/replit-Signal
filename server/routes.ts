@@ -15993,7 +15993,7 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
   });
 
   // Admin endpoint to see all users' NOW MODE stats
-  app.get("/api/now-mode/admin/stats", isAuthenticated, isAdmin, async (req: any, res) => {
+  app.get("/api/now-mode/admin/stats", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const dateKey = new Date().toISOString().split('T')[0];
       

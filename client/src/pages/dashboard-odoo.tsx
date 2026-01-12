@@ -193,6 +193,38 @@ export default function Dashboard() {
     retry: 1,
   });
 
+  // Efficiency score for NOW MODE
+  const { data: efficiencyData } = useQuery<{ efficiencyScore: number; totalTasksCompleted: number }>({
+    queryKey: ['/api/now-mode/efficiency'],
+    refetchOnWindowFocus: false,
+    staleTime: 60 * 1000,
+    retry: 1,
+  });
+
+  // Dormancy check for popup
+  const { data: dormancyData } = useQuery<{
+    isDormant: boolean;
+    efficiencyScore: number;
+    todayCompleted: number;
+    todayRemaining: number;
+    coachingMessage: string;
+  }>({
+    queryKey: ['/api/now-mode/dormancy-check'],
+    refetchOnWindowFocus: true,
+    refetchInterval: 5 * 60 * 1000, // Check every 5 minutes
+    retry: 1,
+  });
+
+  const [showDormancyPopup, setShowDormancyPopup] = useState(false);
+  const [dormancyDismissed, setDormancyDismissed] = useState(false);
+
+  // Show dormancy popup when user has been inactive for 3 hours
+  useEffect(() => {
+    if (dormancyData?.isDormant && !dormancyDismissed) {
+      setShowDormancyPopup(true);
+    }
+  }, [dormancyData?.isDormant, dormancyDismissed]);
+
   const openObjections = objections.filter(o => o.status === 'open').length;
 
   if (isLoading) {
@@ -363,9 +395,49 @@ export default function Dashboard() {
                 <p style={{ fontSize: '12px', fontWeight: 600, color: '#6B6B8C', textTransform: 'uppercase', letterSpacing: '0.5px', marginBottom: '8px' }}>
                   4S Graphics Dashboard
                 </p>
-                <h1 style={{ fontSize: '32px', fontWeight: 700, color: '#2C2C54', margin: '0 0 8px 0' }}>
-                  Welcome back, {firstName}
-                </h1>
+                <div style={{ display: 'flex', alignItems: 'center', gap: '16px', marginBottom: '8px' }}>
+                  <h1 style={{ fontSize: '32px', fontWeight: 700, color: '#2C2C54', margin: 0 }}>
+                    Welcome back, {firstName}
+                  </h1>
+                  {/* Efficiency Score Badge */}
+                  {efficiencyData && (
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <div style={{
+                          display: 'flex',
+                          alignItems: 'center',
+                          gap: '6px',
+                          padding: '6px 12px',
+                          borderRadius: '20px',
+                          background: efficiencyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.1)' : 
+                                     efficiencyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.1)' : 
+                                     'rgba(220, 53, 69, 0.1)',
+                          border: `1px solid ${efficiencyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.3)' : 
+                                               efficiencyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.3)' : 
+                                               'rgba(220, 53, 69, 0.3)'}`,
+                          cursor: 'pointer',
+                        }}>
+                          <Gauge size={18} style={{ 
+                            color: efficiencyData.efficiencyScore >= 80 ? '#28A745' : 
+                                   efficiencyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545' 
+                          }} />
+                          <span style={{
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            color: efficiencyData.efficiencyScore >= 80 ? '#28A745' : 
+                                   efficiencyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
+                          }}>
+                            {efficiencyData.efficiencyScore}%
+                          </span>
+                        </div>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p>Your 7-day efficiency score</p>
+                        <p style={{ fontSize: '12px', color: '#6B6B8C' }}>{efficiencyData.totalTasksCompleted} total tasks completed</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  )}
+                </div>
                 <p style={{ fontSize: '14px', color: '#6B6B8C', margin: 0 }}>{dateString}</p>
               </div>
 
@@ -768,6 +840,148 @@ export default function Dashboard() {
 
         </div>
       </div>
+
+      {/* Dormancy Popup - appears after 3 hours of inactivity */}
+      {showDormancyPopup && dormancyData && (
+        <div style={{
+          position: 'fixed',
+          top: 0,
+          left: 0,
+          right: 0,
+          bottom: 0,
+          background: 'rgba(0, 0, 0, 0.5)',
+          display: 'flex',
+          alignItems: 'center',
+          justifyContent: 'center',
+          zIndex: 1000,
+        }}>
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '2px',
+            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
+            maxWidth: '420px',
+            width: '90%',
+            padding: '32px',
+            textAlign: 'center',
+          }}>
+            <div style={{
+              width: '80px',
+              height: '80px',
+              borderRadius: '50%',
+              background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              margin: '0 auto 24px',
+            }}>
+              <Clock size={40} style={{ color: '#FFFFFF' }} />
+            </div>
+            
+            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#2C2C54', marginBottom: '8px' }}>
+              Are you tired today?
+            </h2>
+            
+            <p style={{ fontSize: '14px', color: '#6B6B8C', marginBottom: '24px' }}>
+              You've been away for a while. Here's your current status:
+            </p>
+
+            {/* Efficiency Score Display */}
+            <div style={{
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '12px',
+              padding: '16px',
+              background: dormancyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.1)' : 
+                         dormancyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.1)' : 
+                         'rgba(220, 53, 69, 0.1)',
+              borderRadius: '2px',
+              marginBottom: '16px',
+            }}>
+              <Gauge size={32} style={{
+                color: dormancyData.efficiencyScore >= 80 ? '#28A745' : 
+                       dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545'
+              }} />
+              <div>
+                <div style={{
+                  fontSize: '28px',
+                  fontWeight: 700,
+                  color: dormancyData.efficiencyScore >= 80 ? '#28A745' : 
+                         dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545'
+                }}>
+                  {dormancyData.efficiencyScore}%
+                </div>
+                <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Efficiency Score</div>
+              </div>
+            </div>
+
+            {/* Today's Progress */}
+            <div style={{
+              display: 'flex',
+              justifyContent: 'space-around',
+              padding: '12px',
+              background: '#F8F9FA',
+              borderRadius: '2px',
+              marginBottom: '20px',
+            }}>
+              <div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#28A745' }}>{dormancyData.todayCompleted}</div>
+                <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Completed Today</div>
+              </div>
+              <div>
+                <div style={{ fontSize: '20px', fontWeight: 700, color: '#0D6EFD' }}>{dormancyData.todayRemaining}</div>
+                <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Remaining</div>
+              </div>
+            </div>
+
+            {/* Coaching Message */}
+            <div style={{
+              background: 'rgba(111, 66, 193, 0.08)',
+              borderRadius: '2px',
+              padding: '16px',
+              marginBottom: '24px',
+              textAlign: 'left',
+            }}>
+              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
+                <Lightbulb size={20} style={{ color: '#6F42C1', flexShrink: 0, marginTop: '2px' }} />
+                <p style={{ fontSize: '14px', color: '#2C2C54', margin: 0, lineHeight: 1.5 }}>
+                  {dormancyData.coachingMessage}
+                </p>
+              </div>
+            </div>
+
+            {/* Action Buttons */}
+            <div style={{ display: 'flex', gap: '12px' }}>
+              <Button
+                variant="outline"
+                onClick={() => {
+                  setShowDormancyPopup(false);
+                  setDormancyDismissed(true);
+                }}
+                style={{ flex: 1 }}
+              >
+                Take a Break
+              </Button>
+              <Link href="/now-mode" style={{ flex: 1, textDecoration: 'none' }}>
+                <Button
+                  onClick={() => {
+                    setShowDormancyPopup(false);
+                    setDormancyDismissed(true);
+                  }}
+                  style={{
+                    width: '100%',
+                    background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
+                    color: '#FFFFFF',
+                  }}
+                >
+                  <Zap size={18} style={{ marginRight: '8px' }} />
+                  Start NOW MODE
+                </Button>
+              </Link>
+            </div>
+          </div>
+        </div>
+      )}
 
       <style>{`
         @media (max-width: 768px) {
