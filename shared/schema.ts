@@ -2863,6 +2863,10 @@ export const nowModeSessions = pgTable("now_mode_sessions", {
   // Pause functionality
   pausedIntentionally: boolean("paused_intentionally").default(false),
   pausedAt: timestamp("paused_at"),
+  // End-of-day closure
+  dayClosed: boolean("day_closed").default(false),
+  endedAt: timestamp("ended_at"),
+  recapSnapshot: text("recap_snapshot"), // JSON snapshot of day's recap for audit
   // Session timing
   lastActivityAt: timestamp("last_activity_at"),
   startedAt: timestamp("started_at").defaultNow(),

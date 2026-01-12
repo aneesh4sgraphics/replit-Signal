@@ -232,6 +232,39 @@ export default function NowMode() {
     refetchOnWindowFocus: false,
   });
 
+  // Day recap query - for end-of-day closure (must be after main data query)
+  const { data: recapData } = useQuery<{
+    isComplete: boolean;
+    dayClosed: boolean;
+    totalCompleted: number;
+    dailyTarget: number;
+    efficiencyScore: number;
+    callsMade: number;
+    followUpsScheduled: number;
+    samplesQuotesSent: number;
+    dataHygieneCompleted: number;
+    outreachCompleted: number;
+    enablementSent: number;
+    timeSpent: string;
+    motivationalMessage: string;
+  }>({
+    queryKey: ["/api/now-mode/day-recap"],
+    enabled: !!data?.allDone, // Only fetch when all tasks are done
+  });
+
+  // End day mutation - formal closure
+  const endDayMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/now-mode/end-day");
+      return res.json();
+    },
+    onSuccess: (response) => {
+      toast({ title: "Day Complete!", description: response.message });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/day-recap"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+    },
+  });
+
   const completeMutation = useMutation({
     mutationFn: async ({ customerId, cardType, outcome, notes }: { customerId: string; cardType: string; outcome: string; notes?: string }) => {
       const res = await apiRequest("POST", "/api/now-mode/complete", { customerId, cardType, outcome, notes });
@@ -463,28 +496,110 @@ export default function NowMode() {
         </div>
 
         {data?.allDone || !data?.card ? (
-          <Card className="text-center py-12">
-            <CardContent>
-              <div className="flex flex-col items-center gap-4">
-                <div className="w-20 h-20 rounded-full bg-green-100 flex items-center justify-center">
-                  <CheckCircle2 className="h-10 w-10 text-green-600" />
+          data?.allDone ? (
+            // End-of-Day Closure Recap Card
+            <Card className="shadow-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
+              <CardHeader className="text-center pb-2">
+                <div className="mx-auto w-24 h-24 rounded-full bg-green-100 flex items-center justify-center mb-4 animate-pulse">
+                  <Trophy className="h-12 w-12 text-green-600" />
                 </div>
-                <h2 className="text-2xl font-bold text-gray-800">
-                  {data?.allDone ? "All Done for Today!" : "No Cards Available"}
-                </h2>
-                <p className="text-gray-600 max-w-md">
-                  {data?.allDone 
-                    ? `Great work! You've completed ${data?.completed || 0} tasks today with an efficiency score of ${data?.efficiencyScore || 100}.`
-                    : data?.message || "Check back later for more tasks."}
+                <CardTitle className="text-2xl text-green-800">
+                  {recapData?.dayClosed ? "Day Complete!" : "All Done for Today!"}
+                </CardTitle>
+                <p className="text-green-600 font-medium mt-2">
+                  {recapData?.motivationalMessage || "Great work completing your tasks!"}
                 </p>
-                <Link href="/">
-                  <Button className="mt-4 bg-purple-600 hover:bg-purple-700">
-                    Return to Dashboard
+              </CardHeader>
+              <CardContent className="space-y-6">
+                {/* Recap Stats Grid */}
+                <div className="grid grid-cols-2 gap-4">
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm border">
+                    <Phone className="h-6 w-6 mx-auto text-blue-600 mb-2" />
+                    <div className="text-2xl font-bold text-gray-800">{recapData?.callsMade || 0}</div>
+                    <div className="text-sm text-gray-500">Calls Made</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm border">
+                    <Calendar className="h-6 w-6 mx-auto text-purple-600 mb-2" />
+                    <div className="text-2xl font-bold text-gray-800">{recapData?.followUpsScheduled || 0}</div>
+                    <div className="text-sm text-gray-500">Follow-ups Scheduled</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm border">
+                    <Send className="h-6 w-6 mx-auto text-orange-600 mb-2" />
+                    <div className="text-2xl font-bold text-gray-800">{recapData?.samplesQuotesSent || 0}</div>
+                    <div className="text-sm text-gray-500">Samples/Quotes Sent</div>
+                  </div>
+                  <div className="bg-white rounded-lg p-4 text-center shadow-sm border">
+                    <Gauge className="h-6 w-6 mx-auto text-green-600 mb-2" />
+                    <div className="text-2xl font-bold text-gray-800">{recapData?.efficiencyScore || 0}</div>
+                    <div className="text-sm text-gray-500">Efficiency Score</div>
+                  </div>
+                </div>
+
+                {/* Additional Stats */}
+                <div className="bg-white rounded-lg p-4 shadow-sm border">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-gray-600">Total Completed</span>
+                    <span className="font-semibold">{recapData?.totalCompleted || 0}/{recapData?.dailyTarget || 10}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-2">
+                    <span className="text-gray-600">Time Active</span>
+                    <span className="font-semibold">{recapData?.timeSpent || "0 min"}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-2">
+                    <span className="text-gray-600">Outreach</span>
+                    <span className="font-semibold">{recapData?.outreachCompleted || 0}</span>
+                  </div>
+                  <div className="flex items-center justify-between text-sm mt-2">
+                    <span className="text-gray-600">Data Hygiene</span>
+                    <span className="font-semibold">{recapData?.dataHygieneCompleted || 0}</span>
+                  </div>
+                </div>
+
+                {/* End Day Button */}
+                {!recapData?.dayClosed ? (
+                  <Button
+                    onClick={() => endDayMutation.mutate()}
+                    disabled={endDayMutation.isPending}
+                    className="w-full bg-green-600 hover:bg-green-700 text-lg py-6"
+                  >
+                    <CheckCircle2 className="h-5 w-5 mr-2" />
+                    {endDayMutation.isPending ? "Ending Day..." : "End Day"}
                   </Button>
-                </Link>
-              </div>
-            </CardContent>
-          </Card>
+                ) : (
+                  <div className="text-center space-y-4">
+                    <div className="p-4 bg-green-100 rounded-lg">
+                      <p className="text-green-800 font-medium">Day officially closed. Rest up!</p>
+                    </div>
+                    <Link href="/">
+                      <Button className="bg-purple-600 hover:bg-purple-700">
+                        Return to Dashboard
+                      </Button>
+                    </Link>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          ) : (
+            // No cards available
+            <Card className="text-center py-12">
+              <CardContent>
+                <div className="flex flex-col items-center gap-4">
+                  <div className="w-20 h-20 rounded-full bg-gray-100 flex items-center justify-center">
+                    <Target className="h-10 w-10 text-gray-400" />
+                  </div>
+                  <h2 className="text-2xl font-bold text-gray-800">No Cards Available</h2>
+                  <p className="text-gray-600 max-w-md">
+                    {data?.message || "Check back later for more tasks."}
+                  </p>
+                  <Link href="/">
+                    <Button className="mt-4 bg-purple-600 hover:bg-purple-700">
+                      Return to Dashboard
+                    </Button>
+                  </Link>
+                </div>
+              </CardContent>
+            </Card>
+          )
         ) : (
           <Card className="shadow-lg">
             <CardHeader className="pb-3">

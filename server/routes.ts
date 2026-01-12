@@ -16362,6 +16362,38 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // End-of-Day Recap - get today's activity breakdown for psychological closure
+  app.get("/api/now-mode/day-recap", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const recap = await nowModeEngine.getDayRecap(userId);
+      res.json(recap);
+    } catch (error) {
+      console.error("Error getting day recap:", error);
+      res.status(500).json({ error: "Failed to get day recap" });
+    }
+  });
+
+  // End Day - formally close the day with psychological closure
+  app.post("/api/now-mode/end-day", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const result = await nowModeEngine.endDay(userId);
+      res.json(result);
+    } catch (error) {
+      console.error("Error ending day:", error);
+      res.status(500).json({ error: "Failed to end day" });
+    }
+  });
+
   app.post("/api/customers/:id/do-not-contact", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;

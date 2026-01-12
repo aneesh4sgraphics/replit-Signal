@@ -859,7 +859,120 @@ export class NowModeEngine {
 
   async getEfficiencyScore(userId: string): Promise<number> {
     const session = await this.getOrCreateSession(userId);
-    return session.efficiencyScore || 100;
+    return session.efficiencyScore || 0;
+  }
+
+  // Get day recap for end-of-day closure - psychological completion
+  async getDayRecap(userId: string): Promise<{
+    isComplete: boolean;
+    dayClosed: boolean;
+    totalCompleted: number;
+    dailyTarget: number;
+    efficiencyScore: number;
+    callsMade: number;
+    followUpsScheduled: number;
+    samplesQuotesSent: number;
+    dataHygieneCompleted: number;
+    outreachCompleted: number;
+    enablementSent: number;
+    timeSpent: string;
+    motivationalMessage: string;
+  }> {
+    const session = await this.getOrCreateSession(userId);
+    
+    // Get today's activities to calculate samples/quotes sent
+    const activities = await db
+      .select()
+      .from(nowModeActivities)
+      .where(eq(nowModeActivities.sessionId, session.id));
+
+    // Count samples/quotes sent from outcomes
+    const samplesQuotesSent = activities.filter(a => 
+      a.outcome === 'send_swatchbook' || 
+      a.outcome === 'send_price_list' || 
+      a.outcome === 'sample_sent' ||
+      a.outcome === 'quote_sent' ||
+      a.outcome?.includes('quote') ||
+      a.outcome?.includes('sample')
+    ).length;
+
+    // Calculate time spent (from first to last activity)
+    let timeSpent = "0 min";
+    if (session.startedAt && session.lastActivityAt) {
+      const start = new Date(session.startedAt);
+      const end = new Date(session.lastActivityAt);
+      const minutes = Math.floor((end.getTime() - start.getTime()) / (1000 * 60));
+      if (minutes < 60) {
+        timeSpent = `${minutes} min`;
+      } else {
+        const hours = Math.floor(minutes / 60);
+        const remainingMins = minutes % 60;
+        timeSpent = remainingMins > 0 ? `${hours}h ${remainingMins}m` : `${hours}h`;
+      }
+    }
+
+    // Generate motivational message based on performance
+    const efficiency = session.efficiencyScore || 0;
+    const completed = session.totalCompleted || 0;
+    const target = session.dailyTarget || 10;
+    
+    let motivationalMessage = "";
+    if (completed >= target) {
+      if (efficiency >= 80) {
+        motivationalMessage = "Outstanding work today! You crushed it with high efficiency.";
+      } else if (efficiency >= 50) {
+        motivationalMessage = "Great job hitting your target! Tomorrow, aim for fewer skips.";
+      } else {
+        motivationalMessage = "You made it! Every day is a chance to build momentum.";
+      }
+    } else if (completed >= target * 0.8) {
+      motivationalMessage = "Almost there! You're building great habits.";
+    } else {
+      motivationalMessage = "Progress, not perfection. Tomorrow is a new day.";
+    }
+
+    return {
+      isComplete: completed >= target,
+      dayClosed: session.dayClosed || false,
+      totalCompleted: completed,
+      dailyTarget: target,
+      efficiencyScore: efficiency,
+      callsMade: session.callsCompleted || 0,
+      followUpsScheduled: session.followUpsCompleted || 0,
+      samplesQuotesSent,
+      dataHygieneCompleted: session.dataHygieneCompleted || 0,
+      outreachCompleted: session.outreachCompleted || 0,
+      enablementSent: session.enablementCompleted || 0,
+      timeSpent,
+      motivationalMessage,
+    };
+  }
+
+  // End the day - formal closure with psychological completion
+  async endDay(userId: string): Promise<{ success: boolean; message: string }> {
+    const session = await this.getOrCreateSession(userId);
+    
+    if (session.dayClosed) {
+      return { success: true, message: "Day already closed. See you tomorrow!" };
+    }
+
+    // Get recap to snapshot
+    const recap = await this.getDayRecap(userId);
+    
+    // Update session with closure
+    await db.update(nowModeSessions).set({
+      dayClosed: true,
+      endedAt: new Date(),
+      recapSnapshot: JSON.stringify(recap),
+      updatedAt: new Date(),
+    }).where(eq(nowModeSessions.id, session.id));
+
+    return { 
+      success: true, 
+      message: recap.isComplete 
+        ? "Day complete! Great work. Rest up for tomorrow."
+        : "Day ended. Every bit of progress counts. See you tomorrow!"
+    };
   }
 }
 
