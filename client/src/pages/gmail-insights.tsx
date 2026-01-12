@@ -1938,10 +1938,10 @@ export default function GmailInsightsPage() {
           </Card>
         </TabsContent>
 
-        {/* Regular Insight Tabs Content */}
-        <TabsContent value={activeTab} className="mt-4">
-          {activeTab !== "unmatched" && activeTab !== "debug" && (
-            insightsLoading ? (
+        {/* Regular Insight Tabs Content - each tab gets its own TabsContent */}
+        {["all", "urgent", "opportunity", "commitment", "action", "health"].map((tabValue) => (
+          <TabsContent key={tabValue} value={tabValue} className="mt-4">
+            {insightsLoading ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => (
                   <Card key={i}>
@@ -1972,9 +1972,9 @@ export default function GmailInsightsPage() {
                   </Button>
                 </CardContent>
               </Card>
-            )
-          )}
-        </TabsContent>
+            )}
+          </TabsContent>
+        ))}
       </Tabs>
 
       <Dialog open={!!selectedInsight} onOpenChange={() => setSelectedInsight(null)}>

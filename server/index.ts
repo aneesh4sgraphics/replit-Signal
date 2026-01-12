@@ -100,8 +100,8 @@ app.use((req, res, next) => {
         connectSrc: ["'self'", "https:", "wss:"],
         frameSrc: ["'self'", "https://accounts.google.com", "https://*.myshopify.com"],
         frameAncestors: allowFraming 
-          ? ["'self'", "https://*.myshopify.com", "https://admin.shopify.com", "https://*.replit.app", "https://*.replit.dev", "https://accounts.google.com"]
-          : ["'self'", "https://*.replit.app", "https://*.replit.dev"],
+          ? ["'self'", "https://quote.4sgraphics.com", "https://*.myshopify.com", "https://admin.shopify.com", "https://*.replit.app", "https://*.replit.dev", "https://accounts.google.com"]
+          : ["'self'", "https://quote.4sgraphics.com", "https://*.replit.app", "https://*.replit.dev"],
       },
     },
     crossOriginEmbedderPolicy: false,
