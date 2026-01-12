@@ -14153,6 +14153,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
+      // Look up Shopify customer ID from mapping table
+      let shopifyCustomerId: string | null = null;
+      if (customerId) {
+        const customerMapping = await db.select()
+          .from(shopifyCustomerMappings)
+          .where(and(
+            eq(shopifyCustomerMappings.crmCustomerId, String(customerId)),
+            eq(shopifyCustomerMappings.isActive, true)
+          ))
+          .limit(1);
+        
+        if (customerMapping.length > 0 && customerMapping[0].shopifyCustomerId) {
+          shopifyCustomerId = customerMapping[0].shopifyCustomerId;
+          console.log(`[Shopify] Found customer mapping: CRM ${customerId} -> Shopify customer ${shopifyCustomerId}`);
+        }
+      }
+
       // Create draft order in Shopify
       const draftOrderPayload: any = {
         draft_order: {
@@ -14162,12 +14179,24 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
 
-      // Add customer by email if provided
-      if (customerEmail) {
+      // Link to existing Shopify customer if we have their ID
+      if (shopifyCustomerId) {
+        // Extract numeric ID from GID if needed (gid://shopify/Customer/123456)
+        let numericCustomerId: number | string = shopifyCustomerId;
+        const gidMatch = shopifyCustomerId.match(/Customer\/(\d+)/);
+        if (gidMatch) {
+          numericCustomerId = parseInt(gidMatch[1], 10);
+        } else if (/^\d+$/.test(shopifyCustomerId)) {
+          numericCustomerId = parseInt(shopifyCustomerId, 10);
+        }
+        draftOrderPayload.draft_order.customer = { id: numericCustomerId };
+        console.log(`[Shopify] Linking draft order to existing Shopify customer ID: ${numericCustomerId}`);
+      } else if (customerEmail) {
+        // Fallback to email if no Shopify customer ID found
         draftOrderPayload.draft_order.email = customerEmail;
       }
 
-      console.log(`[Shopify] Creating draft order with ${shopifyLineItems.length} line items (${mappedItems.length} mapped, ${unmappedItems.length} custom) for ${customerEmail || 'no email'}`);
+      console.log(`[Shopify] Creating draft order with ${shopifyLineItems.length} line items (${mappedItems.length} mapped, ${unmappedItems.length} custom) for ${shopifyCustomerId ? `Shopify customer ${shopifyCustomerId}` : customerEmail || 'no customer'}`);
 
       const response = await axios.post(
         `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/draft_orders.json`,
