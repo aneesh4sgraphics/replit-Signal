@@ -238,21 +238,31 @@ export async function setupAuth(app: Express) {
         }
 
         try {
-          await promisifiedSessionRegenerate(req);
+          // Don't regenerate session - it can cause issues with cookie persistence
+          // Just login the user directly to preserve the session
           await promisifiedLogin(req, user);
           await promisifiedSessionSave(req);
 
-          console.log(`[Auth] Login successful, session regenerated and saved`);
+          console.log(`[Auth] Login successful, session saved. Session ID: ${req.sessionID}`);
 
+          // Use a small delay page to ensure cookie is set before redirect
           res.send(`
             <!DOCTYPE html>
             <html>
-            <head><title>Logging in...</title></head>
-            <body>
+            <head>
+              <title>Logging in...</title>
+              <meta http-equiv="refresh" content="1;url=/">
+            </head>
+            <body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;">
+              <div style="text-align:center;">
+                <div style="width:40px;height:40px;border:3px solid #e5e7eb;border-top-color:#6366f1;border-radius:50%;animation:spin 1s linear infinite;margin:0 auto 16px;"></div>
+                <p>Logging you in...</p>
+              </div>
+              <style>@keyframes spin{to{transform:rotate(360deg)}}</style>
               <script>
                 sessionStorage.setItem('authComplete', 'true');
                 sessionStorage.setItem('authTimestamp', Date.now().toString());
-                window.location.replace('/');
+                setTimeout(function() { window.location.replace('/'); }, 800);
               </script>
             </body>
             </html>
