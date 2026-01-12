@@ -6,6 +6,7 @@ import {
   Activity, Calculator, TrendingUp, Truck, Package, Tag, Search, Clock,
   Target, AlertTriangle, Mail, Building2, BarChart3, Plug, Layers, Sparkles
 } from 'lucide-react';
+import { SiShopify, SiOdoo } from 'react-icons/si';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
 import { queryClient } from '@/lib/queryClient';
@@ -62,8 +63,8 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/email-insights', icon: Sparkles, label: 'Email Intelligence', keywords: ['ai', 'insights', 'promises', 'followup', 'sales', 'opportunities', 'reminders'] },
   { path: '/integrations', icon: Plug, label: 'Integrations', keywords: ['gmail', 'calendar', 'odoo', 'connect', 'settings', 'google'], adminOnly: true },
   { path: '/product-mapping', icon: Layers, label: 'Product Mapping', keywords: ['map', 'category', 'type', 'size', 'sqm', 'fix', 'unmapped'], adminOnly: true },
-  { path: '/shopify-settings', icon: Settings, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
-  { path: '/odoo-settings', icon: Building2, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
+  { path: '/shopify-settings', icon: SiShopify, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
+  { path: '/odoo-settings', icon: SiOdoo, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
   { path: '/admin', icon: Users, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
   { path: '/activity-logs', icon: Activity, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true },
   { path: '/product-pricing-management', icon: Database, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true },
