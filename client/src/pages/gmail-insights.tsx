@@ -39,7 +39,15 @@ import {
   UserPlus,
   Heart,
   FileText,
-  Swords
+  Swords,
+  Link2,
+  Search,
+  Database,
+  Activity,
+  Unlink,
+  MailX,
+  Settings,
+  Play
 } from "lucide-react";
 import { useLocation } from "wouter";
 import {
@@ -59,6 +67,9 @@ import {
 import { Textarea } from "@/components/ui/textarea";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Progress } from "@/components/ui/progress";
+import { Input } from "@/components/ui/input";
+import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
+import { ScrollArea } from "@/components/ui/scroll-area";
 
 interface Insight {
   id: number;
@@ -96,6 +107,45 @@ interface SyncState {
   lastSyncedAt: string | null;
   messagesProcessed: number;
   insightsExtracted: number;
+}
+
+interface EmailSyncStatus {
+  connection: { connected: boolean; email: string; scopes: string[] };
+  lastSyncAt: string | null;
+  accountEmail: string | null;
+  queryUsed: string;
+  lastError: string | null;
+  counts: {
+    fetched: number;
+    stored: number;
+    matched: number;
+    unmatched: number;
+    linked: number;
+    ignored: number;
+    pending: number;
+    processed: number;
+    events: number;
+  };
+  skipReasonBreakdown: Record<string, number>;
+  tasksCreatedFromEvents: number;
+}
+
+interface UnmatchedEmail {
+  id: number;
+  email: string;
+  domain: string | null;
+  senderName: string | null;
+  subject: string | null;
+  messageDate: string | null;
+  status: string;
+}
+
+interface CustomerSearchResult {
+  id: string;
+  company: string | null;
+  firstName: string | null;
+  lastName: string | null;
+  email: string | null;
 }
 
 interface InsightsSummary {
@@ -707,7 +757,7 @@ function GmailNotConnectedDialog({ isOpen, onClose }: { isOpen: boolean; onClose
 export default function GmailInsightsPage() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [activeTab, setActiveTab] = useState("all");
+  const [activeTab, setActiveTab] = useState("unmatched");
   const [statusFilter, setStatusFilter] = useState("pending");
   const [selectedInsight, setSelectedInsight] = useState<Insight | null>(null);
   const [dismissReason, setDismissReason] = useState("");
@@ -721,6 +771,9 @@ export default function GmailInsightsPage() {
   const [showGmailNotConnected, setShowGmailNotConnected] = useState(false);
   const [syncProgress, setSyncProgress] = useState(0);
   const [syncStatus, setSyncStatus] = useState("");
+  const [showSyncDebug, setShowSyncDebug] = useState(false);
+  const [selectedUnmatchedId, setSelectedUnmatchedId] = useState<number | null>(null);
+  const [customerSearchQuery, setCustomerSearchQuery] = useState("");
   const celebratedPOsRef = useRef<Set<number>>(new Set());
   const celebratedApprovalsRef = useRef<Set<number>>(new Set());
   const celebratedSwatchbooksRef = useRef<Set<number>>(new Set());
@@ -742,6 +795,29 @@ export default function GmailInsightsPage() {
 
   const { data: summary, isLoading: summaryLoading } = useQuery<InsightsSummary>({
     queryKey: ["/api/gmail-intelligence/summary"],
+  });
+
+  // Email Sync Debug Status (V2)
+  const { data: emailSyncStatus, isLoading: emailSyncStatusLoading, refetch: refetchSyncStatus } = useQuery<EmailSyncStatus>({
+    queryKey: ["/api/email/sync/status"],
+    refetchInterval: 30000,
+  });
+
+  // Unmatched emails for manual linking
+  const { data: unmatchedEmails, isLoading: unmatchedLoading, refetch: refetchUnmatched } = useQuery<UnmatchedEmail[]>({
+    queryKey: ["/api/email-intelligence/unmatched"],
+  });
+
+  // Customer search for manual linking
+  const { data: customerSearchResults } = useQuery<CustomerSearchResult[]>({
+    queryKey: ["/api/customers/search", customerSearchQuery],
+    queryFn: async () => {
+      if (!customerSearchQuery || customerSearchQuery.length < 2) return [];
+      const res = await fetch(`/api/customers?q=${encodeURIComponent(customerSearchQuery)}&limit=10`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: customerSearchQuery.length >= 2,
   });
 
   const categoryToTypes: Record<string, string[]> = {
@@ -999,6 +1075,79 @@ export default function GmailInsightsPage() {
       toast({
         title: "Analysis Failed",
         description: error.message || "Failed to analyze pending emails",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Manual sync trigger (full pipeline)
+  const manualSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest("POST", "/api/email/sync/run");
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email/sync/status"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/unmatched"] });
+      refetchSyncStatus();
+      refetchUnmatched();
+      toast({
+        title: "Full Sync Complete",
+        description: `Fetched: ${data.sync?.messagesStored || 0}, Events: ${data.eventsExtracted || 0}, Tasks: ${data.tasksCreated || 0}`,
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to run sync",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Link unmatched email to customer
+  const linkEmailMutation = useMutation({
+    mutationFn: async ({ unmatchedId, customerId }: { unmatchedId: number; customerId: string }) => {
+      const res = await apiRequest("POST", `/api/email-intelligence/unmatched/${unmatchedId}/link`, { customerId });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/unmatched"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/sync/status"] });
+      setSelectedUnmatchedId(null);
+      setCustomerSearchQuery("");
+      toast({
+        title: "Email Linked",
+        description: "Email has been linked to customer",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Link Failed",
+        description: error.message || "Failed to link email",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Ignore unmatched email
+  const ignoreEmailMutation = useMutation({
+    mutationFn: async ({ unmatchedId, reason }: { unmatchedId: number; reason: string }) => {
+      const res = await apiRequest("POST", `/api/email-intelligence/unmatched/${unmatchedId}/ignore`, { reason });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/email-intelligence/unmatched"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/email/sync/status"] });
+      toast({
+        title: "Email Ignored",
+        description: "Email has been marked as ignored",
+      });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Ignore Failed",
+        description: error.message || "Failed to ignore email",
         variant: "destructive",
       });
     },
@@ -1446,40 +1595,384 @@ export default function GmailInsightsPage() {
               <Badge variant="secondary" className="ml-1">{summary.byType.thank_you}</Badge>
             )}
           </TabsTrigger>
+          <TabsTrigger value="unmatched" className="gap-1 text-amber-600">
+            <MailX className="h-4 w-4" />
+            Unmatched
+            {emailSyncStatus?.counts?.unmatched && emailSyncStatus.counts.unmatched > 0 && (
+              <Badge variant="outline" className="ml-1 border-amber-400 text-amber-600">
+                {emailSyncStatus.counts.unmatched}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="debug" className="gap-1 text-gray-500">
+            <Activity className="h-4 w-4" />
+            Sync Debug
+          </TabsTrigger>
         </TabsList>
 
-        <TabsContent value={activeTab} className="mt-4">
-          {insightsLoading ? (
-            <div className="space-y-3">
-              {[1, 2, 3].map(i => (
-                <Card key={i}>
-                  <CardHeader>
-                    <Skeleton className="h-5 w-3/4" />
-                    <Skeleton className="h-4 w-1/2" />
-                  </CardHeader>
-                </Card>
-              ))}
-            </div>
-          ) : insights && insights.length > 0 ? (
-            <div>
-              {insights.map(renderInsightCard)}
-            </div>
-          ) : (
-            <Card>
-              <CardContent className="py-12 text-center">
-                <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
-                <h3 className="text-lg font-medium mb-2">No insights found</h3>
-                <p className="text-muted-foreground mb-4">
-                  {statusFilter === "pending" 
-                    ? "Great job! You've handled all your email insights."
-                    : `No ${statusFilter} insights to show.`}
-                </p>
-                <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
-                  <RefreshCw className="h-4 w-4 mr-2" />
-                  Sync Latest Emails
+        {/* Unmatched Emails Tab */}
+        <TabsContent value="unmatched" className="mt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <MailX className="h-5 w-5 text-amber-500" />
+                    Unmatched Emails
+                  </CardTitle>
+                  <CardDescription>
+                    Emails that couldn't be matched to customers automatically. Link them manually to enable analysis.
+                  </CardDescription>
+                </div>
+                <Button
+                  size="sm"
+                  onClick={() => manualSyncMutation.mutate()}
+                  disabled={manualSyncMutation.isPending}
+                  className="bg-[#875A7B] hover:bg-[#6d4863]"
+                >
+                  <Play className={`h-4 w-4 mr-2 ${manualSyncMutation.isPending ? 'animate-pulse' : ''}`} />
+                  {manualSyncMutation.isPending ? "Syncing..." : "Sync Now"}
                 </Button>
-              </CardContent>
-            </Card>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {unmatchedLoading ? (
+                <div className="space-y-2">
+                  {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 w-full" />)}
+                </div>
+              ) : unmatchedEmails && unmatchedEmails.length > 0 ? (
+                <ScrollArea className="h-[400px]">
+                  <div className="space-y-2">
+                    {unmatchedEmails.map((email) => (
+                      <div
+                        key={email.id}
+                        className="p-3 border rounded-lg hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-start justify-between gap-4">
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <span className="font-medium truncate">{email.senderName || email.email}</span>
+                              {email.domain && (
+                                <Badge variant="outline" className="text-xs">@{email.domain}</Badge>
+                              )}
+                            </div>
+                            <p className="text-sm text-muted-foreground truncate">{email.subject || "(No subject)"}</p>
+                            <p className="text-xs text-muted-foreground mt-1">
+                              {email.messageDate && format(new Date(email.messageDate), "MMM d, yyyy h:mm a")}
+                            </p>
+                          </div>
+                          <div className="flex gap-2">
+                            {selectedUnmatchedId === email.id ? (
+                              <div className="flex flex-col gap-2 w-64">
+                                <Input
+                                  placeholder="Search customer..."
+                                  value={customerSearchQuery}
+                                  onChange={(e) => setCustomerSearchQuery(e.target.value)}
+                                  className="h-8 text-sm"
+                                />
+                                {customerSearchResults && customerSearchResults.length > 0 && (
+                                  <div className="border rounded-md bg-background max-h-40 overflow-y-auto">
+                                    {customerSearchResults.map((customer) => (
+                                      <button
+                                        key={customer.id}
+                                        onClick={() => linkEmailMutation.mutate({ 
+                                          unmatchedId: email.id, 
+                                          customerId: customer.id 
+                                        })}
+                                        className="w-full text-left px-3 py-2 text-sm hover:bg-muted border-b last:border-b-0"
+                                        disabled={linkEmailMutation.isPending}
+                                      >
+                                        <div className="font-medium truncate">
+                                          {customer.company || `${customer.firstName} ${customer.lastName}`}
+                                        </div>
+                                        {customer.email && (
+                                          <div className="text-xs text-muted-foreground truncate">
+                                            {customer.email}
+                                          </div>
+                                        )}
+                                      </button>
+                                    ))}
+                                  </div>
+                                )}
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  onClick={() => {
+                                    setSelectedUnmatchedId(null);
+                                    setCustomerSearchQuery("");
+                                  }}
+                                >
+                                  Cancel
+                                </Button>
+                              </div>
+                            ) : (
+                              <>
+                                <Button
+                                  size="sm"
+                                  variant="outline"
+                                  onClick={() => setSelectedUnmatchedId(email.id)}
+                                >
+                                  <Link2 className="h-4 w-4 mr-1" />
+                                  Link
+                                </Button>
+                                <Button
+                                  size="sm"
+                                  variant="ghost"
+                                  className="text-muted-foreground hover:text-red-500"
+                                  onClick={() => ignoreEmailMutation.mutate({ 
+                                    unmatchedId: email.id, 
+                                    reason: "Manually ignored" 
+                                  })}
+                                  disabled={ignoreEmailMutation.isPending}
+                                >
+                                  <X className="h-4 w-4" />
+                                </Button>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                </ScrollArea>
+              ) : (
+                <div className="py-12 text-center">
+                  <CheckCircle2 className="h-12 w-12 mx-auto text-green-500 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">All emails matched!</h3>
+                  <p className="text-muted-foreground">No unmatched emails pending</p>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sync Debug Tab */}
+        <TabsContent value="debug" className="mt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Activity className="h-5 w-5 text-blue-500" />
+                    Email Sync Debug Panel
+                  </CardTitle>
+                  <CardDescription>
+                    Detailed sync status, pipeline counters, and diagnostics
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refetchSyncStatus()}
+                    disabled={emailSyncStatusLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${emailSyncStatusLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                  <Button
+                    size="sm"
+                    onClick={() => manualSyncMutation.mutate()}
+                    disabled={manualSyncMutation.isPending}
+                    className="bg-[#875A7B] hover:bg-[#6d4863]"
+                  >
+                    <Play className={`h-4 w-4 mr-2 ${manualSyncMutation.isPending ? 'animate-pulse' : ''}`} />
+                    {manualSyncMutation.isPending ? "Running..." : "Run Full Sync"}
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              {emailSyncStatusLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-24 w-full" />
+                  <Skeleton className="h-24 w-full" />
+                </div>
+              ) : emailSyncStatus ? (
+                <>
+                  {/* Connection Info */}
+                  <div className="grid gap-4 md:grid-cols-2">
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Database className="h-4 w-4" />
+                        Connection
+                      </h4>
+                      <div className="space-y-2 text-sm">
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Status:</span>
+                          <Badge variant={emailSyncStatus.connection?.connected ? "default" : "destructive"}>
+                            {emailSyncStatus.connection?.connected ? "Connected" : "Disconnected"}
+                          </Badge>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Account:</span>
+                          <span className="font-mono text-xs">{emailSyncStatus.accountEmail || "N/A"}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Query:</span>
+                          <span className="font-mono text-xs">{emailSyncStatus.queryUsed}</span>
+                        </div>
+                        <div className="flex justify-between">
+                          <span className="text-muted-foreground">Last Sync:</span>
+                          <span>
+                            {emailSyncStatus.lastSyncAt 
+                              ? formatDistanceToNow(new Date(emailSyncStatus.lastSyncAt), { addSuffix: true })
+                              : "Never"}
+                          </span>
+                        </div>
+                        {emailSyncStatus.lastError && (
+                          <div className="mt-2 p-2 bg-red-50 dark:bg-red-950 rounded text-xs text-red-600 dark:text-red-400">
+                            <strong>Last Error:</strong> {emailSyncStatus.lastError}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+
+                    {/* Pipeline Counters */}
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Activity className="h-4 w-4" />
+                        Pipeline Counters
+                      </h4>
+                      <div className="grid grid-cols-2 gap-2 text-sm">
+                        <div className="p-2 bg-muted rounded">
+                          <div className="text-xs text-muted-foreground">Fetched</div>
+                          <div className="text-lg font-bold">{emailSyncStatus.counts?.fetched || 0}</div>
+                        </div>
+                        <div className="p-2 bg-muted rounded">
+                          <div className="text-xs text-muted-foreground">Stored</div>
+                          <div className="text-lg font-bold">{emailSyncStatus.counts?.stored || 0}</div>
+                        </div>
+                        <div className="p-2 bg-green-50 dark:bg-green-950 rounded">
+                          <div className="text-xs text-green-600">Matched</div>
+                          <div className="text-lg font-bold text-green-600">{emailSyncStatus.counts?.matched || 0}</div>
+                        </div>
+                        <div className="p-2 bg-amber-50 dark:bg-amber-950 rounded">
+                          <div className="text-xs text-amber-600">Unmatched</div>
+                          <div className="text-lg font-bold text-amber-600">{emailSyncStatus.counts?.unmatched || 0}</div>
+                        </div>
+                        <div className="p-2 bg-blue-50 dark:bg-blue-950 rounded">
+                          <div className="text-xs text-blue-600">Linked</div>
+                          <div className="text-lg font-bold text-blue-600">{emailSyncStatus.counts?.linked || 0}</div>
+                        </div>
+                        <div className="p-2 bg-gray-50 dark:bg-gray-900 rounded">
+                          <div className="text-xs text-gray-500">Ignored</div>
+                          <div className="text-lg font-bold text-gray-500">{emailSyncStatus.counts?.ignored || 0}</div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Event Extraction Pipeline */}
+                  <div className="p-4 border rounded-lg">
+                    <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                      <Zap className="h-4 w-4 text-purple-500" />
+                      Event Extraction Pipeline
+                    </h4>
+                    <div className="grid grid-cols-4 gap-4">
+                      <div className="text-center">
+                        <div className="text-2xl font-bold">{emailSyncStatus.counts?.pending || 0}</div>
+                        <div className="text-xs text-muted-foreground">Pending Analysis</div>
+                      </div>
+                      <div className="flex items-center justify-center">
+                        <ArrowRight className="h-6 w-6 text-muted-foreground" />
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-green-600">{emailSyncStatus.counts?.processed || 0}</div>
+                        <div className="text-xs text-muted-foreground">Processed</div>
+                      </div>
+                      <div className="text-center">
+                        <div className="text-2xl font-bold text-purple-600">{emailSyncStatus.counts?.events || 0}</div>
+                        <div className="text-xs text-muted-foreground">Events Extracted</div>
+                      </div>
+                    </div>
+                    <div className="mt-4 flex items-center gap-4">
+                      <Progress 
+                        value={emailSyncStatus.counts?.stored 
+                          ? ((emailSyncStatus.counts.processed || 0) / emailSyncStatus.counts.stored) * 100 
+                          : 0
+                        } 
+                        className="flex-1" 
+                      />
+                      <span className="text-sm text-muted-foreground">
+                        {emailSyncStatus.counts?.stored 
+                          ? Math.round(((emailSyncStatus.counts.processed || 0) / emailSyncStatus.counts.stored) * 100)
+                          : 0}% analyzed
+                      </span>
+                    </div>
+                    <div className="mt-2 text-sm text-muted-foreground">
+                      Tasks created from events: <span className="font-medium">{emailSyncStatus.tasksCreatedFromEvents || 0}</span>
+                    </div>
+                  </div>
+
+                  {/* Skip Reasons */}
+                  {emailSyncStatus.skipReasonBreakdown && Object.keys(emailSyncStatus.skipReasonBreakdown).length > 0 && (
+                    <div className="p-4 border rounded-lg">
+                      <h4 className="text-sm font-medium mb-3 flex items-center gap-2">
+                        <Unlink className="h-4 w-4 text-gray-500" />
+                        Skip Reasons (Ignored Emails)
+                      </h4>
+                      <div className="space-y-2">
+                        {Object.entries(emailSyncStatus.skipReasonBreakdown).map(([reason, count]) => (
+                          <div key={reason} className="flex justify-between items-center text-sm">
+                            <span className="text-muted-foreground">{reason}</span>
+                            <Badge variant="outline">{count}</Badge>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </>
+              ) : (
+                <div className="py-12 text-center">
+                  <AlertTriangle className="h-12 w-12 mx-auto text-amber-500 mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No sync data available</h3>
+                  <p className="text-muted-foreground mb-4">Run a sync to see debug information</p>
+                  <Button onClick={() => manualSyncMutation.mutate()} disabled={manualSyncMutation.isPending}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Run Full Sync
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Regular Insight Tabs Content */}
+        <TabsContent value={activeTab} className="mt-4">
+          {activeTab !== "unmatched" && activeTab !== "debug" && (
+            insightsLoading ? (
+              <div className="space-y-3">
+                {[1, 2, 3].map(i => (
+                  <Card key={i}>
+                    <CardHeader>
+                      <Skeleton className="h-5 w-3/4" />
+                      <Skeleton className="h-4 w-1/2" />
+                    </CardHeader>
+                  </Card>
+                ))}
+              </div>
+            ) : insights && insights.length > 0 ? (
+              <div>
+                {insights.map(renderInsightCard)}
+              </div>
+            ) : (
+              <Card>
+                <CardContent className="py-12 text-center">
+                  <Mail className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No insights found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    {statusFilter === "pending" 
+                      ? "Great job! You've handled all your email insights."
+                      : `No ${statusFilter} insights to show.`}
+                  </p>
+                  <Button onClick={() => syncMutation.mutate()} disabled={syncMutation.isPending}>
+                    <RefreshCw className="h-4 w-4 mr-2" />
+                    Sync Latest Emails
+                  </Button>
+                </CardContent>
+              </Card>
+            )
           )}
         </TabsContent>
       </Tabs>
