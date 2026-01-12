@@ -610,8 +610,12 @@ export interface IStorage {
   createCoachingMoment(data: InsertCoachingMoment): Promise<CoachingMoment>;
   completeMoment(id: number, outcome: string, notes?: string): Promise<CoachingMoment | undefined>;
   getDailyMomentCount(userId: string, dateKey: string): Promise<number>;
-  incrementDailyMomentCount(userId: string, dateKey: string): Promise<void>;
+  incrementDailyMomentCount(userId: string, dateKey: string, isCall?: boolean): Promise<void>;
+  incrementSkippedCount(userId: string, dateKey: string): Promise<void>;
+  getDailyStats(userId: string, dateKey: string): Promise<{ completed: number; skipped: number; calls: number; cap: number }>;
   generateMomentsForUser(userId: string): Promise<CoachingMoment[]>;
+  updateUserActivity(userId: string): Promise<void>;
+  calculateEfficiencyScore(userId: string): Promise<number>;
 }
 
 // Removed: MemStorage class - Legacy in-memory storage implementation
@@ -3330,7 +3334,45 @@ export class DatabaseStorage implements IStorage {
     return cap?.momentsCompleted || 0;
   }
 
-  async incrementDailyMomentCount(userId: string, dateKey: string): Promise<void> {
+  async incrementDailyMomentCount(userId: string, dateKey: string, isCall: boolean = false): Promise<void> {
+    const existing = await db
+      .select()
+      .from(dailyMomentCaps)
+      .where(and(
+        eq(dailyMomentCaps.userId, userId),
+        eq(dailyMomentCaps.dateKey, dateKey)
+      ));
+    
+    if (existing.length > 0) {
+      const updates: any = { momentsCompleted: sql`${dailyMomentCaps.momentsCompleted} + 1` };
+      if (isCall) {
+        updates.callsMade = sql`COALESCE(${dailyMomentCaps.callsMade}, 0) + 1`;
+      }
+      await db
+        .update(dailyMomentCaps)
+        .set(updates)
+        .where(eq(dailyMomentCaps.id, existing[0].id));
+    } else {
+      await db.insert(dailyMomentCaps).values({
+        userId,
+        dateKey,
+        momentsCompleted: 1,
+        momentsSkipped: 0,
+        momentsCap: 10,
+        callsMade: isCall ? 1 : 0,
+      });
+    }
+    
+    // Update user's total tasks completed and efficiency score
+    await db.update(users)
+      .set({
+        totalTasksCompleted: sql`COALESCE(${users.totalTasksCompleted}, 0) + 1`,
+        lastActivityAt: new Date(),
+      })
+      .where(eq(users.id, userId));
+  }
+
+  async incrementSkippedCount(userId: string, dateKey: string): Promise<void> {
     const existing = await db
       .select()
       .from(dailyMomentCaps)
@@ -3342,24 +3384,36 @@ export class DatabaseStorage implements IStorage {
     if (existing.length > 0) {
       await db
         .update(dailyMomentCaps)
-        .set({ momentsCompleted: sql`${dailyMomentCaps.momentsCompleted} + 1` })
+        .set({ momentsSkipped: sql`COALESCE(${dailyMomentCaps.momentsSkipped}, 0) + 1` })
         .where(eq(dailyMomentCaps.id, existing[0].id));
-    } else {
-      await db.insert(dailyMomentCaps).values({
-        userId,
-        dateKey,
-        momentsCompleted: 1,
-        momentsCap: 6,
-      });
     }
+  }
+
+  async getDailyStats(userId: string, dateKey: string): Promise<{ completed: number; skipped: number; calls: number; cap: number }> {
+    const [cap] = await db
+      .select()
+      .from(dailyMomentCaps)
+      .where(and(
+        eq(dailyMomentCaps.userId, userId),
+        eq(dailyMomentCaps.dateKey, dateKey)
+      ));
+    return {
+      completed: cap?.momentsCompleted || 0,
+      skipped: cap?.momentsSkipped || 0,
+      calls: cap?.callsMade || 0,
+      cap: cap?.momentsCap || 10,
+    };
   }
 
   async generateMomentsForUser(userId: string): Promise<CoachingMoment[]> {
     const dateKey = new Date().toISOString().split('T')[0];
-    const existingCount = await this.getDailyMomentCount(userId, dateKey);
-    const dailyCap = 6;
+    const stats = await this.getDailyStats(userId, dateKey);
+    const dailyCap = 10;
     
-    if (existingCount >= dailyCap) {
+    // Target = 10 + skipped (to replace skipped tasks)
+    const targetTasks = dailyCap + stats.skipped;
+    
+    if (stats.completed >= targetTasks) {
       return [];
     }
     
@@ -3371,68 +3425,331 @@ export class DatabaseStorage implements IStorage {
         eq(coachingMoments.status, 'pending')
       ));
     
-    if (pendingMoments.length >= dailyCap - existingCount) {
+    const slotsNeeded = targetTasks - stats.completed - pendingMoments.length;
+    if (slotsNeeded <= 0) {
       return pendingMoments;
     }
     
-    const slotsAvailable = dailyCap - existingCount - pendingMoments.length;
     const newMoments: CoachingMoment[] = [];
     
-    const overdueTasks = await db
+    // Priority 1: Customers missing pricing tier, sales rep, or primary email
+    const customersNeedingData = await db
       .select()
-      .from(followUpTasks)
-      .where(and(
-        or(
-          eq(followUpTasks.assignedTo, userId),
-          isNull(followUpTasks.assignedTo)
-        ),
-        eq(followUpTasks.status, 'pending'),
-        sql`${followUpTasks.dueDate} <= CURRENT_DATE`
+      .from(customers)
+      .where(or(
+        isNull(customers.pricingTier),
+        isNull(customers.assignedSalesRep),
+        isNull(customers.email)
       ))
-      .orderBy(followUpTasks.dueDate)
-      .limit(slotsAvailable);
+      .limit(Math.min(2, slotsNeeded));
     
-    for (const task of overdueTasks) {
-      if (!task.customerId) continue;
-      
-      const existingMoment = await db
-        .select()
-        .from(coachingMoments)
-        .where(and(
-          eq(coachingMoments.customerId, task.customerId),
-          eq(coachingMoments.status, 'pending'),
-          eq(coachingMoments.sourceType, 'follow_up_task'),
-          eq(coachingMoments.sourceId, task.id)
-        ));
-      
-      if (existingMoment.length > 0) continue;
-      
-      const actionMap: Record<string, string> = {
-        quote_follow_up: 'follow_up_quote',
-        sample_follow_up: 'follow_up_sample',
-        check_in: 'schedule_call',
-        reorder_check: 'check_reorder',
-      };
-      
-      const action = actionMap[task.taskType] || 'schedule_call';
-      const whyNow = task.description || `${task.taskType.replace(/_/g, ' ')} is overdue`;
-      
+    for (const customer of customersNeedingData) {
+      if (newMoments.length >= slotsNeeded) break;
       const [moment] = await db.insert(coachingMoments).values({
-        customerId: task.customerId,
+        customerId: customer.id,
         assignedTo: userId,
-        action,
-        whyNow,
-        priority: task.priority === 'high' ? 80 : task.priority === 'urgent' ? 100 : 50,
+        action: 'update_customer_data',
+        whyNow: `Missing: ${!customer.pricingTier ? 'Pricing Tier' : ''} ${!customer.assignedSalesRep ? 'Sales Rep' : ''} ${!customer.email ? 'Email' : ''}`.trim(),
+        priority: 100, // Highest priority
         scheduledFor: new Date(),
         status: 'pending',
-        sourceType: 'follow_up_task',
-        sourceId: task.id,
+        sourceType: 'now_mode_generated',
       }).returning();
-      
       newMoments.push(moment);
     }
     
+    // Priority 2: Customers with missing address or email info
+    if (newMoments.length < slotsNeeded) {
+      const customersNeedingSync = await db
+        .select()
+        .from(customers)
+        .where(and(
+          isNotNull(customers.email),
+          or(
+            isNull(customers.address1),
+            isNull(customers.city),
+            sql`${customers.phone} IS NULL OR ${customers.phone} = ''`
+          )
+        ))
+        .limit(Math.min(2, slotsNeeded - newMoments.length));
+      
+      for (const customer of customersNeedingSync) {
+        if (newMoments.length >= slotsNeeded) break;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: customer.id,
+          assignedTo: userId,
+          action: 'sync_address_email',
+          whyNow: `Missing: ${!customer.address1 ? 'Address' : ''} ${!customer.phone ? 'Phone' : ''}`.trim(),
+          priority: 90,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 3: Customers with no email communication
+    if (newMoments.length < slotsNeeded) {
+      const noContactCustomers = await db.execute(sql`
+        SELECT c.id, c.company, c.email FROM customers c
+        LEFT JOIN gmail_messages gm ON gm.customer_id = c.id
+        WHERE gm.id IS NULL
+        AND c.email IS NOT NULL
+        AND c.id NOT IN (
+          SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action = 'identify_no_contact'
+        )
+        LIMIT ${Math.min(2, slotsNeeded - newMoments.length)}
+      `);
+      
+      for (const row of noContactCustomers.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action: 'identify_no_contact',
+          whyNow: 'No email communication found with this customer',
+          priority: 80,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 4: Send marketing emails (customers not on drip campaigns)
+    if (newMoments.length < slotsNeeded) {
+      const marketingCandidates = await db.execute(sql`
+        SELECT c.id, c.company, c.email FROM customers c
+        WHERE c.email IS NOT NULL
+        AND c.accepts_email_marketing = true
+        AND c.id NOT IN (SELECT customer_id FROM drip_campaign_enrollments WHERE status = 'active')
+        AND c.id NOT IN (SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action = 'send_marketing_email')
+        LIMIT ${Math.min(2, slotsNeeded - newMoments.length)}
+      `);
+      
+      for (const row of marketingCandidates.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action: 'send_marketing_email',
+          whyNow: 'Customer accepts marketing and not on active drip campaign',
+          priority: 70,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 5-6: Send SwatchBook or Press Test Sheet
+    if (newMoments.length < slotsNeeded) {
+      const sampleCandidates = await db.execute(sql`
+        SELECT c.id, c.company, c.email FROM customers c
+        WHERE c.email IS NOT NULL
+        AND c.id NOT IN (
+          SELECT customer_id FROM customer_activity_events 
+          WHERE event_type IN ('swatchbook_sent', 'press_test_sent')
+        )
+        AND c.id NOT IN (SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action IN ('send_swatchbook', 'send_press_test'))
+        ORDER BY RANDOM()
+        LIMIT ${Math.min(2, slotsNeeded - newMoments.length)}
+      `);
+      
+      let swatchBookAdded = false;
+      for (const row of sampleCandidates.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const action = swatchBookAdded ? 'send_press_test' : 'send_swatchbook';
+        swatchBookAdded = true;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action,
+          whyNow: action === 'send_swatchbook' ? 'Customer has not received a SwatchBook' : 'Customer has not received a Press Test Sheet',
+          priority: action === 'send_swatchbook' ? 60 : 55,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 7: Send Price List (only if SwatchBook or Press Test was sent)
+    if (newMoments.length < slotsNeeded) {
+      const priceListCandidates = await db.execute(sql`
+        SELECT DISTINCT c.id, c.company, c.email FROM customers c
+        INNER JOIN customer_activity_events cae ON cae.customer_id = c.id
+        WHERE cae.event_type IN ('swatchbook_sent', 'press_test_sent')
+        AND c.id NOT IN (
+          SELECT customer_id FROM customer_activity_events WHERE event_type = 'price_list_sent'
+        )
+        AND c.id NOT IN (SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action = 'send_price_list')
+        LIMIT ${Math.min(1, slotsNeeded - newMoments.length)}
+      `);
+      
+      for (const row of priceListCandidates.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action: 'send_price_list',
+          whyNow: 'Customer received SwatchBook or Press Test - ready for Price List',
+          priority: 50,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 8: Follow up on materials sent
+    if (newMoments.length < slotsNeeded) {
+      const followUpCandidates = await db.execute(sql`
+        SELECT DISTINCT c.id, c.company, cae.event_type, cae.created_at FROM customers c
+        INNER JOIN customer_activity_events cae ON cae.customer_id = c.id
+        WHERE cae.event_type IN ('swatchbook_sent', 'press_test_sent', 'price_list_sent')
+        AND cae.created_at < NOW() - INTERVAL '3 days'
+        AND c.id NOT IN (SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action = 'follow_up_materials')
+        ORDER BY cae.created_at ASC
+        LIMIT ${Math.min(2, slotsNeeded - newMoments.length)}
+      `);
+      
+      for (const row of followUpCandidates.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const eventName = (row.event_type as string).replace(/_/g, ' ').replace('sent', '').trim();
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action: 'follow_up_materials',
+          whyNow: `Follow up on ${eventName} sent ${Math.floor((Date.now() - new Date(row.created_at as string).getTime()) / 86400000)} days ago`,
+          priority: 40,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Priority 9: Make calls (ensure at least 2 per day)
+    const callsNeeded = Math.max(0, 2 - stats.calls);
+    if (newMoments.length < slotsNeeded && callsNeeded > 0) {
+      const callCandidates = await db.execute(sql`
+        SELECT c.id, c.company, c.phone FROM customers c
+        WHERE c.phone IS NOT NULL AND c.phone != ''
+        AND c.id NOT IN (SELECT customer_id FROM coaching_moments WHERE status = 'pending' AND action = 'make_call')
+        ORDER BY RANDOM()
+        LIMIT ${Math.min(callsNeeded, slotsNeeded - newMoments.length)}
+      `);
+      
+      for (const row of callCandidates.rows as any[]) {
+        if (newMoments.length >= slotsNeeded) break;
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: row.id,
+          assignedTo: userId,
+          action: 'make_call',
+          whyNow: 'Daily call target - reach out to build relationship',
+          priority: 30,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'now_mode_generated',
+        }).returning();
+        newMoments.push(moment);
+      }
+    }
+    
+    // Fill remaining slots with general outreach or overdue follow-ups
+    if (newMoments.length < slotsNeeded) {
+      const overdueTasks = await db
+        .select()
+        .from(followUpTasks)
+        .where(and(
+          or(
+            eq(followUpTasks.assignedTo, userId),
+            isNull(followUpTasks.assignedTo)
+          ),
+          eq(followUpTasks.status, 'pending'),
+          sql`${followUpTasks.dueDate} <= CURRENT_DATE`
+        ))
+        .orderBy(followUpTasks.dueDate)
+        .limit(slotsNeeded - newMoments.length);
+      
+      for (const task of overdueTasks) {
+        if (!task.customerId) continue;
+        if (newMoments.length >= slotsNeeded) break;
+        
+        const actionMap: Record<string, string> = {
+          quote_follow_up: 'follow_up_quote',
+          sample_follow_up: 'follow_up_sample',
+          check_in: 'schedule_call',
+          reorder_check: 'check_reorder',
+        };
+        
+        const action = actionMap[task.taskType] || 'schedule_call';
+        const whyNow = task.description || `${task.taskType.replace(/_/g, ' ')} is overdue`;
+        
+        const [moment] = await db.insert(coachingMoments).values({
+          customerId: task.customerId,
+          assignedTo: userId,
+          action,
+          whyNow,
+          priority: task.priority === 'urgent' ? 100 : task.priority === 'high' ? 80 : 50,
+          scheduledFor: new Date(),
+          status: 'pending',
+          sourceType: 'follow_up_task',
+          sourceId: task.id,
+        }).returning();
+        
+        newMoments.push(moment);
+      }
+    }
+    
     return [...pendingMoments, ...newMoments];
+  }
+
+  async updateUserActivity(userId: string): Promise<void> {
+    await db.update(users)
+      .set({ lastActivityAt: new Date() })
+      .where(eq(users.id, userId));
+  }
+
+  async calculateEfficiencyScore(userId: string): Promise<number> {
+    // Get stats for the last 7 days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    
+    const stats = await db
+      .select()
+      .from(dailyMomentCaps)
+      .where(and(
+        eq(dailyMomentCaps.userId, userId),
+        sql`${dailyMomentCaps.dateKey} >= ${sevenDaysAgo.toISOString().split('T')[0]}`
+      ));
+    
+    if (stats.length === 0) return 0;
+    
+    let totalCompleted = 0;
+    let totalTarget = 0;
+    
+    for (const day of stats) {
+      totalCompleted += day.momentsCompleted || 0;
+      totalTarget += day.momentsCap || 10;
+    }
+    
+    // Calculate efficiency: completed / target * 100, max 100
+    const efficiency = totalTarget > 0 ? Math.min(100, Math.round((totalCompleted / totalTarget) * 100)) : 0;
+    
+    // Update user's efficiency score
+    await db.update(users)
+      .set({ efficiencyScore: efficiency })
+      .where(eq(users.id, userId));
+    
+    return efficiency;
   }
 }
 

@@ -15824,6 +15824,8 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
   // Now Mode Coaching Moments
   // ========================================
 
+  const DAILY_CAP = 10;
+
   app.get("/api/now-mode/current", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -15831,25 +15833,30 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
+      // Update user activity timestamp
+      await storage.updateUserActivity(userId);
+      
       await storage.generateMomentsForUser(userId);
       
       const moment = await storage.getCurrentMoment(userId);
+      const dateKey = new Date().toISOString().split('T')[0];
+      const stats = await storage.getDailyStats(userId, dateKey);
+      const targetTasks = DAILY_CAP + stats.skipped;
       
       if (!moment) {
-        const dateKey = new Date().toISOString().split('T')[0];
-        const completed = await storage.getDailyMomentCount(userId, dateKey);
         return res.json({ 
           moment: null, 
-          completed,
-          dailyCap: 6,
-          allDone: completed >= 6,
-          message: completed >= 6 ? "All done for today!" : "No moments available right now"
+          completed: stats.completed,
+          skipped: stats.skipped,
+          calls: stats.calls,
+          dailyCap: DAILY_CAP,
+          targetTasks,
+          allDone: stats.completed >= targetTasks,
+          message: stats.completed >= targetTasks ? "All done for today! Great work!" : "No moments available right now"
         });
       }
 
       const customer = await storage.getCustomer(moment.customerId);
-      const dateKey = new Date().toISOString().split('T')[0];
-      const completed = await storage.getDailyMomentCount(userId, dateKey);
 
       res.json({
         moment: {
@@ -15857,14 +15864,19 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
           customer: customer ? {
             id: customer.id,
             company: customer.company,
-            name: customer.name,
+            name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.name,
             email: customer.email,
             phone: customer.phone,
+            pricingTier: customer.pricingTier,
+            assignedSalesRep: customer.assignedSalesRep,
           } : null,
         },
-        completed,
-        dailyCap: 6,
-        remaining: Math.max(0, 6 - completed),
+        completed: stats.completed,
+        skipped: stats.skipped,
+        calls: stats.calls,
+        dailyCap: DAILY_CAP,
+        targetTasks,
+        remaining: Math.max(0, targetTasks - stats.completed),
       });
     } catch (error) {
       console.error("Error getting current moment:", error);
@@ -15892,7 +15904,17 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       }
 
       const dateKey = new Date().toISOString().split('T')[0];
-      await storage.incrementDailyMomentCount(userId, dateKey);
+      
+      // Handle skip - increment skipped count (this will add a replacement task)
+      if (outcome === 'skipped') {
+        await storage.incrementSkippedCount(userId, dateKey);
+        // Generate replacement moment
+        await storage.generateMomentsForUser(userId);
+      } else {
+        // Track if this was a call
+        const isCall = outcome === 'called' || moment.action === 'make_call';
+        await storage.incrementDailyMomentCount(userId, dateKey, isCall);
+      }
 
       if (moment.sourceType === 'follow_up_task' && moment.sourceId) {
         await storage.completeFollowUpTask(moment.sourceId, userId, `Completed via Now Mode: ${outcome}`);
@@ -15912,17 +15934,25 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         await storage.updateCustomer(moment.customerId, { pausedUntil: pauseUntil });
       }
 
+      // Calculate updated efficiency score
+      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
+
       const nextMoment = await storage.getCurrentMoment(userId);
-      const completed = await storage.getDailyMomentCount(userId, dateKey);
+      const stats = await storage.getDailyStats(userId, dateKey);
+      const targetTasks = DAILY_CAP + stats.skipped;
 
       res.json({
         success: true,
         completedMoment: moment,
         nextMoment: nextMoment || null,
-        completed,
-        dailyCap: 6,
-        remaining: Math.max(0, 6 - completed),
-        allDone: completed >= 6,
+        completed: stats.completed,
+        skipped: stats.skipped,
+        calls: stats.calls,
+        dailyCap: DAILY_CAP,
+        targetTasks,
+        remaining: Math.max(0, targetTasks - stats.completed),
+        allDone: stats.completed >= targetTasks,
+        efficiencyScore,
       });
     } catch (error) {
       console.error("Error completing moment:", error);
@@ -15938,21 +15968,154 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       }
 
       const dateKey = new Date().toISOString().split('T')[0];
-      const completed = await storage.getDailyMomentCount(userId, dateKey);
+      const stats = await storage.getDailyStats(userId, dateKey);
       const pending = await storage.getMomentsForUser(userId, 'pending');
+      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
+      const targetTasks = DAILY_CAP + stats.skipped;
 
       res.json({
         today: {
-          completed,
-          dailyCap: 6,
-          remaining: Math.max(0, 6 - completed),
-          allDone: completed >= 6,
+          completed: stats.completed,
+          skipped: stats.skipped,
+          calls: stats.calls,
+          dailyCap: DAILY_CAP,
+          targetTasks,
+          remaining: Math.max(0, targetTasks - stats.completed),
+          allDone: stats.completed >= targetTasks,
         },
         pending: pending.length,
+        efficiencyScore,
       });
     } catch (error) {
       console.error("Error getting now mode stats:", error);
       res.status(500).json({ error: "Failed to get stats" });
+    }
+  });
+
+  // Admin endpoint to see all users' NOW MODE stats
+  app.get("/api/now-mode/admin/stats", isAuthenticated, isAdmin, async (req: any, res) => {
+    try {
+      const dateKey = new Date().toISOString().split('T')[0];
+      
+      // Get all users with their daily stats
+      const allUsers = await db.select({
+        id: users.id,
+        email: users.email,
+        firstName: users.firstName,
+        lastName: users.lastName,
+        efficiencyScore: users.efficiencyScore,
+        totalTasksCompleted: users.totalTasksCompleted,
+        lastActivityAt: users.lastActivityAt,
+      }).from(users).where(eq(users.status, 'approved'));
+      
+      // Get today's stats for each user
+      const dailyStats = await db.select().from(dailyMomentCaps).where(eq(dailyMomentCaps.dateKey, dateKey));
+      const statsMap = new Map(dailyStats.map(s => [s.userId, s]));
+      
+      const userStats = allUsers.map(user => {
+        const todayStats = statsMap.get(user.id);
+        return {
+          ...user,
+          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
+          today: {
+            completed: todayStats?.momentsCompleted || 0,
+            skipped: todayStats?.momentsSkipped || 0,
+            calls: todayStats?.callsMade || 0,
+            cap: DAILY_CAP,
+          },
+        };
+      });
+      
+      // Sort by efficiency score descending
+      userStats.sort((a, b) => (b.efficiencyScore || 0) - (a.efficiencyScore || 0));
+      
+      res.json({ users: userStats, dateKey });
+    } catch (error) {
+      console.error("Error getting admin now mode stats:", error);
+      res.status(500).json({ error: "Failed to get admin stats" });
+    }
+  });
+
+  // Get user efficiency score for dashboard
+  app.get("/api/now-mode/efficiency", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const user = await storage.getUser(userId);
+      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
+      
+      res.json({
+        efficiencyScore,
+        totalTasksCompleted: user?.totalTasksCompleted || 0,
+        lastActivityAt: user?.lastActivityAt,
+      });
+    } catch (error) {
+      console.error("Error getting efficiency:", error);
+      res.status(500).json({ error: "Failed to get efficiency" });
+    }
+  });
+
+  // Check dormancy status (for popup trigger)
+  app.get("/api/now-mode/dormancy-check", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      const user = await storage.getUser(userId);
+      const lastActivity = user?.lastActivityAt;
+      const now = new Date();
+      
+      // Check if dormant (3 hours of inactivity)
+      const threeHoursMs = 3 * 60 * 60 * 1000;
+      const isDormant = lastActivity && (now.getTime() - new Date(lastActivity).getTime() >= threeHoursMs);
+      
+      const efficiencyScore = user?.efficiencyScore || 0;
+      const dateKey = now.toISOString().split('T')[0];
+      const stats = await storage.getDailyStats(userId, dateKey);
+      
+      // Generate coaching message based on efficiency
+      let coachingMessage = "";
+      if (efficiencyScore >= 80) {
+        coachingMessage = "You're doing great! Just a few more tasks to finish strong today.";
+      } else if (efficiencyScore >= 50) {
+        coachingMessage = "Good progress! Try completing 2-3 more tasks to boost your efficiency score.";
+      } else if (efficiencyScore >= 25) {
+        coachingMessage = "Let's get back on track! Focus on high-priority tasks like customer data updates.";
+      } else {
+        coachingMessage = "Every task counts! Start with something quick like verifying customer emails.";
+      }
+      
+      res.json({
+        isDormant,
+        lastActivityAt: lastActivity,
+        efficiencyScore,
+        todayCompleted: stats.completed,
+        todayRemaining: Math.max(0, DAILY_CAP + stats.skipped - stats.completed),
+        coachingMessage,
+      });
+    } catch (error) {
+      console.error("Error checking dormancy:", error);
+      res.status(500).json({ error: "Failed to check dormancy" });
+    }
+  });
+
+  // Update user activity (called on page interactions)
+  app.post("/api/now-mode/heartbeat", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      
+      await storage.updateUserActivity(userId);
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update activity" });
     }
   });
 
