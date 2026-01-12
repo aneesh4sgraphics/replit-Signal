@@ -142,8 +142,13 @@ const SKIP_REASONS = [
 export default function NowMode() {
   const [notes, setNotes] = useState("");
   const [showSkipModal, setShowSkipModal] = useState(false);
+  const [showSkipWarning, setShowSkipWarning] = useState(false);
   const [skipReason, setSkipReason] = useState("");
   const [skipNotes, setSkipNotes] = useState("");
+  const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
+  const [optimisticCompleted, setOptimisticCompleted] = useState<number | null>(null);
+  const [optimisticEfficiency, setOptimisticEfficiency] = useState<number | null>(null);
+  const [efficiencyDelta, setEfficiencyDelta] = useState<number | null>(null);
   const { toast } = useToast();
 
   const { data, isLoading, refetch } = useQuery<NowModeResponse>({
@@ -156,8 +161,22 @@ export default function NowMode() {
       const res = await apiRequest("POST", "/api/now-mode/complete", { customerId, cardType, outcome, notes });
       return res.json();
     },
+    onMutate: async () => {
+      const currentCompleted = data?.completed || 0;
+      const currentEfficiency = data?.efficiencyScore || 100;
+      setOptimisticCompleted(currentCompleted + 1);
+      setOptimisticEfficiency(Math.min(100, currentEfficiency + 3));
+      setEfficiencyDelta(3);
+      setShowSuccessAnimation(true);
+      setTimeout(() => {
+        setShowSuccessAnimation(false);
+        setEfficiencyDelta(null);
+      }, 1500);
+    },
     onSuccess: (response: any) => {
       setNotes("");
+      setOptimisticCompleted(null);
+      setOptimisticEfficiency(null);
       const resultMsg = response.nextFollowUpAt ? "Completed! Follow-up scheduled." : "Completed!";
       toast({ title: resultMsg, description: "Moving to next card..." });
       queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
@@ -165,6 +184,9 @@ export default function NowMode() {
       refetch();
     },
     onError: (error) => {
+      setOptimisticCompleted(null);
+      setOptimisticEfficiency(null);
+      setShowSuccessAnimation(false);
       toast({
         title: "Error",
         description: error instanceof Error ? error.message : "Failed to complete card",
@@ -180,6 +202,7 @@ export default function NowMode() {
     },
     onSuccess: (response: any) => {
       setShowSkipModal(false);
+      setShowSkipWarning(false);
       setSkipReason("");
       setSkipNotes("");
       if (response.penaltyApplied) {
@@ -214,6 +237,15 @@ export default function NowMode() {
     });
   };
 
+  const handleSkipClick = () => {
+    setShowSkipWarning(true);
+  };
+
+  const handleSkipWarningConfirm = () => {
+    setShowSkipWarning(false);
+    setShowSkipModal(true);
+  };
+
   const handleSkipConfirm = () => {
     if (!data?.card || !skipReason) return;
     skipMutation.mutate({
@@ -224,9 +256,11 @@ export default function NowMode() {
     });
   };
 
-  const progress = data ? (data.completed / data.dailyTarget) * 100 : 0;
-  const efficiencyColor = (data?.efficiencyScore || 100) >= 80 ? "#28A745" : 
-                          (data?.efficiencyScore || 100) >= 50 ? "#FD7E14" : "#DC3545";
+  const displayCompleted = optimisticCompleted ?? (data?.completed || 0);
+  const displayEfficiency = optimisticEfficiency ?? (data?.efficiencyScore || 100);
+  const progress = data ? (displayCompleted / data.dailyTarget) * 100 : 0;
+  const efficiencyColor = displayEfficiency >= 80 ? "#28A745" : 
+                          displayEfficiency >= 50 ? "#FD7E14" : "#DC3545";
 
   if (isLoading) {
     return (
@@ -250,17 +284,20 @@ export default function NowMode() {
             </Button>
           </Link>
           <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm">
-              <Gauge className="h-4 w-4" style={{ color: efficiencyColor }} />
+            <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-green-400 scale-105' : ''}`}>
+              <Gauge className={`h-4 w-4 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} style={{ color: efficiencyColor }} />
               <span className="font-semibold" style={{ color: efficiencyColor }}>
-                {data?.efficiencyScore || 100}
+                {displayEfficiency}
               </span>
+              {efficiencyDelta !== null && (
+                <span className="text-xs font-bold text-green-500 animate-pulse">+{efficiencyDelta}</span>
+              )}
               <span className="text-xs text-gray-500">Efficiency</span>
             </div>
-            <div className="flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm">
-              <Trophy className="h-4 w-4 text-purple-600" />
+            <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-purple-400 scale-105' : ''}`}>
+              <Trophy className={`h-4 w-4 text-purple-600 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} />
               <span className="font-semibold text-purple-600">
-                {data?.completed || 0}/{data?.dailyTarget || 10}
+                {displayCompleted}/{data?.dailyTarget || 10}
               </span>
               <span className="text-xs text-gray-500">Today</span>
             </div>
@@ -270,9 +307,11 @@ export default function NowMode() {
         <div className="mb-4">
           <div className="flex items-center justify-between mb-2">
             <span className="text-sm font-medium text-gray-600">Daily Progress</span>
-            <span className="text-sm text-gray-500">{data?.remaining || 0} remaining</span>
+            <span className="text-sm text-gray-500">{Math.max(0, (data?.dailyTarget || 10) - displayCompleted)} remaining</span>
           </div>
-          <Progress value={progress} className="h-3" />
+          <div className={`transition-all duration-500 ${showSuccessAnimation ? 'scale-[1.02]' : ''}`}>
+            <Progress value={progress} className={`h-3 transition-all duration-500 ${showSuccessAnimation ? 'ring-2 ring-green-400' : ''}`} />
+          </div>
         </div>
 
         {data?.skipPenaltyApplied && (
@@ -442,17 +481,12 @@ export default function NowMode() {
 
               <Button
                 variant="ghost"
-                onClick={() => setShowSkipModal(true)}
+                onClick={handleSkipClick}
                 disabled={skipMutation.isPending}
                 className="w-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
               >
                 <SkipForward className="h-4 w-4 mr-2" />
                 Skip this card
-                {(data?.totalSkips || 0) >= 2 && (
-                  <span className="ml-2 text-xs text-orange-500">
-                    ({3 - (data?.totalSkips || 0)} skips until penalty)
-                  </span>
-                )}
               </Button>
 
               <div className="text-center">
@@ -467,12 +501,59 @@ export default function NowMode() {
         )}
       </div>
 
+      {showSuccessAnimation && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center pointer-events-none">
+          <div className="relative">
+            <div className="absolute inset-0 bg-green-400 rounded-full animate-ping opacity-30" style={{ width: 120, height: 120 }} />
+            <div className="w-24 h-24 bg-green-500 rounded-full flex items-center justify-center shadow-lg animate-bounce">
+              <CheckCircle2 className="h-12 w-12 text-white" />
+            </div>
+          </div>
+        </div>
+      )}
+
+      <Dialog open={showSkipWarning} onOpenChange={setShowSkipWarning}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-orange-600">
+              <AlertTriangle className="h-5 w-5" />
+              Are you sure?
+            </DialogTitle>
+            <DialogDescription className="pt-2">
+              <span className="text-lg font-semibold text-gray-900">
+                Skipping reduces today's efficiency by 2 points.
+              </span>
+              <br />
+              <span className="text-sm text-gray-500 mt-2 block">
+                Current efficiency: <span className="font-bold">{displayEfficiency}</span> → 
+                After skip: <span className="font-bold text-orange-600">{Math.max(0, displayEfficiency - 2)}</span>
+              </span>
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2 sm:gap-0">
+            <Button 
+              onClick={handleSkipWarningConfirm}
+              variant="outline"
+              className="border-orange-300 text-orange-600 hover:bg-orange-50"
+            >
+              Skip anyway
+            </Button>
+            <Button 
+              onClick={() => setShowSkipWarning(false)}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              Do it now
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
       <Dialog open={showSkipModal} onOpenChange={setShowSkipModal}>
         <DialogContent>
           <DialogHeader>
-            <DialogTitle>Skip this card?</DialogTitle>
+            <DialogTitle>Why are you skipping?</DialogTitle>
             <DialogDescription>
-              Please select a reason for skipping. After 3 skips, fewer difficult cards will be shown.
+              Select a reason so we can improve card selection.
             </DialogDescription>
           </DialogHeader>
           <div className="py-4">
