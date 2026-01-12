@@ -15917,10 +15917,12 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
   });
 
   // ========================================
-  // Now Mode Coaching Moments
+  // Now Mode V2 - Moment Engine
   // ========================================
 
-  const DAILY_CAP = 10;
+  const { nowModeEngine } = await import("./now-mode-engine");
+  const DAILY_TARGET = 10;
+  const SKIP_REASONS = ['customer_unavailable', 'wrong_timing', 'already_contacted', 'missing_info', 'not_relevant', 'other'];
 
   app.get("/api/now-mode/current", isAuthenticated, async (req: any, res) => {
     try {
@@ -15929,63 +15931,56 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      // Update user activity timestamp
       await storage.updateUserActivity(userId);
       
-      await storage.generateMomentsForUser(userId);
+      const { card, session, allDone } = await nowModeEngine.getEligibleCard(userId);
+      const bucketProgress = nowModeEngine.getBucketProgress(session);
       
-      const moment = await storage.getCurrentMoment(userId);
-      const dateKey = new Date().toISOString().split('T')[0];
-      const stats = await storage.getDailyStats(userId, dateKey);
-      const targetTasks = DAILY_CAP + stats.skipped;
-      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
-      const requiredCalls = 2;
-      const callsRemaining = Math.max(0, requiredCalls - stats.calls);
-      
-      if (!moment) {
+      if (!card) {
         return res.json({ 
-          moment: null, 
-          completed: stats.completed,
-          skipped: stats.skipped,
-          calls: stats.calls,
-          dailyCap: DAILY_CAP,
-          targetTasks,
-          allDone: stats.completed >= targetTasks,
-          message: stats.completed >= targetTasks ? "All done for today! Great work!" : "No moments available right now",
-          efficiencyScore,
-          callsToday: stats.calls,
-          callsRemaining,
+          card: null, 
+          completed: session.totalCompleted || 0,
+          dailyTarget: DAILY_TARGET,
+          remaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
+          allDone,
+          message: allDone ? "All done for today! Great work!" : "No cards available right now",
+          efficiencyScore: session.efficiencyScore || 100,
+          bucketProgress,
+          skipPenaltyApplied: session.skipPenaltyApplied || false,
+          totalSkips: session.totalSkips || 0,
         });
       }
 
-      const customer = await storage.getCustomer(moment.customerId);
-
       res.json({
-        moment: {
-          ...moment,
-          customer: customer ? {
-            id: customer.id,
-            company: customer.company,
-            name: `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || customer.name,
-            email: customer.email,
-            phone: customer.phone,
-            pricingTier: customer.pricingTier,
-            assignedSalesRep: customer.assignedSalesRep,
-          } : null,
+        card: {
+          customerId: card.customerId,
+          cardType: card.cardType,
+          bucket: card.bucket,
+          whyNow: card.whyNow,
+          isHardCard: card.isHardCard,
+          outcomeButtons: card.outcomeButtons,
+          customer: {
+            id: card.customer.id,
+            company: card.customer.company,
+            name: `${card.customer.firstName || ''} ${card.customer.lastName || ''}`.trim() || card.customer.company,
+            email: card.customer.email,
+            phone: card.customer.phone,
+            salesRepName: card.customer.salesRepName,
+            pricingTier: card.customer.pricingTier,
+          },
         },
-        completed: stats.completed,
-        skipped: stats.skipped,
-        calls: stats.calls,
-        dailyCap: DAILY_CAP,
-        targetTasks,
-        remaining: Math.max(0, targetTasks - stats.completed),
-        efficiencyScore,
-        callsToday: stats.calls,
-        callsRemaining,
+        completed: session.totalCompleted || 0,
+        dailyTarget: DAILY_TARGET,
+        remaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
+        efficiencyScore: session.efficiencyScore || 100,
+        bucketProgress,
+        skipPenaltyApplied: session.skipPenaltyApplied || false,
+        totalSkips: session.totalSkips || 0,
+        allDone: false,
       });
     } catch (error) {
-      console.error("Error getting current moment:", error);
-      res.status(500).json({ error: "Failed to get current moment" });
+      console.error("Error getting current card:", error);
+      res.status(500).json({ error: "Failed to get current card" });
     }
   });
 
@@ -15996,72 +15991,119 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { momentId, outcome, notes } = req.body;
+      const { customerId, cardType, outcome, notes } = req.body;
       
-      if (!momentId || !outcome) {
-        return res.status(400).json({ error: "momentId and outcome are required" });
+      if (!customerId || !cardType || !outcome) {
+        return res.status(400).json({ error: "customerId, cardType, and outcome are required" });
       }
 
-      const moment = await storage.completeMoment(momentId, outcome, notes);
+      const result = await nowModeEngine.completeCard(userId, customerId, cardType, outcome, notes);
       
-      if (!moment) {
-        return res.status(404).json({ error: "Moment not found" });
-      }
-
-      const dateKey = new Date().toISOString().split('T')[0];
-      
-      // Handle skip - increment skipped count (this will add a replacement task)
-      if (outcome === 'skipped') {
-        await storage.incrementSkippedCount(userId, dateKey);
-        // Generate replacement moment
-        await storage.generateMomentsForUser(userId);
-      } else {
-        // Track if this was a call
-        const isCall = outcome === 'called' || moment.action === 'make_call';
-        await storage.incrementDailyMomentCount(userId, dateKey, isCall);
-      }
-
-      if (moment.sourceType === 'follow_up_task' && moment.sourceId) {
-        await storage.completeFollowUpTask(moment.sourceId, userId, `Completed via Now Mode: ${outcome}`);
-      }
-
       await storage.logActivity({
         userId,
         actionType: 'now_mode_complete',
-        entityType: 'coaching_moment',
-        entityId: String(momentId),
-        details: { outcome, notes, customerId: moment.customerId },
+        entityType: 'customer',
+        entityId: customerId,
+        details: { cardType, outcome, notes },
       });
 
-      if (outcome === 'pause') {
-        const pauseUntil = new Date();
-        pauseUntil.setDate(pauseUntil.getDate() + 7);
-        await storage.updateCustomer(moment.customerId, { pausedUntil: pauseUntil });
-      }
-
-      // Calculate updated efficiency score
-      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
-
-      const nextMoment = await storage.getCurrentMoment(userId);
-      const stats = await storage.getDailyStats(userId, dateKey);
-      const targetTasks = DAILY_CAP + stats.skipped;
+      const { card: nextCard, session } = await nowModeEngine.getEligibleCard(userId);
+      const bucketProgress = nowModeEngine.getBucketProgress(session);
 
       res.json({
         success: true,
-        completedMoment: moment,
-        nextMoment: nextMoment || null,
-        completed: stats.completed,
-        skipped: stats.skipped,
-        calls: stats.calls,
-        dailyCap: DAILY_CAP,
-        targetTasks,
-        remaining: Math.max(0, targetTasks - stats.completed),
-        allDone: stats.completed >= targetTasks,
-        efficiencyScore,
+        nextCard: nextCard ? {
+          customerId: nextCard.customerId,
+          cardType: nextCard.cardType,
+          bucket: nextCard.bucket,
+          whyNow: nextCard.whyNow,
+          isHardCard: nextCard.isHardCard,
+          outcomeButtons: nextCard.outcomeButtons,
+          customer: {
+            id: nextCard.customer.id,
+            company: nextCard.customer.company,
+            name: `${nextCard.customer.firstName || ''} ${nextCard.customer.lastName || ''}`.trim() || nextCard.customer.company,
+            email: nextCard.customer.email,
+            phone: nextCard.customer.phone,
+            salesRepName: nextCard.customer.salesRepName,
+            pricingTier: nextCard.customer.pricingTier,
+          },
+        } : null,
+        completed: session.totalCompleted || 0,
+        dailyTarget: DAILY_TARGET,
+        remaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
+        allDone: (session.totalCompleted || 0) >= DAILY_TARGET,
+        efficiencyScore: session.efficiencyScore || 100,
+        bucketProgress,
+        nextFollowUpAt: result.nextFollowUpAt,
       });
     } catch (error) {
-      console.error("Error completing moment:", error);
-      res.status(500).json({ error: "Failed to complete moment" });
+      console.error("Error completing card:", error);
+      res.status(500).json({ error: "Failed to complete card" });
+    }
+  });
+
+  app.post("/api/now-mode/skip", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { customerId, cardType, skipReason, notes } = req.body;
+      
+      if (!customerId || !cardType || !skipReason) {
+        return res.status(400).json({ error: "customerId, cardType, and skipReason are required" });
+      }
+
+      if (!SKIP_REASONS.includes(skipReason)) {
+        return res.status(400).json({ error: "Invalid skip reason", validReasons: SKIP_REASONS });
+      }
+
+      const result = await nowModeEngine.skipCard(userId, customerId, cardType, skipReason, notes);
+      
+      await storage.logActivity({
+        userId,
+        actionType: 'now_mode_skip',
+        entityType: 'customer',
+        entityId: customerId,
+        details: { cardType, skipReason, notes, penaltyApplied: result.penaltyApplied },
+      });
+
+      const { card: nextCard, session } = await nowModeEngine.getEligibleCard(userId);
+      const bucketProgress = nowModeEngine.getBucketProgress(session);
+
+      res.json({
+        success: true,
+        penaltyApplied: result.penaltyApplied,
+        totalSkips: session.totalSkips || 0,
+        nextCard: nextCard ? {
+          customerId: nextCard.customerId,
+          cardType: nextCard.cardType,
+          bucket: nextCard.bucket,
+          whyNow: nextCard.whyNow,
+          isHardCard: nextCard.isHardCard,
+          outcomeButtons: nextCard.outcomeButtons,
+          customer: {
+            id: nextCard.customer.id,
+            company: nextCard.customer.company,
+            name: `${nextCard.customer.firstName || ''} ${nextCard.customer.lastName || ''}`.trim() || nextCard.customer.company,
+            email: nextCard.customer.email,
+            phone: nextCard.customer.phone,
+            salesRepName: nextCard.customer.salesRepName,
+            pricingTier: nextCard.customer.pricingTier,
+          },
+        } : null,
+        completed: session.totalCompleted || 0,
+        dailyTarget: DAILY_TARGET,
+        remaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
+        efficiencyScore: session.efficiencyScore || 100,
+        bucketProgress,
+        message: result.penaltyApplied ? "Skip penalty applied: fewer hard cards will be shown" : undefined,
+      });
+    } catch (error) {
+      console.error("Error skipping card:", error);
+      res.status(500).json({ error: "Failed to skip card" });
     }
   });
 
@@ -16072,24 +16114,21 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const dateKey = new Date().toISOString().split('T')[0];
-      const stats = await storage.getDailyStats(userId, dateKey);
-      const pending = await storage.getMomentsForUser(userId, 'pending');
-      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
-      const targetTasks = DAILY_CAP + stats.skipped;
+      const session = await nowModeEngine.getOrCreateSession(userId);
+      const bucketProgress = nowModeEngine.getBucketProgress(session);
 
       res.json({
         today: {
-          completed: stats.completed,
-          skipped: stats.skipped,
-          calls: stats.calls,
-          dailyCap: DAILY_CAP,
-          targetTasks,
-          remaining: Math.max(0, targetTasks - stats.completed),
-          allDone: stats.completed >= targetTasks,
+          completed: session.totalCompleted || 0,
+          skips: session.totalSkips || 0,
+          dailyTarget: DAILY_TARGET,
+          remaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
+          allDone: (session.totalCompleted || 0) >= DAILY_TARGET,
         },
-        pending: pending.length,
-        efficiencyScore,
+        bucketProgress,
+        efficiencyScore: session.efficiencyScore || 100,
+        highValueOutcomes: session.highValueOutcomes || 0,
+        skipPenaltyApplied: session.skipPenaltyApplied || false,
       });
     } catch (error) {
       console.error("Error getting now mode stats:", error);
@@ -16097,51 +16136,29 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
-  // Admin endpoint to see all users' NOW MODE stats
   app.get("/api/now-mode/admin/stats", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
-      const dateKey = new Date().toISOString().split('T')[0];
+      const dateKey = req.query.date as string || new Date().toISOString().split('T')[0];
+      const reports = await nowModeEngine.getAdminReport(dateKey);
       
-      // Get all users with their daily stats
-      const allUsers = await db.select({
-        id: users.id,
-        email: users.email,
-        firstName: users.firstName,
-        lastName: users.lastName,
-        efficiencyScore: users.efficiencyScore,
-        totalTasksCompleted: users.totalTasksCompleted,
-        lastActivityAt: users.lastActivityAt,
-      }).from(users).where(eq(users.status, 'approved'));
-      
-      // Get today's stats for each user
-      const dailyStats = await db.select().from(dailyMomentCaps).where(eq(dailyMomentCaps.dateKey, dateKey));
-      const statsMap = new Map(dailyStats.map(s => [s.userId, s]));
-      
-      const userStats = allUsers.map(user => {
-        const todayStats = statsMap.get(user.id);
-        return {
-          ...user,
-          name: `${user.firstName || ''} ${user.lastName || ''}`.trim() || user.email,
-          today: {
-            completed: todayStats?.momentsCompleted || 0,
-            skipped: todayStats?.momentsSkipped || 0,
-            calls: todayStats?.callsMade || 0,
-            cap: DAILY_CAP,
-          },
-        };
+      res.json({ 
+        dateKey, 
+        reports,
+        summary: {
+          totalReps: reports.length,
+          totalCompletions: reports.reduce((sum, r) => sum + r.completions, 0),
+          totalSkips: reports.reduce((sum, r) => sum + r.skips, 0),
+          avgEfficiency: reports.length > 0 
+            ? Math.round(reports.reduce((sum, r) => sum + r.efficiencyScore, 0) / reports.length) 
+            : 0,
+        },
       });
-      
-      // Sort by efficiency score descending
-      userStats.sort((a, b) => (b.efficiencyScore || 0) - (a.efficiencyScore || 0));
-      
-      res.json({ users: userStats, dateKey });
     } catch (error) {
       console.error("Error getting admin now mode stats:", error);
       res.status(500).json({ error: "Failed to get admin stats" });
     }
   });
 
-  // Get user efficiency score for dashboard
   app.get("/api/now-mode/efficiency", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -16149,13 +16166,14 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
       
-      const user = await storage.getUser(userId);
-      const efficiencyScore = await storage.calculateEfficiencyScore(userId);
+      const efficiencyScore = await nowModeEngine.getEfficiencyScore(userId);
+      const session = await nowModeEngine.getOrCreateSession(userId);
       
       res.json({
         efficiencyScore,
-        totalTasksCompleted: user?.totalTasksCompleted || 0,
-        lastActivityAt: user?.lastActivityAt,
+        totalCompleted: session.totalCompleted || 0,
+        highValueOutcomes: session.highValueOutcomes || 0,
+        lastActivityAt: session.lastActivityAt,
       });
     } catch (error) {
       console.error("Error getting efficiency:", error);
@@ -16163,7 +16181,6 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
-  // Check dormancy status (for popup trigger)
   app.get("/api/now-mode/dormancy-check", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -16171,36 +16188,28 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
       
-      const user = await storage.getUser(userId);
-      const lastActivity = user?.lastActivityAt;
-      const now = new Date();
+      const { isDormant, minutesSinceActivity, session } = await nowModeEngine.checkDormancy(userId);
       
-      // Check if dormant (3 hours of inactivity)
-      const threeHoursMs = 3 * 60 * 60 * 1000;
-      const isDormant = lastActivity && (now.getTime() - new Date(lastActivity).getTime() >= threeHoursMs);
-      
-      const efficiencyScore = user?.efficiencyScore || 0;
-      const dateKey = now.toISOString().split('T')[0];
-      const stats = await storage.getDailyStats(userId, dateKey);
-      
-      // Generate coaching message based on efficiency
       let coachingMessage = "";
-      if (efficiencyScore >= 80) {
+      const score = session.efficiencyScore || 100;
+      if (score >= 80) {
         coachingMessage = "You're doing great! Just a few more tasks to finish strong today.";
-      } else if (efficiencyScore >= 50) {
+      } else if (score >= 50) {
         coachingMessage = "Good progress! Try completing 2-3 more tasks to boost your efficiency score.";
-      } else if (efficiencyScore >= 25) {
-        coachingMessage = "Let's get back on track! Focus on high-priority tasks like customer data updates.";
+      } else if (score >= 25) {
+        coachingMessage = "Let's get back on track! Focus on high-priority tasks.";
       } else {
-        coachingMessage = "Every task counts! Start with something quick like verifying customer emails.";
+        coachingMessage = "Every task counts! Start with something quick.";
       }
       
       res.json({
         isDormant,
-        lastActivityAt: lastActivity,
-        efficiencyScore,
-        todayCompleted: stats.completed,
-        todayRemaining: Math.max(0, DAILY_CAP + stats.skipped - stats.completed),
+        minutesSinceActivity,
+        dormancyThreshold: 90,
+        lastActivityAt: session.lastActivityAt,
+        efficiencyScore: score,
+        todayCompleted: session.totalCompleted || 0,
+        todayRemaining: Math.max(0, DAILY_TARGET - (session.totalCompleted || 0)),
         coachingMessage,
       });
     } catch (error) {
@@ -16209,7 +16218,6 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
-  // Update user activity (called on page interactions)
   app.post("/api/now-mode/heartbeat", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -16221,6 +16229,40 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update activity" });
+    }
+  });
+
+  app.post("/api/customers/:id/do-not-contact", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const userEmail = req.user?.email;
+      const customerId = req.params.id;
+      const { doNotContact, reason } = req.body;
+      
+      if (typeof doNotContact !== 'boolean') {
+        return res.status(400).json({ error: "doNotContact must be a boolean" });
+      }
+      
+      await db.update(customers).set({
+        doNotContact,
+        doNotContactReason: doNotContact ? (reason || "Marked as Do Not Contact") : null,
+        doNotContactSetBy: doNotContact ? userEmail : null,
+        doNotContactSetAt: doNotContact ? new Date() : null,
+        updatedAt: new Date(),
+      }).where(eq(customers.id, customerId));
+      
+      await storage.logActivity({
+        userId,
+        actionType: doNotContact ? 'mark_do_not_contact' : 'unmark_do_not_contact',
+        entityType: 'customer',
+        entityId: customerId,
+        details: { reason },
+      });
+      
+      res.json({ success: true, doNotContact });
+    } catch (error) {
+      console.error("Error updating DNC status:", error);
+      res.status(500).json({ error: "Failed to update DNC status" });
     }
   });
 
