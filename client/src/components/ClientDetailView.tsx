@@ -469,7 +469,7 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     role: string;
     displayName: string;
   }
-  const { data: teamUsers = [] } = useQuery<TeamUser[]>({
+  const { data: teamUsers = [], isLoading: teamUsersLoading } = useQuery<TeamUser[]>({
     queryKey: ['/api/users'],
   });
 
@@ -947,11 +947,17 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                     <SelectValue placeholder="Assign Sales Rep" />
                   </SelectTrigger>
                   <SelectContent>
-                    {teamUsers.map(user => (
-                      <SelectItem key={user.id} value={user.id}>
-                        {user.displayName}
-                      </SelectItem>
-                    ))}
+                    {teamUsersLoading ? (
+                      <div className="px-2 py-1 text-sm text-gray-500">Loading...</div>
+                    ) : teamUsers.length === 0 ? (
+                      <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                    ) : (
+                      teamUsers.map(user => (
+                        <SelectItem key={user.id} value={user.id}>
+                          {user.displayName}
+                        </SelectItem>
+                      ))
+                    )}
                   </SelectContent>
                 </Select>
                 {(customer as any).salesRepName && (

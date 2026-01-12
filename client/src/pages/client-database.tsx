@@ -1681,6 +1681,17 @@ export default function ClientDatabase() {
 
   const isAdmin = (user as any)?.role === 'admin';
 
+  // Navigation helpers for prev/next customer
+  // Use the full sorted customer list (not filtered) to allow navigation even when filters change
+  // NOTE: This must be BEFORE any early returns to comply with React Rules of Hooks
+  const sortedCustomerList = useMemo(() => {
+    return [...customers].sort((a, b) => {
+      const companyA = getCompanyDisplayName(a).toLowerCase();
+      const companyB = getCompanyDisplayName(b).toLowerCase();
+      return companyA.localeCompare(companyB);
+    });
+  }, [customers]);
+
   // Show loading skeleton when data is being fetched
   if (isLoading) {
     return (
@@ -1735,16 +1746,7 @@ export default function ClientDatabase() {
     );
   }
 
-  // Navigation helpers for prev/next customer
-  // Use the full sorted customer list (not filtered) to allow navigation even when filters change
-  const sortedCustomerList = useMemo(() => {
-    return [...customers].sort((a, b) => {
-      const companyA = getCompanyDisplayName(a).toLowerCase();
-      const companyB = getCompanyDisplayName(b).toLowerCase();
-      return companyA.localeCompare(companyB);
-    });
-  }, [customers]);
-  
+  // sortedCustomerList is defined above the early return (line ~1690) to comply with React Rules of Hooks
   const currentCustomerIndex = selectedCustomer 
     ? sortedCustomerList.findIndex(c => c.id === selectedCustomer.id) 
     : -1;
