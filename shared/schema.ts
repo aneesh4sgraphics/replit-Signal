@@ -152,6 +152,9 @@ export const users = pgTable("users", {
   loginCount: integer("login_count").default(0),
   lastLoginDate: varchar("last_login_date"),
   allowedTiers: text("allowed_tiers").array(), // Array of tier keys user can see (null = all tiers for admins)
+  efficiencyScore: integer("efficiency_score").default(0), // NOW MODE efficiency score (0-100)
+  totalTasksCompleted: integer("total_tasks_completed").default(0), // Total NOW MODE tasks completed
+  lastActivityAt: timestamp("last_activity_at"), // Last user activity for dormancy detection
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
@@ -2665,6 +2668,20 @@ export type InsertApiCostLog = z.infer<typeof insertApiCostLogSchema>;
 export const MOMENT_OUTCOMES = ['called', 'emailed', 'no_answer', 'pause', 'completed', 'skipped'] as const;
 export type MomentOutcome = typeof MOMENT_OUTCOMES[number];
 
+// NOW MODE Task Types - Priority order (1 = highest)
+export const NOW_MODE_TASK_TYPES = {
+  update_customer_data: { label: 'Update Customer Data', icon: 'user-cog', category: 'data', priority: 1, description: 'Mark Pricing Tiers, Sales Reps & Primary Email' },
+  sync_address_email: { label: 'Sync Address/Email', icon: 'refresh-cw', category: 'data', priority: 2, description: 'Update missing address and email information' },
+  identify_no_contact: { label: 'Identify No-Contact Customers', icon: 'user-x', category: 'outreach', priority: 3, description: 'Find customers with no emails or communication' },
+  send_marketing_email: { label: 'Send Marketing Email', icon: 'mail', category: 'marketing', priority: 4, description: 'Send drip campaign or marketing email' },
+  send_swatchbook: { label: 'Send SwatchBook', icon: 'book-open', category: 'samples', priority: 5, description: 'Send product swatchbook to customer' },
+  send_press_test: { label: 'Send Press Test Sheet', icon: 'file-text', category: 'samples', priority: 6, description: 'Send press test sheet to customer' },
+  send_price_list: { label: 'Send Price List', icon: 'list', category: 'sales', priority: 7, description: 'Send price list (after SwatchBook or Press Test)' },
+  follow_up_materials: { label: 'Follow Up on Materials', icon: 'phone', category: 'follow_up', priority: 8, description: 'Follow up on SwatchBook, Press Test, or Price List sent' },
+  make_call: { label: 'Make Call', icon: 'phone-call', category: 'outreach', priority: 9, description: 'Call at least 2 customers per day' },
+} as const;
+export type NowModeTaskType = keyof typeof NOW_MODE_TASK_TYPES;
+
 export const MOMENT_ACTIONS = {
   follow_up_quote: { label: 'Follow Up on Quote', icon: 'phone', category: 'sales' },
   follow_up_sample: { label: 'Follow Up on Sample', icon: 'package', category: 'samples' },
@@ -2676,6 +2693,7 @@ export const MOMENT_ACTIONS = {
   schedule_call: { label: 'Schedule a Call', icon: 'calendar', category: 'sales' },
   check_feedback: { label: 'Check Sample Feedback', icon: 'message-circle', category: 'samples' },
   introduce_category: { label: 'Introduce New Category', icon: 'layers', category: 'expansion' },
+  ...NOW_MODE_TASK_TYPES,
 } as const;
 export type MomentAction = keyof typeof MOMENT_ACTIONS;
 
@@ -2717,7 +2735,9 @@ export const dailyMomentCaps = pgTable("daily_moment_caps", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   dateKey: varchar("date_key", { length: 10 }).notNull(),
   momentsCompleted: integer("moments_completed").default(0),
-  momentsCap: integer("moments_cap").default(6),
+  momentsSkipped: integer("moments_skipped").default(0), // Track skipped tasks to add replacements
+  momentsCap: integer("moments_cap").default(10), // Daily cap of 10 tasks
+  callsMade: integer("calls_made").default(0), // Track calls (min 2 per day)
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   userDateIdx: index("daily_moment_caps_user_date_idx").on(table.userId, table.dateKey),
