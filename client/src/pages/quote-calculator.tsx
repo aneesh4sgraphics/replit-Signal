@@ -879,12 +879,17 @@ export default function QuoteCalculator() {
   const handleCustomerSelect = async (customer: Customer | null) => {
     if (!customer) {
       setSelectedCustomer(null);
+      setAvailableContactEmails([]);
       return;
     }
 
     const emails = getCustomerEmails(customer);
     
-    // Check for multiple emails first
+    // Always fetch contact emails for the dropdown in Customer Details
+    const contactEmails = await fetchContactEmails(customer.id);
+    setAvailableContactEmails(contactEmails);
+    
+    // Check for multiple emails first (customer has both email and email2)
     if (emails.length > 1) {
       setPendingCustomer(customer);
       setSelectedEmail(customer.email || emails[0]);
@@ -895,15 +900,10 @@ export default function QuoteCalculator() {
     
     // Check for missing/invalid email
     if (isEmailMissing(customer.email)) {
-      setIsLoadingContacts(true);
       setPendingCustomer(customer);
-      
-      const contactEmails = await fetchContactEmails(customer.id);
-      setIsLoadingContacts(false);
       
       if (contactEmails.length > 0) {
         // Show dialog to pick from contact emails
-        setAvailableContactEmails(contactEmails);
         setSelectedEmail(contactEmails[0].email);
         setEmailSelectAction('fix_missing');
         setEmailSelectDialogOpen(true);
