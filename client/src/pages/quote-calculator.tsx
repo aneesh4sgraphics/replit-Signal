@@ -56,6 +56,7 @@ interface Customer {
   firstName: string;
   lastName: string;
   email: string;
+  email2?: string;
   company: string;
   address1: string;
   address2: string;
@@ -126,6 +127,9 @@ export default function QuoteCalculator() {
   const [sentPricesOpen, setSentPricesOpen] = useState<boolean>(false);
   const [isCreatingOdooOrder, setIsCreatingOdooOrder] = useState(false);
   const [isCreatingShopifyDraft, setIsCreatingShopifyDraft] = useState(false);
+  const [emailSelectDialogOpen, setEmailSelectDialogOpen] = useState(false);
+  const [emailSelectAction, setEmailSelectAction] = useState<'shopify' | 'odoo' | null>(null);
+  const [selectedEmail, setSelectedEmail] = useState<string>('');
   const [additionalCharges, setAdditionalCharges] = useState<AdditionalCharge[]>([
     { id: 'cc', type: 'credit_card', label: 'Credit Card Fee (4.5%)', odooProductCode: 'CC-FEE', amount: 0, enabled: true, percentage: 4.5 },
     { id: 'ship', type: 'shipping', label: 'Shipping Cost', odooProductCode: 'SHIPPING', amount: 55, enabled: true },
@@ -794,16 +798,46 @@ export default function QuoteCalculator() {
     }
   };
 
-  const handleCreateOdooOrder = async () => {
+  // Helper to get all available emails for a customer
+  const getCustomerEmails = (customer: Customer | null): string[] => {
+    if (!customer) return [];
+    const emails: string[] = [];
+    if (customer.email) emails.push(customer.email);
+    if (customer.email2) emails.push(customer.email2);
+    return emails;
+  };
+
+  // Check if customer has multiple emails and prompt selection if needed
+  const handleShopifyDraftClick = () => {
+    if (!selectedCustomer) {
+      toast({
+        title: "No Client Selected",
+        description: "Please select a client first before creating a Shopify draft order",
+        variant: "destructive",
+      });
+      return;
+    }
     if (quoteItems.length === 0) {
       toast({
         title: "No Items in Quote",
-        description: "Please add items to your quote before creating a sales order",
+        description: "Please add items to your quote before creating a draft order",
         variant: "destructive",
       });
       return;
     }
 
+    const emails = getCustomerEmails(selectedCustomer);
+    if (emails.length > 1) {
+      setSelectedEmail(emails[0]);
+      setEmailSelectAction('shopify');
+      setEmailSelectDialogOpen(true);
+    } else {
+      setSelectedEmail(emails[0] || '');
+      handleCreateShopifyDraft(emails[0] || '');
+    }
+  };
+
+  const handleOdooOrderClick = () => {
     if (!selectedCustomer) {
       toast({
         title: "No Client Selected",
@@ -812,14 +846,48 @@ export default function QuoteCalculator() {
       });
       return;
     }
-
-    // Check if customer has odooPartnerId
+    if (quoteItems.length === 0) {
+      toast({
+        title: "No Items in Quote",
+        description: "Please add items to your quote before creating a sales order",
+        variant: "destructive",
+      });
+      return;
+    }
     if (!(selectedCustomer as any).odooPartnerId) {
       toast({
         title: "Customer Not Synced to Odoo",
         description: "This customer needs to be synced to Odoo first. Go to the customer profile and click 'Sync to Odoo'.",
         variant: "destructive",
       });
+      return;
+    }
+
+    const emails = getCustomerEmails(selectedCustomer);
+    if (emails.length > 1) {
+      setSelectedEmail(emails[0]);
+      setEmailSelectAction('odoo');
+      setEmailSelectDialogOpen(true);
+    } else {
+      handleCreateOdooOrder();
+    }
+  };
+
+  const handleEmailSelectConfirm = () => {
+    setEmailSelectDialogOpen(false);
+    if (emailSelectAction === 'shopify') {
+      handleCreateShopifyDraft(selectedEmail);
+    } else if (emailSelectAction === 'odoo') {
+      handleCreateOdooOrder();
+    }
+    setEmailSelectAction(null);
+  };
+
+  const handleCreateOdooOrder = async () => {
+    if (quoteItems.length === 0 || !selectedCustomer) return;
+
+    // Check if customer has odooPartnerId
+    if (!(selectedCustomer as any).odooPartnerId) {
       return;
     }
 
@@ -904,24 +972,8 @@ export default function QuoteCalculator() {
     }
   };
 
-  const handleCreateShopifyDraft = async () => {
-    if (quoteItems.length === 0) {
-      toast({
-        title: "No Items in Quote",
-        description: "Please add items to your quote before creating a draft order",
-        variant: "destructive",
-      });
-      return;
-    }
-
-    if (!selectedCustomer) {
-      toast({
-        title: "No Client Selected",
-        description: "Please select a client first before creating a Shopify draft order",
-        variant: "destructive",
-      });
-      return;
-    }
+  const handleCreateShopifyDraft = async (emailToUse?: string) => {
+    if (quoteItems.length === 0 || !selectedCustomer) return;
 
     setIsCreatingShopifyDraft(true);
 
@@ -936,17 +988,19 @@ export default function QuoteCalculator() {
         unitPrice: item.pricePerSheet, // Price per packet (min order qty pricing)
       }));
 
+      const customerEmail = emailToUse || selectedCustomer.email;
+
       const response = await fetch('/api/shopify/draft-orders', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         credentials: 'include',
         body: JSON.stringify({
           quoteNumber: `QQ-${Date.now()}`,
-          customerEmail: selectedCustomer.email,
+          customerEmail,
           customerId: String(selectedCustomer.id),
           customerName: selectedCustomer.company || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`,
           lineItems,
-          note: `QuickQuote for ${selectedCustomer.company || selectedCustomer.email}`,
+          note: `QuickQuote for ${selectedCustomer.company || customerEmail}`,
         }),
       });
 
@@ -2406,16 +2460,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                     Email Quote
                   </button>
                   <button
-                    onClick={() => {
-                      if (!selectedCustomer) {
-                        toast({
-                          title: "Please select a client first 😊",
-                          description: "Choose a client from the Customer Selection section above before creating a sales order.",
-                        });
-                        return;
-                      }
-                      handleCreateOdooOrder();
-                    }}
+                    onClick={handleOdooOrderClick}
                     disabled={!selectedCustomer || isCreatingOdooOrder || quoteItems.length === 0}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded bg-purple-600 text-white text-sm font-medium hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="btn-create-odoo-order"
@@ -2428,16 +2473,7 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                     {isCreatingOdooOrder ? 'Creating...' : 'Sales Order'}
                   </button>
                   <button
-                    onClick={() => {
-                      if (!selectedCustomer) {
-                        toast({
-                          title: "Please select a client first 😊",
-                          description: "Choose a client from the Customer Selection section above before creating a Shopify draft.",
-                        });
-                        return;
-                      }
-                      handleCreateShopifyDraft();
-                    }}
+                    onClick={handleShopifyDraftClick}
                     disabled={!selectedCustomer || isCreatingShopifyDraft || quoteItems.length === 0}
                     className="inline-flex items-center gap-2 px-4 py-2 rounded bg-green-600 text-white text-sm font-medium hover:bg-green-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors"
                     data-testid="btn-create-shopify-draft"
@@ -2475,6 +2511,56 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
           </div>
         </div>
       )}
+
+      {/* Email Selection Dialog */}
+      <Dialog open={emailSelectDialogOpen} onOpenChange={setEmailSelectDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Select Email Address</DialogTitle>
+            <DialogDescription>
+              This customer has multiple email addresses. Please select which email to use for {emailSelectAction === 'shopify' ? 'the Shopify draft order' : 'the Odoo sales order'}.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            {selectedCustomer && getCustomerEmails(selectedCustomer).map((email, index) => (
+              <label
+                key={email}
+                className={`flex items-center gap-3 p-3 rounded-lg border cursor-pointer transition-colors ${
+                  selectedEmail === email 
+                    ? 'border-purple-500 bg-purple-50' 
+                    : 'border-gray-200 hover:border-gray-300'
+                }`}
+              >
+                <input
+                  type="radio"
+                  name="emailSelect"
+                  value={email}
+                  checked={selectedEmail === email}
+                  onChange={(e) => setSelectedEmail(e.target.value)}
+                  className="h-4 w-4 text-purple-600"
+                />
+                <div className="flex-1">
+                  <span className="font-medium text-gray-900">{email}</span>
+                  {index === 0 && (
+                    <span className="ml-2 text-xs text-gray-500">(Primary)</span>
+                  )}
+                  {index === 1 && (
+                    <span className="ml-2 text-xs text-gray-500">(Secondary)</span>
+                  )}
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setEmailSelectDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleEmailSelectConfirm} disabled={!selectedEmail}>
+              Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
       </div>
     </div>
   );
