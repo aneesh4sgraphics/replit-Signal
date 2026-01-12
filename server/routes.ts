@@ -13962,45 +13962,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const axios = (await import('axios')).default;
 
-      // Helper function to search Shopify for a variant by exact SKU match
-      async function findShopifyVariantBySku(sku: string): Promise<number | null> {
-        try {
-          // Search Shopify products for variants matching this SKU
-          const searchResponse = await axios.get(
-            `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/variants.json?sku=${encodeURIComponent(sku)}`,
-            {
-              headers: {
-                'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
-                'Content-Type': 'application/json',
-              },
-            }
-          );
-          
-          const variants = searchResponse.data?.variants || [];
-          
-          // IMPORTANT: Filter for EXACT SKU match (case-insensitive)
-          // Shopify's API may return partial matches, so we must verify
-          const exactMatch = variants.find((v: any) => 
-            v.sku && v.sku.toLowerCase() === sku.toLowerCase()
-          );
-          
-          if (exactMatch) {
-            console.log(`[Shopify] Found exact SKU match: variant ID ${exactMatch.id} for SKU: ${sku} (Shopify SKU: ${exactMatch.sku})`);
-            return exactMatch.id;
-          }
-          
-          if (variants.length > 0) {
-            console.log(`[Shopify] No exact match for SKU: ${sku}. API returned ${variants.length} variants with SKUs: ${variants.map((v: any) => v.sku).join(', ')}`);
-          }
-          
-          return null;
-        } catch (error: any) {
-          console.log(`[Shopify] SKU lookup failed for ${sku}:`, error.message);
-          return null;
+      // Get existing variant mappings from database
+      const allMappings = await db.select().from(shopifyVariantMappings)
+        .where(eq(shopifyVariantMappings.isActive, true));
+      
+      // Build lookup map by itemCode (Signal SKU)
+      const mappingsBySku = new Map<string, typeof allMappings[0]>();
+      for (const mapping of allMappings) {
+        if (mapping.itemCode) {
+          mappingsBySku.set(mapping.itemCode.toLowerCase(), mapping);
         }
       }
 
-      // Build Shopify line items - lookup variants by SKU directly from Shopify
+      console.log(`[Shopify] Loaded ${allMappings.length} SKU mappings from database`);
+
+      // Build Shopify line items
       const shopifyLineItems: any[] = [];
       const mappedItems: string[] = [];
       const unmappedItems: string[] = [];
@@ -14011,28 +13987,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const pricePerPacket = item.unitPrice || item.pricePerPacket || 0;
         const quantity = item.quantity || 1;
 
-        // Try to find Shopify variant by SKU
-        let variantId: number | null = null;
+        // First check our mapping table
+        const mapping = sku ? mappingsBySku.get(sku.toLowerCase()) : null;
         
-        if (sku) {
-          variantId = await findShopifyVariantBySku(sku);
-        }
-
-        if (variantId) {
-          // Use Shopify variant for proper inventory tracking
+        if (mapping && mapping.shopifyVariantId) {
+          // Use mapped Shopify variant
+          // Handle both numeric IDs and GraphQL GIDs (gid://shopify/ProductVariant/123)
+          let variantId: string | number = mapping.shopifyVariantId;
+          
+          const gidMatch = mapping.shopifyVariantId.match(/ProductVariant\/(\d+)/);
+          if (gidMatch) {
+            variantId = parseInt(gidMatch[1], 10);
+          } else if (/^\d+$/.test(mapping.shopifyVariantId)) {
+            variantId = parseInt(mapping.shopifyVariantId, 10);
+          }
+          
+          console.log(`[Shopify] Using mapped variant: Signal SKU ${sku} -> Shopify variant ${variantId} (${mapping.shopifyProductTitle})`);
+          
           shopifyLineItems.push({
             variant_id: variantId,
             quantity: quantity,
-            price: String(pricePerPacket.toFixed(2)), // Override price with quote price
+            price: String(pricePerPacket.toFixed(2)),
           });
           mappedItems.push(`${itemTitle} (SKU: ${sku})`);
         } else {
-          // Fallback to custom line item with SKU reference
+          // No mapping found - create custom line item with SKU reference
+          console.log(`[Shopify] No mapping for SKU: ${sku} - creating custom item`);
           shopifyLineItems.push({
             title: itemTitle,
             price: String(pricePerPacket.toFixed(2)),
             quantity: quantity,
-            sku: sku || undefined, // Include SKU for reference
+            sku: sku || undefined,
             taxable: true,
           });
           if (sku) {
