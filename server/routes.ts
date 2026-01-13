@@ -16464,6 +16464,53 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // Reset NOW MODE session for a user (Admin only) - useful for debugging
+  app.post("/api/now-mode/reset-session", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      const { userId, userEmail } = req.body;
+      const targetUserId = userId || req.user?.id;
+      
+      console.log(`[NOW MODE] Admin reset requested for user: ${targetUserId || userEmail}`);
+      
+      // Find user by email if userId not provided
+      let actualUserId = targetUserId;
+      if (!actualUserId && userEmail) {
+        const [user] = await db.select().from(users).where(eq(users.email, userEmail)).limit(1);
+        if (user) {
+          actualUserId = user.id;
+        }
+      }
+      
+      if (!actualUserId) {
+        return res.status(400).json({ error: "userId or userEmail required" });
+      }
+      
+      // Delete today's session for the user
+      const today = new Date().toISOString().split("T")[0];
+      const deletedSessions = await db.delete(nowModeSessions)
+        .where(and(
+          eq(nowModeSessions.userId, actualUserId),
+          eq(nowModeSessions.dateKey, today)
+        ))
+        .returning();
+      
+      console.log(`[NOW MODE] Reset session for user ${actualUserId}: deleted ${deletedSessions.length} sessions`);
+      
+      res.json({ 
+        success: true, 
+        message: `Reset NOW MODE session for user ${actualUserId}`,
+        deletedSessions: deletedSessions.length
+      });
+    } catch (error) {
+      console.error("Error resetting NOW MODE session:", error);
+      res.status(500).json({ error: "Failed to reset session" });
+    }
+  });
+
   // NOW MODE Admin Summary - brutally simple metrics
   app.get("/api/now-mode/admin/summary", isAuthenticated, async (req: any, res) => {
     try {

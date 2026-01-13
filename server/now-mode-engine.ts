@@ -251,7 +251,10 @@ export class NowModeEngine {
   async getEligibleCard(userId: string): Promise<{ card: EligibleCard | null; session: NowModeSession; allDone: boolean }> {
     const session = await this.getOrCreateSession(userId);
     
+    console.log(`[NOW MODE] Session for userId ${userId}: totalCompleted=${session.totalCompleted}, buckets: calls=${session.callsCompleted}, follow_ups=${session.followUpsCompleted}, outreach=${session.outreachCompleted}, data_hygiene=${session.dataHygieneCompleted}, enablement=${session.enablementCompleted}`);
+    
     if ((session.totalCompleted || 0) >= DAILY_TARGET) {
+      console.log(`[NOW MODE] User ${userId} has completed daily target (${DAILY_TARGET})`);
       return { card: null, session, allDone: true };
     }
 
@@ -265,7 +268,10 @@ export class NowModeEngine {
     const recentCustomerIds = recentActivities.map((a) => a.customerId);
 
     const targetBucket = this.getNextBucket(session);
+    console.log(`[NOW MODE] Target bucket for userId ${userId}: ${targetBucket || 'NONE'}`);
+    
     if (!targetBucket) {
+      console.log(`[NOW MODE] All buckets filled for userId ${userId}, marking allDone`);
       return { card: null, session, allDone: true };
     }
 
