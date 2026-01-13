@@ -49,6 +49,10 @@ import {
   MapPin,
   Printer,
   ExternalLink,
+  ChevronLeft,
+  ChevronRight,
+  Clipboard,
+  ScrollText,
   LucideIcon
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -170,6 +174,104 @@ const SKIP_REASONS = [
   { value: "other", label: "Other reason" },
 ];
 
+// Sales Scripts for Focus Mode
+const CALL_SCRIPTS = {
+  first_call: {
+    title: "First Call Introduction",
+    script: `Hi, this is [Your Name] from 4S Graphics. I'm reaching out because we specialize in high-quality vinyl and heat transfer products for businesses like yours.
+
+Do you have a moment to chat about your current printing supplies?
+
+[If yes] Great! I'd love to learn more about what types of materials you typically use...
+
+[If busy] No problem! When would be a better time for a quick 5-minute call?`,
+  },
+  follow_up_call: {
+    title: "Follow-up Call",
+    script: `Hi, this is [Your Name] from 4S Graphics following up on our previous conversation.
+
+I wanted to check if you had a chance to review the samples/quote we sent over?
+
+[If yes] Wonderful! Do you have any questions about the materials or pricing?
+
+[If no] No worries! Would you like me to resend the information?`,
+  },
+  quote_follow_up: {
+    title: "Quote Follow-up",
+    script: `Hi, this is [Your Name] from 4S Graphics. I'm calling about the quote we sent on [date].
+
+Did you get a chance to look it over? I'd be happy to walk you through any of the line items or answer questions about our products.
+
+Is there anything holding you back from moving forward?`,
+  },
+  voicemail: {
+    title: "Voicemail Script",
+    script: `Hi, this is [Your Name] from 4S Graphics calling for [Company Name].
+
+I wanted to reach out about [reason]. Please give me a call back at [your number] when you have a moment.
+
+Thanks, and I look forward to speaking with you!`,
+  },
+};
+
+const EMAIL_SCRIPTS = {
+  introduction: {
+    title: "Introduction Email",
+    script: `Subject: Quality Vinyl & Heat Transfer Products for [Company Name]
+
+Hi [Name],
+
+I'm [Your Name] from 4S Graphics. We specialize in high-quality vinyl and heat transfer materials for printing businesses.
+
+I noticed you work with [type of products] and thought our materials might be a great fit for your projects.
+
+Would you be interested in receiving some free samples to test out?
+
+Best regards,
+[Your Name]`,
+  },
+  sample_follow_up: {
+    title: "Sample Follow-up",
+    script: `Subject: How did the samples work out?
+
+Hi [Name],
+
+I wanted to follow up on the samples we sent over last week. Have you had a chance to test them out?
+
+I'd love to hear your feedback and answer any questions about our full product line.
+
+Let me know if you'd like pricing on any specific materials!
+
+Best,
+[Your Name]`,
+  },
+  quote_follow_up: {
+    title: "Quote Follow-up Email",
+    script: `Subject: Following up on your quote
+
+Hi [Name],
+
+I wanted to check in on the quote we sent for [products]. Do you have any questions about the pricing or specifications?
+
+I'm happy to hop on a quick call to walk through everything if that would help.
+
+Looking forward to hearing from you!
+
+Best,
+[Your Name]`,
+  },
+};
+
+const QUICK_TIPS = [
+  "Smile when you dial - it comes through in your voice!",
+  "Ask open-ended questions to keep the conversation going",
+  "Listen more than you talk - 70/30 rule",
+  "Always confirm the next step before ending the call",
+  "Take notes during the call for follow-up",
+  "Mention a specific product that fits their needs",
+  "If they're busy, ask for a specific callback time",
+];
+
 export default function NowMode() {
   const [notes, setNotes] = useState("");
   const [showSkipModal, setShowSkipModal] = useState(false);
@@ -192,6 +294,7 @@ export default function NowMode() {
   const [inlineCity, setInlineCity] = useState("");
   const [inlineState, setInlineState] = useState("");
   const [inlineZip, setInlineZip] = useState("");
+  const [scriptsTrayOpen, setScriptsTrayOpen] = useState(true);
   const [, setLocation] = useLocation();
   const { toast } = useToast();
   const { open: openEmailComposer } = useEmailComposer();
@@ -679,113 +782,206 @@ export default function NowMode() {
     );
   }
 
+  // Script copy helper
+  const copyScript = (text: string, title: string) => {
+    navigator.clipboard.writeText(text);
+    toast({ title: "Copied!", description: `${title} copied to clipboard` });
+  };
+
   return (
     <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 p-4">
-      <div className="max-w-2xl mx-auto">
-        <div className="flex items-center justify-between mb-6">
-          <Link href="/">
-            <Button variant="ghost" size="sm" className="gap-2">
-              <ArrowLeft className="h-4 w-4" />
-              Back
-            </Button>
-          </Link>
-          <div className="flex items-center gap-4">
-            <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-green-400 scale-105' : ''}`}>
-              <Gauge className={`h-4 w-4 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} style={{ color: efficiencyColor }} />
-              <span className="font-semibold" style={{ color: efficiencyColor }}>
-                {displayEfficiency}
-              </span>
-              {efficiencyDelta !== null && (
-                <span className="text-xs font-bold text-green-500 animate-pulse">+{efficiencyDelta}</span>
-              )}
-              <span className="text-xs text-gray-500">Efficiency</span>
-            </div>
-            <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-purple-400 scale-105' : ''}`}>
-              <Trophy className={`h-4 w-4 text-purple-600 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} />
-              <span className="font-semibold text-purple-600">
-                {displayCompleted}/{data?.dailyTarget || 10}
-              </span>
-              <span className="text-xs text-gray-500">Today</span>
-            </div>
-          </div>
-        </div>
-
-        <div className="mb-4">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-600">Daily Progress</span>
-            <span className="text-sm text-gray-500">
-              {displayCompleted} done • {Math.max(0, (data?.dailyTarget || 10) - displayCompleted)} to go • ~{(() => {
-                const remaining = (data?.bucketProgress || []).reduce((total, bp) => {
-                  const timePerTask = BUCKET_TIME_ESTIMATES[bp.bucket] || 2;
-                  return total + (bp.remaining * timePerTask);
-                }, 0);
-                return remaining;
-              })()} mins left
-            </span>
-          </div>
-          <div className={`transition-all duration-500 ${showSuccessAnimation ? 'scale-[1.02]' : ''}`}>
-            <Progress value={progress} className={`h-3 transition-all duration-500 ${showSuccessAnimation ? 'ring-2 ring-green-400' : ''}`} />
-          </div>
-        </div>
-
-        {/* Rolling 7-Day Efficiency with Social Proof */}
-        {rollingData && (
-          <div className="mb-4 p-3 bg-white border rounded-lg shadow-sm">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-3">
-                <div className="text-center">
-                  <div className="text-xl font-bold" style={{ color: rollingData.rolling7DayScore >= 70 ? "#28A745" : rollingData.rolling7DayScore >= 40 ? "#FD7E14" : "#6B7280" }}>
-                    {rollingData.rolling7DayScore}
-                  </div>
-                  <div className="text-xs text-gray-500">7-Day Score</div>
-                </div>
-                <div className="flex items-center gap-1 text-sm text-gray-600">
-                  {trendIcon && (() => {
-                    const TrendIconComponent = trendIcon;
-                    const trendColor = rollingData.trend === "improving" ? "#28A745" : rollingData.trend === "declining" ? "#DC3545" : "#6B7280";
-                    return <TrendIconComponent className="h-4 w-4" style={{ color: trendColor }} />;
-                  })()}
-                  <span>{rollingData.trendMessage}</span>
-                </div>
-              </div>
-              <div className="text-right">
-                <div className="text-sm font-medium text-purple-700">{rollingData.socialProof}</div>
-                <div className="text-xs text-gray-500">Top {100 - rollingData.percentile}% this week</div>
-              </div>
-            </div>
-          </div>
-        )}
-
-        {data?.skipPenaltyApplied && (
-          <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2">
-            <AlertTriangle className="h-4 w-4 text-orange-500" />
-            <span className="text-sm text-orange-700">
-              Skip penalty active ({data?.totalSkips || 0} skips today). Fewer difficult cards shown.
-            </span>
-          </div>
-        )}
-
-        <div className="grid grid-cols-5 gap-2 mb-6">
-          {data?.bucketProgress?.map((bp) => {
-            const bucketInfo = BUCKET_LABELS[bp.bucket] || { label: bp.bucket, color: "#6B7280" };
-            const isComplete = bp.completed >= bp.quota;
-            return (
-              <div
-                key={bp.bucket}
-                className={`p-2 rounded-lg text-center ${isComplete ? "bg-green-100 border-green-300" : "bg-white"} border`}
+      <div className="flex gap-4 max-w-6xl mx-auto">
+        {/* Scripts Tray - Left Sidebar */}
+        <div className={`transition-all duration-300 ${scriptsTrayOpen ? 'w-80' : 'w-12'} flex-shrink-0`}>
+          <div className="sticky top-4">
+            <div className={`bg-white rounded-lg shadow-lg border overflow-hidden ${scriptsTrayOpen ? '' : 'p-2'}`}>
+              {/* Toggle Button */}
+              <button
+                onClick={() => setScriptsTrayOpen(!scriptsTrayOpen)}
+                className="w-full flex items-center gap-2 p-3 bg-purple-100 hover:bg-purple-200 transition-colors"
               >
-                <div className="text-xs font-medium" style={{ color: bucketInfo.color }}>
-                  {bucketInfo.label}
+                {scriptsTrayOpen ? (
+                  <>
+                    <ChevronLeft className="h-4 w-4 text-purple-700" />
+                    <ScrollText className="h-4 w-4 text-purple-700" />
+                    <span className="text-sm font-medium text-purple-700">Scripts & Tips</span>
+                  </>
+                ) : (
+                  <ScrollText className="h-5 w-5 text-purple-700 mx-auto" />
+                )}
+              </button>
+
+              {scriptsTrayOpen && (
+                <div className="p-3 space-y-4 max-h-[calc(100vh-120px)] overflow-y-auto">
+                  {/* Quick Tips */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2">Quick Tips</h4>
+                    <div className="space-y-1">
+                      {QUICK_TIPS.map((tip, i) => (
+                        <div key={i} className="text-xs text-gray-600 p-2 bg-yellow-50 rounded border-l-2 border-yellow-400">
+                          {tip}
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Call Scripts */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
+                      <Phone className="h-3 w-3" /> Call Scripts
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(CALL_SCRIPTS).map(([key, { title, script }]) => (
+                        <div key={key} className="border rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => copyScript(script, title)}
+                            className="w-full flex items-center justify-between p-2 bg-green-50 hover:bg-green-100 transition-colors text-left"
+                          >
+                            <span className="text-sm font-medium text-green-800">{title}</span>
+                            <Copy className="h-3 w-3 text-green-600" />
+                          </button>
+                          <div className="p-2 text-xs text-gray-600 whitespace-pre-wrap max-h-32 overflow-y-auto bg-gray-50">
+                            {script}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Email Scripts */}
+                  <div>
+                    <h4 className="text-xs font-semibold text-gray-500 uppercase mb-2 flex items-center gap-1">
+                      <Mail className="h-3 w-3" /> Email Templates
+                    </h4>
+                    <div className="space-y-2">
+                      {Object.entries(EMAIL_SCRIPTS).map(([key, { title, script }]) => (
+                        <div key={key} className="border rounded-lg overflow-hidden">
+                          <button
+                            onClick={() => copyScript(script, title)}
+                            className="w-full flex items-center justify-between p-2 bg-blue-50 hover:bg-blue-100 transition-colors text-left"
+                          >
+                            <span className="text-sm font-medium text-blue-800">{title}</span>
+                            <Copy className="h-3 w-3 text-blue-600" />
+                          </button>
+                          <div className="p-2 text-xs text-gray-600 whitespace-pre-wrap max-h-32 overflow-y-auto bg-gray-50">
+                            {script}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
                 </div>
-                <div className="text-lg font-bold" style={{ color: isComplete ? "#28A745" : bucketInfo.color }}>
-                  {bp.completed}/{bp.quota}
-                </div>
-              </div>
-            );
-          })}
+              )}
+            </div>
+          </div>
         </div>
 
-        {data?.allDone || !data?.card ? (
+        {/* Main Content */}
+        <div className="flex-1 max-w-2xl">
+          <div className="flex items-center justify-between mb-6">
+            <Link href="/">
+              <Button variant="ghost" size="sm" className="gap-2">
+                <ArrowLeft className="h-4 w-4" />
+                Back
+              </Button>
+            </Link>
+            <div className="flex items-center gap-4">
+              <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-green-400 scale-105' : ''}`}>
+                <Gauge className={`h-4 w-4 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} style={{ color: efficiencyColor }} />
+                <span className="font-semibold" style={{ color: efficiencyColor }}>
+                  {displayEfficiency}
+                </span>
+                {efficiencyDelta !== null && (
+                  <span className="text-xs font-bold text-green-500 animate-pulse">+{efficiencyDelta}</span>
+                )}
+                <span className="text-xs text-gray-500">Efficiency</span>
+              </div>
+              <div className={`flex items-center gap-2 px-3 py-1.5 bg-white rounded-lg shadow-sm transition-all duration-300 ${showSuccessAnimation ? 'ring-2 ring-purple-400 scale-105' : ''}`}>
+                <Trophy className={`h-4 w-4 text-purple-600 transition-transform duration-300 ${showSuccessAnimation ? 'scale-125' : ''}`} />
+                <span className="font-semibold text-purple-600">
+                  {displayCompleted}/{data?.dailyTarget || 10}
+                </span>
+                <span className="text-xs text-gray-500">Today</span>
+              </div>
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <div className="flex items-center justify-between mb-2">
+              <span className="text-sm font-medium text-gray-600">Daily Progress</span>
+              <span className="text-sm text-gray-500">
+                {displayCompleted} done • {Math.max(0, (data?.dailyTarget || 10) - displayCompleted)} to go • ~{(() => {
+                  const remaining = (data?.bucketProgress || []).reduce((total, bp) => {
+                    const timePerTask = BUCKET_TIME_ESTIMATES[bp.bucket] || 2;
+                    return total + (bp.remaining * timePerTask);
+                  }, 0);
+                  return remaining;
+                })()} mins left
+              </span>
+            </div>
+            <div className={`transition-all duration-500 ${showSuccessAnimation ? 'scale-[1.02]' : ''}`}>
+              <Progress value={progress} className={`h-3 transition-all duration-500 ${showSuccessAnimation ? 'ring-2 ring-green-400' : ''}`} />
+            </div>
+          </div>
+
+          {/* Rolling 7-Day Efficiency with Social Proof */}
+          {rollingData && (
+            <div className="mb-4 p-3 bg-white border rounded-lg shadow-sm">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="text-center">
+                    <div className="text-xl font-bold" style={{ color: rollingData.rolling7DayScore >= 70 ? "#28A745" : rollingData.rolling7DayScore >= 40 ? "#FD7E14" : "#6B7280" }}>
+                      {rollingData.rolling7DayScore}
+                    </div>
+                    <div className="text-xs text-gray-500">7-Day Score</div>
+                  </div>
+                  <div className="flex items-center gap-1 text-sm text-gray-600">
+                    {trendIcon && (() => {
+                      const TrendIconComponent = trendIcon;
+                      const trendColor = rollingData.trend === "improving" ? "#28A745" : rollingData.trend === "declining" ? "#DC3545" : "#6B7280";
+                      return <TrendIconComponent className="h-4 w-4" style={{ color: trendColor }} />;
+                    })()}
+                    <span>{rollingData.trendMessage}</span>
+                  </div>
+                </div>
+                <div className="text-right">
+                  <div className="text-sm font-medium text-purple-700">{rollingData.socialProof}</div>
+                  <div className="text-xs text-gray-500">Top {100 - rollingData.percentile}% this week</div>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {data?.skipPenaltyApplied && (
+            <div className="mb-4 p-3 bg-orange-50 border border-orange-200 rounded-lg flex items-center gap-2">
+              <AlertTriangle className="h-4 w-4 text-orange-500" />
+              <span className="text-sm text-orange-700">
+                Skip penalty active ({data?.totalSkips || 0} skips today). Fewer difficult cards shown.
+              </span>
+            </div>
+          )}
+
+          <div className="grid grid-cols-5 gap-2 mb-6">
+            {data?.bucketProgress?.map((bp) => {
+              const bucketInfo = BUCKET_LABELS[bp.bucket] || { label: bp.bucket, color: "#6B7280" };
+              const isComplete = bp.completed >= bp.quota;
+              return (
+                <div
+                  key={bp.bucket}
+                  className={`p-2 rounded-lg text-center ${isComplete ? "bg-green-100 border-green-300" : "bg-white"} border`}
+                >
+                  <div className="text-xs font-medium" style={{ color: bucketInfo.color }}>
+                    {bucketInfo.label}
+                  </div>
+                  <div className="text-lg font-bold" style={{ color: isComplete ? "#28A745" : bucketInfo.color }}>
+                    {bp.completed}/{bp.quota}
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+
+          {data?.allDone || !data?.card ? (
           data?.allDone ? (
             // End-of-Day Closure Recap Card
             <Card className="shadow-xl border-2 border-green-200 bg-gradient-to-br from-green-50 to-emerald-50">
@@ -1309,7 +1505,7 @@ export default function NowMode() {
             </CardContent>
           </Card>
         )}
-      </div>
+        </div>
 
       {/* Profile Gate Dialog - collect missing pricing tier / sales rep before navigation */}
       <Dialog open={showProfileGateDialog} onOpenChange={setShowProfileGateDialog}>
@@ -1542,6 +1738,7 @@ export default function NowMode() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+      </div>
     </div>
   );
 }
