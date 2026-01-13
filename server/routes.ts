@@ -16006,10 +16006,14 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       
       await storage.logActivity({
         userId,
-        actionType: 'now_mode_complete',
-        entityType: 'customer',
-        entityId: customerId,
-        details: { cardType, outcome, notes },
+        userEmail: req.user?.email || 'unknown',
+        userRole: req.user?.role || 'user',
+        action: 'now_mode_complete',
+        actionType: 'now_mode',
+        description: `Completed ${cardType} card for customer ${customerId}: ${outcome}`,
+        targetId: customerId,
+        targetType: 'customer',
+        metadata: { cardType, outcome, notes },
       });
 
       const { card: nextCard, session } = await nowModeEngine.getEligibleCard(userId);
@@ -16069,10 +16073,14 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       
       await storage.logActivity({
         userId,
-        actionType: 'now_mode_skip',
-        entityType: 'customer',
-        entityId: customerId,
-        details: { cardType, skipReason, notes, penaltyApplied: result.penaltyApplied },
+        userEmail: req.user?.email || 'unknown',
+        userRole: req.user?.role || 'user',
+        action: 'now_mode_skip',
+        actionType: 'now_mode',
+        description: `Skipped ${cardType} card for customer ${customerId}: ${skipReason}`,
+        targetId: customerId,
+        targetType: 'customer',
+        metadata: { cardType, skipReason, notes, penaltyApplied: result.penaltyApplied },
       });
 
       const { card: nextCard, session } = await nowModeEngine.getEligibleCard(userId);
@@ -16453,10 +16461,14 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       
       await storage.logActivity({
         userId,
-        actionType: doNotContact ? 'mark_do_not_contact' : 'unmark_do_not_contact',
-        entityType: 'customer',
-        entityId: customerId,
-        details: { reason },
+        userEmail: req.user?.email || 'unknown',
+        userRole: req.user?.role || 'user',
+        action: doNotContact ? 'mark_do_not_contact' : 'unmark_do_not_contact',
+        actionType: 'customer',
+        description: `${doNotContact ? 'Marked' : 'Unmarked'} customer ${customerId} as Do Not Contact`,
+        targetId: customerId,
+        targetType: 'customer',
+        metadata: { reason },
       });
       
       res.json({ success: true, doNotContact });
