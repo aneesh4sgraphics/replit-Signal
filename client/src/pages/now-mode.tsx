@@ -892,6 +892,7 @@ export default function NowMode() {
                   </div>
                 </div>
               )}
+              </div>
             </div>
           </div>
         </div>
