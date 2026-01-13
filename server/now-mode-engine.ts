@@ -25,6 +25,7 @@ import { eq, and, or, isNull, lt, gt, gte, desc, asc, sql, ne, lte, count } from
 const DAILY_TARGET = 10;
 const SKIP_PENALTY_THRESHOLD = 3;
 const DORMANCY_MINUTES = 180; // Changed to 3 hours as per user request
+const ANEESH_USER_ID = "45980257"; // Aneesh's user ID for load balancing
 
 interface Customer {
   id: string;
@@ -305,7 +306,58 @@ export class NowModeEngine {
       }
     }
 
+    // LOAD BALANCING: If still no cards found and user is NOT Aneesh, 
+    // try Aneesh's customers to balance the workload
+    if (userId !== ANEESH_USER_ID) {
+      console.log(`[NOW MODE] No cards found for user - trying load balancing from Aneesh's customers`);
+      
+      const loadBalanceCard = await this.findCardFromAneeshPool(userId, recentCustomerIds);
+      if (loadBalanceCard) {
+        return { card: loadBalanceCard, session, allDone: false };
+      }
+    }
+
     return { card: null, session, allDone: true };
+  }
+
+  private async findCardFromAneeshPool(
+    userId: string,
+    excludeCustomerIds: string[]
+  ): Promise<EligibleCard | null> {
+    const now = new Date();
+    
+    console.log(`[NOW MODE] Load balancing: fetching Aneesh's customers for user ${userId}`);
+    
+    // Get Aneesh's customers that aren't paused or DNC
+    const aneeshCustomers = await db
+      .select()
+      .from(customers)
+      .where(
+        and(
+          eq(customers.salesRepId, ANEESH_USER_ID),
+          or(eq(customers.doNotContact, false), isNull(customers.doNotContact)),
+          or(isNull(customers.pausedUntil), lt(customers.pausedUntil, now))
+        )
+      )
+      .orderBy(desc(customers.totalSpent), desc(customers.totalOrders))
+      .limit(100);
+
+    const filtered = aneeshCustomers.filter((c) => !excludeCustomerIds.includes(c.id));
+    console.log(`[NOW MODE] Load balancing: found ${filtered.length} of Aneesh's customers available`);
+
+    // Try each bucket without penalty
+    for (const bucket of NOW_MODE_BUCKETS) {
+      for (const customer of filtered) {
+        const cardType = this.matchCardType(customer, bucket, false);
+        if (cardType) {
+          console.log(`[NOW MODE] Load balancing: found card '${cardType}' from Aneesh's pool for customer ${customer.id}`);
+          return this.buildCard(customer, cardType, bucket);
+        }
+      }
+    }
+
+    console.log(`[NOW MODE] Load balancing: no matching cards found in Aneesh's pool`);
+    return null;
   }
 
   private async findCardForBucket(
