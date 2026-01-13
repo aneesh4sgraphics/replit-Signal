@@ -458,6 +458,10 @@ export const isAuthenticated: RequestHandler = async (req: Request, res: Respons
     return res.status(401).json({ message: "Invalid session" });
   }
 
+  // Normalize user object to have consistent properties
+  if (!user.id && user.claims?.sub) {
+    user.id = user.claims.sub;
+  }
   if (user.claims?.email && !user.email) {
     user.email = user.claims.email;
   }
