@@ -3072,7 +3072,9 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   <SelectValue placeholder={isLoadingUsers ? "Loading sales reps..." : "Select sales rep"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedUsers.length === 0 && !isLoadingUsers ? (
+                  {isLoadingUsers ? (
+                    <SelectItem value="_loading" disabled>Loading sales reps...</SelectItem>
+                  ) : sortedUsers.length === 0 ? (
                     <SelectItem value="_no_users" disabled>No sales reps available</SelectItem>
                   ) : (
                     sortedUsers.map((user) => (

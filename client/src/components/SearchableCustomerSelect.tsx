@@ -82,11 +82,14 @@ export default function SearchableCustomerSelect({
            email.includes(searchLower);
   }).slice(0, 15);
 
-  // Set search term when customer is selected externally
+  // Set search term when customer is selected externally, or clear when null
   useEffect(() => {
     if (selectedCustomer) {
       setSearchTerm(selectedCustomer.company || `${selectedCustomer.firstName} ${selectedCustomer.lastName}`);
       setShowDropdown(false);
+    } else {
+      // Clear search term when customer is reset to null
+      setSearchTerm("");
     }
   }, [selectedCustomer]);
 
