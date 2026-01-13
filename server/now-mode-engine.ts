@@ -35,6 +35,11 @@ interface Customer {
   lastName: string | null;
   email: string | null;
   phone: string | null;
+  address1: string | null;
+  address2: string | null;
+  city: string | null;
+  state: string | null;
+  zip: string | null;
   salesRepId: string | null;
   salesRepName: string | null;
   pricingTier: string | null;
@@ -353,6 +358,11 @@ export class NowModeEngine {
         lastName: customers.lastName,
         email: customers.email,
         phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        state: customers.state,
+        zip: customers.zip,
         salesRepId: customers.salesRepId,
         salesRepName: customers.salesRepName,
         pricingTier: customers.pricingTier,
@@ -437,6 +447,11 @@ export class NowModeEngine {
         lastName: customers.lastName,
         email: customers.email,
         phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        state: customers.state,
+        zip: customers.zip,
         salesRepId: customers.salesRepId,
         salesRepName: customers.salesRepName,
         pricingTier: customers.pricingTier,
@@ -478,6 +493,9 @@ export class NowModeEngine {
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
 
+    // Helper to check if customer has a complete mailing address
+    const hasMailingAddress = !!(customer.address1 && customer.city && customer.state && customer.zip);
+
     switch (bucket) {
       case "data_hygiene":
         // Critical data fields in priority order
@@ -485,6 +503,7 @@ export class NowModeEngine {
         if (!customer.salesRepId) return "set_sales_rep";
         if (!customer.hasMachineProfile) return "set_machine_profile";  // Critical: collect machine info
         if (!customer.email) return "set_primary_email";
+        if (!hasMailingAddress) return "set_mailing_address";  // Required before sending samples
         return null;
 
       case "calls":
@@ -495,7 +514,8 @@ export class NowModeEngine {
         return "daily_call";
 
       case "outreach":
-        if (!customer.swatchbookSentAt) return "send_swatchbook";
+        // Only show swatchbook if customer has a mailing address
+        if (!customer.swatchbookSentAt && hasMailingAddress) return "send_swatchbook";
         if (!customer.pressTestSentAt) return "send_press_test";
         if (!customer.lastOutboundEmailAt || customer.lastOutboundEmailAt < thirtyDaysAgo) {
           return "send_marketing_email";
@@ -551,6 +571,8 @@ export class NowModeEngine {
         return `Why now: ${name} has no machine info. Knowing their equipment helps target the right products and identify distributors/dealers.`;
       case "set_primary_email":
         return `Why now: ${name} has no email on file. Email outreach drives 3x more quote requests than cold calls.`;
+      case "set_mailing_address":
+        return `Why now: ${name} has no mailing address. Required before sending swatchbooks or samples.`;
       case "daily_call":
         if (daysSinceEmail !== null && daysSinceEmail > 0) {
           return `Why now: No outbound touch in ${daysSinceEmail} days. Similar accounts convert 22% higher when called within 21 days.`;
@@ -609,6 +631,12 @@ export class NowModeEngine {
       case "set_primary_email":
         return [
           { outcome: "data_updated", label: "Updated", icon: "check", color: "green", assistText: "Find email on their website or ask during next call." },
+          { outcome: "marked_dnc", label: "Bad Fit / DNC", icon: "user-x", color: "red", assistText: "Mark if customer is not a good fit for our products." },
+        ];
+
+      case "set_mailing_address":
+        return [
+          { outcome: "data_updated", label: "Updated", icon: "check", color: "green", assistText: "Click 'View Full Customer Profile' to add address, city, state, and zip." },
           { outcome: "marked_dnc", label: "Bad Fit / DNC", icon: "user-x", color: "red", assistText: "Mark if customer is not a good fit for our products." },
         ];
 

@@ -45,6 +45,9 @@ import {
   TrendingUp,
   TrendingDown,
   Minus,
+  Settings,
+  MapPin,
+  Printer,
   LucideIcon
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
@@ -58,6 +61,11 @@ interface Customer {
   phone: string | null;
   salesRepName: string | null;
   pricingTier: string | null;
+  address1?: string | null;
+  address2?: string | null;
+  city?: string | null;
+  state?: string | null;
+  zip?: string | null;
 }
 
 interface OutcomeButton {
@@ -121,6 +129,8 @@ const CARD_TYPE_LABELS: Record<string, { label: string; Icon: LucideIcon }> = {
   set_pricing_tier: { label: "Set Pricing Tier", Icon: Target },
   set_sales_rep: { label: "Assign Sales Rep", Icon: User },
   set_primary_email: { label: "Add Primary Email", Icon: Mail },
+  set_machine_profile: { label: "Set Machine Profile", Icon: Settings },
+  set_mailing_address: { label: "Add Mailing Address", Icon: MapPin },
   daily_call: { label: "Daily Call", Icon: Phone },
   follow_up_call: { label: "Follow-up Call", Icon: Phone },
   send_swatchbook: { label: "Send Swatchbook", Icon: BookOpen },
@@ -175,6 +185,10 @@ export default function NowMode() {
   const [inlineEmail, setInlineEmail] = useState("");
   const [inlinePricingTier, setInlinePricingTier] = useState("");
   const [inlineSalesRep, setInlineSalesRep] = useState("");
+  const [inlineAddress1, setInlineAddress1] = useState("");
+  const [inlineCity, setInlineCity] = useState("");
+  const [inlineState, setInlineState] = useState("");
+  const [inlineZip, setInlineZip] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -265,6 +279,10 @@ export default function NowMode() {
       setInlineEmail("");
       setInlinePricingTier("");
       setInlineSalesRep("");
+      setInlineAddress1("");
+      setInlineCity("");
+      setInlineState("");
+      setInlineZip("");
       setNotes("");
     }
   }, [data?.card?.customerId, data?.card?.cardType]);
@@ -423,6 +441,69 @@ export default function NowMode() {
     },
   });
 
+  // Handler for printing address label
+  const handlePrintAddressLabel = () => {
+    if (!data?.card) return;
+    
+    const customer = data.card.customer;
+    const companyName = customer.company || customer.name || "Unknown";
+    const address1 = customer.address1 || "";
+    const address2 = customer.address2 || "";
+    const city = customer.city || "";
+    const state = customer.state || "";
+    const zip = customer.zip || "";
+
+    // Create a printable label window
+    const printWindow = window.open("", "_blank", "width=400,height=300");
+    if (!printWindow) {
+      toast({ title: "Error", description: "Please allow popups to print labels", variant: "destructive" });
+      return;
+    }
+
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Address Label</title>
+          <style>
+            @page { size: 4in 2in; margin: 0.25in; }
+            body { 
+              font-family: Arial, sans-serif; 
+              font-size: 14pt; 
+              line-height: 1.4;
+              padding: 0.25in;
+            }
+            .label {
+              border: 1px dashed #ccc;
+              padding: 0.5in;
+              max-width: 3.5in;
+            }
+            .company { font-weight: bold; font-size: 16pt; }
+            @media print {
+              body { padding: 0; }
+              .label { border: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <div class="label">
+            <div class="company">${companyName}</div>
+            <div>${address1}</div>
+            ${address2 ? `<div>${address2}</div>` : ""}
+            <div>${city}, ${state} ${zip}</div>
+          </div>
+          <script>
+            window.onload = function() {
+              window.print();
+              setTimeout(function() { window.close(); }, 500);
+            };
+          </script>
+        </body>
+      </html>
+    `);
+    printWindow.document.close();
+  };
+
   // Handler for View Full Customer Profile button
   const handleViewProfile = () => {
     if (!data?.card) return;
@@ -484,6 +565,22 @@ export default function NowMode() {
       }
       if (data.card.cardType === "set_primary_email" && inlineEmail) {
         updates.email = inlineEmail;
+      }
+      
+      // Require all address fields for mailing address card
+      if (data.card.cardType === "set_mailing_address") {
+        if (!inlineAddress1 || !inlineCity || !inlineState || !inlineZip) {
+          toast({
+            title: "Missing Address Fields",
+            description: "Please fill in street address, city, state, and ZIP code",
+            variant: "destructive",
+          });
+          return;
+        }
+        updates.address1 = inlineAddress1;
+        updates.city = inlineCity;
+        updates.state = inlineState;
+        updates.zip = inlineZip;
       }
 
       // If user has entered inline values, save them first
@@ -924,6 +1021,54 @@ export default function NowMode() {
                     </div>
                   )}
 
+                  {data.card.cardType === "set_mailing_address" && (
+                    <div className="space-y-3">
+                      <div>
+                        <Label className="text-sm text-gray-700">Street Address</Label>
+                        <input
+                          type="text"
+                          value={inlineAddress1}
+                          onChange={(e) => setInlineAddress1(e.target.value)}
+                          placeholder="123 Main Street"
+                          className="w-full px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="col-span-1">
+                          <Label className="text-sm text-gray-700">City</Label>
+                          <input
+                            type="text"
+                            value={inlineCity}
+                            onChange={(e) => setInlineCity(e.target.value)}
+                            placeholder="City"
+                            className="w-full px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm text-gray-700">State</Label>
+                          <input
+                            type="text"
+                            value={inlineState}
+                            onChange={(e) => setInlineState(e.target.value.toUpperCase().slice(0, 2))}
+                            placeholder="CA"
+                            maxLength={2}
+                            className="w-full px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                        <div>
+                          <Label className="text-sm text-gray-700">ZIP</Label>
+                          <input
+                            type="text"
+                            value={inlineZip}
+                            onChange={(e) => setInlineZip(e.target.value)}
+                            placeholder="90210"
+                            className="w-full px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                          />
+                        </div>
+                      </div>
+                    </div>
+                  )}
+
                   {data.card.cardType === "set_machine_profile" && (
                     <div className="text-sm text-gray-600">
                       <p>Click "View Full Customer Profile" below to add machine details.</p>
@@ -983,7 +1128,7 @@ export default function NowMode() {
                 Skip this card
               </Button>
 
-              <div className="text-center">
+              <div className="flex justify-between items-center">
                 <Button 
                   variant="link" 
                   className="text-purple-600"
@@ -991,6 +1136,17 @@ export default function NowMode() {
                 >
                   View Full Customer Profile
                 </Button>
+                {data.card.cardType === "send_swatchbook" && data.card.customer.address1 && (
+                  <Button 
+                    variant="outline"
+                    size="sm"
+                    className="text-blue-600 border-blue-300 hover:bg-blue-50"
+                    onClick={handlePrintAddressLabel}
+                  >
+                    <Printer className="h-4 w-4 mr-2" />
+                    Print Address Label
+                  </Button>
+                )}
               </div>
             </CardContent>
           </Card>
