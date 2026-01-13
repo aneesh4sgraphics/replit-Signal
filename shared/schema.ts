@@ -2791,6 +2791,7 @@ export const CARD_TYPE_BUCKETS: Record<string, NowModeBucket> = {
   set_pricing_tier: 'data_hygiene',
   set_sales_rep: 'data_hygiene',
   set_primary_email: 'data_hygiene',
+  set_machine_profile: 'data_hygiene',  // Critical: collect machine information
   mark_do_not_contact: 'data_hygiene',
   // Enablement bucket
   send_price_list: 'enablement',
