@@ -14327,6 +14327,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Get default address
           const defaultAddress = shopifyCustomer.default_address || shopifyCustomer.addresses?.[0] || {};
           
+          // Determine if this is a company (has company name in address)
+          const hasCompany = defaultAddress.company && defaultAddress.company.trim().length > 0;
+          const personName = `${shopifyCustomer.first_name || ''} ${shopifyCustomer.last_name || ''}`.trim();
+          
           await db.insert(customers).values({
             id: newId,
             firstName: shopifyCustomer.first_name || null,
@@ -14337,8 +14341,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
             address1: defaultAddress.address1 || null,
             address2: defaultAddress.address2 || null,
             city: defaultAddress.city || null,
-            province: defaultAddress.province || null,
-            country: defaultAddress.country || null,
+            province: defaultAddress.province || defaultAddress.province_code || null,
+            country: defaultAddress.country || defaultAddress.country_code || null,
             zip: defaultAddress.zip || null,
             acceptsEmailMarketing: shopifyCustomer.accepts_marketing || false,
             acceptsSmsMarketing: shopifyCustomer.accepts_marketing_updated_at ? true : false,
@@ -14348,12 +14352,30 @@ export async function registerRoutes(app: Express): Promise<Server> {
             tags: shopifyCustomer.tags || null,
             taxExempt: shopifyCustomer.tax_exempt || false,
             sources: ['shopify'],
+            isCompany: hasCompany,
+            contactType: hasCompany ? 'company' : 'contact',
             createdAt: new Date(),
             updatedAt: new Date(),
           });
           
+          // Create a contact for the person if this is a company
+          if (hasCompany && personName) {
+            try {
+              await db.insert(customerContacts).values({
+                customerId: newId,
+                name: personName,
+                email: shopifyCustomer.email || null,
+                phone: shopifyCustomer.phone || defaultAddress.phone || null,
+                role: 'Primary Contact',
+                isPrimary: true,
+              });
+            } catch (contactError) {
+              console.error(`Failed to create contact for ${newId}:`, contactError);
+            }
+          }
+          
           imported++;
-          importedCustomers.push(defaultAddress.company || `${shopifyCustomer.first_name || ''} ${shopifyCustomer.last_name || ''}`.trim() || shopifyCustomer.email || 'Unknown');
+          importedCustomers.push(defaultAddress.company || personName || shopifyCustomer.email || 'Unknown');
         }
       }
 
@@ -14370,6 +14392,151 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error syncing Shopify customers:", error.response?.data || error);
       res.status(500).json({ error: "Failed to sync customers", details: error.response?.data?.errors || error.message });
+    }
+  });
+
+  // Sync draft orders from Shopify
+  app.post("/api/shopify/sync-draft-orders", isAuthenticated, async (req: any, res) => {
+    try {
+      if (!SHOPIFY_ACCESS_TOKEN || !SHOPIFY_STORE_DOMAIN) {
+        return res.status(400).json({ error: "Shopify direct access not configured. Please add SHOPIFY_ACCESS_TOKEN and SHOPIFY_STORE_DOMAIN to your secrets." });
+      }
+
+      const axios = (await import('axios')).default;
+      
+      // Fetch all draft orders from Shopify (paginated)
+      let allDraftOrders: any[] = [];
+      let pageInfo: string | null = null;
+      let hasNextPage = true;
+      
+      while (hasNextPage) {
+        const url = pageInfo 
+          ? `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/draft_orders.json?limit=250&page_info=${pageInfo}`
+          : `https://${SHOPIFY_STORE_DOMAIN}/admin/api/2024-01/draft_orders.json?limit=250`;
+        
+        const response = await axios.get(url, {
+          headers: {
+            'X-Shopify-Access-Token': SHOPIFY_ACCESS_TOKEN,
+            'Content-Type': 'application/json',
+          },
+        });
+        
+        allDraftOrders = allDraftOrders.concat(response.data.draft_orders || []);
+        
+        // Check for pagination
+        const linkHeader = response.headers['link'];
+        if (linkHeader && linkHeader.includes('rel="next"')) {
+          const nextMatch = linkHeader.match(/<[^>]*page_info=([^>&]*)[^>]*>;\s*rel="next"/);
+          pageInfo = nextMatch ? nextMatch[1] : null;
+          hasNextPage = !!pageInfo;
+        } else {
+          hasNextPage = false;
+        }
+      }
+
+      console.log(`Fetched ${allDraftOrders.length} draft orders from Shopify`);
+
+      // Get existing customers for matching
+      const existingCustomers = await db.select().from(customers);
+      const emailToCustomerMap = new Map<string, typeof existingCustomers[0]>();
+      
+      for (const customer of existingCustomers) {
+        if (customer.email) {
+          emailToCustomerMap.set(customer.email.toLowerCase(), customer);
+        }
+      }
+
+      let synced = 0;
+      let updated = 0;
+      let skipped = 0;
+      const syncedDraftOrders: string[] = [];
+
+      for (const draftOrder of allDraftOrders) {
+        const shopifyDraftOrderId = String(draftOrder.id);
+        const customerEmail = draftOrder.email?.toLowerCase();
+        
+        // Try to match to a CRM customer
+        let matchedCustomerId: string | null = null;
+        if (customerEmail) {
+          const matchedCustomer = emailToCustomerMap.get(customerEmail);
+          if (matchedCustomer) {
+            matchedCustomerId = matchedCustomer.id;
+          }
+        }
+
+        // Check if draft order already exists
+        const existing = await db.select().from(shopifyDraftOrders)
+          .where(eq(shopifyDraftOrders.shopifyDraftOrderId, shopifyDraftOrderId))
+          .limit(1);
+
+        // Calculate line items count
+        const lineItemsCount = draftOrder.line_items?.length || 0;
+
+        // Determine status based on Shopify's status
+        let status = 'open';
+        if (draftOrder.status === 'completed') {
+          status = 'completed';
+        } else if (draftOrder.status === 'invoice_sent') {
+          status = 'invoice_sent';
+        }
+
+        const draftOrderData = {
+          shopifyDraftOrderId,
+          shopifyDraftOrderNumber: draftOrder.name || `#D${draftOrder.id}`,
+          customerId: matchedCustomerId,
+          customerEmail: draftOrder.email || null,
+          invoiceUrl: draftOrder.invoice_url || null,
+          status,
+          totalPrice: draftOrder.total_price || null,
+          lineItemsCount,
+          shopifyOrderId: draftOrder.order_id ? String(draftOrder.order_id) : null,
+          completedAt: draftOrder.completed_at ? new Date(draftOrder.completed_at) : null,
+          updatedAt: new Date(),
+        };
+
+        if (existing.length > 0) {
+          // Update existing
+          await db.update(shopifyDraftOrders)
+            .set(draftOrderData)
+            .where(eq(shopifyDraftOrders.id, existing[0].id));
+          updated++;
+        } else {
+          // Insert new
+          await db.insert(shopifyDraftOrders).values({
+            ...draftOrderData,
+            createdAt: draftOrder.created_at ? new Date(draftOrder.created_at) : new Date(),
+          });
+          synced++;
+          syncedDraftOrders.push(draftOrder.name || `#D${draftOrder.id}`);
+        }
+      }
+
+      res.json({
+        success: true,
+        total: allDraftOrders.length,
+        synced,
+        updated,
+        syncedDraftOrders: syncedDraftOrders.slice(0, 20),
+      });
+    } catch (error: any) {
+      console.error("Error syncing Shopify draft orders:", error.response?.data || error);
+      res.status(500).json({ error: "Failed to sync draft orders", details: error.response?.data?.errors || error.message });
+    }
+  });
+
+  // Get Shopify draft orders for a customer
+  app.get("/api/shopify/draft-orders/:customerId", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const draftOrders = await db.select().from(shopifyDraftOrders)
+        .where(eq(shopifyDraftOrders.customerId, customerId))
+        .orderBy(desc(shopifyDraftOrders.createdAt));
+      
+      res.json(draftOrders);
+    } catch (error) {
+      console.error("Error fetching draft orders:", error);
+      res.status(500).json({ error: "Failed to fetch draft orders" });
     }
   });
 

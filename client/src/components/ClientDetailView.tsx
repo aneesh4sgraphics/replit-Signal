@@ -483,6 +483,17 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
     enabled: activeTab === 'orders',
   });
 
+  // Fetch Shopify draft orders (quotes/invoices) for this customer
+  const { data: shopifyDraftOrders = [] } = useQuery<any[]>({
+    queryKey: ['/api/shopify/draft-orders', customer.id],
+    queryFn: async () => {
+      const res = await fetch(`/api/shopify/draft-orders/${customer.id}`);
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: activeTab === 'quotes-prices',
+  });
+
   // Fetch Odoo confirmed orders for this customer
   const { data: odooOrders = [] } = useQuery<any[]>({
     queryKey: ['/api/odoo/customer', customer.id, 'orders'],
@@ -2585,8 +2596,58 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               <CardTitle className="text-base">Quotes & Price Lists Sent</CardTitle>
             </CardHeader>
             <CardContent>
-              {sentQuotes.length > 0 || quoteEvents.length > 0 || priceListEvents.length > 0 || odooQuotes.length > 0 ? (
+              {sentQuotes.length > 0 || quoteEvents.length > 0 || priceListEvents.length > 0 || odooQuotes.length > 0 || shopifyDraftOrders.length > 0 ? (
                 <div className="space-y-4">
+                  {/* Shopify Draft Orders (Quotes/Invoices) Section */}
+                  {shopifyDraftOrders.length > 0 && (
+                    <div>
+                      <h4 className="font-medium text-sm text-green-600 mb-2 flex items-center gap-2">
+                        <ShoppingCart className="h-4 w-4" />
+                        Draft Orders from Shopify
+                      </h4>
+                      <div className="space-y-2">
+                        {shopifyDraftOrders.map((draftOrder: any) => (
+                          <div 
+                            key={draftOrder.id} 
+                            className="flex items-center justify-between p-3 bg-green-50 rounded-lg hover:bg-green-100 transition-colors"
+                          >
+                            <div>
+                              <p className="font-medium">{draftOrder.shopifyDraftOrderNumber || `#D${draftOrder.shopifyDraftOrderId}`}</p>
+                              <p className="text-sm text-gray-500">
+                                ${parseFloat(draftOrder.totalPrice || 0).toLocaleString()}
+                                {draftOrder.lineItemsCount && ` • ${draftOrder.lineItemsCount} items`}
+                              </p>
+                              <p className="text-xs text-gray-400">
+                                {draftOrder.createdAt ? new Date(draftOrder.createdAt).toLocaleDateString() : ''}
+                              </p>
+                            </div>
+                            <div className="flex items-center gap-2">
+                              <Badge variant={
+                                draftOrder.status === 'completed' ? 'default' : 
+                                draftOrder.status === 'invoice_sent' ? 'outline' : 'secondary'
+                              }>
+                                {draftOrder.status === 'open' ? 'Draft' : 
+                                 draftOrder.status === 'invoice_sent' ? 'Invoice Sent' : 
+                                 draftOrder.status === 'completed' ? 'Completed' : draftOrder.status}
+                              </Badge>
+                              {draftOrder.invoiceUrl && (
+                                <a 
+                                  href={draftOrder.invoiceUrl}
+                                  target="_blank"
+                                  rel="noopener noreferrer"
+                                  className="text-green-600 hover:text-green-800"
+                                  title="View Invoice"
+                                >
+                                  <ExternalLink className="h-4 w-4" />
+                                </a>
+                              )}
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+
                   {/* Odoo Quotes Section */}
                   {odooQuotes.length > 0 && (
                     <div>

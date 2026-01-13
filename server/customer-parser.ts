@@ -1,5 +1,7 @@
 import { storage } from "./storage";
-import { Customer, InsertCustomer } from "../shared/schema";
+import { Customer, InsertCustomer, customerContacts } from "../shared/schema";
+import { db } from "./db";
+import { eq, and } from "drizzle-orm";
 
 interface ParsedCustomerRow {
   customerId: string;
@@ -198,7 +200,12 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
   console.log(`Header validation passed: ${headerRow.length} columns found`);
 
   // Parse all customers first
-  const parsedCustomers: Array<{ customerData: InsertCustomer; lineNumber: number }> = [];
+  interface ContactInfo {
+    name: string;
+    email: string | null;
+    phone: string | null;
+  }
+  const parsedCustomers: Array<{ customerData: InsertCustomer; contactInfo: ContactInfo | null; lineNumber: number }> = [];
   const seenIds = new Set<string>();
   
   // Skip the header row and parse all data
@@ -222,6 +229,10 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
       }
       seenIds.add(parsedCustomer.customerId);
 
+      // Determine if this is a company or individual
+      const hasCompany = parsedCustomer.company && parsedCustomer.company.trim().length > 0;
+      const personName = `${parsedCustomer.firstName} ${parsedCustomer.lastName}`.trim();
+      
       const customerData: InsertCustomer = {
         id: parsedCustomer.customerId,
         firstName: parsedCustomer.firstName,
@@ -235,7 +246,7 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
         province: parsedCustomer.province,
         country: parsedCustomer.country,
         zip: parsedCustomer.zip,
-        phone: parsedCustomer.phone,
+        phone: parsedCustomer.phone || parsedCustomer.defaultAddressPhone,
         defaultAddressPhone: parsedCustomer.defaultAddressPhone,
         acceptsSmsMarketing: parsedCustomer.acceptsSmsMarketing,
         totalSpent: parsedCustomer.totalSpent.toString(),
@@ -243,10 +254,19 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
         note: parsedCustomer.note,
         taxExempt: parsedCustomer.taxExempt,
         tags: parsedCustomer.tags,
-        sources: ['shopify'] // Mark as Shopify import
+        sources: ['shopify'],
+        isCompany: hasCompany,
+        contactType: hasCompany ? 'company' : 'contact',
       };
 
-      parsedCustomers.push({ customerData, lineNumber: i + 1 });
+      // Store contact info for later creation
+      const contactInfo = hasCompany && personName ? {
+        name: personName,
+        email: parsedCustomer.email,
+        phone: parsedCustomer.phone || parsedCustomer.defaultAddressPhone,
+      } : null;
+
+      parsedCustomers.push({ customerData, contactInfo, lineNumber: i + 1 });
 
     } catch (error) {
       const errorMsg = `Row ${i + 1}: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -281,13 +301,15 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
   );
   console.log(`Fetched ${allExistingCustomers.length} existing customers in ${Date.now() - startTime}ms`);
 
-  // Separate into new vs existing customers
+  // Separate into new vs existing customers, track contacts to create
   const customersToCreate: InsertCustomer[] = [];
   const customersToUpdate: Array<{ id: string; data: InsertCustomer }> = [];
+  const contactsToCreate: Array<{ customerId: string; name: string; email: string | null; phone: string | null }> = [];
 
-  for (const { customerData } of parsedCustomers) {
+  for (const { customerData, contactInfo } of parsedCustomers) {
     // First check by ID
     let existingCustomer = existingCustomerMap.get(customerData.id);
+    let finalCustomerId = customerData.id;
     
     // If not found by ID, check by email
     if (!existingCustomer && customerData.email && customerData.email.trim()) {
@@ -308,6 +330,7 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
     }
     
     if (existingCustomer) {
+      finalCustomerId = existingCustomer.id;
       // Merge sources: add 'shopify' if not already present
       const existingSources = existingCustomer.sources || [];
       const mergedSources = existingSources.includes('shopify') 
@@ -324,6 +347,16 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
       });
     } else {
       customersToCreate.push(customerData);
+    }
+    
+    // Track contact to create if company has a person name
+    if (contactInfo && contactInfo.name) {
+      contactsToCreate.push({
+        customerId: finalCustomerId,
+        name: contactInfo.name,
+        email: contactInfo.email || null,
+        phone: contactInfo.phone || null,
+      });
     }
   }
 
@@ -358,7 +391,44 @@ Note: Extra columns (like Shopify metafields) will be ignored. Please ensure you
     }
   }
 
-  console.log(`Customer import completed: ${newCustomers} new, ${updatedCustomers} updated, ${errors.length} errors`);
+  // Create customer contacts for companies with person names
+  let contactsCreated = 0;
+  if (contactsToCreate.length > 0) {
+    console.log(`Creating ${contactsToCreate.length} customer contacts...`);
+    for (let i = 0; i < contactsToCreate.length; i += BATCH_SIZE) {
+      const batch = contactsToCreate.slice(i, i + BATCH_SIZE);
+      try {
+        for (const contact of batch) {
+          // Check if contact already exists for this customer
+          const existingContacts = await db.select().from(customerContacts)
+            .where(and(
+              eq(customerContacts.customerId, contact.customerId),
+              eq(customerContacts.name, contact.name)
+            ))
+            .limit(1);
+          
+          if (existingContacts.length === 0) {
+            await db.insert(customerContacts).values({
+              customerId: contact.customerId,
+              name: contact.name,
+              email: contact.email,
+              phone: contact.phone,
+              role: 'Primary Contact',
+              isPrimary: true,
+            });
+            contactsCreated++;
+          }
+        }
+        console.log(`Processed contact batch (${Math.min(i + BATCH_SIZE, contactsToCreate.length)}/${contactsToCreate.length})`);
+      } catch (error) {
+        console.error(`Error creating contacts batch:`, error);
+        errors.push(`Contact create error: ${error instanceof Error ? error.message : 'Unknown error'}`);
+      }
+    }
+    console.log(`Created ${contactsCreated} new customer contacts`);
+  }
+
+  console.log(`Customer import completed: ${newCustomers} new, ${updatedCustomers} updated, ${contactsCreated} contacts, ${errors.length} errors`);
 
   return {
     newCustomers,
