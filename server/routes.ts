@@ -55,7 +55,7 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
-import { eq, sql, and, or, desc, ilike, gte, gt, lt, isNull } from "drizzle-orm";
+import { eq, sql, and, or, desc, ilike, gte, gt, lt, isNull, ne } from "drizzle-orm";
 import { 
   customers,
   customerContacts, 
@@ -14544,13 +14544,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get Shopify draft orders for a customer
+  // Get Shopify draft orders for a customer (excludes completed orders)
   app.get("/api/shopify/draft-orders/:customerId", isAuthenticated, async (req, res) => {
     try {
       const { customerId } = req.params;
       
+      // Only return non-completed draft orders (open, invoice_sent, or abandoned)
       const draftOrders = await db.select().from(shopifyDraftOrders)
-        .where(eq(shopifyDraftOrders.customerId, customerId))
+        .where(
+          and(
+            eq(shopifyDraftOrders.customerId, customerId),
+            or(
+              isNull(shopifyDraftOrders.status),
+              ne(shopifyDraftOrders.status, 'completed')
+            )
+          )
+        )
         .orderBy(desc(shopifyDraftOrders.createdAt));
       
       res.json(draftOrders);
