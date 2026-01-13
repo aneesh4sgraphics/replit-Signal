@@ -70,25 +70,32 @@ function createSessionMiddleware(): ReturnType<typeof session> {
 
   const isProduction = process.env.NODE_ENV === 'production' || !!process.env.REPLIT_DEPLOYMENT;
   
-  console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${isProduction ? 'none' : 'lax'}`);
+  // Validate SESSION_SECRET exists - fail fast if missing
+  if (!process.env.SESSION_SECRET) {
+    console.error("[Auth] FATAL: SESSION_SECRET is not set! Sessions will not work.");
+    throw new Error("SESSION_SECRET environment variable is required");
+  }
+  
+  // Use 'lax' for production to work with standard browser cookie policies
+  // Only use 'none' if specifically embedding in Shopify iframe (controlled by env var)
+  const isShopifyEmbedded = process.env.SHOPIFY_EMBEDDED === 'true';
+  const sameSiteSetting: 'lax' | 'none' = isShopifyEmbedded ? 'none' : 'lax';
+  
+  console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${sameSiteSetting}, shopifyEmbedded=${isShopifyEmbedded}`);
 
-  // Cookie configuration for cross-site contexts (Replit published apps)
-  // Modern browsers require Partitioned attribute for third-party cookies
+  // Cookie configuration for production Replit deployments
+  // Using 'lax' sameSite allows first-party cookies while preventing CSRF
+  // 'secure: true' required for HTTPS in production
   const cookieConfig: session.CookieOptions = {
     httpOnly: true,
     secure: isProduction,
-    sameSite: isProduction ? "none" : "lax",
+    sameSite: sameSiteSetting,
     maxAge: SESSION_TTL,
     path: "/",
   };
-  
-  // Add partitioned attribute for production (required by Chrome for cross-site cookies)
-  if (isProduction) {
-    (cookieConfig as any).partitioned = true;
-  }
 
   return session({
-    secret: process.env.SESSION_SECRET!,
+    secret: process.env.SESSION_SECRET,
     store: sessionStore,
     resave: false,
     saveUninitialized: false,
@@ -290,6 +297,64 @@ export async function setupAuth(app: Express) {
           
           res.redirect(logoutUrl);
         });
+      });
+    });
+
+    // Debug endpoint to diagnose authentication issues
+    app.get("/api/auth/debug", (req: any, res) => {
+      const hasCookie = !!req.headers.cookie;
+      const hasSessionCookie = req.headers.cookie?.includes('connect.sid') || false;
+      const hasSession = !!req.session;
+      const hasSessionId = !!req.sessionID;
+      const isAuth = req.isAuthenticated ? req.isAuthenticated() : false;
+      const hasUser = !!req.user;
+      const userEmail = req.user?.claims?.email || req.user?.email || null;
+      const userId = req.user?.claims?.sub || null;
+      const expiresAt = req.user?.expires_at ? new Date(req.user.expires_at * 1000).toISOString() : null;
+      const isExpired = req.user?.expires_at ? (Date.now() / 1000) > req.user.expires_at : null;
+      
+      // Determine failure reason
+      let failureReason = null;
+      if (!hasCookie) {
+        failureReason = "No cookies sent - browser may be blocking cookies or credentials not included in fetch";
+      } else if (!hasSessionCookie) {
+        failureReason = "Session cookie (connect.sid) not present - may need to log in again";
+      } else if (!hasSession) {
+        failureReason = "Session middleware not initialized";
+      } else if (!isAuth) {
+        failureReason = "Session exists but user not authenticated - session may be expired or invalid";
+      } else if (!hasUser) {
+        failureReason = "Authenticated but user object missing";
+      } else if (isExpired) {
+        failureReason = "Token expired - refresh may be needed";
+      }
+      
+      const isProduction = process.env.NODE_ENV === 'production' || !!process.env.REPLIT_DEPLOYMENT;
+      const isShopifyEmbedded = process.env.SHOPIFY_EMBEDDED === 'true';
+      
+      res.json({
+        authenticated: isAuth && hasUser,
+        diagnostics: {
+          hasCookie,
+          hasSessionCookie,
+          hasSession,
+          hasSessionId,
+          isAuthenticated: isAuth,
+          hasUser,
+          userEmail,
+          userId,
+          tokenExpiresAt: expiresAt,
+          tokenExpired: isExpired,
+        },
+        config: {
+          production: isProduction,
+          shopifyEmbedded: isShopifyEmbedded,
+          trustProxy: true,
+          cookieSecure: isProduction,
+          cookieSameSite: isShopifyEmbedded ? 'none' : 'lax',
+        },
+        failureReason,
+        timestamp: new Date().toISOString(),
       });
     });
 

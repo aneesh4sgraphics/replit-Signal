@@ -249,12 +249,20 @@ export default function NowMode() {
     },
   });
 
-  const { data, isLoading, refetch } = useQuery<NowModeResponse>({
+  const { data, isLoading, isError, error, refetch } = useQuery<NowModeResponse>({
     queryKey: ["/api/now-mode/current"],
     refetchOnWindowFocus: false,
     staleTime: 0,
     refetchOnMount: 'always',
   });
+  
+  // Check if the error is a session/auth error (401)
+  // Safely check error properties - the error could be an ApiError object or a string
+  const isSessionExpired = isError && error && (
+    (typeof error === 'object' && (error as any)?.status === 401) ||
+    (typeof error === 'object' && typeof (error as any)?.message === 'string' && (error as any).message.toLowerCase().includes('session')) ||
+    (typeof error === 'string' && error.toLowerCase().includes('session'))
+  );
 
   // Day recap query - for end-of-day closure (must be after main data query)
   const { data: recapData } = useQuery<{
@@ -478,6 +486,38 @@ export default function NowMode() {
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-purple-600 mx-auto mb-4"></div>
           <p className="text-gray-600">Loading NOW MODE...</p>
         </div>
+      </div>
+    );
+  }
+
+  // Session expired banner
+  if (isSessionExpired) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-purple-50 to-indigo-50 flex items-center justify-center p-4">
+        <Card className="max-w-md w-full">
+          <CardHeader className="text-center">
+            <div className="mx-auto mb-4 p-3 bg-amber-100 rounded-full w-fit">
+              <AlertTriangle className="h-8 w-8 text-amber-600" />
+            </div>
+            <CardTitle className="text-xl text-gray-800">Session Expired</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4 text-center">
+            <p className="text-gray-600">
+              Your session has expired. Please log in again to continue using NOW MODE.
+            </p>
+            <div className="flex flex-col gap-2">
+              <Button asChild className="w-full bg-purple-600 hover:bg-purple-700">
+                <a href="/api/login">Log In Again</a>
+              </Button>
+              <Link href="/">
+                <Button variant="outline" className="w-full">
+                  <ArrowLeft className="h-4 w-4 mr-2" />
+                  Back to Dashboard
+                </Button>
+              </Link>
+            </div>
+          </CardContent>
+        </Card>
       </div>
     );
   }

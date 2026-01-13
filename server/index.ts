@@ -15,6 +15,28 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
   process.env.PUPPETEER_EXECUTABLE_PATH = "/nix/store/zi4f80l169xlmivz8vja8wlphq74qqk0-chromium-125.0.6422.141/bin/chromium";
 }
 
+// Fail-fast validation for required secrets in production
+// Use multiple checks to determine if we're in production:
+// 1. NODE_ENV set to production
+// 2. REPLIT_DEPLOYMENT env var exists (Replit deployments)
+// 3. REPL_SLUG exists but REPLIT_DEV_DOMAIN is not set
+const isProduction = process.env.NODE_ENV === 'production' || 
+                     process.env.REPLIT_DEPLOYMENT === '1' ||
+                     (!!process.env.REPL_SLUG && !process.env.REPLIT_DEV_DOMAIN);
+const requiredSecrets = ['SESSION_SECRET', 'DATABASE_URL'];
+const missingSecrets = requiredSecrets.filter(key => !process.env[key]);
+if (missingSecrets.length > 0 && isProduction) {
+  console.error(`[FATAL] Missing required secrets in production: ${missingSecrets.join(', ')}`);
+  console.error('[FATAL] Please configure these secrets in Deployment Secrets (not just Dev Secrets)');
+  process.exit(1);
+} else if (missingSecrets.length > 0) {
+  console.warn(`[Warning] Missing secrets (dev mode - may cause issues): ${missingSecrets.join(', ')}`);
+}
+
+// Log deployment configuration on startup
+console.log(`[Boot] Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
+console.log(`[Boot] Required secrets status: SESSION_SECRET=${!!process.env.SESSION_SECRET}, DATABASE_URL=${!!process.env.DATABASE_URL}, REPL_ID=${!!process.env.REPL_ID}`);
+
 const app = express();
 
 // Disable x-powered-by header
@@ -45,7 +67,6 @@ app.use(express.urlencoded({ extended: false, limit: '10mb' }));
 app.use(cookieParser());
 
 // --- CORS (strict: only known origins with credentials) ---
-const isProduction = process.env.NODE_ENV === 'production';
 const allowedOrigins = new Set([
   // Production
   'https://4sgraphics.replit.app',
@@ -182,14 +203,7 @@ app.use((req, res, next) => {
   // importantly only setup vite in development and after
   // setting up all the other routes so the catch-all route
   // doesn't interfere with the other routes
-  // Use multiple checks to determine if we're in production:
-  // 1. NODE_ENV set to production
-  // 2. REPLIT_DEPLOYMENT env var exists (Replit deployments)
-  // 3. REPL_SLUG exists but REPLIT_DEV is not set
-  const isProduction = process.env.NODE_ENV === "production" || 
-                       process.env.REPLIT_DEPLOYMENT === "1" ||
-                       (process.env.REPL_SLUG && !process.env.REPLIT_DEV_DOMAIN);
-  
+  // isProduction is already defined at top of file
   log(`Environment: ${isProduction ? 'production' : 'development'}`);
   
   if (!isProduction) {
