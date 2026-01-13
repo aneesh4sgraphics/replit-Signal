@@ -404,8 +404,12 @@ export default function NowMode() {
   
   // Check if the error is a session/auth error (401 only)
   // Only show session expired for actual 401 status - not for other errors that might mention "session"
+  // Be very strict about this check to avoid false positives
   const isSessionExpired = isError && error && 
-    typeof error === 'object' && (error as any)?.status === 401;
+    typeof error === 'object' && 
+    'status' in (error as object) &&
+    (error as any).status === 401 &&
+    !(error as any).isNetworkError;
 
   // Day recap query - for end-of-day closure (must be after main data query)
   const { data: recapData } = useQuery<{

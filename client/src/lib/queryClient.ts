@@ -10,15 +10,15 @@ function checkLoginGracePeriod(): boolean {
   const authTimestamp = sessionStorage.getItem('authTimestamp');
   if (authTimestamp) {
     const loginTime = parseInt(authTimestamp, 10);
-    const gracePeriod = 10000;
+    const gracePeriod = 15000; // Extended to 15 seconds for tab transitions
     if (Date.now() - loginTime < gracePeriod) {
       return true;
     }
   }
   
-  // Grace period for initial app load (5 seconds)
+  // Grace period for initial app load (8 seconds)
   // This prevents "session expired" toast during initial page load race conditions
-  if (Date.now() - appLoadTime < 5000) {
+  if (Date.now() - appLoadTime < 8000) {
     return true;
   }
   
