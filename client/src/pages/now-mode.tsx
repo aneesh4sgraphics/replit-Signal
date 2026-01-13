@@ -355,15 +355,15 @@ export default function NowMode() {
   const updateCustomerMutation = useMutation({
     mutationFn: async ({ customerId, pricingTier, salesRepName }: { customerId: string; pricingTier: string; salesRepName: string }) => {
       const res = await apiRequest("PUT", `/api/customers/${customerId}`, { pricingTier, salesRepName });
-      return res.json();
+      const result = await res.json();
+      return { ...result, customerId }; // Pass customerId through to onSuccess
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       setShowProfileGateDialog(false);
       toast({ title: "Customer Updated", description: "Navigating to customer profile..." });
       queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
-      if (data?.card) {
-        setLocation(`/clients/${data.card.customerId}?from=now-mode`);
-      }
+      // Use customerId from mutation result, not from potentially stale data
+      setLocation(`/clients/${result.customerId}?from=now-mode`);
     },
     onError: (error) => {
       toast({
