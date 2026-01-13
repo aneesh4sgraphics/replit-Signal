@@ -23,11 +23,12 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
 const isProduction = process.env.NODE_ENV === 'production' || 
                      process.env.REPLIT_DEPLOYMENT === '1' ||
                      (!!process.env.REPL_SLUG && !process.env.REPLIT_DEV_DOMAIN);
-const requiredSecrets = ['SESSION_SECRET', 'DATABASE_URL'];
+const requiredSecrets = ['SESSION_SECRET', 'DATABASE_URL', 'REPLIT_DOMAINS', 'REPL_ID'];
 const missingSecrets = requiredSecrets.filter(key => !process.env[key]);
 if (missingSecrets.length > 0 && isProduction) {
   console.error(`[FATAL] Missing required secrets in production: ${missingSecrets.join(', ')}`);
   console.error('[FATAL] Please configure these secrets in Deployment Secrets (not just Dev Secrets)');
+  console.error('[FATAL] REPLIT_DOMAINS should be the deployed app domain (e.g., "4sgraphics.replit.app,quote.4sgraphics.com")');
   process.exit(1);
 } else if (missingSecrets.length > 0) {
   console.warn(`[Warning] Missing secrets (dev mode - may cause issues): ${missingSecrets.join(', ')}`);
@@ -35,9 +36,35 @@ if (missingSecrets.length > 0 && isProduction) {
 
 // Log deployment configuration on startup
 console.log(`[Boot] Environment: ${isProduction ? 'PRODUCTION' : 'DEVELOPMENT'}`);
-console.log(`[Boot] Required secrets status: SESSION_SECRET=${!!process.env.SESSION_SECRET}, DATABASE_URL=${!!process.env.DATABASE_URL}, REPL_ID=${!!process.env.REPL_ID}`);
+console.log(`[Boot] Required secrets status: SESSION_SECRET=${!!process.env.SESSION_SECRET}, DATABASE_URL=${!!process.env.DATABASE_URL}, REPL_ID=${!!process.env.REPL_ID}, REPLIT_DOMAINS=${!!process.env.REPLIT_DOMAINS}`);
+if (process.env.REPLIT_DOMAINS) {
+  console.log(`[Boot] REPLIT_DOMAINS: ${process.env.REPLIT_DOMAINS}`);
+}
 
 const app = express();
+
+// Public diagnostic endpoint - MUST be before auth middleware so it's accessible when auth is broken
+app.get('/api/diagnostics/auth-env', (req, res) => {
+  res.json({
+    environment: isProduction ? 'production' : 'development',
+    timestamp: new Date().toISOString(),
+    hostname: req.hostname,
+    secrets: {
+      SESSION_SECRET: !!process.env.SESSION_SECRET,
+      DATABASE_URL: !!process.env.DATABASE_URL,
+      REPL_ID: !!process.env.REPL_ID,
+      REPLIT_DOMAINS: !!process.env.REPLIT_DOMAINS,
+      REPLIT_DEPLOYMENT: !!process.env.REPLIT_DEPLOYMENT,
+      NODE_ENV: process.env.NODE_ENV || 'not set',
+    },
+    domains: process.env.REPLIT_DOMAINS ? process.env.REPLIT_DOMAINS.split(',') : [],
+    authWillWork: !!(process.env.REPLIT_DOMAINS && process.env.SESSION_SECRET && process.env.REPL_ID),
+    cookies: {
+      present: !!req.cookies,
+      sessionCookie: !!req.cookies?.['connect.sid'],
+    },
+  });
+});
 
 // Disable x-powered-by header
 app.disable('x-powered-by');

@@ -47,7 +47,7 @@ export default function NowModeAdmin() {
   const { data: summary, isLoading: summaryLoading, refetch: refetchSummary } = useQuery<AdminSummary>({
     queryKey: ["/api/now-mode/admin/summary", days],
     queryFn: async () => {
-      const res = await fetch(`/api/now-mode/admin/summary?days=${days}`);
+      const res = await fetch(`/api/now-mode/admin/summary?days=${days}`, { credentials: 'include' });
       if (!res.ok) throw new Error("Failed to fetch summary");
       return res.json();
     },
@@ -56,7 +56,7 @@ export default function NowModeAdmin() {
   const { data: redFlags, isLoading: flagsLoading, refetch: refetchFlags } = useQuery<RedFlags>({
     queryKey: ["/api/now-mode/admin/red-flags", days],
     queryFn: async () => {
-      const res = await fetch(`/api/now-mode/admin/red-flags?days=${days}`);
+      const res = await fetch(`/api/now-mode/admin/red-flags?days=${days}`, { credentials: 'include' });
       if (!res.ok) throw new Error("Failed to fetch red flags");
       return res.json();
     },
