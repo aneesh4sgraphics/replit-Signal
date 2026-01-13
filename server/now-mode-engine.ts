@@ -420,7 +420,7 @@ export class NowModeEngine {
   private async getEligibleCustomers(userId: string, excludeIds: string[]): Promise<Customer[]> {
     const now = new Date();
     
-    console.log(`[NOW MODE] Getting eligible customers for userId: ${userId}`);
+    console.log(`[NOW MODE] Getting eligible customers for userId: ${userId} (type: ${typeof userId})`);
     
     // Use a subquery to check if customer has any machine profile
     const machineProfileSubquery = db
@@ -460,6 +460,13 @@ export class NowModeEngine {
       .limit(100);
 
     console.log(`[NOW MODE] Found ${result.length} eligible customers (before exclusion), excluding ${excludeIds.length} recently seen`);
+    
+    if (result.length === 0) {
+      console.log(`[NOW MODE] WARNING: No eligible customers found for userId ${userId}. Query filters: salesRepId=${userId} OR salesRepId IS NULL, doNotContact=false/null, pausedUntil is past`);
+    } else if (result.length > 0) {
+      const sample = result[0];
+      console.log(`[NOW MODE] Sample customer: id=${sample.id}, pricingTier=${sample.pricingTier}, salesRepId=${sample.salesRepId}, hasMachineProfile=${sample.hasMachineProfile}`);
+    }
     
     const filtered = result.filter((c) => !excludeIds.includes(c.id));
     console.log(`[NOW MODE] After exclusion: ${filtered.length} customers available`);

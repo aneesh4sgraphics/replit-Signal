@@ -1,6 +1,6 @@
 import { queryClient } from '@/lib/queryClient';
 
-export const APP_CACHE_VERSION = 'v2.0.0';
+export const APP_CACHE_VERSION = 'v2.1.0';
 
 export async function resetAppData({ whitelistKeys = [], skipReload = false }: { whitelistKeys?: string[], skipReload?: boolean } = {}) {
   console.log('[Reset] Starting app data reset...');

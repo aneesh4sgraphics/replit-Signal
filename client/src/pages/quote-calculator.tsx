@@ -160,8 +160,10 @@ export default function QuoteCalculator() {
   const [location] = useLocation();
 
   // Fetch users for sales rep dropdown in gate dialog
-  const { data: usersData } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
+  const { data: usersData, isLoading: isLoadingUsers } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
     queryKey: ["/api/users"],
+    staleTime: 5 * 60 * 1000,
+    retry: 2,
   });
 
   // Sort users by display name for dropdown
@@ -3065,16 +3067,20 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
             </div>
             <div className="space-y-2">
               <Label htmlFor="gate-sales-rep">Sales Rep</Label>
-              <Select value={gateSalesRep} onValueChange={setGateSalesRep}>
+              <Select value={gateSalesRep} onValueChange={setGateSalesRep} disabled={isLoadingUsers}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select sales rep" />
+                  <SelectValue placeholder={isLoadingUsers ? "Loading sales reps..." : "Select sales rep"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedUsers.map((user) => (
-                    <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
-                      {getSalesRepDisplayName(user.email)}
-                    </SelectItem>
-                  ))}
+                  {sortedUsers.length === 0 && !isLoadingUsers ? (
+                    <SelectItem value="_no_users" disabled>No sales reps available</SelectItem>
+                  ) : (
+                    sortedUsers.map((user) => (
+                      <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                        {getSalesRepDisplayName(user.email)}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>

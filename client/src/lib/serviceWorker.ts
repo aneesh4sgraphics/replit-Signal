@@ -4,7 +4,7 @@ export class ServiceWorkerManager {
   private updateAvailable = false;
   
   // Cache version should match the one in sw.js
-  public readonly CACHE_VERSION = 'v2.0.0';
+  public readonly CACHE_VERSION = 'v2.1.0';
   
   async register(): Promise<void> {
     if (!('serviceWorker' in navigator)) {

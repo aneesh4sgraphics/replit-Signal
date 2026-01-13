@@ -175,7 +175,7 @@ export default function Dashboard() {
   });
 
   const { data: apiCosts } = useQuery<ApiCostStats>({
-    queryKey: ["/api/dashboard/api-costs", { days: '30' }],
+    queryKey: ["/api/dashboard/api-costs?days=30"],
     retry: 1,
     enabled: isAdminUser,
     staleTime: 5 * 60 * 1000,

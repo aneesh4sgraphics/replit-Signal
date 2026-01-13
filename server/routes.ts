@@ -56,7 +56,7 @@ import {
   logDownload 
 } from "./fileLogger";
 import { db } from "./db";
-import { eq, sql, and, or, desc, ilike, gte, gt, isNull } from "drizzle-orm";
+import { eq, sql, and, or, desc, ilike, gte, gt, lt, isNull } from "drizzle-orm";
 import { 
   customers,
   customerContacts, 
