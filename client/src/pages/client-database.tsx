@@ -15,6 +15,7 @@ import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useCustomers } from "@/features/customers/useCustomers";
 import { useAuth } from "@/hooks/useAuth";
 import ClientDetailView from "@/components/ClientDetailView";
+import { getSalesRepDisplayName } from "@/lib/utils";
 import {
   Table,
   TableBody,
@@ -1500,10 +1501,10 @@ export default function ClientDatabase() {
 
   // Hardcoded team members (fallback when API fails)
   const TEAM_MEMBERS = [
-    { id: "45980257", email: "aneesh@4sgraphics.com", displayName: "Aneesh Prabhu" },
+    { id: "45980257", email: "aneesh@4sgraphics.com", displayName: "Aneesh" },
     { id: "45163473", email: "patricio@4sgraphics.com", displayName: "Patricio" },
     { id: "45165274", email: "santiago@4sgraphics.com", displayName: "Santiago" },
-    { id: "45080323", email: "oscar@4sgraphics.com", displayName: "Oscar Aguayo" },
+    { id: "45080323", email: "oscar@4sgraphics.com", displayName: "Oscar" },
     { id: "52063823", email: "warehouse@4sgraphics.com", displayName: "Warehouse" },
   ];
   
@@ -1521,7 +1522,16 @@ export default function ClientDatabase() {
   });
   
   // Use API data if available, otherwise fall back to hardcoded list
-  const teamUsers = apiUsers.length > 0 ? apiUsers : TEAM_MEMBERS;
+  // Apply display name transformation and sort alphabetically
+  const teamUsers = useMemo(() => {
+    const users = apiUsers.length > 0 ? apiUsers : TEAM_MEMBERS;
+    return users
+      .map(user => ({
+        ...user,
+        displayName: getSalesRepDisplayName(user.email)
+      }))
+      .sort((a, b) => a.displayName.localeCompare(b.displayName));
+  }, [apiUsers]);
 
   // Handler to check for missing pricing tier or sales rep before viewing customer
   const handleSelectCustomer = (customer: Customer, contacts: Customer[] = []) => {

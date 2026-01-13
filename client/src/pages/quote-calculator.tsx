@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,6 +26,7 @@ import { useActivityLogger } from "@/hooks/useActivityLogger";
 import { useEmailComposer } from "@/components/email-composer";
 import { ALLOWED_CATEGORIES } from "@/lib/productCategories";
 import { PRICING_TIERS } from "@shared/schema";
+import { getSalesRepDisplayName } from "@/lib/utils";
 
 interface ProductData {
   id: number;
@@ -162,6 +163,16 @@ export default function QuoteCalculator() {
   const { data: usersData } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
     queryKey: ["/api/users"],
   });
+
+  // Sort users by display name for dropdown
+  const sortedUsers = useMemo(() => {
+    if (!usersData) return [];
+    return [...usersData].sort((a, b) => {
+      const nameA = getSalesRepDisplayName(a.email);
+      const nameB = getSalesRepDisplayName(b.email);
+      return nameA.localeCompare(nameB);
+    });
+  }, [usersData]);
 
   // Mutation to update customer's primary email
   const updatePrimaryEmailMutation = useMutation({
@@ -3059,9 +3070,9 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                   <SelectValue placeholder="Select sales rep" />
                 </SelectTrigger>
                 <SelectContent>
-                  {usersData?.map((user) => (
-                    <SelectItem key={user.id} value={user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}>
-                      {user.firstName && user.lastName ? `${user.firstName} ${user.lastName}` : user.email}
+                  {sortedUsers.map((user) => (
+                    <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                      {getSalesRepDisplayName(user.email)}
                     </SelectItem>
                   ))}
                 </SelectContent>
