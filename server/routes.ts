@@ -16543,6 +16543,112 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // NOW MODE Debug - diagnose why a user has no cards (Admin only)
+  app.get("/api/now-mode/admin/debug/:userEmail", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+      
+      const targetEmail = req.params.userEmail;
+      const [targetUser] = await db.select().from(users).where(eq(users.email, targetEmail)).limit(1);
+      
+      if (!targetUser) {
+        return res.status(404).json({ error: `User not found: ${targetEmail}` });
+      }
+      
+      const userId = targetUser.id;
+      const today = new Date().toISOString().split("T")[0];
+      
+      // Get session data
+      const [session] = await db.select().from(nowModeSessions)
+        .where(and(eq(nowModeSessions.userId, userId), eq(nowModeSessions.dateKey, today)))
+        .limit(1);
+      
+      // Count customers assigned to this user
+      const [customerCount] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(eq(customers.salesRepId, userId));
+      
+      // Count customers with null salesRepId
+      const [unassignedCount] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(isNull(customers.salesRepId));
+      
+      // Count customers without pricing tier (data hygiene)
+      const [noPricingTier] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(and(
+          eq(customers.salesRepId, userId),
+          isNull(customers.pricingTier)
+        ));
+      
+      // Count customers without swatchbook (outreach)
+      const [noSwatchbook] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(and(
+          eq(customers.salesRepId, userId),
+          isNull(customers.swatchbookSentAt)
+        ));
+      
+      // Count DNC customers
+      const [dncCount] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(and(
+          eq(customers.salesRepId, userId),
+          eq(customers.doNotContact, true)
+        ));
+      
+      // Count paused customers
+      const now = new Date();
+      const [pausedCount] = await db.select({ count: sql`count(*)` }).from(customers)
+        .where(and(
+          eq(customers.salesRepId, userId),
+          gt(customers.pausedUntil, now)
+        ));
+      
+      // Get sample of eligible customers
+      const eligibleSample = await db.select({
+        id: customers.id,
+        company: customers.company,
+        pricingTier: customers.pricingTier,
+        swatchbookSentAt: customers.swatchbookSentAt,
+        doNotContact: customers.doNotContact,
+        pausedUntil: customers.pausedUntil,
+      }).from(customers)
+        .where(and(
+          eq(customers.salesRepId, userId),
+          or(eq(customers.doNotContact, false), isNull(customers.doNotContact)),
+          or(isNull(customers.pausedUntil), lt(customers.pausedUntil, now))
+        ))
+        .limit(5);
+      
+      res.json({
+        user: {
+          id: userId,
+          email: targetEmail,
+          idType: typeof userId,
+        },
+        session: session || { status: 'no_session_today' },
+        customerStats: {
+          totalAssigned: Number(customerCount?.count || 0),
+          unassigned: Number(unassignedCount?.count || 0),
+          noPricingTier: Number(noPricingTier?.count || 0),
+          noSwatchbook: Number(noSwatchbook?.count || 0),
+          doNotContact: Number(dncCount?.count || 0),
+          pausedUntil: Number(pausedCount?.count || 0),
+        },
+        eligibleSample,
+        debugInfo: {
+          expectedCards: Number(noPricingTier?.count || 0) > 0 || Number(noSwatchbook?.count || 0) > 0,
+          message: Number(noPricingTier?.count || 0) > 0 
+            ? `Should have ${noPricingTier?.count} data_hygiene cards (set_pricing_tier)` 
+            : Number(noSwatchbook?.count || 0) > 0
+            ? `Should have ${noSwatchbook?.count} outreach cards (send_swatchbook)`
+            : 'No obvious card sources found',
+        },
+      });
+    } catch (error) {
+      console.error("Error debugging NOW MODE:", error);
+      res.status(500).json({ error: "Failed to debug NOW MODE" });
+    }
+  });
+
   app.post("/api/customers/:id/do-not-contact", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
