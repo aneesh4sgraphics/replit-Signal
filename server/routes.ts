@@ -1921,10 +1921,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customerId = req.params.id;
       const customerData = { ...req.body };
       
+      console.log(`[Customer Update] PUT /api/customers/${customerId}`, {
+        pricingTier: customerData.pricingTier,
+        salesRepName: customerData.salesRepName,
+        fieldsReceived: Object.keys(customerData)
+      });
+      
       // Get existing customer to check if pricing tier changed
       const existingCustomer = await storage.getCustomer(customerId);
       const oldPricingTier = existingCustomer?.pricingTier;
       const newPricingTier = customerData.pricingTier;
+      
+      console.log(`[Customer Update] Tier change: ${oldPricingTier} -> ${newPricingTier}`);
       
       // Convert date strings to Date objects for all timestamp fields
       const timestampFields = ['pausedUntil', 'updatedAt', 'createdAt', 'pricingTierSetAt', 'lastOdooSyncAt'];
@@ -2331,63 +2339,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Update customer (Admin only)
-  app.put("/api/customers/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
-    try {
-      const customerId = req.params.id;
-      const customerData = { ...req.body };
-      
-      // Convert date strings to Date objects for timestamp fields
-      if (customerData.pausedUntil && typeof customerData.pausedUntil === 'string') {
-        customerData.pausedUntil = new Date(customerData.pausedUntil);
-      }
-      if (customerData.updatedAt && typeof customerData.updatedAt === 'string') {
-        customerData.updatedAt = new Date(customerData.updatedAt);
-      }
-      if (customerData.createdAt && typeof customerData.createdAt === 'string') {
-        customerData.createdAt = new Date(customerData.createdAt);
-      }
-      
-      // Check if customer exists
-      const existingCustomer = await storage.getCustomer(customerId);
-      if (!existingCustomer) {
-        return res.status(404).json({ error: "Customer not found" });
-      }
-
-      // Track sales rep reassignment if changed
-      const salesRepChanged = customerData.salesRepId && customerData.salesRepId !== existingCustomer.salesRepId;
-
-      const updatedCustomer = await storage.updateCustomer(customerId, customerData);
-      
-      // Clear cache and log reassignment if sales rep changed
-      if (salesRepChanged) {
-        setCachedData("customers", null);
-        console.log(`[Sales Rep Reassignment] Customer ${customerId} (${existingCustomer.company || existingCustomer.email}) reassigned from ${existingCustomer.salesRepName || existingCustomer.salesRepId || 'unassigned'} to ${customerData.salesRepName || customerData.salesRepId}`);
-        
-        await storage.logActivity({
-          userId: req.user?.id || 'system',
-          userEmail: req.user?.email || 'system',
-          userRole: req.user?.role || 'admin',
-          action: 'customer_reassigned',
-          actionType: 'crm',
-          description: `Customer ${existingCustomer.company || existingCustomer.email} reassigned from ${existingCustomer.salesRepName || 'unassigned'} to ${customerData.salesRepName || customerData.salesRepId}`,
-          targetId: customerId,
-          targetType: 'customer',
-          metadata: { 
-            previousSalesRepId: existingCustomer.salesRepId, 
-            previousSalesRepName: existingCustomer.salesRepName, 
-            newSalesRepId: customerData.salesRepId, 
-            newSalesRepName: customerData.salesRepName 
-          },
-        });
-      }
-      
-      res.json(updatedCustomer);
-    } catch (error) {
-      console.error("Error updating customer:", error);
-      res.status(500).json({ error: "Failed to update customer" });
-    }
-  });
+  // NOTE: Primary customer update route is defined earlier (line ~1919) which handles pricing tier sync.
+  // This duplicate route was removed to prevent Express routing conflicts.
 
   // Update customer sales rep assignment (dedicated endpoint to avoid overwriting other fields)
   app.put("/api/customers/:id/sales-rep", isAuthenticated, async (req: any, res) => {
