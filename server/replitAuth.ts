@@ -76,16 +76,15 @@ function createSessionMiddleware(): ReturnType<typeof session> {
     throw new Error("SESSION_SECRET environment variable is required");
   }
   
-  // Use 'lax' for production to work with standard browser cookie policies
-  // Only use 'none' if specifically embedding in Shopify iframe (controlled by env var)
-  const isShopifyEmbedded = process.env.SHOPIFY_EMBEDDED === 'true';
-  const sameSiteSetting: 'lax' | 'none' = isShopifyEmbedded ? 'none' : 'lax';
+  // Use 'none' for production to allow OIDC callback from different origin to persist cookies
+  // OIDC flow requires cross-origin cookie persistence, so SameSite=None + Secure is required
+  const sameSiteSetting: 'lax' | 'none' = isProduction ? 'none' : 'lax';
   
-  console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${sameSiteSetting}, shopifyEmbedded=${isShopifyEmbedded}`);
+  console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${sameSiteSetting}`);
 
   // Cookie configuration for production Replit deployments
-  // Using 'lax' sameSite allows first-party cookies while preventing CSRF
-  // 'secure: true' required for HTTPS in production
+  // Using 'none' sameSite + secure allows OIDC cross-origin callback to persist cookies
+  // 'secure: true' required for HTTPS in production and for SameSite=None
   // Note: Do NOT set 'domain' - let the browser infer it from the request
   const cookieConfig: session.CookieOptions = {
     httpOnly: true,
