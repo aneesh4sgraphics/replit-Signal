@@ -172,6 +172,9 @@ export default function NowMode() {
   const [showProfileGateDialog, setShowProfileGateDialog] = useState(false);
   const [selectedPricingTier, setSelectedPricingTier] = useState("");
   const [selectedSalesRep, setSelectedSalesRep] = useState("");
+  const [inlineEmail, setInlineEmail] = useState("");
+  const [inlinePricingTier, setInlinePricingTier] = useState("");
+  const [inlineSalesRep, setInlineSalesRep] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
 
@@ -222,6 +225,16 @@ export default function NowMode() {
       setShowDormancyPopup(true);
     }
   }, [dormancyData?.isDormant, dormancyDismissed, dormancyData?.isPaused]);
+
+  // Reset inline edit values when card changes
+  useEffect(() => {
+    if (data?.card) {
+      setInlineEmail("");
+      setInlinePricingTier("");
+      setInlineSalesRep("");
+      setNotes("");
+    }
+  }, [data?.card?.customerId, data?.card?.cardType]);
 
   // Pause session mutation
   const pauseMutation = useMutation({
@@ -392,6 +405,24 @@ export default function NowMode() {
     },
   });
 
+  // Mutation to update customer inline (for data hygiene cards)
+  const inlineUpdateMutation = useMutation({
+    mutationFn: async ({ customerId, updates }: { customerId: string; updates: Record<string, string> }) => {
+      const res = await apiRequest("PUT", `/api/customers/${customerId}`, updates);
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: "Updated!", description: "Customer data saved successfully." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update customer",
+        variant: "destructive",
+      });
+    },
+  });
+
   // Handler for View Full Customer Profile button
   const handleViewProfile = () => {
     if (!data?.card) return;
@@ -438,8 +469,36 @@ export default function NowMode() {
     });
   };
 
-  const handleOutcome = (outcome: string) => {
+  const handleOutcome = async (outcome: string) => {
     if (!data?.card) return;
+
+    // For data hygiene cards, save inline edits first when "Updated" is clicked
+    if (data.card.bucket === "data_hygiene" && outcome === "data_updated") {
+      const updates: Record<string, string> = {};
+      
+      if (data.card.cardType === "set_pricing_tier" && inlinePricingTier) {
+        updates.pricingTier = inlinePricingTier;
+      }
+      if (data.card.cardType === "set_sales_rep" && inlineSalesRep) {
+        updates.salesRepName = inlineSalesRep;
+      }
+      if (data.card.cardType === "set_primary_email" && inlineEmail) {
+        updates.email = inlineEmail;
+      }
+
+      // If user has entered inline values, save them first
+      if (Object.keys(updates).length > 0) {
+        try {
+          await inlineUpdateMutation.mutateAsync({ 
+            customerId: data.card.customerId, 
+            updates 
+          });
+        } catch {
+          return; // Don't proceed if inline update failed
+        }
+      }
+    }
+
     completeMutation.mutate({
       customerId: data.card.customerId,
       cardType: data.card.cardType,
@@ -807,6 +866,71 @@ export default function NowMode() {
                   {data.card.whyNow}
                 </p>
               </div>
+
+              {/* Inline editing for data hygiene cards */}
+              {data.card.bucket === "data_hygiene" && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200 space-y-3">
+                  <div className="flex items-center gap-2 text-blue-700 font-medium text-sm">
+                    <Target className="h-4 w-4" />
+                    Quick Fix - Update Now
+                  </div>
+                  
+                  {data.card.cardType === "set_pricing_tier" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-gray-700">Select Pricing Tier</Label>
+                      <Select value={inlinePricingTier} onValueChange={setInlinePricingTier}>
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Choose a tier..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRICING_TIERS.map((tier) => (
+                            <SelectItem key={tier} value={tier}>
+                              {tier}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {data.card.cardType === "set_sales_rep" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-gray-700">Select Sales Rep</Label>
+                      <Select value={inlineSalesRep} onValueChange={setInlineSalesRep}>
+                        <SelectTrigger className="bg-white">
+                          <SelectValue placeholder="Choose a sales rep..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {sortedUsers.map((user) => (
+                            <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                              {getSalesRepDisplayName(user.email)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    </div>
+                  )}
+
+                  {data.card.cardType === "set_primary_email" && (
+                    <div className="space-y-2">
+                      <Label className="text-sm text-gray-700">Enter Email Address</Label>
+                      <input
+                        type="email"
+                        value={inlineEmail}
+                        onChange={(e) => setInlineEmail(e.target.value)}
+                        placeholder="customer@example.com"
+                        className="w-full px-3 py-2 border rounded-md bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                      />
+                    </div>
+                  )}
+
+                  {data.card.cardType === "set_machine_profile" && (
+                    <div className="text-sm text-gray-600">
+                      <p>Click "View Full Customer Profile" below to add machine details.</p>
+                    </div>
+                  )}
+                </div>
+              )}
 
               <div>
                 <Textarea
