@@ -1919,7 +1919,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const customerData = { ...req.body };
       
       // Get existing customer to check if pricing tier changed
-      const existingCustomer = await storage.getCustomerById(customerId);
+      const existingCustomer = await storage.getCustomer(customerId);
       const oldPricingTier = existingCustomer?.pricingTier;
       const newPricingTier = customerData.pricingTier;
       
