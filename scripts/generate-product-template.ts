@@ -1,7 +1,6 @@
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import path from 'path';
 
-// Current product category data
 const productCategories = [
   {
     categoryKey: 'graffiti',
@@ -50,56 +49,48 @@ const productCategories = [
   }
 ];
 
-// Create workbook
-const wb = XLSX.utils.book_new();
+async function generateTemplate() {
+  const workbook = new ExcelJS.Workbook();
+  const worksheet = workbook.addWorksheet('Product Categories');
 
-// Create worksheet data
-const wsData = [
-  ['Product Category Configuration Template'],
-  [''],
-  ['Instructions:'],
-  ['1. Update the values in the columns below for each product category'],
-  ['2. The "Category Key" column is used to match products - do not change these'],
-  ['3. "Features" are shown in bold at the top of the PDF section'],
-  ['4. "Sub Features" are shown in italic below the main features'],
-  ['5. "Compatible With" is shown at the bottom of each product section'],
-  ['6. "Matches Products" column shows which product names will use this category (for reference only)'],
-  [''],
-  ['Category Key', 'Display Name', 'Logo File', 'Features (Bold)', 'Sub Features (Italic)', 'Compatible With', 'Matches Products (Reference)']
-];
+  worksheet.addRow(['Product Category Configuration Template']);
+  worksheet.addRow(['']);
+  worksheet.addRow(['Instructions:']);
+  worksheet.addRow(['1. Update the values in the columns below for each product category']);
+  worksheet.addRow(['2. The "Category Key" column is used to match products - do not change these']);
+  worksheet.addRow(['3. "Features" are shown in bold at the top of the PDF section']);
+  worksheet.addRow(['4. "Sub Features" are shown in italic below the main features']);
+  worksheet.addRow(['5. "Compatible With" is shown at the bottom of each product section']);
+  worksheet.addRow(['6. "Matches Products" column shows which product names will use this category (for reference only)']);
+  worksheet.addRow(['']);
+  worksheet.addRow(['Category Key', 'Display Name', 'Logo File', 'Features (Bold)', 'Sub Features (Italic)', 'Compatible With', 'Matches Products (Reference)']);
 
-// Add data rows
-productCategories.forEach(cat => {
-  wsData.push([
-    cat.categoryKey,
-    cat.displayName,
-    cat.logoFile,
-    cat.features,
-    cat.subFeatures,
-    cat.compatibleWith,
-    cat.matchesProducts
-  ]);
-});
+  productCategories.forEach(cat => {
+    worksheet.addRow([
+      cat.categoryKey,
+      cat.displayName,
+      cat.logoFile,
+      cat.features,
+      cat.subFeatures,
+      cat.compatibleWith,
+      cat.matchesProducts
+    ]);
+  });
 
-// Create worksheet
-const ws = XLSX.utils.aoa_to_sheet(wsData);
+  worksheet.columns = [
+    { width: 15 },
+    { width: 30 },
+    { width: 45 },
+    { width: 50 },
+    { width: 50 },
+    { width: 80 },
+    { width: 60 }
+  ];
 
-// Set column widths
-ws['!cols'] = [
-  { wch: 15 },  // Category Key
-  { wch: 30 },  // Display Name
-  { wch: 45 },  // Logo File
-  { wch: 50 },  // Features
-  { wch: 50 },  // Sub Features
-  { wch: 80 },  // Compatible With
-  { wch: 60 }   // Matches Products
-];
+  const outputPath = path.join(process.cwd(), 'product-category-template.xlsx');
+  await workbook.xlsx.writeFile(outputPath);
 
-// Add worksheet to workbook
-XLSX.utils.book_append_sheet(wb, ws, 'Product Categories');
+  console.log(`✓ Template created at: ${outputPath}`);
+}
 
-// Write file
-const outputPath = path.join(process.cwd(), 'product-category-template.xlsx');
-XLSX.writeFile(wb, outputPath);
-
-console.log(`✓ Template created at: ${outputPath}`);
+generateTemplate().catch(console.error);

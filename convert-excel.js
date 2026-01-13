@@ -1,22 +1,29 @@
-import XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import fs from 'fs';
 
-// Read the Excel file
-const workbook = XLSX.readFile('attached_assets/cleaned_merged_product_pricing_1753380108894.xlsx');
+async function convertExcel() {
+  const workbook = new ExcelJS.Workbook();
+  await workbook.xlsx.readFile('attached_assets/cleaned_merged_product_pricing_1753380108894.xlsx');
 
-// Get the first sheet name
-const sheetName = workbook.SheetNames[0];
-const worksheet = workbook.Sheets[sheetName];
+  const worksheet = workbook.worksheets[0];
 
-// Convert to CSV
-const csv = XLSX.utils.sheet_to_csv(worksheet);
+  const rows = [];
+  worksheet.eachRow((row, rowNumber) => {
+    const rowValues = [];
+    row.eachCell((cell, colNumber) => {
+      rowValues[colNumber - 1] = cell.value ?? '';
+    });
+    rows.push(rowValues.join(','));
+  });
 
-// Write to file
-fs.writeFileSync('attached_assets/converted_pricing_data.csv', csv);
+  const csv = rows.join('\n');
+  fs.writeFileSync('attached_assets/converted_pricing_data.csv', csv);
 
-// Also log first few rows to understand structure
-const lines = csv.split('\n').slice(0, 10);
-console.log('Excel file converted to CSV. First 10 rows:');
-lines.forEach((line, index) => {
-  console.log(`Row ${index + 1}: ${line}`);
-});
+  const lines = csv.split('\n').slice(0, 10);
+  console.log('Excel file converted to CSV. First 10 rows:');
+  lines.forEach((line, index) => {
+    console.log(`Row ${index + 1}: ${line}`);
+  });
+}
+
+convertExcel().catch(console.error);

@@ -1,6 +1,6 @@
 import { storage } from "./storage";
 import { InsertCustomer } from "../shared/schema";
-import * as XLSX from 'xlsx';
+import ExcelJS from 'exceljs';
 import { nanoid } from 'nanoid';
 
 interface ParsedOdooRow {
@@ -16,19 +16,23 @@ interface ParsedOdooRow {
   zip: string;
 }
 
-function parseOdooRow(row: any): ParsedOdooRow | null {
-  // Extract fields from row object - match Odoo Excel export column names exactly
-  const completeName = row['Complete Name']?.toString().trim() || '';
-  const phone = row['Phone']?.toString().trim() || row['Mobile']?.toString().trim() || '';
-  const email = row['Email']?.toString().trim() || '';
-  const salesperson = row['Salesperson']?.toString().trim() || '';
-  // Address fields - try multiple Odoo column name variations
-  const street = row['Street']?.toString().trim() || row['Address']?.toString().trim() || row['Street and Number']?.toString().trim() || '';
-  const street2 = row['Street2']?.toString().trim() || row['Street 2']?.toString().trim() || '';
-  const city = row['City']?.toString().trim() || '';
-  const state = row['State']?.toString().trim() || row['State/Province']?.toString().trim() || row['Province']?.toString().trim() || '';
-  const country = row['Country']?.toString().trim() || '';
-  const zip = row['Zip']?.toString().trim() || row['ZIP']?.toString().trim() || row['Postal Code']?.toString().trim() || '';
+function parseOdooRow(row: Record<string, ExcelJS.CellValue>): ParsedOdooRow | null {
+  const getValue = (key: string): string => {
+    const value = row[key];
+    if (value === null || value === undefined) return '';
+    return String(value).trim();
+  };
+
+  const completeName = getValue('Complete Name');
+  const phone = getValue('Phone') || getValue('Mobile');
+  const email = getValue('Email');
+  const salesperson = getValue('Salesperson');
+  const street = getValue('Street') || getValue('Address') || getValue('Street and Number');
+  const street2 = getValue('Street2') || getValue('Street 2');
+  const city = getValue('City');
+  const state = getValue('State') || getValue('State/Province') || getValue('Province');
+  const country = getValue('Country');
+  const zip = getValue('Zip') || getValue('ZIP') || getValue('Postal Code');
 
   if (!completeName && !email && !phone) {
     console.log('Skipping row with no identifiable information');
@@ -54,15 +58,9 @@ function splitCompleteName(completeName: string): {
   firstName: string; 
   lastName: string;
 } {
-  // Odoo format can be:
-  // "Company Name"
-  // "Company Name, First Last"
-  // "First Last"
-  
   const parts = completeName.split(',').map(p => p.trim());
   
   if (parts.length >= 2) {
-    // Format: "Company Name, Person Name"
     const company = parts[0];
     const personName = parts[1];
     const nameParts = personName.split(' ').filter(p => p.length > 0);
@@ -73,18 +71,15 @@ function splitCompleteName(completeName: string): {
       lastName: nameParts.length > 1 ? nameParts[nameParts.length - 1] : ''
     };
   } else {
-    // Format: "Name" (could be person or company)
     const nameParts = completeName.split(' ').filter(p => p.length > 0);
     
     if (nameParts.length === 1) {
-      // Single word - treat as company
       return {
         company: completeName,
         firstName: '',
         lastName: ''
       };
     } else {
-      // Multiple words - treat as person name
       return {
         company: '',
         firstName: nameParts.slice(0, -1).join(' '),
@@ -104,20 +99,40 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
   let updatedCustomers = 0;
 
   try {
-    // Parse Excel file
-    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
-    const sheetName = workbook.SheetNames[0];
-    const worksheet = workbook.Sheets[sheetName];
+    const workbook = new ExcelJS.Workbook();
+    await workbook.xlsx.load(fileBuffer);
     
-    // Convert to JSON
-    const jsonData = XLSX.utils.sheet_to_json(worksheet);
+    const worksheet = workbook.worksheets[0];
+    if (!worksheet) {
+      throw new Error('Excel file has no worksheets');
+    }
+
+    const headers: string[] = [];
+    const firstRow = worksheet.getRow(1);
+    firstRow.eachCell((cell, colNumber) => {
+      headers[colNumber - 1] = String(cell.value || '');
+    });
+
+    const jsonData: Record<string, ExcelJS.CellValue>[] = [];
+    worksheet.eachRow((row, rowNumber) => {
+      if (rowNumber === 1) return;
+      
+      const rowData: Record<string, ExcelJS.CellValue> = {};
+      row.eachCell((cell, colNumber) => {
+        const header = headers[colNumber - 1];
+        if (header) {
+          rowData[header] = cell.value;
+        }
+      });
+      jsonData.push(rowData);
+    });
+
     console.log(`Processing ${jsonData.length} rows from Odoo Excel file`);
 
     if (jsonData.length === 0) {
       throw new Error('Excel file is empty or has no data rows');
     }
 
-    // Parse all customers first
     const parsedCustomers: Array<{ customerData: InsertCustomer; lineNumber: number }> = [];
     const seenEmails = new Set<string>();
     const seenPhones = new Set<string>();
@@ -131,18 +146,14 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
           continue;
         }
 
-        // Split the complete name into company/firstName/lastName
         const { company, firstName, lastName } = splitCompleteName(parsedOdoo.completeName);
 
-        // Generate unique ID using nanoid
         let customerId = nanoid(12);
         
-        // Check for duplicate emails or phones within the CSV to avoid conflicts
         const isDuplicateEmail = parsedOdoo.email && seenEmails.has(parsedOdoo.email.toLowerCase());
         const isDuplicatePhone = parsedOdoo.phone && seenPhones.has(parsedOdoo.phone);
         
         if (isDuplicateEmail || isDuplicatePhone) {
-          // This is likely a duplicate entry, append index to make unique
           customerId = `${customerId}-${i}`;
         }
         
@@ -170,10 +181,10 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
           note: '',
           taxExempt: false,
           tags: parsedOdoo.salesperson ? `Salesperson: ${parsedOdoo.salesperson}` : '',
-          sources: ['odoo'] // Mark as Odoo import
+          sources: ['odoo']
         };
 
-        parsedCustomers.push({ customerData, lineNumber: i + 2 }); // +2 for header row
+        parsedCustomers.push({ customerData, lineNumber: i + 2 });
 
       } catch (error) {
         const errorMsg = `Row ${i + 2}: ${error instanceof Error ? error.message : 'Unknown error'}`;
@@ -184,13 +195,11 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
 
     console.log(`Parsed ${parsedCustomers.length} valid customers from Odoo, now processing batch operations...`);
 
-    // Get all existing customers
     console.log('Fetching existing customers from database...');
     const startTime = Date.now();
     const allExistingCustomers = await storage.getAllCustomers();
     console.log(`Fetched ${allExistingCustomers.length} existing customers in ${Date.now() - startTime}ms`);
 
-    // Create a map of existing customers by email and phone for matching
     const existingByEmail = new Map(
       allExistingCustomers
         .filter(c => c.email)
@@ -202,12 +211,10 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
         .map(c => [c.phone!, c])
     );
 
-    // Separate into new vs existing customers
     const customersToCreate: InsertCustomer[] = [];
     const customersToUpdate: Array<{ id: string; data: InsertCustomer }> = [];
 
     for (const { customerData } of parsedCustomers) {
-      // Check if customer exists by email or phone
       let existingCustomer = null;
       
       if (customerData.email) {
@@ -219,33 +226,28 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
       }
 
       if (existingCustomer) {
-        // Merge sources: add 'odoo' if not already present
         const existingSources = existingCustomer.sources || [];
         const mergedSources = existingSources.includes('odoo') 
           ? existingSources 
           : [...existingSources, 'odoo'];
         
-        // Update existing customer
         customersToUpdate.push({ 
           id: existingCustomer.id, 
           data: {
             ...customerData,
-            id: existingCustomer.id, // Use existing ID
+            id: existingCustomer.id,
             sources: mergedSources
           }
         });
       } else {
-        // Create new customer
         customersToCreate.push(customerData);
       }
     }
 
     console.log(`Batch processing: ${customersToCreate.length} to create, ${customersToUpdate.length} to update`);
 
-    // Process in batches
     const BATCH_SIZE = 100;
 
-    // Create new customers in batches
     for (let i = 0; i < customersToCreate.length; i += BATCH_SIZE) {
       const batch = customersToCreate.slice(i, i + BATCH_SIZE);
       try {
@@ -258,7 +260,6 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
       }
     }
 
-    // Update existing customers in batches
     for (let i = 0; i < customersToUpdate.length; i += BATCH_SIZE) {
       const batch = customersToUpdate.slice(i, i + BATCH_SIZE);
       try {
