@@ -284,32 +284,15 @@ export async function setupAuth(app: Express) {
           console.log(`[Auth] Session save took ${Date.now() - saveStart}ms`);
 
           const totalTime = Date.now() - callbackStart;
-          const isProduction = process.env.NODE_ENV === 'production' || !!process.env.REPLIT_DEPLOYMENT;
           console.log(`[Auth] Login successful in ${totalTime}ms. Session ID: ${req.sessionID}`);
-          console.log(`[Auth] Session cookie should be set. User claims email: ${req.user?.claims?.email}`);
-          console.log(`[Auth] Production mode: ${isProduction}, Cookie secure: ${isProduction}`);
-
-          // Set a test cookie to verify cookies work
-          res.cookie('auth_test', 'success', {
-            httpOnly: false,
-            secure: isProduction,
-            sameSite: 'lax',
-            maxAge: 60000, // 1 minute
-            path: '/',
-          });
-          
-          // Log the response headers for debugging
-          console.log(`[Auth] Response headers set. Session ID in session: ${req.session?.id || 'none'}`);
+          console.log(`[Auth] User authenticated: ${req.user?.claims?.email}`);
 
           // Small delay page to ensure cookie is set before redirect
-          // Also set a localStorage flag to help with session detection
           res.send(`<!DOCTYPE html><html><head><title>Logging in...</title></head>
             <body style="display:flex;align-items:center;justify-content:center;height:100vh;font-family:system-ui;">
             <p>Logging you in...</p>
             <script>
               sessionStorage.setItem('authComplete', 'true');
-              sessionStorage.setItem('authTimestamp', Date.now().toString());
-              console.log('Auth callback - cookies:', document.cookie);
               setTimeout(function(){window.location.replace('/');},500);
             </script>
             </body></html>`);
