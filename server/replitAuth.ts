@@ -76,9 +76,10 @@ function createSessionMiddleware(): ReturnType<typeof session> {
     throw new Error("SESSION_SECRET environment variable is required");
   }
   
-  // Use 'none' for production to allow OIDC callback from different origin to persist cookies
-  // OIDC flow requires cross-origin cookie persistence, so SameSite=None + Secure is required
-  const sameSiteSetting: 'lax' | 'none' = isProduction ? 'none' : 'lax';
+  // Use 'lax' for all environments - this works for same-site OIDC flows
+  // 'lax' allows cookies on top-level navigations (redirects from OIDC provider)
+  // 'none' is problematic with Chrome's third-party cookie restrictions
+  const sameSiteSetting: 'lax' | 'none' = 'lax';
   
   console.log(`[Auth] Session configured: TTL=${SESSION_TTL}ms, production=${isProduction}, secure=${isProduction}, sameSite=${sameSiteSetting}`);
 
@@ -378,7 +379,7 @@ export async function setupAuth(app: Express) {
           shopifyEmbedded: isShopifyEmbedded,
           trustProxy: true,
           cookieSecure: isProduction,
-          cookieSameSite: isProduction ? 'none' : 'lax',
+          cookieSameSite: 'lax',
           currentHostname,
           configuredDomains,
           isDomainConfigured,
