@@ -141,6 +141,9 @@ import {
   type InsertEmailTrackingToken,
   type EmailTrackingEvent,
   type InsertEmailTrackingEvent,
+  emailSignatures,
+  type EmailSignature,
+  type InsertEmailSignature,
   // Customer Activity System tables
   customerActivityEvents,
   followUpTasks,
@@ -528,6 +531,12 @@ export interface IStorage {
   recordEmailOpenEvent(tokenId: number, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent>;
   recordEmailClickEvent(tokenId: number, linkUrl: string, linkText?: string, ipAddress?: string, userAgent?: string): Promise<EmailTrackingEvent>;
   getEmailTrackingEventsByToken(tokenId: number): Promise<EmailTrackingEvent[]>;
+
+  // Email Signatures
+  getEmailSignature(userId: string): Promise<EmailSignature | undefined>;
+  createEmailSignature(data: InsertEmailSignature): Promise<EmailSignature>;
+  updateEmailSignature(userId: string, data: Partial<InsertEmailSignature>): Promise<EmailSignature | undefined>;
+  deleteEmailSignature(userId: string): Promise<void>;
 
   // ========================================
   // Admin Categories & Catalog System Methods
@@ -2920,6 +2929,36 @@ export class DatabaseStorage implements IStorage {
       .from(emailTrackingEvents)
       .where(eq(emailTrackingEvents.tokenId, tokenId))
       .orderBy(desc(emailTrackingEvents.createdAt));
+  }
+
+  // ========================================
+  // Email Signatures Implementation
+  // ========================================
+
+  async getEmailSignature(userId: string): Promise<EmailSignature | undefined> {
+    const [signature] = await db
+      .select()
+      .from(emailSignatures)
+      .where(eq(emailSignatures.userId, userId));
+    return signature;
+  }
+
+  async createEmailSignature(data: InsertEmailSignature): Promise<EmailSignature> {
+    const [signature] = await db.insert(emailSignatures).values(data).returning();
+    return signature;
+  }
+
+  async updateEmailSignature(userId: string, data: Partial<InsertEmailSignature>): Promise<EmailSignature | undefined> {
+    const [signature] = await db
+      .update(emailSignatures)
+      .set({ ...data, updatedAt: new Date() })
+      .where(eq(emailSignatures.userId, userId))
+      .returning();
+    return signature;
+  }
+
+  async deleteEmailSignature(userId: string): Promise<void> {
+    await db.delete(emailSignatures).where(eq(emailSignatures.userId, userId));
   }
 
   // ========================================

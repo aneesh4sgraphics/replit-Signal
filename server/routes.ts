@@ -9071,6 +9071,81 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ========================================
+  // EMAIL SIGNATURE APIs
+  // ========================================
+
+  // Get current user's email signature
+  app.get("/api/email/signature", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.email;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      const signature = await storage.getEmailSignature(userId);
+      res.json(signature || null);
+    } catch (error) {
+      console.error("Error fetching email signature:", error);
+      res.status(500).json({ error: "Failed to fetch email signature" });
+    }
+  });
+
+  // Create or update email signature
+  app.post("/api/email/signature", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.email;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+
+      const { name, title, phone, signatureHtml } = req.body;
+      
+      if (!signatureHtml) {
+        return res.status(400).json({ error: "Signature HTML is required" });
+      }
+
+      const existingSignature = await storage.getEmailSignature(userId);
+      
+      if (existingSignature) {
+        const updated = await storage.updateEmailSignature(userId, {
+          name,
+          title,
+          phone,
+          signatureHtml,
+        });
+        res.json(updated);
+      } else {
+        const created = await storage.createEmailSignature({
+          userId,
+          name,
+          title,
+          phone,
+          signatureHtml,
+          isActive: true,
+        });
+        res.json(created);
+      }
+    } catch (error) {
+      console.error("Error saving email signature:", error);
+      res.status(500).json({ error: "Failed to save email signature" });
+    }
+  });
+
+  // Delete email signature
+  app.delete("/api/email/signature", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.email;
+      if (!userId) {
+        return res.status(401).json({ error: "User not authenticated" });
+      }
+      await storage.deleteEmailSignature(userId);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting email signature:", error);
+      res.status(500).json({ error: "Failed to delete email signature" });
+    }
+  });
+
+  // ========================================
   // EMAIL TRACKING APIs (PUBLIC - no auth required)
   // ========================================
 

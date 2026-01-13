@@ -1421,6 +1421,7 @@ export const EMAIL_TEMPLATE_VARIABLES = {
   'client.lastName': { label: 'Last Name', description: 'Client last name', source: 'customer' },
   'client.company': { label: 'Company', description: 'Company name', source: 'customer' },
   'client.email': { label: 'Client Email', description: 'Client email address', source: 'customer' },
+  'client.salesRep': { label: 'Sales Rep', description: 'Assigned sales representative', source: 'customer' },
   // Product variables
   'product.name': { label: 'Product Name', description: 'Product name', source: 'product' },
   'product.type': { label: 'Product Type', description: 'Product type/category', source: 'product' },
@@ -1434,6 +1435,7 @@ export const EMAIL_TEMPLATE_VARIABLES = {
   // User variables
   'user.name': { label: 'Your Name', description: 'Sender name', source: 'user' },
   'user.email': { label: 'Your Email', description: 'Sender email', source: 'user' },
+  'user.signature': { label: 'Your Signature', description: 'Your email signature block', source: 'user' },
   // Custom variables
   'custom.text1': { label: 'Custom Text 1', description: 'Custom text field', source: 'custom' },
   'custom.text2': { label: 'Custom Text 2', description: 'Custom text field', source: 'custom' },
@@ -1498,6 +1500,27 @@ export const insertEmailTrackingEventSchema = createInsertSchema(emailTrackingEv
 });
 export type EmailTrackingEvent = typeof emailTrackingEvents.$inferSelect;
 export type InsertEmailTrackingEvent = z.infer<typeof insertEmailTrackingEventSchema>;
+
+// Email Signatures - user-configurable email signatures
+export const emailSignatures = pgTable("email_signatures", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id", { length: 255 }).notNull().unique(),
+  name: varchar("name", { length: 255 }),
+  title: varchar("title", { length: 255 }),
+  phone: varchar("phone", { length: 50 }),
+  signatureHtml: text("signature_html").notNull(),
+  isActive: boolean("is_active").default(true),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+});
+
+export const insertEmailSignatureSchema = createInsertSchema(emailSignatures).omit({
+  id: true,
+  createdAt: true,
+  updatedAt: true,
+});
+export type EmailSignature = typeof emailSignatures.$inferSelect;
+export type InsertEmailSignature = z.infer<typeof insertEmailSignatureSchema>;
 
 // ========================================
 // COACH-STYLE B2B CUSTOMER JOURNEY
