@@ -52,6 +52,8 @@ import {
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
+import { useEmailComposer } from "@/components/email-composer";
+import { Copy } from "lucide-react";
 
 interface Customer {
   id: string;
@@ -191,6 +193,7 @@ export default function NowMode() {
   const [inlineZip, setInlineZip] = useState("");
   const [, setLocation] = useLocation();
   const { toast } = useToast();
+  const { open: openEmailComposer } = useEmailComposer();
 
   // Fetch users for sales rep dropdown
   const { data: usersData } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
@@ -963,6 +966,144 @@ export default function NowMode() {
                   {data.card.whyNow}
                 </p>
               </div>
+
+              {/* FOCUS MODE: Phone Action Panel for call tasks */}
+              {data.card.bucket === "calls" && (
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 text-green-700 font-medium text-sm mb-3">
+                    <Phone className="h-4 w-4" />
+                    Call This Customer
+                  </div>
+                  {data.card.customer.phone ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-white rounded-lg p-3 border">
+                        <span className="text-2xl font-bold text-gray-900 tracking-wide">
+                          {data.card.customer.phone}
+                        </span>
+                        <div className="flex gap-2">
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            onClick={() => {
+                              navigator.clipboard.writeText(data.card!.customer.phone || "");
+                              toast({ title: "Copied!", description: "Phone number copied to clipboard" });
+                            }}
+                          >
+                            <Copy className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            size="sm"
+                            className="bg-green-600 hover:bg-green-700"
+                            onClick={() => {
+                              window.location.href = `tel:${data.card!.customer.phone}`;
+                            }}
+                          >
+                            <Phone className="h-4 w-4 mr-1" />
+                            Dial
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      No phone number on file - mark as "No Answer" and add phone via customer profile
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* FOCUS MODE: Phone Action Panel for follow-up tasks */}
+              {data.card.bucket === "follow_ups" && (
+                <div className="p-4 bg-green-50 rounded-lg border border-green-200">
+                  <div className="flex items-center gap-2 text-green-700 font-medium text-sm mb-3">
+                    <Phone className="h-4 w-4" />
+                    Call to Follow Up
+                  </div>
+                  {data.card.customer.phone ? (
+                    <div className="flex items-center justify-between bg-white rounded-lg p-3 border">
+                      <span className="text-2xl font-bold text-gray-900 tracking-wide">
+                        {data.card.customer.phone}
+                      </span>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => {
+                            navigator.clipboard.writeText(data.card!.customer.phone || "");
+                            toast({ title: "Copied!", description: "Phone number copied to clipboard" });
+                          }}
+                        >
+                          <Copy className="h-4 w-4" />
+                        </Button>
+                        <Button
+                          size="sm"
+                          className="bg-green-600 hover:bg-green-700"
+                          onClick={() => {
+                            window.location.href = `tel:${data.card!.customer.phone}`;
+                          }}
+                        >
+                          <Phone className="h-4 w-4 mr-1" />
+                          Dial
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      No phone number on file - use email or add phone via customer profile
+                    </div>
+                  )}
+                </div>
+              )}
+
+              {/* FOCUS MODE: Email Action Panel for email tasks */}
+              {(data.card.cardType === "send_marketing_email" || 
+                data.card.cardType === "send_price_list" ||
+                data.card.cardType === "follow_up_quote" ||
+                data.card.cardType === "follow_up_sample" ||
+                data.card.cardType === "follow_up_materials") && (
+                <div className="p-4 bg-blue-50 rounded-lg border border-blue-200">
+                  <div className="flex items-center gap-2 text-blue-700 font-medium text-sm mb-3">
+                    <Mail className="h-4 w-4" />
+                    Email This Customer
+                  </div>
+                  {data.card.customer.email ? (
+                    <div className="space-y-3">
+                      <div className="flex items-center justify-between bg-white rounded-lg p-3 border">
+                        <span className="text-lg text-gray-900">
+                          {data.card.customer.email}
+                        </span>
+                        <Button
+                          className="bg-blue-600 hover:bg-blue-700"
+                          onClick={() => {
+                            const cardType = data.card!.cardType;
+                            let emailUsageType = "client_email";
+                            if (cardType === "send_marketing_email") emailUsageType = "marketing";
+                            else if (cardType === "send_price_list") emailUsageType = "price_list";
+                            
+                            openEmailComposer({
+                              to: data.card!.customer.email || "",
+                              customerId: data.card!.customerId,
+                              customerName: data.card!.customer.company || data.card!.customer.name || "",
+                              usageType: emailUsageType,
+                              variables: {
+                                'client.name': data.card!.customer.company || data.card!.customer.name || '',
+                                'client.email': data.card!.customer.email || '',
+                              },
+                            });
+                          }}
+                        >
+                          <Mail className="h-4 w-4 mr-2" />
+                          Compose Email
+                        </Button>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="text-sm text-gray-500 italic">
+                      No email address on file - skip this card and add email via customer profile
+                    </div>
+                  )}
+                </div>
+              )}
 
               {/* Inline editing for data hygiene cards */}
               {data.card.bucket === "data_hygiene" && (
