@@ -11,6 +11,7 @@ import {
   customers,
   customerContacts,
   emailSalesEvents,
+  users,
   InsertGmailMessage,
   InsertEmailSalesEvent,
 } from '@shared/schema';
@@ -143,8 +144,15 @@ function extractBodyText(payload: gmail_v1.Schema$MessagePart | undefined): stri
   return '';
 }
 
+export interface UserContext {
+  userId: string;
+  userEmail: string;
+  isPrivileged: boolean; // Admin or manager with full access
+}
+
 export async function matchEmailToCustomer(
   email: string, 
+  userContext: UserContext,
   domain?: string
 ): Promise<MatchResult> {
   const normalized = normalizeEmail(email);
@@ -153,14 +161,30 @@ export async function matchEmailToCustomer(
   }
   
   const emailDomain = domain || extractEmailDomain(email);
+  const { userId, userEmail, isPrivileged } = userContext;
   
+  // Build user scope condition: admins see all, others see own + unassigned
+  const buildUserScopeCondition = () => {
+    if (isPrivileged) return sql`1=1`; // No restriction for admins
+    return or(
+      eq(customers.salesRepId, userId),
+      eq(customers.salesRepId, userEmail),
+      isNull(customers.salesRepId)
+    );
+  };
+  
+  // Step 1: Exact normalized email match on customerContacts (scoped via customer join)
   const contactMatch = await db.select({ 
     customerId: customerContacts.customerId,
     contactId: customerContacts.id,
     emailNormalized: customerContacts.emailNormalized,
   })
     .from(customerContacts)
-    .where(eq(customerContacts.emailNormalized, normalized))
+    .innerJoin(customers, eq(customerContacts.customerId, customers.id))
+    .where(and(
+      eq(customerContacts.emailNormalized, normalized),
+      buildUserScopeCondition()
+    ))
     .limit(1);
   
   if (contactMatch.length > 0 && contactMatch[0].customerId) {
@@ -173,18 +197,20 @@ export async function matchEmailToCustomer(
     };
   }
   
+  // Step 2: Exact normalized email match on customers (scoped)
   const customerEmailMatch = await db.select({ 
     id: customers.id,
     emailNormalized: customers.emailNormalized,
     email2Normalized: customers.email2Normalized,
   })
     .from(customers)
-    .where(
+    .where(and(
       or(
         eq(customers.emailNormalized, normalized),
         eq(customers.email2Normalized, normalized)
-      )
-    )
+      ),
+      buildUserScopeCondition()
+    ))
     .limit(1);
   
   if (customerEmailMatch.length > 0) {
@@ -197,13 +223,17 @@ export async function matchEmailToCustomer(
     };
   }
   
+  // Step 3: Alias lookup (scoped by userId on alias table)
   const aliasMatch = await db.select({
     customerId: gmailEmailAliases.customerId,
     contactId: gmailEmailAliases.contactId,
     primaryEmailNormalized: gmailEmailAliases.primaryEmailNormalized,
   })
     .from(gmailEmailAliases)
-    .where(eq(gmailEmailAliases.aliasEmailNormalized, normalized))
+    .where(and(
+      eq(gmailEmailAliases.aliasEmailNormalized, normalized),
+      eq(gmailEmailAliases.userId, userId)
+    ))
     .limit(1);
   
   if (aliasMatch.length > 0 && aliasMatch[0].customerId) {
@@ -216,6 +246,7 @@ export async function matchEmailToCustomer(
     };
   }
   
+  // Step 4: Domain matching (only for non-free email providers, scoped)
   if (emailDomain && !isFreeEmailProvider(email)) {
     const domainPattern = `%@${emailDomain}`;
     
@@ -223,7 +254,11 @@ export async function matchEmailToCustomer(
       customerId: customerContacts.customerId,
     })
       .from(customerContacts)
-      .where(sql`${customerContacts.emailNormalized} LIKE ${domainPattern}`)
+      .innerJoin(customers, eq(customerContacts.customerId, customers.id))
+      .where(and(
+        sql`${customerContacts.emailNormalized} LIKE ${domainPattern}`,
+        buildUserScopeCondition()
+      ))
       .limit(1);
     
     if (contactDomainMatch.length > 0 && contactDomainMatch[0].customerId) {
@@ -238,7 +273,10 @@ export async function matchEmailToCustomer(
     
     const customerDomainMatch = await db.select({ id: customers.id })
       .from(customers)
-      .where(sql`${customers.emailNormalized} LIKE ${domainPattern}`)
+      .where(and(
+        sql`${customers.emailNormalized} LIKE ${domainPattern}`,
+        buildUserScopeCondition()
+      ))
       .limit(1);
     
     if (customerDomainMatch.length > 0) {
@@ -274,6 +312,18 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
   const sentQuery = `in:sent after:${afterDate}`;
   
   try {
+    // Fetch user info for user scoping in email matching
+    const [user] = await db.select({ email: users.email, role: users.role })
+      .from(users)
+      .where(eq(users.id, userId))
+      .limit(1);
+    
+    const userContext: UserContext = {
+      userId,
+      userEmail: user?.email || '',
+      isPrivileged: user?.role === 'admin' || user?.role === 'manager',
+    };
+    
     const gmail = await getGmailClient();
     
     await db.update(gmailSyncState)
@@ -337,7 +387,7 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
               const bodyText = extractBodyText(fullMessage.data.payload);
               const sentAt = dateHeader ? new Date(dateHeader) : new Date();
               
-              const match = await matchEmailToCustomer(relevantEmail, domain || undefined);
+              const match = await matchEmailToCustomer(relevantEmail, userContext, domain || undefined);
               
               const newMessage: InsertGmailMessage = {
                 userId,

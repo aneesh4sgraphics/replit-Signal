@@ -2590,6 +2590,7 @@ export const gmailUnmatchedEmails = pgTable("gmail_unmatched_emails", {
 // Gmail Email Aliases - track email aliases for contacts (e.g., john@company.com and j.doe@company.com)
 export const gmailEmailAliases = pgTable("gmail_email_aliases", {
   id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }), // User scope for data isolation
   primaryEmailNormalized: varchar("primary_email_normalized", { length: 320 }).notNull(), // The canonical email
   aliasEmailNormalized: varchar("alias_email_normalized", { length: 320 }).notNull(), // The alias email
   customerId: varchar("customer_id").references(() => customers.id, { onDelete: "cascade" }),
@@ -2599,10 +2600,11 @@ export const gmailEmailAliases = pgTable("gmail_email_aliases", {
   createdBy: varchar("created_by", { length: 255 }),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
+  userAliasIdx: index("gmail_email_aliases_user_alias_idx").on(table.userId, table.aliasEmailNormalized), // User-scoped alias lookup
   primaryIdx: index("gmail_email_aliases_primary_idx").on(table.primaryEmailNormalized),
   aliasIdx: index("gmail_email_aliases_alias_idx").on(table.aliasEmailNormalized),
   customerIdx: index("gmail_email_aliases_customer_idx").on(table.customerId),
-  uniqueAlias: index("gmail_email_aliases_unique").on(table.aliasEmailNormalized),
+  uniqueUserAlias: index("gmail_email_aliases_user_unique").on(table.userId, table.aliasEmailNormalized), // Unique alias per user
 }));
 
 export const insertGmailEmailAliasSchema = createInsertSchema(gmailEmailAliases).omit({
