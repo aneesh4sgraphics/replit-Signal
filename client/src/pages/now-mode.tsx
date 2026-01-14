@@ -22,6 +22,8 @@ import {
   ArrowRight,
   Building2,
   User,
+  Users,
+  UserCheck,
   Zap,
   Trophy,
   SkipForward,
@@ -57,7 +59,9 @@ import {
   ScrollText,
   LucideIcon,
   Flame,
-  Palette
+  Palette,
+  Edit,
+  XCircle
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -111,6 +115,16 @@ const BUCKET_TIME_ESTIMATES: Record<string, number> = {
   enablement: 2,
 };
 
+interface EmailHygieneContact {
+  contactId: number;
+  customerId: string;
+  contactName: string | null;
+  email: string | null;
+  emailNormalized: string | null;
+  suggestedNormalized: string | null;
+  isPrimary: boolean;
+}
+
 interface NowModeCard {
   customerId: string;
   cardType: string;
@@ -119,6 +133,7 @@ interface NowModeCard {
   isHardCard: boolean;
   outcomeButtons: OutcomeButton[];
   customer: Customer;
+  emailHygieneContact?: EmailHygieneContact;
 }
 
 interface BucketProgress {
@@ -155,6 +170,9 @@ const CARD_TYPE_LABELS: Record<string, { label: string; Icon: LucideIcon }> = {
   set_primary_email: { label: "Add Primary Email", Icon: Mail },
   set_machine_profile: { label: "Set Machine Profile", Icon: Settings },
   set_mailing_address: { label: "Add Mailing Address", Icon: MapPin },
+  // Email hygiene card types
+  hygiene_normalize_email: { label: "Fix Email Format", Icon: Mail },
+  hygiene_missing_primary_email: { label: "Set Primary Contact", Icon: UserCheck },
   daily_call: { label: "Daily Call", Icon: Phone },
   follow_up_call: { label: "Follow-up Call", Icon: Phone },
   send_swatchbook: { label: "Send Swatchbook", Icon: BookOpen },
@@ -180,6 +198,12 @@ const OUTCOME_ICONS: Record<string, LucideIcon> = {
   "file-text": FileText,
   calendar: Calendar,
   "user-x": UserX,
+  // Email hygiene icons
+  edit: Edit,
+  "x-circle": XCircle,
+  "user-check": UserCheck,
+  users: Users,
+  "skip-forward": SkipForward,
 };
 
 const SKIP_REASONS = [
@@ -947,8 +971,57 @@ export default function NowMode() {
   const handleOutcome = async (outcome: string) => {
     if (!data?.card) return;
 
+    // Handle email hygiene card actions via dedicated API
+    if (data.card.cardType?.startsWith("hygiene_") && data.card.emailHygieneContact) {
+      const contact = data.card.emailHygieneContact;
+      let action = "";
+      
+      if (outcome === "data_updated") {
+        // Determine action based on card type
+        if (data.card.cardType === "hygiene_normalize_email") {
+          action = "apply_fix";
+        } else if (data.card.cardType === "hygiene_missing_primary_email") {
+          action = "set_primary";
+        }
+      } else if (outcome === "completed" && data.card.cardType === "hygiene_normalize_email") {
+        // Edit Email button - skip this card for now (user needs to edit manually)
+        action = "";
+      } else if (outcome === "marked_dnc") {
+        action = "mark_invalid";
+      }
+      
+      if (action) {
+        try {
+          await apiRequest("/api/now-mode/email-hygiene", {
+            method: "POST",
+            body: JSON.stringify({
+              contactId: contact.contactId,
+              customerId: contact.customerId,
+              action,
+              cardType: data.card.cardType,
+            }),
+          });
+          toast({
+            title: "Email Updated",
+            description: action === "apply_fix" ? "Email normalized successfully" : 
+                        action === "set_primary" ? "Contact set as primary" :
+                        "Email marked as invalid",
+          });
+          // Invalidate NOW MODE query to refresh the card
+          queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+        } catch (error) {
+          toast({
+            title: "Error",
+            description: "Failed to update email",
+            variant: "destructive",
+          });
+          return;
+        }
+      }
+    }
+
     // For data hygiene cards, save inline edits first when "Updated" is clicked
-    if (data.card.bucket === "data_hygiene" && outcome === "data_updated") {
+    if (data.card.bucket === "data_hygiene" && outcome === "data_updated" && !data.card.cardType?.startsWith("hygiene_")) {
       const updates: Record<string, string> = {};
       
       if (data.card.cardType === "set_pricing_tier" && inlinePricingTier) {
@@ -1759,6 +1832,66 @@ export default function NowMode() {
                   {data.card.cardType === "set_machine_profile" && (
                     <div className="text-sm text-gray-600">
                       <p>Click "View Full Customer Profile" below to add machine details.</p>
+                    </div>
+                  )}
+
+                  {/* Email Hygiene Cards */}
+                  {data.card.cardType === "hygiene_normalize_email" && data.card.emailHygieneContact && (
+                    <div className="space-y-3">
+                      <div className="bg-gray-50 rounded-lg p-4 border">
+                        <div className="flex items-center gap-2 mb-3">
+                          <Mail className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">Contact Email</span>
+                        </div>
+                        {data.card.emailHygieneContact.contactName && (
+                          <div className="text-sm text-gray-600 mb-2">
+                            Contact: <span className="font-medium">{data.card.emailHygieneContact.contactName}</span>
+                          </div>
+                        )}
+                        <div className="space-y-2">
+                          <div className="text-sm">
+                            <span className="text-gray-500">Current:</span>
+                            <span className="ml-2 font-mono bg-red-50 text-red-700 px-2 py-0.5 rounded">
+                              {data.card.emailHygieneContact.email}
+                            </span>
+                          </div>
+                          <div className="text-sm flex items-center gap-2">
+                            <ArrowRight className="h-4 w-4 text-green-500" />
+                            <span className="text-gray-500">Normalized:</span>
+                            <span className="font-mono bg-green-50 text-green-700 px-2 py-0.5 rounded">
+                              {data.card.emailHygieneContact.suggestedNormalized || data.card.emailHygieneContact.email}
+                            </span>
+                          </div>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Click "Apply Fix" to normalize this email for better Email Intelligence matching.
+                      </p>
+                    </div>
+                  )}
+
+                  {data.card.cardType === "hygiene_missing_primary_email" && data.card.emailHygieneContact && (
+                    <div className="space-y-3">
+                      <div className="bg-gray-50 rounded-lg p-4 border">
+                        <div className="flex items-center gap-2 mb-3">
+                          <UserCheck className="h-4 w-4 text-gray-500" />
+                          <span className="text-sm font-medium text-gray-700">Set Primary Contact</span>
+                        </div>
+                        {data.card.emailHygieneContact.contactName && (
+                          <div className="text-sm text-gray-600 mb-2">
+                            Contact: <span className="font-medium">{data.card.emailHygieneContact.contactName}</span>
+                          </div>
+                        )}
+                        <div className="text-sm">
+                          <span className="text-gray-500">Email:</span>
+                          <span className="ml-2 font-mono bg-blue-50 text-blue-700 px-2 py-0.5 rounded">
+                            {data.card.emailHygieneContact.email}
+                          </span>
+                        </div>
+                      </div>
+                      <p className="text-xs text-gray-500">
+                        Set this contact as the primary email for the customer account.
+                      </p>
                     </div>
                   )}
                 </div>

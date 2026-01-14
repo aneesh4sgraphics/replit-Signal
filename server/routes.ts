@@ -16,6 +16,7 @@ import { parseOdooExcel } from "./odoo-parser";
 import { odooClient } from "./odoo";
 
 import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber, generateQuoteNumber } from "./stub-functions";
+import { normalizeEmail } from "@shared/email-normalizer";
 import { 
   insertSentQuoteSchema,
   insertShipmentSchema,
@@ -17440,6 +17441,137 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     } catch (error) {
       console.error("Error getting admin metrics:", error);
       res.status(500).json({ error: "Failed to get admin metrics" });
+    }
+  });
+
+  // NOW MODE Email Hygiene Action - Apply normalization fix or set primary
+  app.post("/api/now-mode/email-hygiene", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { contactId, customerId, action, newEmail, cardType } = req.body;
+      
+      if (!contactId || !customerId || !action) {
+        return res.status(400).json({ error: "contactId, customerId, and action are required" });
+      }
+      
+      // Handle different email hygiene actions
+      if (action === "apply_fix" && cardType === "hygiene_normalize_email") {
+        // Get contact and apply normalization
+        const [contact] = await db
+          .select()
+          .from(customerContacts)
+          .where(eq(customerContacts.id, contactId));
+        
+        if (!contact) {
+          return res.status(404).json({ error: "Contact not found" });
+        }
+        
+        const normalized = normalizeEmail(contact.email);
+        
+        await db
+          .update(customerContacts)
+          .set({ 
+            emailNormalized: normalized,
+            updatedAt: new Date()
+          })
+          .where(eq(customerContacts.id, contactId));
+        
+        console.log(`[Email Hygiene] User ${userId} applied normalization to contact ${contactId}: ${contact.email} -> ${normalized}`);
+        
+        res.json({ 
+          success: true, 
+          message: "Email normalized successfully",
+          normalized 
+        });
+        
+      } else if (action === "edit_email" && newEmail) {
+        // Update email and normalize
+        const normalized = normalizeEmail(newEmail);
+        
+        await db
+          .update(customerContacts)
+          .set({ 
+            email: newEmail,
+            emailNormalized: normalized,
+            updatedAt: new Date()
+          })
+          .where(eq(customerContacts.id, contactId));
+        
+        console.log(`[Email Hygiene] User ${userId} edited email for contact ${contactId}: ${newEmail} -> ${normalized}`);
+        
+        res.json({ 
+          success: true, 
+          message: "Email updated and normalized successfully",
+          email: newEmail,
+          normalized 
+        });
+        
+      } else if (action === "mark_invalid") {
+        // Mark email as invalid by clearing it
+        await db
+          .update(customerContacts)
+          .set({ 
+            email: null,
+            emailNormalized: null,
+            updatedAt: new Date()
+          })
+          .where(eq(customerContacts.id, contactId));
+        
+        console.log(`[Email Hygiene] User ${userId} marked email as invalid for contact ${contactId}`);
+        
+        res.json({ 
+          success: true, 
+          message: "Email marked as invalid" 
+        });
+        
+      } else if (action === "set_primary") {
+        // Set this contact as primary
+        // First, unset any existing primary
+        await db
+          .update(customerContacts)
+          .set({ isPrimary: false })
+          .where(eq(customerContacts.customerId, customerId));
+        
+        // Then set this contact as primary
+        await db
+          .update(customerContacts)
+          .set({ 
+            isPrimary: true,
+            updatedAt: new Date()
+          })
+          .where(eq(customerContacts.id, contactId));
+        
+        // Also update customer's primary email if contact has email
+        const [contact] = await db
+          .select()
+          .from(customerContacts)
+          .where(eq(customerContacts.id, contactId));
+        
+        if (contact?.email) {
+          await db
+            .update(customers)
+            .set({ 
+              email: contact.email,
+              emailNormalized: normalizeEmail(contact.email),
+              updatedAt: new Date()
+            })
+            .where(eq(customers.id, customerId));
+        }
+        
+        console.log(`[Email Hygiene] User ${userId} set contact ${contactId} as primary for customer ${customerId}`);
+        
+        res.json({ 
+          success: true, 
+          message: "Contact set as primary email" 
+        });
+        
+      } else {
+        return res.status(400).json({ error: "Invalid action" });
+      }
+      
+    } catch (error) {
+      console.error("Error handling email hygiene action:", error);
+      res.status(500).json({ error: "Failed to process email hygiene action" });
     }
   });
 

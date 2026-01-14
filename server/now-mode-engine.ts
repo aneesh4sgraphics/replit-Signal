@@ -10,6 +10,7 @@ import {
   customerJourney,
   coachingMoments,
   customerMachineProfiles,
+  customerContacts,
   shopifyCustomerMappings,
   NOW_MODE_BUCKETS,
   BUCKET_QUOTAS,
@@ -22,6 +23,7 @@ import {
   type NowModeEventType,
   type InsertNowModeActivity,
 } from "@shared/schema";
+import { normalizeEmail } from "@shared/email-normalizer";
 import { eq, and, or, isNull, lt, gt, gte, desc, asc, sql, ne, lte, count, exists } from "drizzle-orm";
 
 const DAILY_TARGET = 30;
@@ -36,6 +38,7 @@ interface Customer {
   lastName: string | null;
   email: string | null;
   email2: string | null;  // Secondary email
+  emailNormalized: string | null;  // Normalized email for Email Intelligence
   phone: string | null;
   address1: string | null;
   address2: string | null;
@@ -55,6 +58,19 @@ interface Customer {
   isHotProspect: boolean | null;  // Priority hot lead status
   odooPartnerId: number | null;  // Odoo partner ID for external link
   shopifyCustomerId: string | null;  // Shopify customer ID from mapping table
+  hasUnnormalizedContacts: boolean;  // Has contacts needing email normalization
+  hasPrimaryEmailContact: boolean;  // Has a contact marked as primary email
+}
+
+// Email hygiene card data for contact-level operations
+interface EmailHygieneContact {
+  contactId: number;
+  customerId: string;
+  contactName: string | null;
+  email: string | null;
+  emailNormalized: string | null;
+  suggestedNormalized: string | null;
+  isPrimary: boolean;
 }
 
 interface EligibleCard {
@@ -65,6 +81,7 @@ interface EligibleCard {
   whyNow: string;
   isHardCard: boolean;
   outcomeButtons: OutcomeButton[];
+  emailHygieneContact?: EmailHygieneContact;  // For email hygiene card types
 }
 
 interface OutcomeButton {
@@ -412,7 +429,7 @@ export class NowModeEngine {
         const cardType = this.matchCardType(customer, bucket, false);
         if (cardType) {
           console.log(`[NOW MODE] Load balancing: found card '${cardType}' from Aneesh's pool for customer ${customer.id}`);
-          return this.buildCard(customer, cardType, bucket);
+          return await this.buildCard(customer, cardType, bucket);
         }
       }
     }
@@ -437,7 +454,7 @@ export class NowModeEngine {
       if (cardType) {
         matchedCount++;
         console.log(`[NOW MODE] Found card type '${cardType}' for customer ${customer.id} in bucket '${bucket}'`);
-        return this.buildCard(customer, cardType, bucket);
+        return await this.buildCard(customer, cardType, bucket);
       }
     }
     
@@ -466,6 +483,22 @@ export class NowModeEngine {
       LIMIT 1
     )`.as('shopify_customer_id');
     
+    // Subquery: Check if customer has contacts with email but no normalized email
+    const unnormalizedContactsSubquery = sql<boolean>`EXISTS (
+      SELECT 1 FROM ${customerContacts} 
+      WHERE ${customerContacts.customerId} = ${customers.id}
+      AND ${customerContacts.email} IS NOT NULL 
+      AND ${customerContacts.email} != ''
+      AND ${customerContacts.emailNormalized} IS NULL
+    )`.as('has_unnormalized_contacts');
+    
+    // Subquery: Check if customer has any primary email contact
+    const primaryEmailContactSubquery = sql<boolean>`EXISTS (
+      SELECT 1 FROM ${customerContacts} 
+      WHERE ${customerContacts.customerId} = ${customers.id}
+      AND ${customerContacts.isPrimary} = true
+    )`.as('has_primary_email_contact');
+    
     const result = await db
       .select({
         id: customers.id,
@@ -474,6 +507,7 @@ export class NowModeEngine {
         lastName: customers.lastName,
         email: customers.email,
         email2: customers.email2,
+        emailNormalized: customers.emailNormalized,
         phone: customers.phone,
         address1: customers.address1,
         address2: customers.address2,
@@ -493,6 +527,8 @@ export class NowModeEngine {
         isHotProspect: customers.isHotProspect,
         odooPartnerId: customers.odooPartnerId,
         shopifyCustomerId: shopifyMappingSubquery,
+        hasUnnormalizedContacts: unnormalizedContactsSubquery,
+        hasPrimaryEmailContact: primaryEmailContactSubquery,
       })
       .from(customers)
       .where(
@@ -535,6 +571,11 @@ export class NowModeEngine {
         if (!customer.hasMachineProfile) return "set_machine_profile";  // Critical: collect machine info
         if (!customer.email) return "set_primary_email";
         if (!hasMailingAddress) return "set_mailing_address";  // Required before sending samples
+        // Email hygiene for Email Intelligence matching (1-2 per day)
+        if (customer.hasUnnormalizedContacts) return "hygiene_normalize_email";
+        if (!customer.hasPrimaryEmailContact && customer.email) return "hygiene_missing_primary_email";
+        // Customer-level email normalization
+        if (customer.email && !customer.emailNormalized) return "hygiene_normalize_email";
         return null;
 
       case "calls":
@@ -565,10 +606,10 @@ export class NowModeEngine {
     }
   }
 
-  private buildCard(customer: Customer, cardType: string, bucket: NowModeBucket): EligibleCard {
+  private async buildCard(customer: Customer, cardType: string, bucket: NowModeBucket): Promise<EligibleCard> {
     const isHardCard = ["daily_call", "follow_up_call", "follow_up_quote"].includes(cardType);
     
-    return {
+    const card: EligibleCard = {
       customerId: customer.id,
       customer,
       cardType,
@@ -576,6 +617,92 @@ export class NowModeEngine {
       whyNow: this.getWhyNow(customer, cardType),
       isHardCard,
       outcomeButtons: this.getOutcomeButtons(cardType),
+    };
+    
+    // For email hygiene cards, fetch the specific contact needing attention
+    if (cardType === "hygiene_normalize_email") {
+      const emailHygieneContact = await this.getEmailHygieneContact(customer.id);
+      if (emailHygieneContact) {
+        card.emailHygieneContact = emailHygieneContact;
+      }
+    } else if (cardType === "hygiene_missing_primary_email") {
+      const primaryCandidate = await this.getPrimaryEmailCandidate(customer.id);
+      if (primaryCandidate) {
+        card.emailHygieneContact = primaryCandidate;
+      }
+    }
+    
+    return card;
+  }
+  
+  // Get a contact that needs email normalization
+  private async getEmailHygieneContact(customerId: string): Promise<EmailHygieneContact | null> {
+    const contacts = await db
+      .select({
+        contactId: customerContacts.id,
+        customerId: customerContacts.customerId,
+        firstName: customerContacts.firstName,
+        lastName: customerContacts.lastName,
+        email: customerContacts.email,
+        emailNormalized: customerContacts.emailNormalized,
+        isPrimary: customerContacts.isPrimary,
+      })
+      .from(customerContacts)
+      .where(and(
+        eq(customerContacts.customerId, customerId),
+        sql`${customerContacts.email} IS NOT NULL AND ${customerContacts.email} != ''`,
+        isNull(customerContacts.emailNormalized)
+      ))
+      .limit(1);
+    
+    if (contacts.length === 0) return null;
+    
+    const contact = contacts[0];
+    const suggestedNormalized = normalizeEmail(contact.email);
+    
+    return {
+      contactId: contact.contactId,
+      customerId: contact.customerId,
+      contactName: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
+      email: contact.email,
+      emailNormalized: contact.emailNormalized,
+      suggestedNormalized,
+      isPrimary: contact.isPrimary || false,
+    };
+  }
+  
+  // Get a contact candidate to be set as primary email
+  private async getPrimaryEmailCandidate(customerId: string): Promise<EmailHygieneContact | null> {
+    const contacts = await db
+      .select({
+        contactId: customerContacts.id,
+        customerId: customerContacts.customerId,
+        firstName: customerContacts.firstName,
+        lastName: customerContacts.lastName,
+        email: customerContacts.email,
+        emailNormalized: customerContacts.emailNormalized,
+        isPrimary: customerContacts.isPrimary,
+      })
+      .from(customerContacts)
+      .where(and(
+        eq(customerContacts.customerId, customerId),
+        sql`${customerContacts.email} IS NOT NULL AND ${customerContacts.email} != ''`
+      ))
+      .orderBy(desc(customerContacts.updatedAt))
+      .limit(1);
+    
+    if (contacts.length === 0) return null;
+    
+    const contact = contacts[0];
+    
+    return {
+      contactId: contact.contactId,
+      customerId: contact.customerId,
+      contactName: [contact.firstName, contact.lastName].filter(Boolean).join(' ') || null,
+      email: contact.email,
+      emailNormalized: contact.emailNormalized,
+      suggestedNormalized: normalizeEmail(contact.email),
+      isPrimary: contact.isPrimary || false,
     };
   }
 
@@ -636,6 +763,13 @@ export class NowModeEngine {
           return `Why now: ${daysSinceSwatchbook} days since last sample. Cross-selling increases LTV by 40%.`;
         }
         return `Why now: ${name} may be ready for new categories. Cross-sell opportunities increase LTV by 40%.`;
+      
+      // Email hygiene card types
+      case "hygiene_normalize_email":
+        return `Why now: ${name} has email data that needs normalization. Fixing this improves Email Intelligence matching and reduces missed messages.`;
+      case "hygiene_missing_primary_email":
+        return `Why now: ${name} has contacts but no primary email. Setting a primary contact improves outreach accuracy.`;
+      
       default:
         return `Why now: Action needed for ${name}.`;
     }
@@ -719,6 +853,20 @@ export class NowModeEngine {
           { outcome: "emailed", label: "Intro Sent", icon: "mail", color: "green", schedulesFollowUp: true, followUpDays: 7, assistText: "Mention how this category complements what they already buy." },
           { outcome: "called_connected", label: "Discussed", icon: "phone", color: "blue", assistText: "Ask about pain points with their current supplier.", updatesCustomerState: "lastContactAt" },
           { outcome: "scheduled_follow_up", label: "Schedule Later", icon: "calendar", color: "yellow", schedulesFollowUp: true, followUpDays: 14, assistText: "Book a specific time to present the category." },
+        ];
+
+      // Email hygiene card types
+      case "hygiene_normalize_email":
+        return [
+          { outcome: "data_updated", label: "Apply Fix", icon: "check", color: "green", assistText: "One-click to apply the suggested normalized email." },
+          { outcome: "completed", label: "Edit Email", icon: "edit", color: "blue", assistText: "Manually correct the email address." },
+          { outcome: "marked_dnc", label: "Mark Invalid", icon: "x-circle", color: "red", assistText: "Email is invalid or contact should be removed." },
+        ];
+      
+      case "hygiene_missing_primary_email":
+        return [
+          { outcome: "data_updated", label: "Set as Primary", icon: "check", color: "green", assistText: "Set this contact as the primary email contact." },
+          { outcome: "completed", label: "Skip", icon: "skip-forward", color: "gray", assistText: "No primary needed at this time." },
         ];
 
       default:

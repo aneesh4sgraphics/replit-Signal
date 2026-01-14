@@ -2886,6 +2886,9 @@ export const CARD_TYPE_BUCKETS: Record<string, NowModeBucket> = {
   set_primary_email: 'data_hygiene',
   set_machine_profile: 'data_hygiene',  // Critical: collect machine information
   mark_do_not_contact: 'data_hygiene',
+  hygiene_normalize_email: 'data_hygiene',  // Email normalization for Email Intelligence
+  hygiene_duplicate_email: 'data_hygiene',  // Duplicate email resolution
+  hygiene_missing_primary_email: 'data_hygiene',  // Set primary email contact
   // Enablement bucket
   send_price_list: 'enablement',
   introduce_category: 'enablement',
