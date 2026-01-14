@@ -82,6 +82,7 @@ import {
   Receipt,
   UserX,
   Ban,
+  Calendar,
 } from "lucide-react";
 import {
   Tooltip,
@@ -136,7 +137,7 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
     if (outcome.includes('connected') || outcome.includes('ordered')) return 'bg-green-100 text-green-800';
     if (outcome.includes('left_voicemail') || outcome.includes('callback')) return 'bg-blue-100 text-blue-800';
     if (outcome.includes('no_answer') || outcome.includes('bad_number')) return 'bg-orange-100 text-orange-800';
-    if (outcome.includes('complete') || outcome.includes('verified')) return 'bg-purple-100 text-purple-800';
+    if (outcome.includes('complete') || outcome.includes('verified') || outcome.includes('email_sent') || outcome.includes('data_updated')) return 'bg-purple-100 text-purple-800';
     return 'bg-gray-100 text-gray-800';
   };
 
@@ -149,6 +150,80 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
       enablement: 'Enablement',
     };
     return labels[bucket] || bucket;
+  };
+
+  // Get icon based on bucket and card type
+  const getActivityIcon = (bucket: string, cardType: string) => {
+    // Call-related
+    if (bucket === 'calls' || cardType.includes('call')) {
+      return <Phone className="h-5 w-5 text-green-600" />;
+    }
+    // Email-related
+    if (cardType.includes('email') || cardType.includes('price_list') || cardType === 'send_marketing_email') {
+      return <Mail className="h-5 w-5 text-blue-600" />;
+    }
+    // Sample/swatchbook
+    if (cardType.includes('sample') || cardType.includes('swatchbook')) {
+      return <Package className="h-5 w-5 text-orange-600" />;
+    }
+    // Data hygiene
+    if (bucket === 'data_hygiene') {
+      return <FileText className="h-5 w-5 text-gray-600" />;
+    }
+    // Follow-ups
+    if (bucket === 'followups') {
+      return <Clock className="h-5 w-5 text-yellow-600" />;
+    }
+    // Default
+    return <Zap className="h-5 w-5 text-indigo-600" />;
+  };
+
+  // Get human-readable description of what was done
+  const getActivityDescription = (cardType: string, outcome: string) => {
+    const cardDescriptions: Record<string, string> = {
+      // Calls
+      'make_intro_call': 'Made introduction call',
+      'check_in_call': 'Made check-in call',
+      'follow_up_call': 'Made follow-up call',
+      // Emails
+      'send_marketing_email': 'Sent marketing email',
+      'send_price_list': 'Sent price list',
+      'follow_up_quote': 'Followed up on quote',
+      'follow_up_sample': 'Followed up on sample',
+      'follow_up_materials': 'Followed up on materials',
+      // Outreach
+      'send_swatchbook': 'Sent swatchbook/samples',
+      'send_samples': 'Sent product samples',
+      // Data hygiene
+      'set_pricing_tier': 'Updated pricing tier',
+      'set_sales_rep': 'Assigned sales rep',
+      'set_primary_email': 'Set primary email',
+      'set_mailing_address': 'Updated mailing address',
+      'set_machine_profile': 'Added machine profile',
+      // Enablement
+      'send_press_kit': 'Sent press kit',
+      'send_training_materials': 'Sent training materials',
+    };
+    
+    const description = cardDescriptions[cardType] || cardType.replace(/_/g, ' ');
+    
+    // Add outcome context for calls
+    if (outcome === 'connected') return `${description} - Connected`;
+    if (outcome === 'left_voicemail') return `${description} - Left voicemail`;
+    if (outcome === 'no_answer') return `${description} - No answer`;
+    if (outcome === 'callback_scheduled') return `${description} - Callback scheduled`;
+    if (outcome === 'email_sent') return description.includes('email') || description.includes('Sent') ? description : `${description} - Email sent`;
+    
+    return description;
+  };
+
+  // Format duration in human-readable form
+  const formatDuration = (seconds: number | null) => {
+    if (!seconds) return null;
+    if (seconds < 60) return `${seconds}s`;
+    const mins = Math.floor(seconds / 60);
+    const secs = seconds % 60;
+    return secs > 0 ? `${mins}m ${secs}s` : `${mins}m`;
   };
 
   if (isLoading) {
@@ -175,9 +250,20 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
         {activities.length > 0 ? (
           <div className="space-y-3">
             {activities.map((activity: any) => (
-              <div key={activity.id} className="flex items-start justify-between p-3 bg-gray-50 rounded-lg border">
-                <div className="flex-1">
-                  <div className="flex items-center gap-2 mb-1">
+              <div key={activity.id} className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border hover:bg-gray-100 transition-colors">
+                {/* Activity Icon */}
+                <div className="flex-shrink-0 mt-0.5">
+                  {getActivityIcon(activity.bucket, activity.cardType)}
+                </div>
+                
+                <div className="flex-1 min-w-0">
+                  {/* Main description */}
+                  <div className="font-medium text-gray-900">
+                    {getActivityDescription(activity.cardType, activity.outcome)}
+                  </div>
+                  
+                  {/* Badges row */}
+                  <div className="flex flex-wrap items-center gap-2 mt-1">
                     <Badge variant="outline" className="text-xs">
                       {getBucketLabel(activity.bucket)}
                     </Badge>
@@ -187,13 +273,40 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
                     {activity.isSkip && (
                       <Badge variant="destructive" className="text-xs">Skipped</Badge>
                     )}
+                    {activity.durationSeconds && (
+                      <Badge variant="secondary" className="text-xs">
+                        <Clock className="h-3 w-3 mr-1" />
+                        {formatDuration(activity.durationSeconds)}
+                      </Badge>
+                    )}
                   </div>
-                  {activity.notes && (
-                    <p className="text-sm text-gray-600 mt-1">{activity.notes}</p>
+                  
+                  {/* Notes - shown prominently if present */}
+                  {activity.outcomeNotes && (
+                    <div className="mt-2 p-2 bg-white rounded border-l-2 border-indigo-300">
+                      <p className="text-sm text-gray-700">{activity.outcomeNotes}</p>
+                    </div>
                   )}
-                  <p className="text-xs text-gray-400 mt-1">
+                  
+                  {/* Skip reason if skipped */}
+                  {activity.isSkip && activity.skipReason && (
+                    <p className="text-sm text-red-600 mt-1">
+                      Skip reason: {activity.skipReason.replace(/_/g, ' ')}
+                    </p>
+                  )}
+                  
+                  {/* Follow-up scheduled */}
+                  {activity.nextFollowUpAt && (
+                    <div className="flex items-center gap-1 text-sm text-blue-600 mt-1">
+                      <Calendar className="h-3 w-3" />
+                      Follow-up: {new Date(activity.nextFollowUpAt).toLocaleDateString()}
+                      {activity.nextFollowUpType && ` (${activity.nextFollowUpType.replace(/_/g, ' ')})`}
+                    </div>
+                  )}
+                  
+                  {/* Timestamp and rep */}
+                  <p className="text-xs text-gray-400 mt-2">
                     {activity.createdAt ? new Date(activity.createdAt).toLocaleString() : ''}
-                    {activity.userId && ` • Rep ID: ${activity.userId}`}
                   </p>
                 </div>
               </div>
