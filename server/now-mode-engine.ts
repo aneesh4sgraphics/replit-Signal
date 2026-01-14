@@ -364,19 +364,19 @@ export class NowModeEngine {
     
     console.log(`[NOW MODE] Load balancing: fetching Aneesh's customers for user ${userId}`);
     
-    // Use a subquery to check if customer has any machine profile
-    const machineProfileSubquery = db
-      .select({ customerId: customerMachineProfiles.customerId })
-      .from(customerMachineProfiles)
-      .where(eq(customerMachineProfiles.customerId, customers.id))
-      .limit(1);
+    // Use pure raw SQL subqueries to avoid Drizzle column reference type issues
+    const machineProfileSubquery = sql<boolean>`EXISTS (
+      SELECT 1 FROM customer_machine_profiles cmp
+      WHERE cmp.customer_id = customers.id
+      LIMIT 1
+    )`.as('has_machine_profile');
     
     // Use a subquery to get Shopify customer ID from mapping table
     const shopifyMappingSubquery = sql<string>`(
-      SELECT ${shopifyCustomerMappings.shopifyCustomerId} 
-      FROM ${shopifyCustomerMappings} 
-      WHERE ${shopifyCustomerMappings.crmCustomerId} = ${customers.id} 
-      AND ${shopifyCustomerMappings.isActive} = true
+      SELECT scm.shopify_customer_id 
+      FROM shopify_customer_mappings scm 
+      WHERE scm.crm_customer_id = customers.id 
+      AND scm.is_active = true
       LIMIT 1
     )`.as('shopify_customer_id');
     
@@ -404,7 +404,7 @@ export class NowModeEngine {
         priceListSentAt: customers.priceListSentAt,
         doNotContact: customers.doNotContact,
         pausedUntil: customers.pausedUntil,
-        hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
+        hasMachineProfile: machineProfileSubquery,
         isHotProspect: customers.isHotProspect,
         odooPartnerId: customers.odooPartnerId,
         shopifyCustomerId: shopifyMappingSubquery,
@@ -467,36 +467,36 @@ export class NowModeEngine {
     
     console.log(`[NOW MODE] Getting eligible customers for userId: ${userId} (type: ${typeof userId})`);
     
-    // Use a subquery to check if customer has any machine profile
-    const machineProfileSubquery = db
-      .select({ customerId: customerMachineProfiles.customerId })
-      .from(customerMachineProfiles)
-      .where(eq(customerMachineProfiles.customerId, customers.id))
-      .limit(1);
+    // Use pure raw SQL subqueries to avoid Drizzle column reference type issues
+    const machineProfileSubquery = sql<boolean>`EXISTS (
+      SELECT 1 FROM customer_machine_profiles cmp
+      WHERE cmp.customer_id = customers.id
+      LIMIT 1
+    )`.as('has_machine_profile');
     
     // Use a subquery to get Shopify customer ID from mapping table
     const shopifyMappingSubquery = sql<string>`(
-      SELECT ${shopifyCustomerMappings.shopifyCustomerId} 
-      FROM ${shopifyCustomerMappings} 
-      WHERE ${shopifyCustomerMappings.crmCustomerId} = ${customers.id} 
-      AND ${shopifyCustomerMappings.isActive} = true
+      SELECT scm.shopify_customer_id 
+      FROM shopify_customer_mappings scm 
+      WHERE scm.crm_customer_id = customers.id 
+      AND scm.is_active = true
       LIMIT 1
     )`.as('shopify_customer_id');
     
     // Subquery: Check if customer has contacts with email but no normalized email
     const unnormalizedContactsSubquery = sql<boolean>`EXISTS (
-      SELECT 1 FROM ${customerContacts} 
-      WHERE ${customerContacts.customerId} = ${customers.id}
-      AND ${customerContacts.email} IS NOT NULL 
-      AND ${customerContacts.email} != ''
-      AND ${customerContacts.emailNormalized} IS NULL
+      SELECT 1 FROM customer_contacts cc
+      WHERE cc.customer_id = customers.id
+      AND cc.email IS NOT NULL 
+      AND cc.email != ''
+      AND cc.email_normalized IS NULL
     )`.as('has_unnormalized_contacts');
     
     // Subquery: Check if customer has any primary email contact
     const primaryEmailContactSubquery = sql<boolean>`EXISTS (
-      SELECT 1 FROM ${customerContacts} 
-      WHERE ${customerContacts.customerId} = ${customers.id}
-      AND ${customerContacts.isPrimary} = true
+      SELECT 1 FROM customer_contacts cc
+      WHERE cc.customer_id = customers.id
+      AND cc.is_primary = true
     )`.as('has_primary_email_contact');
     
     const result = await db
@@ -523,7 +523,7 @@ export class NowModeEngine {
         priceListSentAt: customers.priceListSentAt,
         doNotContact: customers.doNotContact,
         pausedUntil: customers.pausedUntil,
-        hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
+        hasMachineProfile: machineProfileSubquery,
         isHotProspect: customers.isHotProspect,
         odooPartnerId: customers.odooPartnerId,
         shopifyCustomerId: shopifyMappingSubquery,
