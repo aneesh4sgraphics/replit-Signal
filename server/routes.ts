@@ -6302,8 +6302,40 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Missing required fields: to, subject, body" });
       }
       
+      // Fetch user's email signature and auto-append if exists
+      const userId = req.user?.email;
+      let signature: { signatureHtml: string } | null = null;
+      if (userId) {
+        signature = await storage.getEmailSignature(userId);
+      }
+      
+      // Prepare body with signature appended
+      let finalHtmlBody = htmlBody || body.replace(/\n/g, '<br>');
+      let finalPlainBody = body;
+      
+      // Only auto-append signature if:
+      // 1. Signature exists
+      // 2. Body doesn't already contain the signature (from {{user.signature}} variable)
+      // 3. Body doesn't already contain the signature HTML directly
+      const shouldAppendSignature = signature?.signatureHtml && 
+        !finalHtmlBody.includes(signature.signatureHtml) &&
+        !body.includes('{{user.signature}}');
+      
+      if (shouldAppendSignature && signature?.signatureHtml) {
+        // Append signature to HTML body with separator
+        finalHtmlBody = finalHtmlBody + '<br><br>--<br>' + signature.signatureHtml;
+        // Strip HTML from signature for plain text version
+        const signaturePlainText = signature.signatureHtml
+          .replace(/<br\s*\/?>/gi, '\n')
+          .replace(/<\/p>/gi, '\n')
+          .replace(/<[^>]+>/g, '')
+          .replace(/&nbsp;/g, ' ')
+          .trim();
+        finalPlainBody = body + '\n\n--\n' + signaturePlainText;
+      }
+      
       // Generate tracking token and prepare tracked HTML
-      let trackedHtmlBody = htmlBody || body.replace(/\n/g, '<br>');
+      let trackedHtmlBody = finalHtmlBody;
       let trackingToken: string | null = null;
       let trackingTokenRecord: any = null;
       
@@ -6342,8 +6374,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Send via Gmail with tracked HTML
-      const result = await sendEmail(to, subject, body, trackedHtmlBody);
+      // Send via Gmail with tracked HTML and signature-appended plain text
+      const result = await sendEmail(to, subject, finalPlainBody, trackedHtmlBody);
       
       // Log to emailSends table
       const emailSend = await storage.createEmailSend({
@@ -6352,7 +6384,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         recipientName: recipientName || null,
         customerId: customerId || null,
         subject,
-        body,
+        body: finalPlainBody,
         variableData: variableData || {},
         status: "sent",
         sentBy: req.user?.email || req.user?.claims?.email,
