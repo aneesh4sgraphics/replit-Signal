@@ -2,49 +2,26 @@ import { useState, useEffect } from "react";
 import { Link } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
-import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
 import { 
-  Calculator, 
-  Database, 
-  Users, 
-  BarChart3, 
-  TrendingUp,
   Settings,
   AlertCircle,
-  DollarSign,
-  Package,
-  Printer,
-  Layers,
   ChevronRight,
-  ChevronDown,
-  Truck,
-  Tag,
-  Target,
-  FlaskConical,
-  Palette,
-  Activity,
-  Grid3X3,
   Clock,
-  History,
   Mail,
-  HardDrive,
   Gauge,
-  AlertTriangle,
-  Flame,
   Lightbulb,
   Calendar,
   Zap,
   Building2,
-  FileText
 } from "lucide-react";
-import { QuickQuotesIcon, SavedQuotesIcon } from "@/components/CommandPalette";
+import { primaryApps } from "@/lib/nav-links";
 import { useAuth } from "@/hooks/useAuth";
+import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
 import ShipmentFollowUpWidget from "@/components/ShipmentFollowUpWidget";
-import { ConnectionPrompt, ConnectionStatusBanner } from "@/components/ConnectionPrompt";
+import { ConnectionPrompt } from "@/components/ConnectionPrompt";
 import { useQuery } from "@tanstack/react-query";
 import { useAppUsage } from "@/hooks/useAppUsage";
-import { Progress } from "@/components/ui/progress";
 
 interface DashboardStats {
   totalQuotes: number;
@@ -111,48 +88,10 @@ interface ApiCostStats {
   timestamp: string;
 }
 
-const allApps = [
-  { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', color: '#111111' },
-  { path: '/price-list', icon: DollarSign, label: 'Price List', color: '#333333' },
-  { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', color: '#444444' },
-  { path: '/sales-analytics', icon: TrendingUp, label: 'Sales Charts', color: '#555555' },
-  { path: '/clients', icon: Users, label: 'Clients', color: '#111111' },
-  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: '#666666' },
-  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: '#777777' },
-  { path: '/shipping-calculator', icon: Truck, label: 'Shipping', color: '#444444' },
-  { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', color: '#555555' },
-  { path: '/product-labels', icon: Tag, label: 'Product Labels', color: '#333333' },
-  { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#222222' },
-  { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#666666' },
-  { path: '/email-app', icon: Mail, label: 'Email Studio', color: '#111111' },
-  { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#444444' },
-  { path: '/calendar', icon: Calendar, label: 'Calendar', color: '#555555' },
-  { path: '/objections', icon: AlertTriangle, label: 'Objections', color: '#777777' },
-];
-
-const adminApps = [
-  { path: '/admin', icon: Users, label: 'Users', color: '#222222' },
-  { path: '/activity-logs', icon: Activity, label: 'Activity', color: '#333333' },
-  { path: '/product-pricing-management', icon: Database, label: 'Products', color: '#444444' },
-  { path: '/pdf-settings', icon: FileText, label: 'PDF Settings', color: '#555555' },
-];
 
 export default function Dashboard() {
-  const [hoveredTile, setHoveredTile] = useState<string | null>(null);
-  const [appsOpen, setAppsOpen] = useState(true);
   const { user, isLoading } = useAuth();
 
-  useEffect(() => {
-    let lastScrollY = window.scrollY;
-    const handleScroll = () => {
-      if (window.scrollY > lastScrollY && window.scrollY > 50) {
-        setAppsOpen(false);
-      }
-      lastScrollY = window.scrollY;
-    };
-    window.addEventListener('scroll', handleScroll, { passive: true });
-    return () => window.removeEventListener('scroll', handleScroll);
-  }, []);
   const { trackUsage } = useAppUsage();
 
   const { data: stats } = useQuery<DashboardStats>({
@@ -321,62 +260,6 @@ export default function Dashboard() {
   const isAdmin = (user as any)?.role === 'admin';
   const now = new Date();
   const dateString = now.toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' });
-
-  const AppTile = ({ app, index }: { app: typeof allApps[0]; index: number }) => {
-    const Icon = app.icon;
-    const isHovered = hoveredTile === `app-${index}`;
-    
-    return (
-      <Link
-        href={app.path}
-        onClick={() => trackUsage(app.path)}
-        onMouseEnter={() => setHoveredTile(`app-${index}`)}
-        onMouseLeave={() => setHoveredTile(null)}
-        style={{
-          display: 'flex',
-          flexDirection: 'column',
-          alignItems: 'center',
-          justifyContent: 'center',
-          padding: '24px',
-          background: '#FFFFFF',
-          borderRadius: '12px',
-          border: '1px solid #EAEAEA',
-          cursor: 'pointer',
-          textDecoration: 'none',
-          transition: 'all 0.15s ease',
-          transform: isHovered ? 'translateY(-2px)' : 'translateY(0)',
-          aspectRatio: '1',
-          minHeight: '140px',
-        }}
-        data-testid={`tile-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
-      >
-        <div style={{
-          width: '48px',
-          height: '48px',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          marginBottom: '12px',
-        }}>
-          <Icon size={32} style={{ color: '#111111' }} />
-        </div>
-        <span style={{
-          fontSize: '14px',
-          fontWeight: 500,
-          color: '#111111',
-          textAlign: 'center',
-          lineHeight: 1.3,
-          overflow: 'hidden',
-          textOverflow: 'ellipsis',
-          display: '-webkit-box',
-          WebkitLineClamp: 2,
-          WebkitBoxOrient: 'vertical',
-        }}>
-          {app.label}
-        </span>
-      </Link>
-    );
-  };
 
   return (
     <>
@@ -559,69 +442,66 @@ export default function Dashboard() {
             </div>
           </div>
 
-          {/* Collapsible App Launcher Tray */}
-          <Collapsible open={appsOpen} onOpenChange={setAppsOpen}>
-            <div style={{
-              background: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #EAEAEA',
-              marginBottom: '24px',
-              overflow: 'hidden',
-            }}>
-              <CollapsibleTrigger asChild>
-                <button
-                  style={{
-                    width: '100%',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'space-between',
-                    padding: '16px 24px',
-                    background: 'transparent',
-                    border: 'none',
-                    cursor: 'pointer',
-                    transition: 'background 0.15s ease',
-                  }}
-                  onMouseEnter={(e) => e.currentTarget.style.background = '#FAFAFA'}
-                  onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
-                >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
-                    <Grid3X3 size={18} style={{ color: '#111111' }} />
-                    <span style={{ fontSize: '14px', fontWeight: 500, color: '#111111' }}>
-                      Apps
-                    </span>
-                    <span style={{ fontSize: '12px', color: '#666666' }}>
-                      ({allApps.length})
-                    </span>
-                  </div>
-                  <ChevronDown 
-                    size={18} 
-                    style={{ 
-                      color: '#999999',
-                      transition: 'transform 0.15s ease',
-                      transform: appsOpen ? 'rotate(180deg)' : 'rotate(0deg)',
-                    }} 
-                  />
-                </button>
-              </CollapsibleTrigger>
-              
-              <CollapsibleContent>
-                <div style={{ padding: '0 24px 24px 24px' }}>
-                  <div 
-                    className="app-grid"
-                    style={{
-                      display: 'grid',
-                      gridTemplateColumns: 'repeat(6, 1fr)',
-                      gap: '24px',
-                    }}
-                  >
-                    {allApps.map((app, index) => (
-                      <AppTile key={app.path} app={app} index={index} />
-                    ))}
-                  </div>
-                </div>
-              </CollapsibleContent>
-            </div>
-          </Collapsible>
+          {/* Notion-style Top Icon Bar */}
+          <div style={{
+            background: '#FFFFFF',
+            borderRadius: '12px',
+            border: '1px solid #EAEAEA',
+            marginBottom: '24px',
+            padding: '12px 16px',
+          }}>
+            <ScrollArea className="w-full">
+              <div style={{ display: 'flex', gap: '8px', paddingBottom: '4px' }}>
+                {primaryApps.map((app) => {
+                  const Icon = app.icon;
+                  return (
+                    <Link
+                      key={app.path}
+                      href={app.path}
+                      onClick={() => trackUsage(app.path)}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      <Tooltip>
+                        <TooltipTrigger asChild>
+                          <div
+                            style={{
+                              display: 'flex',
+                              flexDirection: 'column',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              padding: '12px 16px',
+                              borderRadius: '8px',
+                              cursor: 'pointer',
+                              transition: 'background 0.15s ease',
+                              minWidth: '72px',
+                            }}
+                            onMouseEnter={(e) => e.currentTarget.style.background = '#F2F2F2'}
+                            onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
+                            data-testid={`icon-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
+                          >
+                            <Icon size={24} style={{ color: '#111111', marginBottom: '6px' }} />
+                            <span style={{
+                              fontSize: '11px',
+                              fontWeight: 500,
+                              color: '#666666',
+                              textAlign: 'center',
+                              whiteSpace: 'nowrap',
+                            }}>
+                              {app.label}
+                            </span>
+                          </div>
+                        </TooltipTrigger>
+                        <TooltipContent side="bottom">
+                          <p>{app.description || app.label}</p>
+                        </TooltipContent>
+                      </Tooltip>
+                    </Link>
+                  );
+                })}
+              </div>
+              <ScrollBar orientation="horizontal" />
+            </ScrollArea>
+          </div>
 
           {/* Now Mode Entry Card */}
           <Link href="/now-mode" style={{ textDecoration: 'none', display: 'block', marginBottom: '24px' }}>
@@ -696,144 +576,30 @@ export default function Dashboard() {
             </Link>
           )}
 
-          {/* Admin Section */}
+          {/* Admin link - only visible to admins */}
           {isAdmin && (
-            <div style={{
-              background: '#FFFFFF',
-              borderRadius: '2px',
-              boxShadow: '0 2px 8px rgba(0,0,0,0.08)',
-              padding: '24px',
-              marginBottom: '32px',
-            }}>
-              <h2 style={{ fontSize: '18px', fontWeight: 700, color: '#2C2C54', marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '10px' }}>
-                <Settings size={20} style={{ color: '#6B6B8C' }} />
-                Admin Tools
-              </h2>
-              
+            <Link href="/admin" style={{ textDecoration: 'none', display: 'block', marginBottom: '24px' }}>
               <div style={{
-                display: 'grid',
-                gridTemplateColumns: 'repeat(4, 1fr)',
-                gap: '16px',
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #EAEAEA',
+                padding: '16px 24px',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'space-between',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
               }}>
-                {adminApps.map((app, index) => {
-                  const Icon = app.icon;
-                  return (
-                    <Link
-                      key={app.path}
-                      href={app.path}
-                      onClick={() => trackUsage(app.path)}
-                      style={{
-                        display: 'flex',
-                        flexDirection: 'column',
-                        alignItems: 'center',
-                        justifyContent: 'center',
-                        padding: '16px 12px',
-                        background: '#FFFFFF',
-                        borderRadius: '2px',
-                        boxShadow: '0 2px 6px rgba(0,0,0,0.06)',
-                        border: '1px solid rgba(0,0,0,0.08)',
-                        cursor: 'pointer',
-                        textDecoration: 'none',
-                        transition: 'all 0.2s ease-in-out',
-                      }}
-                    >
-                      <Icon size={32} style={{ color: app.color, marginBottom: '8px' }} />
-                      <span style={{
-                        fontSize: '12px',
-                        fontWeight: 500,
-                        color: '#2C2C54',
-                        textAlign: 'center',
-                      }}>
-                        {app.label}
-                      </span>
-                    </Link>
-                  );
-                })}
+                <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                  <Settings size={20} style={{ color: '#111111' }} />
+                  <div>
+                    <div style={{ fontSize: '14px', fontWeight: 500, color: '#111111' }}>Admin Panel</div>
+                    <div style={{ fontSize: '12px', color: '#666666' }}>Manage users, settings, and configuration</div>
+                  </div>
+                </div>
+                <ChevronRight size={18} style={{ color: '#999999' }} />
               </div>
-
-              {/* Usage Stats */}
-              {usageStats && (
-                <div style={{ marginTop: '32px', padding: '24px', background: 'rgba(0,0,0,0.02)', borderRadius: '2px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                    <Gauge size={20} style={{ color: '#111111' }} />
-                    <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#2C2C54', margin: 0 }}>Resource Usage</h3>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                    <div style={{ background: '#FFFFFF', borderRadius: '2px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <HardDrive size={16} style={{ color: '#0D6EFD' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#6B6B8C' }}>Database</span>
-                      </div>
-                      <div style={{ fontSize: '20px', fontWeight: 700, color: '#2C2C54', marginBottom: '8px' }}>{usageStats.database.size}</div>
-                      <Progress value={(usageStats.database.sizeBytes / usageStats.limits.dbMaxSizeBytes) * 100} className="h-2" />
-                      <div style={{ fontSize: '11px', color: '#6B6B8C', marginTop: '4px' }}>of {usageStats.limits.dbMaxSize}</div>
-                    </div>
-                    
-                    <div style={{ background: '#FFFFFF', borderRadius: '2px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <Database size={16} style={{ color: '#6F42C1' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#6B6B8C' }}>Records</span>
-                      </div>
-                      <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '8px' }}>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#2C2C54' }}>{usageStats.records.customers.toLocaleString()}</div>
-                          <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Customers</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#2C2C54' }}>{usageStats.records.products.toLocaleString()}</div>
-                          <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Products</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#2C2C54' }}>{usageStats.records.quotes.toLocaleString()}</div>
-                          <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Quotes</div>
-                        </div>
-                        <div>
-                          <div style={{ fontSize: '16px', fontWeight: 700, color: '#2C2C54' }}>{Number(usageStats.records.activityLogs).toLocaleString()}</div>
-                          <div style={{ fontSize: '11px', color: '#6B6B8C' }}>Logs</div>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-
-              {/* API Cost Tracking */}
-              {apiCosts && (
-                <div style={{ marginTop: '24px', padding: '24px', background: 'rgba(0,0,0,0.02)', borderRadius: '2px' }}>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                    <DollarSign size={20} style={{ color: '#6F42C1' }} />
-                    <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#2C2C54', margin: 0 }}>API Spending ({apiCosts.summary.periodDays} days)</h3>
-                  </div>
-                  
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
-                    <div style={{ background: '#FFFFFF', borderRadius: '2px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <DollarSign size={16} style={{ color: '#111111' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#6B6B8C' }}>Total Spend</span>
-                      </div>
-                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#2C2C54', marginBottom: '4px' }}>${apiCosts.summary.totalCost.toFixed(2)}</div>
-                      <div style={{ fontSize: '11px', color: '#6B6B8C' }}>{apiCosts.summary.totalCalls.toLocaleString()} calls</div>
-                    </div>
-                    
-                    <div style={{ background: '#FFFFFF', borderRadius: '2px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <Activity size={16} style={{ color: '#FD7E14' }} />
-                        <span style={{ fontSize: '13px', fontWeight: 600, color: '#6B6B8C' }}>Top Spenders</span>
-                      </div>
-                      <div style={{ display: 'flex', flexDirection: 'column', gap: '6px' }}>
-                        {apiCosts.byOperation.slice(0, 3).map((op, i) => (
-                          <div key={i} style={{ display: 'flex', justifyContent: 'space-between' }}>
-                            <span style={{ fontSize: '11px', color: '#6B6B8C' }}>{op.operation.replace(/_/g, ' ')}</span>
-                            <span style={{ fontSize: '11px', fontWeight: 600, color: '#2C2C54' }}>${parseFloat(op.total_cost || '0').toFixed(2)}</span>
-                          </div>
-                        ))}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
-            </div>
+            </Link>
           )}
 
         </div>
