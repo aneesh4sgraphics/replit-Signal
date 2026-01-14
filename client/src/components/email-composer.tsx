@@ -81,11 +81,28 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>("");
   const [variables, setVariables] = useState<Record<string, string>>({});
   const editorRef = useRef<EmailRichTextEditorRef>(null);
+  const hasInitializedBody = useRef(false);
 
   const { data: templates = [] } = useQuery<EmailTemplate[]>({
     queryKey: ["/api/email/templates"],
     enabled: isOpen,
   });
+
+  const { data: signature } = useQuery<{ signatureHtml: string } | null>({
+    queryKey: ["/api/email/signature"],
+    enabled: isOpen,
+  });
+
+  const convertPlainTextToHtml = (text: string): string => {
+    if (!text) return '';
+    if (text.includes('<p>') || text.includes('<br>') || text.includes('<div>')) {
+      return text;
+    }
+    return text
+      .split('\n\n')
+      .map(paragraph => `<p>${paragraph.replace(/\n/g, '<br>')}</p>`)
+      .join('');
+  };
 
   const sendMutation = useMutation({
     mutationFn: async (data: { 
@@ -120,14 +137,33 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
   });
 
   useEffect(() => {
-    if (isOpen) {
+    if (isOpen && !hasInitializedBody.current) {
       setTo(initialConfig.to || "");
       setSubject(initialConfig.subject || "");
-      setBody(initialConfig.body || "");
+      
+      let bodyContent = initialConfig.body || "";
+      const htmlBody = convertPlainTextToHtml(bodyContent);
+      
+      if (signature?.signatureHtml && !htmlBody.includes(signature.signatureHtml)) {
+        setBody(htmlBody + '<br><br>--<br>' + signature.signatureHtml);
+      } else {
+        setBody(htmlBody);
+      }
+      
       setSelectedTemplateId(initialConfig.templateId?.toString() || "");
       setVariables(initialConfig.variables || {});
+      
+      if (signature !== undefined) {
+        hasInitializedBody.current = true;
+      }
     }
-  }, [isOpen, initialConfig]);
+  }, [isOpen, initialConfig, signature]);
+
+  useEffect(() => {
+    if (!isOpen) {
+      hasInitializedBody.current = false;
+    }
+  }, [isOpen]);
 
   const handleTemplateSelect = (templateId: string) => {
     setSelectedTemplateId(templateId);
