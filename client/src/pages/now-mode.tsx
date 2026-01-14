@@ -80,6 +80,7 @@ interface Customer {
   zip?: string | null;
   isHotProspect?: boolean;
   odooPartnerId?: number | null;
+  shopifyCustomerId?: string | null;
 }
 
 interface CustomerContact {
@@ -390,23 +391,37 @@ export default function NowMode() {
     staleTime: 1000 * 60 * 30, // Cache for 30 minutes
   });
 
-  // Helper to open customer in Odoo
-  const handleOpenInOdoo = useCallback(() => {
+  // Fetch Shopify shop domain for external links
+  const { data: shopifySettings } = useQuery<{ shops?: { shop: string }[] }>({
+    queryKey: ['/api/shopify/install-status'],
+    staleTime: 1000 * 60 * 30, // Cache for 30 minutes
+  });
+
+  // Helper to open customer in external system (prefer Shopify if both exist)
+  const handleOpenInExternalSystem = useCallback(() => {
     if (!data?.card?.customer) return;
     
     const customer = data.card.customer;
+    const shopDomain = shopifySettings?.shops?.[0]?.shop;
     
+    // Prefer Shopify if customer has a Shopify ID
+    if (customer.shopifyCustomerId && shopDomain) {
+      window.open(`https://${shopDomain}/admin/customers/${customer.shopifyCustomerId}`, '_blank');
+      return;
+    }
+    
+    // Fall back to Odoo
     if (customer.odooPartnerId && odooBaseUrl) {
       window.open(`${odooBaseUrl}/web#id=${customer.odooPartnerId}&model=res.partner&view_type=form`, '_blank');
       return;
     }
     
     toast({ 
-      title: "Not linked to Odoo", 
-      description: "This customer is not linked to Odoo.",
+      title: "Not found in external systems", 
+      description: "This customer is not linked to Shopify or Odoo.",
       variant: "destructive"
     });
-  }, [data?.card?.customer, odooBaseUrl, toast]);
+  }, [data?.card?.customer, shopifySettings, odooBaseUrl, toast]);
 
   // Build list of available emails for selection
   const availableEmails = useMemo(() => {
@@ -1847,15 +1862,15 @@ export default function NowMode() {
                 >
                   View Full Customer Profile
                 </Button>
-                {data.card.customer.odooPartnerId && (
+                {(data.card.customer.shopifyCustomerId || data.card.customer.odooPartnerId) && (
                   <Button 
                     variant="outline"
                     size="sm"
                     className="text-gray-600 border-gray-300 hover:bg-gray-50"
-                    onClick={handleOpenInOdoo}
+                    onClick={handleOpenInExternalSystem}
                   >
                     <ExternalLink className="h-4 w-4 mr-2" />
-                    Open in Odoo
+                    {data.card.customer.shopifyCustomerId ? "Open in Shopify" : "Open in Odoo"}
                   </Button>
                 )}
                 {data.card.cardType === "send_swatchbook" && data.card.customer.address1 && (

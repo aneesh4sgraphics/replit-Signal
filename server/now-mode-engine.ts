@@ -10,6 +10,7 @@ import {
   customerJourney,
   coachingMoments,
   customerMachineProfiles,
+  shopifyCustomerMappings,
   NOW_MODE_BUCKETS,
   BUCKET_QUOTAS,
   CARD_TYPE_BUCKETS,
@@ -53,6 +54,7 @@ interface Customer {
   hasMachineProfile: boolean;  // Whether customer has any machine profile set
   isHotProspect: boolean | null;  // Priority hot lead status
   odooPartnerId: number | null;  // Odoo partner ID for external link
+  shopifyCustomerId: string | null;  // Shopify customer ID from mapping table
 }
 
 interface EligibleCard {
@@ -352,6 +354,15 @@ export class NowModeEngine {
       .where(eq(customerMachineProfiles.customerId, customers.id))
       .limit(1);
     
+    // Use a subquery to get Shopify customer ID from mapping table
+    const shopifyMappingSubquery = sql<string>`(
+      SELECT ${shopifyCustomerMappings.shopifyCustomerId} 
+      FROM ${shopifyCustomerMappings} 
+      WHERE ${shopifyCustomerMappings.crmCustomerId} = ${customers.id} 
+      AND ${shopifyCustomerMappings.isActive} = true
+      LIMIT 1
+    )`.as('shopify_customer_id');
+    
     // Get Aneesh's customers that aren't paused or DNC, with machine profile status
     const aneeshCustomers = await db
       .select({
@@ -379,6 +390,7 @@ export class NowModeEngine {
         hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
         isHotProspect: customers.isHotProspect,
         odooPartnerId: customers.odooPartnerId,
+        shopifyCustomerId: shopifyMappingSubquery,
       })
       .from(customers)
       .where(
@@ -445,6 +457,15 @@ export class NowModeEngine {
       .where(eq(customerMachineProfiles.customerId, customers.id))
       .limit(1);
     
+    // Use a subquery to get Shopify customer ID from mapping table
+    const shopifyMappingSubquery = sql<string>`(
+      SELECT ${shopifyCustomerMappings.shopifyCustomerId} 
+      FROM ${shopifyCustomerMappings} 
+      WHERE ${shopifyCustomerMappings.crmCustomerId} = ${customers.id} 
+      AND ${shopifyCustomerMappings.isActive} = true
+      LIMIT 1
+    )`.as('shopify_customer_id');
+    
     const result = await db
       .select({
         id: customers.id,
@@ -471,6 +492,7 @@ export class NowModeEngine {
         hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
         isHotProspect: customers.isHotProspect,
         odooPartnerId: customers.odooPartnerId,
+        shopifyCustomerId: shopifyMappingSubquery,
       })
       .from(customers)
       .where(
