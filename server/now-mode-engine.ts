@@ -1595,6 +1595,254 @@ export class NowModeEngine {
 
     return { highActivityLowOutcome, lowActivity };
   }
+
+  // Debug endpoint - explains card selection reasoning (admin only)
+  async getDebugInfo(userId: string): Promise<{
+    selectionReasoning: {
+      targetBucket: string | null;
+      bucketProgress: BucketProgress[];
+      rulesFired: string[];
+      selectedCard: any | null;
+    };
+    exclusions: {
+      totalCustomers: number;
+      excludedDNC: number;
+      excludedPaused: number;
+      excludedNoRep: number;
+      excludedNoEmail: number;
+      excludedRecent: number;
+      available: number;
+    };
+    sessionState: any;
+  }> {
+    const session = await this.getOrCreateSession(userId);
+    const bucketProgress = this.getBucketProgress(session);
+    const targetBucket = this.getNextBucket(session);
+    
+    // Track rules that fired for bucket selection
+    const rulesFired: string[] = [];
+    const unfilled = bucketProgress.filter(p => p.remaining > 0);
+    
+    if (unfilled.length === 0) {
+      rulesFired.push("ALL_BUCKETS_FILLED: No remaining quota in any bucket");
+    } else {
+      const totalCompleted = session.totalCompleted || 0;
+      const lastBucket = (session as any).lastBucket as string | null;
+      const callsInFirstFive = (session as any).callsInFirstFive || 0;
+      
+      if (totalCompleted >= 8) {
+        rulesFired.push("RULE_3_EASY_FINISH: Last 2 cards should be easy wins (data_hygiene/enablement)");
+      }
+      if (lastBucket) {
+        rulesFired.push(`RULE_1_NO_REPEAT: Avoiding same bucket '${lastBucket}' twice in a row`);
+      }
+      if (totalCompleted < 5 && callsInFirstFive >= 2) {
+        rulesFired.push("RULE_2_CALL_LIMIT: Max 2 calls in first 5 cards reached");
+      }
+      rulesFired.push(`PRIORITY_ORDER: data_hygiene > follow_ups > outreach > calls > enablement`);
+    }
+    
+    // Get exclusion counts
+    const now = new Date();
+    const allCustomers = await db
+      .select({ 
+        id: customers.id,
+        doNotContact: customers.doNotContact,
+        pausedUntil: customers.pausedUntil,
+        salesRepId: customers.salesRepId,
+        email: customers.email,
+      })
+      .from(customers)
+      .limit(1000);
+    
+    const recentActivities = await db
+      .select({ customerId: nowModeActivities.customerId })
+      .from(nowModeActivities)
+      .where(eq(nowModeActivities.sessionId, session.id))
+      .limit(50);
+    const recentIds = new Set(recentActivities.map(a => a.customerId));
+    
+    let excludedDNC = 0, excludedPaused = 0, excludedNoRep = 0, excludedNoEmail = 0, excludedRecent = 0;
+    
+    for (const c of allCustomers) {
+      if (c.doNotContact) excludedDNC++;
+      else if (c.pausedUntil && new Date(c.pausedUntil) > now) excludedPaused++;
+      else if (!c.salesRepId && c.salesRepId !== userId) { /* counted below */ }
+      if (!c.email) excludedNoEmail++;
+      if (recentIds.has(c.id)) excludedRecent++;
+    }
+    
+    // Get the actual card that would be selected
+    const { card } = await this.getEligibleCard(userId);
+    
+    return {
+      selectionReasoning: {
+        targetBucket,
+        bucketProgress,
+        rulesFired,
+        selectedCard: card ? {
+          customerId: card.customerId,
+          customerName: card.customer.company || `${card.customer.firstName} ${card.customer.lastName}`,
+          cardType: card.cardType,
+          bucket: card.bucket,
+          whyNow: card.whyNow,
+          isHardCard: card.isHardCard,
+        } : null,
+      },
+      exclusions: {
+        totalCustomers: allCustomers.length,
+        excludedDNC,
+        excludedPaused,
+        excludedNoRep,
+        excludedNoEmail,
+        excludedRecent,
+        available: allCustomers.length - excludedDNC - excludedPaused - excludedRecent,
+      },
+      sessionState: {
+        dateKey: session.dateKey,
+        totalCompleted: session.totalCompleted,
+        totalSkips: session.totalSkips,
+        efficiencyScore: session.efficiencyScore,
+        skipPenaltyApplied: session.skipPenaltyApplied,
+        lastActivityAt: session.lastActivityAt,
+      },
+    };
+  }
+
+  // Per-rep admin stats for dashboard
+  async getPerRepStats(): Promise<Array<{
+    userId: string;
+    email: string;
+    completedToday: number;
+    skippedToday: number;
+    avgTimePerCard: number;
+    streak: number;
+    efficiencyScore: number;
+  }>> {
+    const today = this.getTodayKey();
+    
+    // Get today's sessions with user info
+    const todaySessions = await db
+      .select({
+        session: nowModeSessions,
+        user: users,
+      })
+      .from(nowModeSessions)
+      .leftJoin(users, eq(nowModeSessions.userId, users.id))
+      .where(eq(nowModeSessions.dateKey, today));
+    
+    // Get time-to-action from events
+    const userIds = todaySessions.map(s => s.session.userId);
+    const todayEvents = userIds.length > 0 
+      ? await db
+          .select()
+          .from(nowModeEvents)
+          .where(and(
+            sql`${nowModeEvents.userId} = ANY(${userIds})`,
+            sql`DATE(${nowModeEvents.createdAt}) = ${today}`
+          ))
+      : [];
+    
+    // Calculate streaks - consecutive days hitting target (10+)
+    const streaks = await this.calculateStreaks(userIds);
+    
+    // Build per-rep stats
+    const repStats: Array<{
+      userId: string;
+      email: string;
+      completedToday: number;
+      skippedToday: number;
+      avgTimePerCard: number;
+      streak: number;
+      efficiencyScore: number;
+    }> = [];
+    
+    for (const { session, user } of todaySessions) {
+      const userEvents = todayEvents.filter(e => 
+        e.userId === session.userId && 
+        e.eventType === 'now_action_completed' && 
+        e.timeToActionSeconds
+      );
+      
+      const avgTime = userEvents.length > 0
+        ? Math.round(userEvents.reduce((sum, e) => sum + (e.timeToActionSeconds || 0), 0) / userEvents.length)
+        : 0;
+      
+      repStats.push({
+        userId: session.userId,
+        email: user?.email || 'Unknown',
+        completedToday: session.totalCompleted || 0,
+        skippedToday: session.totalSkips || 0,
+        avgTimePerCard: avgTime,
+        streak: streaks[session.userId] || 0,
+        efficiencyScore: session.efficiencyScore || 0,
+      });
+    }
+    
+    return repStats.sort((a, b) => b.completedToday - a.completedToday);
+  }
+
+  // Calculate consecutive day streaks (10+ completions)
+  private async calculateStreaks(userIds: string[]): Promise<Record<string, number>> {
+    if (userIds.length === 0) return {};
+    
+    const streaks: Record<string, number> = {};
+    const TARGET_FOR_STREAK = 10;
+    
+    // Get last 30 days of sessions for each user
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const startDateKey = thirtyDaysAgo.toISOString().split('T')[0];
+    
+    const recentSessions = await db
+      .select()
+      .from(nowModeSessions)
+      .where(and(
+        sql`${nowModeSessions.userId} = ANY(${userIds})`,
+        gte(nowModeSessions.dateKey, startDateKey)
+      ))
+      .orderBy(desc(nowModeSessions.dateKey));
+    
+    // Group by user
+    const userSessions: Record<string, typeof recentSessions> = {};
+    for (const session of recentSessions) {
+      if (!userSessions[session.userId]) {
+        userSessions[session.userId] = [];
+      }
+      userSessions[session.userId].push(session);
+    }
+    
+    // Calculate streak for each user
+    for (const userId of userIds) {
+      const sessions = userSessions[userId] || [];
+      let streak = 0;
+      let lastDate: Date | null = null;
+      
+      for (const session of sessions) {
+        const sessionDate = new Date(session.dateKey);
+        const meetsTarget = (session.totalCompleted || 0) >= TARGET_FOR_STREAK;
+        
+        if (!meetsTarget) break;
+        
+        if (lastDate === null) {
+          streak = 1;
+        } else {
+          // Check if consecutive day
+          const dayDiff = Math.floor((lastDate.getTime() - sessionDate.getTime()) / (1000 * 60 * 60 * 24));
+          if (dayDiff === 1) {
+            streak++;
+          } else {
+            break;
+          }
+        }
+        lastDate = sessionDate;
+      }
+      
+      streaks[userId] = streak;
+    }
+    
+    return streaks;
+  }
 }
 
 export const nowModeEngine = new NowModeEngine();

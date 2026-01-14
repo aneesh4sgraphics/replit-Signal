@@ -17104,6 +17104,29 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // NOW MODE Debug - detailed selection reasoning (Admin only)
+  app.get("/api/now-mode/debug", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const targetUserId = req.query.userId as string || req.user?.id;
+      const debugInfo = await nowModeEngine.getDebugInfo(targetUserId);
+      res.json(debugInfo);
+    } catch (error) {
+      console.error("Error getting NOW MODE debug info:", error);
+      res.status(500).json({ error: "Failed to get debug info" });
+    }
+  });
+
+  // NOW MODE Per-Rep Stats for Admin Dashboard
+  app.get("/api/now-mode/admin/per-rep-stats", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const stats = await nowModeEngine.getPerRepStats();
+      res.json(stats);
+    } catch (error) {
+      console.error("Error getting per-rep stats:", error);
+      res.status(500).json({ error: "Failed to get per-rep stats" });
+    }
+  });
+
   // Enhanced admin metrics for NOW MODE
   app.get("/api/now-mode/admin/metrics", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
