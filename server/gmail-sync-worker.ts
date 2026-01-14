@@ -1,11 +1,12 @@
 import { google, gmail_v1 } from 'googleapis';
 import { db } from './db';
-import { eq, and, sql, desc, isNull } from 'drizzle-orm';
+import { eq, and, sql, desc, isNull, or } from 'drizzle-orm';
 import { 
   gmailSyncState, 
   gmailMessages, 
   gmailMessageMatches,
   gmailUnmatchedEmails,
+  gmailEmailAliases,
   userGmailConnections,
   customers,
   customerContacts,
@@ -14,14 +15,17 @@ import {
   InsertEmailSalesEvent,
 } from '@shared/schema';
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from './advisory-lock';
+import { normalizeEmail, extractEmailDomain, isFreeEmailProvider, FREE_EMAIL_PROVIDERS } from '@shared/email-normalizer';
 
 const SYNC_DAYS = 30;
 
-export const FREE_EMAIL_PROVIDERS = new Set([
-  'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com', 'aol.com', 'icloud.com',
-  'live.com', 'msn.com', 'protonmail.com', 'mail.com', 'yandex.com', 'gmx.com',
-  'zoho.com', 'fastmail.com', 'tutanota.com', 'hey.com'
-]);
+export interface MatchResult {
+  customerId: string | null;
+  contactId: number | null;
+  matchType: 'exact_email' | 'alias' | 'domain' | 'none';
+  confidence: number;
+  matchedEmailNormalized: string | null;
+}
 
 interface SyncStats {
   threadsFound: number;
@@ -141,40 +145,114 @@ function extractBodyText(payload: gmail_v1.Schema$MessagePart | undefined): stri
 
 export async function matchEmailToCustomer(
   email: string, 
-  domain: string
-): Promise<{ customerId: string | null; matchType: string; confidence: number }> {
-  const normalizedEmail = email.toLowerCase();
+  domain?: string
+): Promise<MatchResult> {
+  const normalized = normalizeEmail(email);
+  if (!normalized) {
+    return { customerId: null, contactId: null, matchType: 'none', confidence: 0, matchedEmailNormalized: null };
+  }
   
-  const contactMatch = await db.select({ customerId: customerContacts.customerId })
+  const emailDomain = domain || extractEmailDomain(email);
+  
+  const contactMatch = await db.select({ 
+    customerId: customerContacts.customerId,
+    contactId: customerContacts.id,
+    emailNormalized: customerContacts.emailNormalized,
+  })
     .from(customerContacts)
-    .where(sql`LOWER(${customerContacts.email}) = ${normalizedEmail}`)
+    .where(eq(customerContacts.emailNormalized, normalized))
     .limit(1);
   
   if (contactMatch.length > 0 && contactMatch[0].customerId) {
-    return { customerId: contactMatch[0].customerId, matchType: 'exact_email', confidence: 1.00 };
+    return { 
+      customerId: contactMatch[0].customerId, 
+      contactId: contactMatch[0].contactId,
+      matchType: 'exact_email', 
+      confidence: 1.00,
+      matchedEmailNormalized: normalized,
+    };
   }
   
-  const customerEmailMatch = await db.select({ id: customers.id })
+  const customerEmailMatch = await db.select({ 
+    id: customers.id,
+    emailNormalized: customers.emailNormalized,
+    email2Normalized: customers.email2Normalized,
+  })
     .from(customers)
-    .where(sql`LOWER(${customers.email}) = ${normalizedEmail}`)
+    .where(
+      or(
+        eq(customers.emailNormalized, normalized),
+        eq(customers.email2Normalized, normalized)
+      )
+    )
     .limit(1);
   
   if (customerEmailMatch.length > 0) {
-    return { customerId: customerEmailMatch[0].id, matchType: 'exact_email', confidence: 1.00 };
+    return { 
+      customerId: customerEmailMatch[0].id, 
+      contactId: null,
+      matchType: 'exact_email', 
+      confidence: 1.00,
+      matchedEmailNormalized: normalized,
+    };
   }
   
-  if (domain && !FREE_EMAIL_PROVIDERS.has(domain)) {
-    const domainMatch = await db.select({ id: customers.id })
-      .from(customers)
-      .where(sql`LOWER(${customers.email}) LIKE ${'%@' + domain}`)
+  const aliasMatch = await db.select({
+    customerId: gmailEmailAliases.customerId,
+    contactId: gmailEmailAliases.contactId,
+    primaryEmailNormalized: gmailEmailAliases.primaryEmailNormalized,
+  })
+    .from(gmailEmailAliases)
+    .where(eq(gmailEmailAliases.aliasEmailNormalized, normalized))
+    .limit(1);
+  
+  if (aliasMatch.length > 0 && aliasMatch[0].customerId) {
+    return {
+      customerId: aliasMatch[0].customerId,
+      contactId: aliasMatch[0].contactId,
+      matchType: 'alias',
+      confidence: 0.95,
+      matchedEmailNormalized: aliasMatch[0].primaryEmailNormalized,
+    };
+  }
+  
+  if (emailDomain && !isFreeEmailProvider(email)) {
+    const domainPattern = `%@${emailDomain}`;
+    
+    const contactDomainMatch = await db.select({
+      customerId: customerContacts.customerId,
+    })
+      .from(customerContacts)
+      .where(sql`${customerContacts.emailNormalized} LIKE ${domainPattern}`)
       .limit(1);
     
-    if (domainMatch.length > 0) {
-      return { customerId: domainMatch[0].id, matchType: 'domain', confidence: 0.70 };
+    if (contactDomainMatch.length > 0 && contactDomainMatch[0].customerId) {
+      return {
+        customerId: contactDomainMatch[0].customerId,
+        contactId: null,
+        matchType: 'domain',
+        confidence: 0.70,
+        matchedEmailNormalized: normalized,
+      };
+    }
+    
+    const customerDomainMatch = await db.select({ id: customers.id })
+      .from(customers)
+      .where(sql`${customers.emailNormalized} LIKE ${domainPattern}`)
+      .limit(1);
+    
+    if (customerDomainMatch.length > 0) {
+      return { 
+        customerId: customerDomainMatch[0].id, 
+        contactId: null,
+        matchType: 'domain', 
+        confidence: 0.70,
+        matchedEmailNormalized: normalized,
+      };
     }
   }
   
-  return { customerId: null, matchType: 'none', confidence: 0 };
+  return { customerId: null, contactId: null, matchType: 'none', confidence: 0, matchedEmailNormalized: normalized };
 }
 
 export async function syncGmailMessages(userId: string): Promise<SyncStats> {
@@ -249,14 +327,17 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
               
               const fromEmail = extractEmailAddress(fromHeader);
               const toEmail = extractEmailAddress(toHeader);
+              const fromEmailNormalized = normalizeEmail(fromEmail);
+              const toEmailNormalized = normalizeEmail(toEmail);
               const direction = isInbox ? 'inbound' : 'outbound';
               const relevantEmail = direction === 'inbound' ? fromEmail : toEmail;
-              const domain = extractDomain(relevantEmail);
+              const relevantEmailNormalized = direction === 'inbound' ? fromEmailNormalized : toEmailNormalized;
+              const domain = extractEmailDomain(relevantEmail);
               
               const bodyText = extractBodyText(fullMessage.data.payload);
               const sentAt = dateHeader ? new Date(dateHeader) : new Date();
               
-              const match = await matchEmailToCustomer(relevantEmail, domain);
+              const match = await matchEmailToCustomer(relevantEmail, domain || undefined);
               
               const newMessage: InsertGmailMessage = {
                 userId,
@@ -264,14 +345,20 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
                 threadId: msgRef.threadId || null,
                 direction,
                 fromEmail,
+                fromEmailNormalized,
                 fromName: extractName(fromHeader),
                 toEmail,
+                toEmailNormalized,
                 toName: extractName(toHeader),
                 subject: subject.substring(0, 1000),
                 snippet: fullMessage.data.snippet?.substring(0, 500) || null,
                 bodyText: bodyText.substring(0, 50000),
                 sentAt,
                 customerId: match.customerId,
+                contactId: match.contactId,
+                matchConfidence: match.confidence.toFixed(2),
+                matchType: match.matchType,
+                matchedEmailNormalized: match.matchedEmailNormalized,
                 analysisStatus: 'pending',
               };
               
@@ -283,16 +370,20 @@ export async function syncGmailMessages(userId: string): Promise<SyncStats> {
                 await db.insert(gmailMessageMatches).values({
                   gmailMessageId: inserted.id,
                   customerId: match.customerId,
+                  contactId: match.contactId,
                   matchType: match.matchType,
                   matchedEmail: relevantEmail,
+                  matchedEmailNormalized: relevantEmailNormalized,
                   confidence: match.confidence.toFixed(2),
                 });
                 stats.matchedToCustomers++;
               } else {
                 await db.insert(gmailUnmatchedEmails).values({
                   gmailMessageId: inserted.id,
+                  userId,
                   email: relevantEmail,
-                  domain,
+                  emailNormalized: relevantEmailNormalized,
+                  domain: domain || null,
                   senderName: extractName(fromHeader),
                   messageDate: sentAt,
                   subject: subject.substring(0, 500),

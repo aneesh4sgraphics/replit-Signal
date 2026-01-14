@@ -4,6 +4,7 @@ import { eq, and, desc, sql, inArray, lt, isNull, or } from "drizzle-orm";
 import { getMessages, getMessage } from "./gmail-client";
 import { getImapMessages, getImapMessage, hasAnyImapCredentials } from "./imap-client";
 import { getUserGmailConnection, getUserGmailMessages, getUserGmailMessage } from "./user-gmail-oauth";
+import { syncGmailMessages } from "./gmail-sync-worker";
 import OpenAI from "openai";
 import { logApiCost } from "./cost-tracker";
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock";
@@ -1005,14 +1006,14 @@ async function syncUserGmailMessagesDelta(userId: string, maxMessages: number): 
   if (lastHistoryId && hasRecentSync) {
     // Delta sync - only fetch new messages since last sync
     console.log(`[Gmail Sync] Delta sync for user ${userId} from historyId ${lastHistoryId}`);
-    const result = await syncUserGmailMessages(userId, maxMessages);
-    return { newMessages: result.newMessages, syncType: 'delta' };
+    const result = await syncGmailMessages(userId);
+    return { newMessages: result.messagesStored, syncType: 'delta' };
   }
   
   // Full sync (first time or stale sync state)
   console.log(`[Gmail Sync] Full sync for user ${userId} (no recent historyId)`);
-  const result = await syncUserGmailMessages(userId, maxMessages);
-  return { newMessages: result.newMessages, syncType: 'full' };
+  const result = await syncGmailMessages(userId);
+  return { newMessages: result.messagesStored, syncType: 'full' };
 }
 
 // Gmail sync configuration

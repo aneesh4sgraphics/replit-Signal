@@ -1,0 +1,82 @@
+ADD “NORMALIZE EMAIL” TO NOW MODE (DATA HYGIENE BUCKET)
+
+Goal:
+Make email normalization + email cleanup part of NOW MODE’s Data Hygiene segment so reps fix contact emails through clicks, not typing, and Email Intelligence matching improves over time.
+
+A) New NOW MODE Card Types (Data Hygiene)
+Add these card types:
+
+1) HYGIENE_NORMALIZE_EMAIL
+- Trigger when a contact has email_raw present but email_normalized is null OR invalid.
+- Card shows:
+  - Customer + Contact name
+  - Current email_raw
+  - Suggested normalized email (preview)
+  - Reason: “Required for Email Intelligence matching”
+- Actions (buttons):
+  - “Apply fix” (writes email_normalized)
+  - “Edit email” (small input, optional)
+  - “Mark invalid / No email”
+  - “Skip”
+
+2) HYGIENE_DUPLICATE_EMAIL
+- Trigger when multiple contacts share same email_normalized.
+- Card shows duplicates and suggests a primary contact.
+- Actions:
+  - “Merge contacts” (or “Set primary + archive others” if merge is hard)
+  - “Keep separate” (requires reason)
+  - “Skip”
+
+3) HYGIENE_MISSING_PRIMARY_EMAIL
+- Trigger when customer has contacts but none marked primary_email.
+- Actions:
+  - “Set this contact as primary”
+  - “No primary (skip)”
+
+B) Email Normalization Logic (shared utility)
+Create normalizeEmail(email_raw) utility used by:
+- contact save
+- bulk import
+- Gmail sync matching
+- NOW MODE hygiene cards
+
+Normalization rules:
+- trim whitespace
+- lowercase
+- strip angle brackets
+- parse “Name <email@domain.com>” forms
+- validate basic email format
+Return null if invalid.
+
+Store:
+- contacts.email_raw
+- contacts.email_normalized (indexed)
+
+C) Card Generation Rules (Data Hygiene quota)
+In NOW MODE daily quotas (10/day), Data Hygiene should include:
+- 1–2 email hygiene cards per day per rep until data reaches a threshold.
+Priority scoring:
+- If contact belongs to “active” customer (recent quote/sample/order) => higher priority
+- If email domain matches customer domain => boost
+- If currently used in Gmail sync unmatched queue => boost
+
+D) UX requirements (minimal typing)
+- Default action should be “Apply fix” (one click).
+- Only show edit input if user chooses “Edit email”.
+- After completion, instantly load next card.
+
+E) Impact on Email Intelligence Matching
+Update matching to rely on email_normalized:
+- Exact match against contacts.email_normalized is confidence 1.0
+- Domain match only if no exact match exists
+
+F) Admin reporting (optional)
+Track:
+- # email_normalized fixes completed per rep per day
+- % contacts with valid email_normalized
+These should contribute to rep efficiency score (reward hygiene).
+
+Acceptance criteria:
+1) NOW MODE Data Hygiene produces email normalization cards automatically.
+2) Reps can fix most emails with one click.
+3) Email Intelligence exact-match success rate increases over time (fewer unmatched emails).
