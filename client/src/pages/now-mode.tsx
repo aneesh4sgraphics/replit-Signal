@@ -320,8 +320,9 @@ export default function NowMode() {
   const { open: openEmailComposer } = useEmailComposer();
 
   // Fetch users for sales rep dropdown
-  const { data: usersData } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
+  const { data: usersData, isLoading: usersLoading } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
     queryKey: ["/api/users"],
+    staleTime: 1000 * 60 * 5, // Cache for 5 minutes
   });
 
   // Sort users by display name for dropdown
@@ -1443,14 +1444,20 @@ export default function NowMode() {
                       <Label className="text-sm text-gray-700">Select Sales Rep</Label>
                       <Select value={inlineSalesRep} onValueChange={setInlineSalesRep}>
                         <SelectTrigger className="bg-white">
-                          <SelectValue placeholder="Choose a sales rep..." />
+                          <SelectValue placeholder={usersLoading ? "Loading..." : "Choose a sales rep..."} />
                         </SelectTrigger>
                         <SelectContent>
-                          {sortedUsers.map((user) => (
-                            <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
-                              {getSalesRepDisplayName(user.email)}
-                            </SelectItem>
-                          ))}
+                          {usersLoading ? (
+                            <div className="px-2 py-1 text-sm text-gray-500">Loading sales reps...</div>
+                          ) : sortedUsers.length === 0 ? (
+                            <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                          ) : (
+                            sortedUsers.map((user) => (
+                              <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                                {getSalesRepDisplayName(user.email)}
+                              </SelectItem>
+                            ))
+                          )}
                         </SelectContent>
                       </Select>
                     </div>
@@ -1676,14 +1683,20 @@ export default function NowMode() {
               <Label htmlFor="sales-rep">Sales Rep</Label>
               <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
                 <SelectTrigger>
-                  <SelectValue placeholder="Select sales rep" />
+                  <SelectValue placeholder={usersLoading ? "Loading..." : "Select sales rep"} />
                 </SelectTrigger>
                 <SelectContent>
-                  {sortedUsers.map((user) => (
-                    <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
-                      {getSalesRepDisplayName(user.email)}
-                    </SelectItem>
-                  ))}
+                  {usersLoading ? (
+                    <div className="px-2 py-1 text-sm text-gray-500">Loading sales reps...</div>
+                  ) : sortedUsers.length === 0 ? (
+                    <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                  ) : (
+                    sortedUsers.map((user) => (
+                      <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                        {getSalesRepDisplayName(user.email)}
+                      </SelectItem>
+                    ))
+                  )}
                 </SelectContent>
               </Select>
             </div>
