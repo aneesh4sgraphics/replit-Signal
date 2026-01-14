@@ -179,7 +179,9 @@ export const customers = pgTable("customers", {
   firstName: varchar("first_name", { length: 255 }),
   lastName: varchar("last_name", { length: 255 }),
   email: varchar("email", { length: 255 }),
+  emailNormalized: varchar("email_normalized", { length: 320 }), // Canonical normalized email for matching
   email2: varchar("email2", { length: 255 }), // Secondary email for contacts with multiple emails
+  email2Normalized: varchar("email2_normalized", { length: 320 }), // Normalized secondary email
   acceptsEmailMarketing: boolean("accepts_email_marketing").default(false),
   company: varchar("company", { length: 255 }),
   address1: varchar("address1", { length: 255 }),
@@ -228,6 +230,7 @@ export const customers = pgTable("customers", {
   // Performance indexes for list view filters and search
   index("IDX_customers_sales_rep_id").on(table.salesRepId),
   index("IDX_customers_email").on(table.email),
+  index("IDX_customers_email_normalized").on(table.emailNormalized),
   index("IDX_customers_company").on(table.company),
   index("IDX_customers_province").on(table.province),
   index("IDX_customers_pricing_tier").on(table.pricingTier),
@@ -265,6 +268,7 @@ export const customerContacts = pgTable("customer_contacts", {
   customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
   name: varchar("name", { length: 255 }).notNull(),
   email: varchar("email", { length: 255 }),
+  emailNormalized: varchar("email_normalized", { length: 320 }), // Canonical normalized email for matching
   phone: varchar("phone", { length: 50 }),
   role: varchar("role", { length: 100 }), // e.g., "Buyer", "Production Manager", "Owner"
   isPrimary: boolean("is_primary").default(false),
@@ -273,6 +277,7 @@ export const customerContacts = pgTable("customer_contacts", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
   index("IDX_customer_contacts_customer_id").on(table.customerId),
+  index("IDX_customer_contacts_email_normalized").on(table.emailNormalized),
 ]);
 
 export const insertCustomerContactSchema = createInsertSchema(customerContacts).omit({
@@ -2372,6 +2377,7 @@ export const userGmailConnections = pgTable("user_gmail_connections", {
   id: serial("id").primaryKey(),
   userId: varchar("user_id").notNull().unique().references(() => users.id, { onDelete: "cascade" }),
   gmailAddress: varchar("gmail_address", { length: 255 }).notNull(),
+  gmailAddressNormalized: varchar("gmail_address_normalized", { length: 320 }), // Normalized gmail address
   accessToken: text("access_token").notNull(),
   refreshToken: text("refresh_token"),
   tokenExpiry: timestamp("token_expiry"),
@@ -2383,6 +2389,7 @@ export const userGmailConnections = pgTable("user_gmail_connections", {
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
   userIdIdx: index("user_gmail_connections_user_id_idx").on(table.userId),
+  gmailNormalizedIdx: index("user_gmail_connections_gmail_normalized_idx").on(table.gmailAddressNormalized),
 }));
 
 export const insertUserGmailConnectionSchema = createInsertSchema(userGmailConnections).omit({
@@ -2432,14 +2439,22 @@ export const gmailMessages = pgTable("gmail_messages", {
   threadId: varchar("thread_id", { length: 100 }),
   direction: varchar("direction", { length: 10 }).notNull(), // 'inbound' or 'outbound'
   fromEmail: varchar("from_email", { length: 255 }),
+  fromEmailNormalized: varchar("from_email_normalized", { length: 320 }), // Normalized sender email
   fromName: varchar("from_name", { length: 255 }),
   toEmail: varchar("to_email", { length: 255 }),
+  toEmailNormalized: varchar("to_email_normalized", { length: 320 }), // Normalized recipient email
   toName: varchar("to_name", { length: 255 }),
+  ccEmails: text("cc_emails"), // CC recipients (comma-separated raw)
+  ccEmailsNormalized: text("cc_emails_normalized"), // Normalized CC emails (comma-separated)
   subject: varchar("subject", { length: 1000 }),
   snippet: text("snippet"),
   bodyText: text("body_text"), // Plain text version
   sentAt: timestamp("sent_at"),
   customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }), // Matched customer
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }), // Matched contact
+  matchConfidence: decimal("match_confidence", { precision: 3, scale: 2 }), // 0.00-1.00 match confidence
+  matchType: varchar("match_type", { length: 30 }), // exact_email, alias, domain, none
+  matchedEmailNormalized: varchar("matched_email_normalized", { length: 320 }), // The email that triggered the match
   analysisStatus: varchar("analysis_status", { length: 20 }).default("pending"), // pending, processing, completed, failed
   analyzedAt: timestamp("analyzed_at"),
   createdAt: timestamp("created_at").defaultNow(),
@@ -2447,6 +2462,9 @@ export const gmailMessages = pgTable("gmail_messages", {
   gmailMessageIdIdx: index("gmail_messages_gmail_id_idx").on(table.gmailMessageId),
   userIdIdx: index("gmail_messages_user_id_idx").on(table.userId),
   customerIdIdx: index("gmail_messages_customer_id_idx").on(table.customerId),
+  fromEmailNormalizedIdx: index("gmail_messages_from_email_normalized_idx").on(table.fromEmailNormalized),
+  toEmailNormalizedIdx: index("gmail_messages_to_email_normalized_idx").on(table.toEmailNormalized),
+  userFromNormalizedIdx: index("gmail_messages_user_from_normalized_idx").on(table.userId, table.fromEmailNormalized),
 }));
 
 export const insertGmailMessageSchema = createInsertSchema(gmailMessages).omit({
@@ -2519,8 +2537,10 @@ export const gmailMessageMatches = pgTable("gmail_message_matches", {
   id: serial("id").primaryKey(),
   gmailMessageId: integer("gmail_message_id").notNull().references(() => gmailMessages.id, { onDelete: "cascade" }),
   customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
-  matchType: varchar("match_type", { length: 20 }).notNull(), // 'exact_email', 'domain', 'manual'
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }), // Matched contact
+  matchType: varchar("match_type", { length: 30 }).notNull(), // 'exact_email', 'alias', 'domain', 'manual'
   matchedEmail: varchar("matched_email", { length: 255 }),
+  matchedEmailNormalized: varchar("matched_email_normalized", { length: 320 }), // Normalized email that triggered match
   confidence: decimal("confidence", { precision: 3, scale: 2 }).notNull(), // 0.00 - 1.00
   isConfirmed: boolean("is_confirmed").default(false),
   confirmedBy: varchar("confirmed_by", { length: 255 }),
@@ -2529,6 +2549,7 @@ export const gmailMessageMatches = pgTable("gmail_message_matches", {
 }, (table) => ({
   messageIdIdx: index("gmail_message_matches_message_idx").on(table.gmailMessageId),
   customerIdIdx: index("gmail_message_matches_customer_idx").on(table.customerId),
+  normalizedEmailIdx: index("gmail_message_matches_email_normalized_idx").on(table.matchedEmailNormalized),
 }));
 
 export const insertGmailMessageMatchSchema = createInsertSchema(gmailMessageMatches).omit({
@@ -2542,7 +2563,9 @@ export type InsertGmailMessageMatch = z.infer<typeof insertGmailMessageMatchSche
 export const gmailUnmatchedEmails = pgTable("gmail_unmatched_emails", {
   id: serial("id").primaryKey(),
   gmailMessageId: integer("gmail_message_id").notNull().references(() => gmailMessages.id, { onDelete: "cascade" }),
+  userId: varchar("user_id").references(() => users.id, { onDelete: "cascade" }), // Gmail owner
   email: varchar("email", { length: 255 }).notNull(),
+  emailNormalized: varchar("email_normalized", { length: 320 }), // Normalized email for matching
   domain: varchar("domain", { length: 255 }),
   senderName: varchar("sender_name", { length: 255 }),
   messageDate: timestamp("message_date"),
@@ -2551,15 +2574,43 @@ export const gmailUnmatchedEmails = pgTable("gmail_unmatched_emails", {
   lastAttemptAt: timestamp("last_attempt_at").defaultNow(),
   status: varchar("status", { length: 20 }).default("pending"), // 'pending', 'linked', 'ignored'
   linkedCustomerId: varchar("linked_customer_id").references(() => customers.id, { onDelete: "set null" }),
+  linkedContactId: integer("linked_contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
   linkedBy: varchar("linked_by", { length: 255 }),
   linkedAt: timestamp("linked_at"),
   ignoredReason: text("ignored_reason"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => ({
   emailIdx: index("gmail_unmatched_email_idx").on(table.email),
+  emailNormalizedIdx: index("gmail_unmatched_email_normalized_idx").on(table.emailNormalized),
   domainIdx: index("gmail_unmatched_domain_idx").on(table.domain),
   statusIdx: index("gmail_unmatched_status_idx").on(table.status),
+  userStatusIdx: index("gmail_unmatched_user_status_idx").on(table.userId, table.status),
 }));
+
+// Gmail Email Aliases - track email aliases for contacts (e.g., john@company.com and j.doe@company.com)
+export const gmailEmailAliases = pgTable("gmail_email_aliases", {
+  id: serial("id").primaryKey(),
+  primaryEmailNormalized: varchar("primary_email_normalized", { length: 320 }).notNull(), // The canonical email
+  aliasEmailNormalized: varchar("alias_email_normalized", { length: 320 }).notNull(), // The alias email
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "cascade" }),
+  isVerified: boolean("is_verified").default(false), // Whether this alias has been confirmed
+  source: varchar("source", { length: 50 }).default("auto"), // 'auto', 'manual', 'imported'
+  createdBy: varchar("created_by", { length: 255 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  primaryIdx: index("gmail_email_aliases_primary_idx").on(table.primaryEmailNormalized),
+  aliasIdx: index("gmail_email_aliases_alias_idx").on(table.aliasEmailNormalized),
+  customerIdx: index("gmail_email_aliases_customer_idx").on(table.customerId),
+  uniqueAlias: index("gmail_email_aliases_unique").on(table.aliasEmailNormalized),
+}));
+
+export const insertGmailEmailAliasSchema = createInsertSchema(gmailEmailAliases).omit({
+  id: true,
+  createdAt: true,
+});
+export type GmailEmailAlias = typeof gmailEmailAliases.$inferSelect;
+export type InsertGmailEmailAlias = z.infer<typeof insertGmailEmailAliasSchema>;
 
 export const insertGmailUnmatchedEmailSchema = createInsertSchema(gmailUnmatchedEmails).omit({
   id: true,

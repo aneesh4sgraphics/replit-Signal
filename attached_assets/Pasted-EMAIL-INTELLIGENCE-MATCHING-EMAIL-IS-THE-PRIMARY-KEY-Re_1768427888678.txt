@@ -1,0 +1,74 @@
+EMAIL INTELLIGENCE MATCHING — EMAIL IS THE PRIMARY KEY
+
+Requirement:
+- Use EMAIL ADDRESS as the primary matching key for Email Intelligence.
+- Domain/fuzzy matching is only a fallback and must never override an existing exact email match.
+
+A) Canonical Email Normalization (used everywhere)
+Implement a shared function normalizeEmail(email):
+- trim whitespace
+- lowercase
+- remove surrounding <>
+- parse “Name <email@domain.com>” to email only
+Return null if invalid.
+
+B) Data Model (email as key)
+1) Contacts table must store normalized email:
+- contacts.email_raw
+- contacts.email_normalized (indexed, unique per contact)
+2) Email messages must store normalized from/to:
+- email_messages.from_email_normalized
+- email_messages.to_email_normalized
+- email_messages.cc_emails_normalized[] (optional)
+3) gmail_accounts must store:
+- gmail_accounts.email_address_normalized
+
+C) Matching Priority Rules (strict)
+When syncing an email, determine `owner_user_id` from gmail_account (always).
+Then match email to CRM contact/customer using:
+1) EXACT match (confidence 1.0)
+   - If any of from/to/cc normalized email equals contacts.email_normalized
+   - Link to that contact AND the parent customer/account_id
+2) Secondary: “known aliases”
+   - If contact has multiple emails (store as additional rows or separate table)
+3) Fallback domain match (confidence 0.7)
+   - Only if there is NO exact match
+   - Only if customer has a verified company_domain
+4) Otherwise unmatched (confidence 0.0)
+   - Store in unmatched queue with normalized email shown
+   - Provide “Link to Contact/Customer” action in Settings/Admin only
+
+Hard rule:
+- If exact email match exists, do NOT do domain match. Exact wins always.
+
+D) Using Email as the “Key” in NOW MODE + Signals
+Email-driven signals must carry:
+- user_id (owner of Gmail)
+- matched_contact_id (nullable)
+- matched_customer_id (nullable)
+- matched_email_normalized (the email that caused the match)
+- confidence score
+
+NOW MODE should reference the matched email only in metadata, not UI.
+UI shows customer name + contact name (if linked).
+
+E) Prevent cross-user leakage
+Even if two reps email the same contact, the raw email belongs to the Gmail owner.
+So:
+- email_messages scoped by gmail_account.user_id
+- email_signals scoped by user_id
+- NOW MODE pulls signals only where user_id === current user
+
+F) Indexes (performance)
+Add indexes:
+- contacts.email_normalized (unique if possible)
+- email_messages.from_email_normalized
+- email_messages.to_email_normalized
+- email_signals.user_id, email_signals.matched_customer_id
+- customers.company_domain (if used)
+
+Acceptance tests:
+1) If a contact exists with email X, any synced email involving X is matched with confidence 1.0.
+2) Domain matching happens only if no exact email matches exist.
+3) Unmatched emails appear in a “link queue” (admin/settings), and once linked, future messages auto-match.
+4) NOW MODE shows email-driven tasks for the Gmail owner only.
