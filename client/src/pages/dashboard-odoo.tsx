@@ -112,29 +112,29 @@ interface ApiCostStats {
 }
 
 const allApps = [
-  { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', color: '#17A2B8' },
-  { path: '/price-list', icon: DollarSign, label: 'Price List', color: '#6F42C1' },
-  { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', color: '#0D6EFD' },
-  { path: '/sales-analytics', icon: TrendingUp, label: 'Sales Charts', color: '#28A745' },
-  { path: '/clients', icon: Users, label: 'Clients', color: '#28A745' },
-  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: '#0D6EFD' },
-  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: '#DC3545' },
-  { path: '/shipping-calculator', icon: Truck, label: 'Shipping', color: '#17A2B8' },
-  { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', color: '#0D6EFD' },
-  { path: '/product-labels', icon: Tag, label: 'Product Labels', color: '#D63384' },
-  { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#17A2B8' },
-  { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#6F42C1' },
-  { path: '/email-app', icon: Mail, label: 'Email Studio', color: '#D63384' },
-  { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#28A745' },
-  { path: '/calendar', icon: Calendar, label: 'Calendar', color: '#FFC107' },
-  { path: '/objections', icon: AlertTriangle, label: 'Objections', color: '#FD7E14' },
+  { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', color: '#111111' },
+  { path: '/price-list', icon: DollarSign, label: 'Price List', color: '#333333' },
+  { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', color: '#444444' },
+  { path: '/sales-analytics', icon: TrendingUp, label: 'Sales Charts', color: '#555555' },
+  { path: '/clients', icon: Users, label: 'Clients', color: '#111111' },
+  { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', color: '#666666' },
+  { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', color: '#777777' },
+  { path: '/shipping-calculator', icon: Truck, label: 'Shipping', color: '#444444' },
+  { path: '/shipping-labels', icon: Package, label: 'Shipping Labels', color: '#555555' },
+  { path: '/product-labels', icon: Tag, label: 'Product Labels', color: '#333333' },
+  { path: '/crm-samples', icon: FlaskConical, label: 'Samples', color: '#222222' },
+  { path: '/crm-swatches', icon: Palette, label: 'Swatches', color: '#666666' },
+  { path: '/email-app', icon: Mail, label: 'Email Studio', color: '#111111' },
+  { path: '/crm-journey', icon: Target, label: 'CRM Journey', color: '#444444' },
+  { path: '/calendar', icon: Calendar, label: 'Calendar', color: '#555555' },
+  { path: '/objections', icon: AlertTriangle, label: 'Objections', color: '#777777' },
 ];
 
 const adminApps = [
-  { path: '/admin', icon: Users, label: 'Users', color: '#6F42C1' },
-  { path: '/activity-logs', icon: Activity, label: 'Activity', color: '#17A2B8' },
-  { path: '/product-pricing-management', icon: Database, label: 'Products', color: '#0D6EFD' },
-  { path: '/pdf-settings', icon: FileText, label: 'PDF Settings', color: '#28A745' },
+  { path: '/admin', icon: Users, label: 'Users', color: '#222222' },
+  { path: '/activity-logs', icon: Activity, label: 'Activity', color: '#333333' },
+  { path: '/product-pricing-management', icon: Database, label: 'Products', color: '#444444' },
+  { path: '/pdf-settings', icon: FileText, label: 'PDF Settings', color: '#555555' },
 ];
 
 export default function Dashboard() {
@@ -417,23 +417,15 @@ export default function Dashboard() {
                           gap: '6px',
                           padding: '6px 12px',
                           borderRadius: '20px',
-                          background: efficiencyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.1)' : 
-                                     efficiencyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.1)' : 
-                                     'rgba(220, 53, 69, 0.1)',
-                          border: `1px solid ${efficiencyData.efficiencyScore >= 80 ? 'rgba(40, 167, 69, 0.3)' : 
-                                               efficiencyData.efficiencyScore >= 50 ? 'rgba(255, 193, 7, 0.3)' : 
-                                               'rgba(220, 53, 69, 0.3)'}`,
+                          background: 'rgba(17, 17, 17, 0.05)',
+                          border: '1px solid rgba(17, 17, 17, 0.15)',
                           cursor: 'pointer',
                         }}>
-                          <Gauge size={18} style={{ 
-                            color: efficiencyData.efficiencyScore >= 80 ? '#28A745' : 
-                                   efficiencyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545' 
-                          }} />
+                          <Gauge size={18} style={{ color: '#111111' }} />
                           <span style={{
                             fontSize: '14px',
                             fontWeight: 600,
-                            color: efficiencyData.efficiencyScore >= 80 ? '#28A745' : 
-                                   efficiencyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
+                            color: '#111111',
                           }}>
                             {efficiencyData.efficiencyScore}%
                           </span>
@@ -455,16 +447,16 @@ export default function Dashboard() {
                 {stats && (
                   <div style={{ display: 'flex', gap: '24px', flexWrap: 'wrap' }}>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#6F42C1' }}>{stats.totalQuotes}</div>
-                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Total Quotes</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#111111' }}>{stats.totalQuotes}</div>
+                      <div style={{ fontSize: '12px', color: '#666666' }}>Total Quotes</div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#28A745' }}>{stats.totalCustomers}</div>
-                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>Customers</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#111111' }}>{stats.totalCustomers}</div>
+                      <div style={{ fontSize: '12px', color: '#666666' }}>Customers</div>
                     </div>
                     <div style={{ textAlign: 'center' }}>
-                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#0D6EFD' }}>{stats.quotesThisMonth}</div>
-                      <div style={{ fontSize: '12px', color: '#6B6B8C' }}>This Month</div>
+                      <div style={{ fontSize: '24px', fontWeight: 700, color: '#111111' }}>{stats.quotesThisMonth}</div>
+                      <div style={{ fontSize: '12px', color: '#666666' }}>This Month</div>
                     </div>
                   </div>
                 )}
@@ -478,15 +470,15 @@ export default function Dashboard() {
                           width: '36px',
                           height: '36px',
                           borderRadius: '8px',
-                          background: connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.odoo?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          background: connectionStatus?.odoo?.connected ? 'rgba(17, 17, 17, 0.05)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.odoo?.connected ? 'rgba(17, 17, 17, 0.15)' : 'rgba(108, 117, 125, 0.3)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
                           position: 'relative',
                         }}>
-                          <Building2 size={18} style={{ color: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D' }} />
+                          <Building2 size={18} style={{ color: connectionStatus?.odoo?.connected ? '#111111' : '#999999' }} />
                           <div style={{
                             position: 'absolute',
                             bottom: '-2px',
@@ -494,7 +486,7 @@ export default function Dashboard() {
                             width: '10px',
                             height: '10px',
                             borderRadius: '50%',
-                            background: connectionStatus?.odoo?.connected ? '#28A745' : '#6C757D',
+                            background: connectionStatus?.odoo?.connected ? '#111111' : '#999999',
                             border: '2px solid white',
                           }} />
                         </div>
@@ -508,15 +500,15 @@ export default function Dashboard() {
                           width: '36px',
                           height: '36px',
                           borderRadius: '8px',
-                          background: connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.gmail?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          background: connectionStatus?.gmail?.connected ? 'rgba(17, 17, 17, 0.05)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.gmail?.connected ? 'rgba(17, 17, 17, 0.15)' : 'rgba(108, 117, 125, 0.3)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
                           position: 'relative',
                         }}>
-                          <Mail size={18} style={{ color: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D' }} />
+                          <Mail size={18} style={{ color: connectionStatus?.gmail?.connected ? '#111111' : '#999999' }} />
                           <div style={{
                             position: 'absolute',
                             bottom: '-2px',
@@ -524,7 +516,7 @@ export default function Dashboard() {
                             width: '10px',
                             height: '10px',
                             borderRadius: '50%',
-                            background: connectionStatus?.gmail?.connected ? '#28A745' : '#6C757D',
+                            background: connectionStatus?.gmail?.connected ? '#111111' : '#999999',
                             border: '2px solid white',
                           }} />
                         </div>
@@ -538,15 +530,15 @@ export default function Dashboard() {
                           width: '36px',
                           height: '36px',
                           borderRadius: '8px',
-                          background: connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.1)' : 'rgba(108, 117, 125, 0.1)',
-                          border: `1px solid ${connectionStatus?.calendar?.connected ? 'rgba(40, 167, 69, 0.3)' : 'rgba(108, 117, 125, 0.3)'}`,
+                          background: connectionStatus?.calendar?.connected ? 'rgba(17, 17, 17, 0.05)' : 'rgba(108, 117, 125, 0.1)',
+                          border: `1px solid ${connectionStatus?.calendar?.connected ? 'rgba(17, 17, 17, 0.15)' : 'rgba(108, 117, 125, 0.3)'}`,
                           display: 'flex',
                           alignItems: 'center',
                           justifyContent: 'center',
                           cursor: 'pointer',
                           position: 'relative',
                         }}>
-                          <Calendar size={18} style={{ color: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D' }} />
+                          <Calendar size={18} style={{ color: connectionStatus?.calendar?.connected ? '#111111' : '#999999' }} />
                           <div style={{
                             position: 'absolute',
                             bottom: '-2px',
@@ -554,7 +546,7 @@ export default function Dashboard() {
                             width: '10px',
                             height: '10px',
                             borderRadius: '50%',
-                            background: connectionStatus?.calendar?.connected ? '#28A745' : '#6C757D',
+                            background: connectionStatus?.calendar?.connected ? '#111111' : '#999999',
                             border: '2px solid white',
                           }} />
                         </div>
@@ -763,7 +755,7 @@ export default function Dashboard() {
               {usageStats && (
                 <div style={{ marginTop: '32px', padding: '24px', background: 'rgba(0,0,0,0.02)', borderRadius: '2px' }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: '20px' }}>
-                    <Gauge size={20} style={{ color: '#28A745' }} />
+                    <Gauge size={20} style={{ color: '#111111' }} />
                     <h3 style={{ fontSize: '16px', fontWeight: 600, color: '#2C2C54', margin: 0 }}>Resource Usage</h3>
                   </div>
                   
@@ -817,7 +809,7 @@ export default function Dashboard() {
                   <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '16px' }}>
                     <div style={{ background: '#FFFFFF', borderRadius: '2px', padding: '16px', boxShadow: '0 2px 8px rgba(0,0,0,0.05)' }}>
                       <div style={{ display: 'flex', alignItems: 'center', gap: '8px', marginBottom: '12px' }}>
-                        <DollarSign size={16} style={{ color: '#28A745' }} />
+                        <DollarSign size={16} style={{ color: '#111111' }} />
                         <span style={{ fontSize: '13px', fontWeight: 600, color: '#6B6B8C' }}>Total Spend</span>
                       </div>
                       <div style={{ fontSize: '24px', fontWeight: 700, color: '#2C2C54', marginBottom: '4px' }}>${apiCosts.summary.totalCost.toFixed(2)}</div>
@@ -922,7 +914,7 @@ export default function Dashboard() {
                 <div style={{
                   fontSize: '36px',
                   fontWeight: 700,
-                  color: dormancyData.efficiencyScore >= 80 ? '#28A745' : 
+                  color: dormancyData.efficiencyScore >= 80 ? '#111111' : 
                          dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
                   lineHeight: 1,
                 }}>

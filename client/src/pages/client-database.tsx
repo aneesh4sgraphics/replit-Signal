@@ -2082,7 +2082,7 @@ export default function ClientDatabase() {
           </Button>
           <Button 
             onClick={handleCreateCustomer} 
-            className="bg-[#00A09D] hover:bg-[#008F8C] text-white"
+            className="bg-[#111111] hover:bg-[#333333] text-white"
             data-testid="button-create-client"
           >
             <Plus className="h-4 w-4 mr-2" />
