@@ -478,10 +478,11 @@ export default function NowMode() {
       const res = await apiRequest("POST", "/api/now-mode/resume");
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: async () => {
       toast({ title: "Welcome Back!", description: "Let's continue where you left off." });
-      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/dormancy-check"] });
-      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/now-mode/dormancy-check"] });
+      await queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
+      refetch();
     },
   });
 
