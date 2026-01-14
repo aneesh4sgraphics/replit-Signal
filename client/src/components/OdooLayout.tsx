@@ -1,11 +1,5 @@
 import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
-import { 
-  Home, FileText, DollarSign, Users, Database, Settings, LogOut,
-  Menu, Activity, Calculator, TrendingUp, Truck, RefreshCw,
-  ChevronLeft, ChevronRight, Package, Tag, Grid3X3, Command,
-  GraduationCap
-} from 'lucide-react';
 import logoPath from '@assets/4s_logo_Clean_120x_1764801255491.png';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
@@ -15,6 +9,17 @@ import { useAppUsage, AppUsageProvider } from '@/hooks/useAppUsage';
 import { CommandPalette, useCommandPalette, NAV_ITEMS } from './CommandPalette';
 import { AppSwitcherDrawer } from './AppSwitcherDrawer';
 import TutorialCenter from './TutorialCenter';
+import {
+  SettingsIcon,
+  LogoutIcon,
+  MenuIcon,
+  GridIcon,
+  RefreshIcon,
+  ChevronLeftIcon,
+  ChevronRightIcon,
+  CommandIcon,
+  TutorialIcon,
+} from '@/components/HandDrawnIcons';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -55,12 +60,12 @@ function SettingsMenu() {
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <button className="p-2 rounded-lg hover:bg-gray-100 transition-colors">
-            <Settings className="h-4 w-4 text-gray-500" />
+            <SettingsIcon className="h-4 w-4 text-gray-500" />
           </button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="end" className="w-48">
           <DropdownMenuItem onClick={() => setShowResetDialog(true)} className="cursor-pointer">
-            <RefreshCw className="h-4 w-4 mr-2" />
+            <RefreshIcon className="h-4 w-4 mr-2" />
             Reset App Data
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -141,7 +146,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
           }}
           data-testid="button-mobile-menu"
         >
-          <Menu className="h-5 w-5 text-gray-700" />
+          <MenuIcon className="h-5 w-5 text-gray-700" />
         </button>
       </SheetTrigger>
       <SheetContent side="left" className="w-[300px] p-0">
@@ -159,7 +164,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
             className="m-4 flex items-center gap-3 px-4 py-3 rounded-xl bg-gray-50 hover:bg-gray-100 transition-colors"
             data-testid="button-mobile-app-switcher"
           >
-            <Grid3X3 className="h-5 w-5 text-gray-600" />
+            <GridIcon className="h-5 w-5 text-gray-600" />
             <span className="font-medium text-gray-700">All Apps</span>
           </button>
           
@@ -208,7 +213,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
               className="w-full justify-start gap-2 text-gray-600 hover:text-red-600 hover:bg-red-50"
               data-testid="button-logout-mobile"
             >
-              <LogOut className="h-4 w-4" />
+              <LogoutIcon className="h-4 w-4" />
               <span>{isLoggingOut ? 'Logging out...' : 'Log out'}</span>
             </Button>
           </div>
@@ -326,7 +331,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
           }}
           data-testid="button-toggle-sidebar"
         >
-          {sidebarExpanded ? <ChevronLeft className="h-3 w-3 text-gray-500" /> : <ChevronRight className="h-3 w-3 text-gray-500" />}
+          {sidebarExpanded ? <ChevronLeftIcon className="h-3 w-3 text-gray-500" /> : <ChevronRightIcon className="h-3 w-3 text-gray-500" />}
         </button>
 
         <div className="px-3 py-4">
@@ -336,7 +341,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
             title={!sidebarExpanded ? 'Learning Center' : undefined}
             data-testid="button-tutorials"
           >
-            <GraduationCap className="h-5 w-5 flex-shrink-0" />
+            <TutorialIcon className="h-5 w-5 flex-shrink-0" />
             {sidebarExpanded && <span className="text-sm font-medium">Tutorials</span>}
           </button>
         </div>
@@ -432,7 +437,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 className="w-full justify-start gap-2 text-gray-600 hover:text-red-600 hover:bg-red-50 disabled:opacity-50"
                 data-testid="button-logout"
               >
-                <LogOut className="h-4 w-4" />
+                <LogoutIcon className="h-4 w-4" />
                 <span>{isLoggingOut ? 'Logging out...' : 'Log out'}</span>
               </Button>
             </div>
@@ -450,7 +455,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 data-testid="button-logout"
                 title={isLoggingOut ? 'Logging out...' : 'Log out'}
               >
-                <LogOut className="h-4 w-4" />
+                <LogoutIcon className="h-4 w-4" />
               </button>
             </div>
           )}
