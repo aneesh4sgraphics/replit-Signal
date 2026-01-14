@@ -256,6 +256,9 @@ export async function syncGmailMessages(userId: string, userEmail: string, maxMe
   }
 }
 
+// Batch size for email analysis - process multiple emails per API call
+const BATCH_SIZE = 5;
+
 export async function analyzeMessagesForInsights(userId: string, limit: number = 20, analyzeAll: boolean = false) {
   console.log(`[Gmail Intelligence] Analyzing messages for user ${userId}${analyzeAll ? ' (analyzing all users)' : ''}`);
   
@@ -276,40 +279,59 @@ export async function analyzeMessagesForInsights(userId: string, limit: number =
   }
 
   let totalInsights = 0;
+  let analyzed = 0;
 
-  for (const message of pendingMessages) {
+  // Process in batches to reduce API calls
+  for (let i = 0; i < pendingMessages.length; i += BATCH_SIZE) {
+    const batch = pendingMessages.slice(i, i + BATCH_SIZE);
+    
     try {
-      await db.update(gmailMessages)
-        .set({ analysisStatus: 'processing' })
-        .where(eq(gmailMessages.id, message.id));
-
-      const insights = await extractInsightsFromEmail(message);
-      
-      for (const insight of insights) {
-        await db.insert(gmailInsights).values({
-          messageId: message.id,
-          userId,
-          customerId: message.customerId,
-          insightType: insight.type,
-          summary: insight.summary,
-          details: insight.details,
-          confidence: insight.confidence.toString(),
-          dueDate: insight.dueDate,
-          priority: insight.priority,
-          status: 'pending',
-        });
-        totalInsights++;
+      // Mark batch as processing
+      for (const message of batch) {
+        await db.update(gmailMessages)
+          .set({ analysisStatus: 'processing' })
+          .where(eq(gmailMessages.id, message.id));
       }
 
-      await db.update(gmailMessages)
-        .set({ analysisStatus: 'completed', analyzedAt: new Date() })
-        .where(eq(gmailMessages.id, message.id));
-
+      // Extract insights from batch in single API call
+      const batchInsights = await extractInsightsFromBatch(batch);
+      
+      // Process results for each message
+      for (const { messageId, insights } of batchInsights) {
+        const message = batch.find(m => m.id === messageId);
+        if (!message) continue;
+        
+        for (const insight of insights) {
+          await db.insert(gmailInsights).values({
+            messageId: message.id,
+            userId,
+            customerId: message.customerId,
+            insightType: insight.type,
+            summary: insight.summary,
+            details: insight.details,
+            confidence: insight.confidence.toString(),
+            dueDate: insight.dueDate,
+            priority: insight.priority,
+            status: 'pending',
+          });
+          totalInsights++;
+        }
+        
+        await db.update(gmailMessages)
+          .set({ analysisStatus: 'completed', analyzedAt: new Date() })
+          .where(eq(gmailMessages.id, message.id));
+        analyzed++;
+      }
+      
+      console.log(`[Gmail Intelligence] Batch ${Math.floor(i / BATCH_SIZE) + 1}: ${batch.length} emails processed`);
     } catch (error: any) {
-      console.error(`[Gmail Intelligence] Error analyzing message ${message.id}:`, error);
-      await db.update(gmailMessages)
-        .set({ analysisStatus: 'failed' })
-        .where(eq(gmailMessages.id, message.id));
+      console.error(`[Gmail Intelligence] Batch error:`, error);
+      // Mark batch as failed
+      for (const message of batch) {
+        await db.update(gmailMessages)
+          .set({ analysisStatus: 'failed' })
+          .where(eq(gmailMessages.id, message.id));
+      }
     }
   }
 
@@ -318,8 +340,8 @@ export async function analyzeMessagesForInsights(userId: string, limit: number =
     insightsExtracted: (finalState?.insightsExtracted || 0) + totalInsights,
   });
 
-  console.log(`[Gmail Intelligence] Analysis complete. Extracted ${totalInsights} insights`);
-  return { analyzed: pendingMessages.length, insights: totalInsights };
+  console.log(`[Gmail Intelligence] Analysis complete. Analyzed ${analyzed} messages, extracted ${totalInsights} insights`);
+  return { analyzed, insights: totalInsights };
 }
 
 interface ExtractedInsight {
@@ -346,6 +368,117 @@ interface ExtractedInsight {
   confidence: number;
   dueDate: Date | null;
   priority: 'low' | 'medium' | 'high' | 'urgent';
+}
+
+interface BatchInsightResult {
+  messageId: number;
+  insights: ExtractedInsight[];
+}
+
+// Batch extraction - processes multiple emails in a single OpenAI call
+async function extractInsightsFromBatch(messages: typeof gmailMessages.$inferSelect[]): Promise<BatchInsightResult[]> {
+  if (messages.length === 0) return [];
+  
+  // Format all emails for batch processing
+  const emailsContent = messages.map((message, idx) => `
+=== EMAIL ${idx + 1} (ID: ${message.id}) ===
+Subject: ${message.subject}
+From: ${message.fromName} <${message.fromEmail}>
+To: ${message.toName} <${message.toEmail}>
+Date: ${message.sentAt?.toISOString() || 'Unknown'}
+Direction: ${message.direction === 'outbound' ? 'Sent by me' : 'Received'}
+
+Content:
+${message.bodyText?.substring(0, 2000) || message.snippet || 'No content'}
+`).join('\n');
+
+  const systemPrompt = `You are a sales intelligence assistant analyzing business emails for a printing/packaging supplies company. Extract actionable insights from MULTIPLE emails.
+
+INSIGHT TYPES TO DETECT:
+1. PROMISE: Commitments made to customers
+2. FOLLOW_UP: Required follow-up actions
+3. SALES_OPPORTUNITY: Buying signals
+4. TASK: Specific action items
+5. QUESTION: Unanswered customer questions
+6. UNANSWERED_QUOTE: Customer asked for pricing but no response yet
+7. STALE_NEGOTIATION: Price discussions needing follow-up
+8. URGENT_REQUEST: Time-sensitive requests
+9. COMPETITOR_MENTION: Competitor or shopping mentions
+10. BUDGET_TIMING: Budget cycle or approval timing mentions
+11. DECISION_MAKER: Escalation to decision makers
+12. REPEAT_INQUIRY: Repeated interest in products
+13. MEETING_FOLLOWUP: Meeting discussions without calendar invite
+14. COMPLAINT: Customer frustration or issues
+15. REENGAGEMENT: Opportunity to reconnect
+16. THANK_YOU: Positive feedback
+17. ATTACHMENT_REQUEST: Request for materials
+
+Return JSON: {"results": [{"emailId": <number>, "insights": [...]}]}
+
+Each insight: {type, summary (max 100 chars), details, confidence (0.0-1.0), dueDate (ISO or null), priority}
+Only include insights with confidence >= 0.6.
+Return empty insights array [] for emails with no actionable insights.`;
+
+  try {
+    const startTime = Date.now();
+    const response = await openai.chat.completions.create({
+      model: 'gpt-4o',
+      messages: [
+        { role: 'system', content: systemPrompt },
+        { role: 'user', content: `Analyze these ${messages.length} emails:\n${emailsContent}` }
+      ],
+      response_format: { type: 'json_object' },
+      temperature: 0.3,
+      max_tokens: 2000,
+    });
+    const duration = Date.now() - startTime;
+
+    await logApiCost({
+      userId: messages[0].userId,
+      apiProvider: 'openai',
+      model: 'gpt-4o',
+      operation: 'gmail_batch_analysis',
+      functionName: 'extractInsightsFromBatch',
+      inputTokens: response.usage?.prompt_tokens || 0,
+      outputTokens: response.usage?.completion_tokens || 0,
+      requestDurationMs: duration,
+      success: true,
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      console.log('[Gmail AI] No batch response content');
+      return messages.map(m => ({ messageId: m.id, insights: [] }));
+    }
+
+    const parsed = JSON.parse(content);
+    const results = parsed.results || [];
+    
+    console.log(`[Gmail AI] Batch processed ${messages.length} emails in single API call`);
+    
+    // Map results back to message IDs
+    return messages.map(message => {
+      const result = results.find((r: any) => r.emailId === message.id);
+      const rawInsights = result?.insights || [];
+      
+      const insights: ExtractedInsight[] = rawInsights
+        .filter((i: any) => i.confidence >= 0.6)
+        .map((i: any) => ({
+          type: i.type,
+          summary: i.summary?.substring(0, 200) || '',
+          details: i.details?.substring(0, 1000) || '',
+          confidence: parseFloat(i.confidence) || 0.7,
+          dueDate: i.dueDate ? new Date(i.dueDate) : null,
+          priority: i.priority || 'medium',
+        }));
+      
+      return { messageId: message.id, insights };
+    });
+  } catch (error: any) {
+    console.error('[Gmail Intelligence] Batch OpenAI error:', error);
+    // Return empty results for all messages on error
+    return messages.map(m => ({ messageId: m.id, insights: [] }));
+  }
 }
 
 async function extractInsightsFromEmail(message: typeof gmailMessages.$inferSelect): Promise<ExtractedInsight[]> {

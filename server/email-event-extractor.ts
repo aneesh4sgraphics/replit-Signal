@@ -10,6 +10,45 @@ import {
   EMAIL_SALES_EVENT_TYPES,
 } from '@shared/schema';
 
+// Coaching cache with 5-day TTL
+// Key format: eventType:customerStage:objectionType (if applicable)
+const COACHING_CACHE_TTL_MS = 5 * 24 * 60 * 60 * 1000; // 5 days
+const coachingCache: Map<string, { tip: string; expiresAt: Date }> = new Map();
+
+// Confidence threshold - below this, use templates instead of OpenAI
+const COACHING_CONFIDENCE_THRESHOLD = 0.75;
+
+function getCacheKey(eventType: string, customerStage?: string, objectionType?: string): string {
+  return `${eventType}:${customerStage || 'unknown'}:${objectionType || 'none'}`;
+}
+
+function getCachedCoaching(key: string): string | null {
+  const cached = coachingCache.get(key);
+  if (!cached) return null;
+  if (new Date() > cached.expiresAt) {
+    coachingCache.delete(key);
+    return null;
+  }
+  return cached.tip;
+}
+
+function setCachedCoaching(key: string, tip: string): void {
+  coachingCache.set(key, {
+    tip,
+    expiresAt: new Date(Date.now() + COACHING_CACHE_TTL_MS),
+  });
+}
+
+// Clean up expired cache entries periodically
+setInterval(() => {
+  const now = new Date();
+  for (const [key, value] of coachingCache.entries()) {
+    if (now > value.expiresAt) {
+      coachingCache.delete(key);
+    }
+  }
+}, 60 * 60 * 1000); // Clean every hour
+
 const EVENT_TO_TASK_CONFIG: Record<string, {
   taskType: string;
   titleTemplate: string;
@@ -557,12 +596,28 @@ export async function generateAICoachingSummary(eventId: number): Promise<string
     const template = AI_COACHING_TEMPLATES[event.event.eventType];
     if (!template) return null;
     
+    const customerStage = event.customer?.accountState || 'unknown';
+    const objectionType = (event.event as any).objectionType || 'none';
+    const cacheKey = getCacheKey(event.event.eventType, customerStage, objectionType);
+    
+    // Check cache first
+    const cachedTip = getCachedCoaching(cacheKey);
+    if (cachedTip) {
+      console.log(`[AI Coach] Cache hit for ${cacheKey}`);
+      await db.update(emailSalesEvents)
+        .set({ coachingTip: cachedTip })
+        .where(eq(emailSalesEvents.id, eventId));
+      return cachedTip;
+    }
+    
+    const confidence = event.event.confidence || 0;
     const customerName = event.customer?.company || 'the customer';
     const triggerText = event.event.triggerText || '';
     
     let coachingTip = template;
     
-    if (process.env.OPENAI_API_KEY) {
+    // Only call OpenAI if confidence > threshold AND we have an API key
+    if (confidence >= COACHING_CONFIDENCE_THRESHOLD && process.env.OPENAI_API_KEY) {
       try {
         const OpenAI = (await import('openai')).default;
         const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
@@ -570,12 +625,12 @@ export async function generateAICoachingSummary(eventId: number): Promise<string
         const prompt = `You are a sales coach for a specialty printing and graphics company. Based on this detected sales event, provide a brief, actionable coaching tip (2-3 sentences max).
 
 Event Type: ${event.event.eventType}
-Customer: ${customerName}
+Customer Stage: ${customerStage}
 Trigger Text: "${triggerText}"
 
 Base guidance: ${template}
 
-Personalize this coaching tip for this specific situation. Be concise and action-oriented.`;
+Personalize this coaching tip for this event type and customer stage. Be concise and action-oriented.`;
         
         const response = await openai.chat.completions.create({
           model: 'gpt-4o-mini',
@@ -585,9 +640,15 @@ Personalize this coaching tip for this specific situation. Be concise and action
         });
         
         coachingTip = response.choices[0]?.message?.content?.trim() || template;
+        
+        // Cache the AI-generated tip for this combination
+        setCachedCoaching(cacheKey, coachingTip);
+        console.log(`[AI Coach] Cached tip for ${cacheKey}`);
       } catch (aiError) {
         console.error('[AI Coach] OpenAI error, using template:', aiError);
       }
+    } else if (confidence < COACHING_CONFIDENCE_THRESHOLD) {
+      console.log(`[AI Coach] Using template (confidence ${confidence.toFixed(2)} < threshold ${COACHING_CONFIDENCE_THRESHOLD})`);
     }
     
     await db.update(emailSalesEvents)
