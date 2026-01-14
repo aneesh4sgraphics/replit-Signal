@@ -5,6 +5,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import { Textarea } from "@/components/ui/textarea";
+import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
@@ -55,7 +56,8 @@ import {
   Clipboard,
   ScrollText,
   LucideIcon,
-  Flame
+  Flame,
+  Palette
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -312,6 +314,10 @@ export default function NowMode() {
     return saved !== null ? saved === 'true' : true;
   });
   const [awaitingNext, setAwaitingNext] = useState(false);
+  // Print label dialog state
+  const [isPrintDialogOpen, setIsPrintDialogOpen] = useState(false);
+  const [printLabelType, setPrintLabelType] = useState<'swatchbook' | 'presskit' | 'mailer' | 'other' | null>(null);
+  const [printLabelNotes, setPrintLabelNotes] = useState('');
   
   // Persist scripts tray preference
   useEffect(() => {
@@ -691,12 +697,83 @@ export default function NowMode() {
     refetch();
   }, [refetch]);
 
-  // Handler for printing address label
-  const handlePrintAddressLabel = () => {
+  // Mutation to create swatchbook shipment record
+  const createSwatchShipmentMutation = useMutation({
+    mutationFn: async ({ customerId, notes }: { customerId: string; notes: string }) => {
+      const res = await apiRequest("POST", "/api/crm/swatchbook-shipments", { customerId, notes });
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/crm/swatchbook-shipments"] });
+    },
+  });
+
+  // Mutation to create sample request (for Press Kit)
+  const createSampleMutation = useMutation({
+    mutationFn: async (data: { customerId: string; productCategory: string; productName: string; quantity: string; notes: string }) => {
+      const res = await apiRequest("POST", "/api/sample-requests", data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/sample-requests"] });
+    },
+  });
+
+  // Handler for opening print label dialog
+  const handleOpenPrintDialog = () => {
     if (!data?.card) return;
+    setPrintLabelType(null);
+    setPrintLabelNotes('');
+    setIsPrintDialogOpen(true);
+  };
+
+  // Handler for confirming and printing the label
+  const handleConfirmPrintLabel = () => {
+    if (!data?.card || !printLabelType) return;
     
     const customer = data.card.customer;
     const companyName = customer.company || customer.name || "Unknown";
+    
+    // Record the shipment based on type
+    if (printLabelType === 'swatchbook') {
+      createSwatchShipmentMutation.mutate({ 
+        customerId: data.card.customerId, 
+        notes: `SwatchBook shipped via NOW MODE` 
+      });
+    } else if (printLabelType === 'presskit') {
+      createSampleMutation.mutate({
+        customerId: data.card.customerId,
+        productCategory: 'press_kit',
+        productName: 'Press Kit',
+        quantity: '1',
+        notes: `Press Kit shipped via NOW MODE`,
+      });
+    } else if (printLabelType === 'mailer') {
+      createSwatchShipmentMutation.mutate({ 
+        customerId: data.card.customerId, 
+        notes: `Mailer: ${printLabelNotes || 'Promotional Mailer'}` 
+      });
+    } else {
+      createSwatchShipmentMutation.mutate({ 
+        customerId: data.card.customerId, 
+        notes: printLabelNotes || 'Other shipment' 
+      });
+    }
+
+    // Print the label
+    printAddressLabel(customer, companyName);
+    
+    // Close dialog
+    setIsPrintDialogOpen(false);
+    
+    toast({ 
+      title: "Label Printed!", 
+      description: `${printLabelType === 'swatchbook' ? 'SwatchBook' : printLabelType === 'presskit' ? 'Press Kit' : printLabelType === 'mailer' ? 'Mailer' : 'Shipment'} recorded for ${companyName}` 
+    });
+  };
+
+  // Utility function to print address label
+  const printAddressLabel = (customer: Customer, companyName: string) => {
     const address1 = customer.address1 || "";
     const address2 = customer.address2 || "";
     const city = customer.city || "";
@@ -1749,7 +1826,7 @@ export default function NowMode() {
                     variant="outline"
                     size="sm"
                     className="text-blue-600 border-blue-300 hover:bg-blue-50"
-                    onClick={handlePrintAddressLabel}
+                    onClick={handleOpenPrintDialog}
                   >
                     <Printer className="h-4 w-4 mr-2" />
                     Print Address Label
@@ -1831,6 +1908,100 @@ export default function NowMode() {
                 (profileGateMissingFields.rep && !selectedSalesRep)}
             >
               {updateCustomerMutation.isPending ? "Saving..." : "Save & View Profile"}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Address Label Dialog */}
+      <Dialog open={isPrintDialogOpen} onOpenChange={setIsPrintDialogOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle>Print Address Label</DialogTitle>
+            <DialogDescription>
+              Label for: {data?.card?.customer.company || data?.card?.customer.name || 'Customer'}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 py-4">
+            <Button
+              variant={printLabelType === 'swatchbook' ? 'default' : 'outline'}
+              className="w-full justify-start h-auto py-3"
+              onClick={() => setPrintLabelType('swatchbook')}
+            >
+              <Palette className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <div className="font-medium">SwatchBook</div>
+                <div className="text-xs text-muted-foreground">Record shipment in customer's SwatchBook tab</div>
+              </div>
+            </Button>
+            <Button
+              variant={printLabelType === 'presskit' ? 'default' : 'outline'}
+              className="w-full justify-start h-auto py-3"
+              onClick={() => setPrintLabelType('presskit')}
+            >
+              <Package className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <div className="font-medium">Press Kit</div>
+                <div className="text-xs text-muted-foreground">Record shipment in customer's Press Kit tab</div>
+              </div>
+            </Button>
+            <Button
+              variant={printLabelType === 'mailer' ? 'default' : 'outline'}
+              className="w-full justify-start h-auto py-3"
+              onClick={() => setPrintLabelType('mailer')}
+            >
+              <Mail className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <div className="font-medium">Mailer</div>
+                <div className="text-xs text-muted-foreground">Promotional mailer or flyer</div>
+              </div>
+            </Button>
+            <Button
+              variant={printLabelType === 'other' ? 'default' : 'outline'}
+              className="w-full justify-start h-auto py-3"
+              onClick={() => setPrintLabelType('other')}
+            >
+              <FileText className="h-5 w-5 mr-3" />
+              <div className="text-left">
+                <div className="font-medium">Something Else</div>
+                <div className="text-xs text-muted-foreground">Just print the label without recording</div>
+              </div>
+            </Button>
+            
+            {printLabelType === 'mailer' && (
+              <div className="space-y-2 pt-2">
+                <Label>Which mailer are you sending?</Label>
+                <Input
+                  placeholder="e.g., Spring 2025 Promo, New Product Announcement"
+                  value={printLabelNotes}
+                  onChange={(e) => setPrintLabelNotes(e.target.value)}
+                />
+              </div>
+            )}
+            
+            {printLabelType === 'other' && (
+              <div className="space-y-2 pt-2">
+                <Label>Notes (optional)</Label>
+                <Textarea
+                  placeholder="What are you sending?"
+                  value={printLabelNotes}
+                  onChange={(e) => setPrintLabelNotes(e.target.value)}
+                  rows={2}
+                />
+              </div>
+            )}
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setIsPrintDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleConfirmPrintLabel}
+              disabled={!printLabelType || createSwatchShipmentMutation.isPending}
+              className="bg-purple-600 hover:bg-purple-700"
+            >
+              <Printer className="h-4 w-4 mr-2" />
+              Print Label
             </Button>
           </DialogFooter>
         </DialogContent>
