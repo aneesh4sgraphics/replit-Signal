@@ -177,18 +177,17 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 <Link
                   key={item.path}
                   href={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all mb-1 relative ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out mb-1 relative ${
                     isActive 
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg' 
-                      : 'text-gray-600 hover:bg-gray-100'
+                      ? 'bg-[#F7F7F5] text-[#37352F] font-medium' 
+                      : 'text-[#73726E] hover:bg-[#F7F7F5]'
                   }`}
-                  style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                   )}
                   <Icon className="h-5 w-5" />
-                  <span className="text-sm font-medium">{item.label}</span>
+                  <span className="text-sm">{item.label}</span>
                 </Link>
               );
             })}
@@ -230,7 +229,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
       <aside 
         className={`hidden lg:flex ${sidebarExpanded ? 'w-64' : 'w-[72px]'} h-screen transition-all duration-200 ease-out flex-col fixed left-0 top-0 z-40 bg-white border-r border-[#EAEAEA]`}
       >
-        <div className="h-16 flex items-center justify-between px-4" style={{ borderBottom: '1px solid rgba(148, 163, 184, 0.15)' }}>
+        <div className="h-14 flex items-center justify-between px-4 border-b border-[#EAEAEA]">
           {sidebarExpanded ? (
             <>
               <div className="flex items-center gap-2">
@@ -251,33 +250,28 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
 
         <button 
           onClick={() => setSidebarExpanded(!sidebarExpanded)}
-          className="absolute -right-3 top-20 w-6 h-6 rounded-full flex items-center justify-center shadow-lg hover:scale-110 transition-all z-50"
-          style={{
-            background: 'rgba(255, 255, 255, 0.9)',
-            backdropFilter: 'blur(10px)',
-            border: '1px solid rgba(255, 255, 255, 0.5)'
-          }}
+          className="absolute -right-3 top-20 w-6 h-6 rounded-full flex items-center justify-center bg-white border border-[#EAEAEA] hover:bg-[#F7F7F5] transition-all duration-150 ease-out z-50 shadow-sm"
           data-testid="button-toggle-sidebar"
         >
-          {sidebarExpanded ? <ChevronLeftIcon className="h-3 w-3 text-gray-500" /> : <ChevronRightIcon className="h-3 w-3 text-gray-500" />}
+          {sidebarExpanded ? <ChevronLeftIcon className="h-3 w-3 text-[#73726E]" /> : <ChevronRightIcon className="h-3 w-3 text-[#73726E]" />}
         </button>
 
-        <div className="px-3 py-4">
+        <div className="px-3 py-3">
           <button
             onClick={() => setTutorialOpen(true)}
-            className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 text-gray-600 hover:bg-emerald-50 hover:text-emerald-700`}
+            className="w-full flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out text-[#73726E] hover:bg-[#F7F7F5] hover:text-[#37352F]"
             title={!sidebarExpanded ? 'Learning Center' : undefined}
             data-testid="button-tutorials"
           >
             <TutorialIcon className="h-5 w-5 flex-shrink-0" />
-            {sidebarExpanded && <span className="text-sm font-medium">Tutorials</span>}
+            {sidebarExpanded && <span className="text-sm">Tutorials</span>}
           </button>
         </div>
 
         <nav className="flex-1 py-2 overflow-y-auto">
           <div className="px-3 space-y-1">
             {sidebarExpanded && (
-              <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">Menu</p>
+              <p className="text-[11px] font-medium text-[#9B9A97] uppercase tracking-wide px-3 mb-2">Menu</p>
             )}
             {mainItems.map((item) => {
               const Icon = item.icon;
@@ -287,20 +281,19 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 <Link 
                   key={item.path} 
                   href={item.path}
-                  className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                  className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out group relative ${
                     isActive 
-                      ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
-                      : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                      ? 'bg-[#F7F7F5] text-[#37352F] font-medium'
+                      : 'text-[#73726E] hover:bg-[#F7F7F5] hover:text-[#37352F]'
                   }`}
                   title={!sidebarExpanded ? item.label : undefined}
-                  style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                   )}
-                  <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
+                  <Icon className="h-5 w-5 flex-shrink-0" />
                   {sidebarExpanded && (
-                    <span className="text-sm font-medium truncate">{item.label}</span>
+                    <span className="text-sm truncate">{item.label}</span>
                   )}
                 </Link>
               );
@@ -310,7 +303,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
           {isAdmin && (
             <div className="px-3 space-y-1 mt-6">
               {sidebarExpanded && (
-                <p className="text-[10px] font-semibold text-gray-400 uppercase tracking-wider px-3 mb-2">Admin</p>
+                <p className="text-[11px] font-medium text-[#9B9A97] uppercase tracking-wide px-3 mb-2">Admin</p>
               )}
               {adminItems.map((item) => {
                 const Icon = item.icon;
@@ -320,20 +313,19 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                   <Link 
                     key={item.path} 
                     href={item.path}
-                    className={`flex items-center gap-3 px-3 py-2.5 rounded-xl transition-all duration-200 group relative ${
+                    className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out group relative ${
                       isActive 
-                        ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-lg shadow-purple-500/30'
-                        : 'text-gray-600 hover:bg-gray-100 hover:text-gray-900'
+                        ? 'bg-[#F7F7F5] text-[#37352F] font-medium'
+                        : 'text-[#73726E] hover:bg-[#F7F7F5] hover:text-[#37352F]'
                     }`}
                     title={!sidebarExpanded ? item.label : undefined}
-                    style={isActive ? { boxShadow: '0 4px 14px 0 rgba(124, 58, 237, 0.35)' } : undefined}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-1 h-6 bg-white rounded-r-full" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                     )}
-                    <Icon className={`h-5 w-5 flex-shrink-0 ${isActive ? 'text-white' : ''}`} />
+                    <Icon className="h-5 w-5 flex-shrink-0" />
                     {sidebarExpanded && (
-                      <span className="text-sm font-medium truncate">{item.label}</span>
+                      <span className="text-sm truncate">{item.label}</span>
                     )}
                   </Link>
                 );
