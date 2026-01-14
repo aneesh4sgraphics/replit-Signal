@@ -50,6 +50,7 @@ interface Customer {
   doNotContact: boolean | null;
   pausedUntil: Date | null;
   hasMachineProfile: boolean;  // Whether customer has any machine profile set
+  isHotProspect: boolean | null;  // Priority hot lead status
 }
 
 interface EligibleCard {
@@ -373,6 +374,7 @@ export class NowModeEngine {
         doNotContact: customers.doNotContact,
         pausedUntil: customers.pausedUntil,
         hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
+        isHotProspect: customers.isHotProspect,
       })
       .from(customers)
       .where(
@@ -462,6 +464,7 @@ export class NowModeEngine {
         doNotContact: customers.doNotContact,
         pausedUntil: customers.pausedUntil,
         hasMachineProfile: sql<boolean>`EXISTS (${machineProfileSubquery})`.as('has_machine_profile'),
+        isHotProspect: customers.isHotProspect,
       })
       .from(customers)
       .where(

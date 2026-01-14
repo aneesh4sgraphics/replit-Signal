@@ -53,7 +53,8 @@ import {
   ChevronRight,
   Clipboard,
   ScrollText,
-  LucideIcon
+  LucideIcon,
+  Flame
 } from "lucide-react";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
@@ -73,6 +74,7 @@ interface Customer {
   city?: string | null;
   state?: string | null;
   zip?: string | null;
+  isHotProspect?: boolean;
 }
 
 interface OutcomeButton {
@@ -550,6 +552,28 @@ export default function NowMode() {
     },
     onSuccess: () => {
       toast({ title: "Updated!", description: "Customer data saved successfully." });
+    },
+    onError: (error) => {
+      toast({
+        title: "Error",
+        description: error instanceof Error ? error.message : "Failed to update customer",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to mark customer as hot prospect
+  const markHotMutation = useMutation({
+    mutationFn: async ({ customerId, isHot }: { customerId: string; isHot: boolean }) => {
+      const res = await apiRequest("PUT", `/api/customers/${customerId}`, { isHotProspect: isHot });
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      toast({ 
+        title: variables.isHot ? "🔥 Marked as Hot!" : "Unmarked", 
+        description: variables.isHot ? "This customer is now a hot prospect." : "Removed hot prospect status." 
+      });
+      queryClient.invalidateQueries({ queryKey: ["/api/now-mode/current"] });
     },
     onError: (error) => {
       toast({
@@ -1497,15 +1521,32 @@ export default function NowMode() {
                 })}
               </div>
 
-              <Button
-                variant="ghost"
-                onClick={handleSkipClick}
-                disabled={skipMutation.isPending}
-                className="w-full text-gray-500 hover:text-gray-700 hover:bg-gray-100"
-              >
-                <SkipForward className="h-4 w-4 mr-2" />
-                Skip this card
-              </Button>
+              <div className="flex gap-2">
+                <Button
+                  variant={data.card.customer.isHotProspect ? "default" : "outline"}
+                  onClick={() => markHotMutation.mutate({ 
+                    customerId: data.card!.customerId, 
+                    isHot: !data.card!.customer.isHotProspect 
+                  })}
+                  disabled={markHotMutation.isPending}
+                  className={data.card.customer.isHotProspect 
+                    ? "flex-1 bg-orange-500 hover:bg-orange-600 text-white" 
+                    : "flex-1 text-orange-500 border-orange-300 hover:bg-orange-50"
+                  }
+                >
+                  <Flame className="h-4 w-4 mr-2" />
+                  {data.card.customer.isHotProspect ? "HOT 🔥" : "Mark as Hot"}
+                </Button>
+                <Button
+                  variant="ghost"
+                  onClick={handleSkipClick}
+                  disabled={skipMutation.isPending}
+                  className="flex-1 text-gray-500 hover:text-gray-700 hover:bg-gray-100"
+                >
+                  <SkipForward className="h-4 w-4 mr-2" />
+                  Skip
+                </Button>
+              </div>
 
               <div className="flex justify-between items-center">
                 <Button 
