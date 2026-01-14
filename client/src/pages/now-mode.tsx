@@ -754,6 +754,9 @@ export default function NowMode() {
     printWindow.document.close();
   };
 
+  // Track which fields are missing for profile gate dialog
+  const [profileGateMissingFields, setProfileGateMissingFields] = useState<{ tier: boolean; rep: boolean }>({ tier: false, rep: false });
+
   // Handler for View Full Customer Profile button
   const handleViewProfile = () => {
     if (!data?.card) return;
@@ -771,6 +774,8 @@ export default function NowMode() {
     });
     
     if (missingTier || missingRep) {
+      // Track which fields are missing
+      setProfileGateMissingFields({ tier: missingTier, rep: missingRep });
       // Pre-fill with existing values if any
       setSelectedPricingTier(customer.pricingTier || "");
       setSelectedSalesRep(customer.salesRepName || "");
@@ -785,18 +790,38 @@ export default function NowMode() {
 
   const handleProfileGateSave = () => {
     if (!data?.card) return;
-    if (!selectedPricingTier || !selectedSalesRep) {
+    
+    // Only require fields that were missing
+    if (profileGateMissingFields.tier && !selectedPricingTier) {
       toast({
-        title: "Missing Fields",
-        description: "Please select both a pricing tier and sales rep",
+        title: "Missing Field",
+        description: "Please select a pricing tier",
         variant: "destructive",
       });
       return;
     }
+    if (profileGateMissingFields.rep && !selectedSalesRep) {
+      toast({
+        title: "Missing Field",
+        description: "Please select a sales rep",
+        variant: "destructive",
+      });
+      return;
+    }
+    
+    // Build update payload with only changed/missing fields
+    const updates: { pricingTier?: string; salesRepName?: string } = {};
+    if (profileGateMissingFields.tier && selectedPricingTier) {
+      updates.pricingTier = selectedPricingTier;
+    }
+    if (profileGateMissingFields.rep && selectedSalesRep) {
+      updates.salesRepName = selectedSalesRep;
+    }
+    
     updateCustomerMutation.mutate({
       customerId: data.card.customerId,
-      pricingTier: selectedPricingTier,
-      salesRepName: selectedSalesRep,
+      pricingTier: updates.pricingTier || data.card.customer.pricingTier || "",
+      salesRepName: updates.salesRepName || data.card.customer.salesRepName || "",
     });
   };
 
@@ -1736,7 +1761,7 @@ export default function NowMode() {
         )}
         </div>
 
-      {/* Profile Gate Dialog - collect missing pricing tier / sales rep before navigation */}
+      {/* Profile Gate Dialog - collect ONLY missing pricing tier / sales rep before navigation */}
       <Dialog open={showProfileGateDialog} onOpenChange={setShowProfileGateDialog}>
         <DialogContent className="sm:max-w-md">
           <DialogHeader>
@@ -1745,46 +1770,55 @@ export default function NowMode() {
               Complete Customer Setup
             </DialogTitle>
             <DialogDescription>
-              Please assign a pricing tier and sales rep before viewing this customer's full profile.
+              {profileGateMissingFields.tier && profileGateMissingFields.rep
+                ? "Please assign a pricing tier and sales rep before viewing this customer's full profile."
+                : profileGateMissingFields.tier
+                  ? "Please assign a pricing tier before viewing this customer's full profile."
+                  : "Please assign a sales rep before viewing this customer's full profile."
+              }
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-4">
-            <div className="space-y-2">
-              <Label htmlFor="pricing-tier">Pricing Tier</Label>
-              <Select value={selectedPricingTier} onValueChange={setSelectedPricingTier}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select pricing tier" />
-                </SelectTrigger>
-                <SelectContent>
-                  {PRICING_TIERS.map((tier) => (
-                    <SelectItem key={tier} value={tier}>
-                      {tier}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-            <div className="space-y-2">
-              <Label htmlFor="sales-rep">Sales Rep</Label>
-              <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
-                <SelectTrigger>
-                  <SelectValue placeholder={usersLoading ? "Loading..." : "Select sales rep"} />
-                </SelectTrigger>
-                <SelectContent>
-                  {usersLoading ? (
-                    <div className="px-2 py-1 text-sm text-gray-500">Loading sales reps...</div>
-                  ) : sortedUsers.length === 0 ? (
-                    <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
-                  ) : (
-                    sortedUsers.map((user) => (
-                      <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
-                        {getSalesRepDisplayName(user.email)}
+            {profileGateMissingFields.tier && (
+              <div className="space-y-2">
+                <Label htmlFor="pricing-tier">Pricing Tier</Label>
+                <Select value={selectedPricingTier} onValueChange={setSelectedPricingTier}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select pricing tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {PRICING_TIERS.map((tier) => (
+                      <SelectItem key={tier} value={tier}>
+                        {tier}
                       </SelectItem>
-                    ))
-                  )}
-                </SelectContent>
-              </Select>
-            </div>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {profileGateMissingFields.rep && (
+              <div className="space-y-2">
+                <Label htmlFor="sales-rep">Sales Rep</Label>
+                <Select value={selectedSalesRep} onValueChange={setSelectedSalesRep}>
+                  <SelectTrigger>
+                    <SelectValue placeholder={usersLoading ? "Loading..." : "Select sales rep"} />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {usersLoading ? (
+                      <div className="px-2 py-1 text-sm text-gray-500">Loading sales reps...</div>
+                    ) : sortedUsers.length === 0 ? (
+                      <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                    ) : (
+                      sortedUsers.map((user) => (
+                        <SelectItem key={user.id} value={getSalesRepDisplayName(user.email)}>
+                          {getSalesRepDisplayName(user.email)}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowProfileGateDialog(false)}>
@@ -1792,7 +1826,9 @@ export default function NowMode() {
             </Button>
             <Button 
               onClick={handleProfileGateSave}
-              disabled={updateCustomerMutation.isPending || !selectedPricingTier || !selectedSalesRep}
+              disabled={updateCustomerMutation.isPending || 
+                (profileGateMissingFields.tier && !selectedPricingTier) || 
+                (profileGateMissingFields.rep && !selectedSalesRep)}
             >
               {updateCustomerMutation.isPending ? "Saving..." : "Save & View Profile"}
             </Button>
