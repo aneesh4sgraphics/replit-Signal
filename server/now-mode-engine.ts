@@ -24,7 +24,7 @@ import {
 } from "@shared/schema";
 import { eq, and, or, isNull, lt, gt, gte, desc, asc, sql, ne, lte, count, exists } from "drizzle-orm";
 
-const DAILY_TARGET = 10;
+const DAILY_TARGET = 30;
 const SKIP_PENALTY_THRESHOLD = 3;
 const DORMANCY_MINUTES = 180; // Changed to 3 hours as per user request
 const ANEESH_USER_ID = "45980257"; // Aneesh's user ID for load balancing
