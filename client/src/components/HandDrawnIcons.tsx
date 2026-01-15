@@ -31,9 +31,8 @@ export const ClientsIcon = ({ className, size = 24 }: IconProps) => (
 );
 
 export const SalesChartsIcon = ({ className, size = 24 }: IconProps) => (
-  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-    <path d="M3 20c2-3 4-8 7-10s4-1 6 2c2 3 4 2 5 0" />
-    <circle cx="20" cy="8" r="1.5" fill="currentColor" stroke="none" />
+  <svg className={className} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.75" strokeLinecap="round" strokeLinejoin="round">
+    <path d="M22 12h-4l-3 9L9 3l-3 9H2" />
   </svg>
 );
 
