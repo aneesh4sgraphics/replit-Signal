@@ -991,7 +991,7 @@ export default function Spotlight() {
                         Hot
                       </span>
                     )}
-                    <Link href={`/clients?id=${customer.id}&from=spotlight`}>
+                    <Link href={`/clients/${customer.id}`}>
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-[#999999] hover:text-[#111111]">
                         <ExternalLink className="w-4 h-4" />
                       </Button>
