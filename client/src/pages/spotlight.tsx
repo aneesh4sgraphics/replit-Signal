@@ -50,6 +50,11 @@ import {
   Flame,
   Zap,
   Coffee,
+  Settings,
+  Users,
+  AlertTriangle,
+  ThumbsUp,
+  ThumbsDown,
 } from "lucide-react";
 
 type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
@@ -172,6 +177,15 @@ const OUTCOME_ICONS: Record<string, any> = {
 };
 
 const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
+
+const PRICING_FEEDBACK_OPTIONS = [
+  { id: 'price', label: 'Price', icon: DollarSign, color: 'bg-red-100 text-red-700 border-red-200 hover:bg-red-200', activeColor: 'bg-red-500 text-white' },
+  { id: 'moq', label: 'MOQ', icon: Package, color: 'bg-yellow-100 text-yellow-700 border-yellow-200 hover:bg-yellow-200', activeColor: 'bg-yellow-500 text-white' },
+  { id: 'lead_time', label: 'Lead Time', icon: Truck, color: 'bg-blue-100 text-blue-700 border-blue-200 hover:bg-blue-200', activeColor: 'bg-blue-500 text-white' },
+  { id: 'compatibility', label: 'Compatibility', icon: Settings, color: 'bg-orange-100 text-orange-700 border-orange-200 hover:bg-orange-200', activeColor: 'bg-orange-500 text-white' },
+  { id: 'has_supplier', label: 'Has Supplier', icon: Users, color: 'bg-purple-100 text-purple-700 border-purple-200 hover:bg-purple-200', activeColor: 'bg-purple-500 text-white' },
+  { id: 'positive', label: 'Good Feedback', icon: ThumbsUp, color: 'bg-green-100 text-green-700 border-green-200 hover:bg-green-200', activeColor: 'bg-green-500 text-white' },
+];
 
 const IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 hours
 
@@ -298,6 +312,40 @@ export default function Spotlight() {
       toast({ title: "Skipped", description: "Moving to next moment..." });
     },
   });
+
+  const [selectedFeedback, setSelectedFeedback] = useState<string[]>([]);
+
+  const feedbackMutation = useMutation({
+    mutationFn: async (data: { customerId: string; objectionType: string; categoryName: string }) => {
+      const res = await apiRequest('POST', '/api/crm/objections', data);
+      return res.json();
+    },
+    onSuccess: (_, variables) => {
+      const feedbackLabel = PRICING_FEEDBACK_OPTIONS.find(o => o.id === variables.objectionType)?.label || variables.objectionType;
+      toast({ 
+        title: "Feedback logged", 
+        description: `"${feedbackLabel}" recorded for this quote` 
+      });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not log feedback", variant: "destructive" });
+    },
+  });
+
+  const handleFeedbackClick = (feedbackId: string) => {
+    if (!currentTask?.task) return;
+    if (selectedFeedback.includes(feedbackId)) return;
+    
+    const customerId = currentTask.task.customerId;
+    const categoryName = currentTask.task.context?.followUpTitle || 'Quote Follow-up';
+    
+    setSelectedFeedback(prev => [...prev, feedbackId]);
+    feedbackMutation.mutate({ customerId, objectionType: feedbackId, categoryName });
+  };
+
+  useEffect(() => {
+    setSelectedFeedback([]);
+  }, [currentTask?.task?.id]);
 
   const handleOutcome = (outcomeId: string, field?: string, value?: string) => {
     if (!currentTask?.task) return;
@@ -781,6 +829,40 @@ export default function Spotlight() {
                     >
                       Save
                     </Button>
+                  </div>
+                </div>
+              )}
+
+              {/* Pricing Feedback Icons for Quote-Related Tasks */}
+              {(task.taskSubtype === 'sales_quote_follow_up' || 
+                (task.context?.followUpTitle && task.context.followUpTitle.toLowerCase().includes('quote'))) && (
+                <div className="mb-4">
+                  <div className="flex items-center gap-2 mb-2">
+                    <DollarSign className="w-4 h-4 text-[#666666]" />
+                    <span className="text-sm text-[#666666] font-medium">Quick Feedback</span>
+                    <span className="text-xs text-[#999999]">(tap any that apply)</span>
+                  </div>
+                  <div className="flex flex-wrap gap-2">
+                    {PRICING_FEEDBACK_OPTIONS.map((option) => {
+                      const Icon = option.icon;
+                      const isSelected = selectedFeedback.includes(option.id);
+                      return (
+                        <button
+                          key={option.id}
+                          onClick={() => handleFeedbackClick(option.id)}
+                          disabled={feedbackMutation.isPending}
+                          className={`flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-medium border transition-all ${
+                            isSelected 
+                              ? option.activeColor + ' border-transparent shadow-sm' 
+                              : option.color
+                          }`}
+                        >
+                          <Icon className="w-3.5 h-3.5" />
+                          {option.label}
+                          {isSelected && <Check className="w-3 h-3 ml-0.5" />}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
               )}
