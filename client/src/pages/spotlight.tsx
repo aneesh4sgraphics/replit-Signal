@@ -43,6 +43,7 @@ import {
   Tag,
   CheckCircle,
   Target,
+  Ban,
 } from "lucide-react";
 
 type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
@@ -117,6 +118,7 @@ const BUCKET_INFO: Record<TaskBucket, { label: string; icon: any; color: string 
 const OUTCOME_ICONS: Record<string, any> = {
   'check': Check,
   'user-check': CheckCircle,
+  'user': User,
   'x': X,
   'tag': Tag,
   'building': Building2,
@@ -131,6 +133,7 @@ const OUTCOME_ICONS: Record<string, any> = {
   'send': Send,
   'package': Package,
   'file-text': FileText,
+  'ban': Ban,
 };
 
 const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
@@ -517,7 +520,8 @@ export default function Spotlight() {
                 {task.outcomes.map((outcome) => {
                   const OutcomeIcon = outcome.icon ? OUTCOME_ICONS[outcome.icon] : Check;
                   const isPositive = ['connected', 'completed', 'sent', 'done', 'email_sent', 'called', 'already_has', 'already_engaged'].includes(outcome.id);
-                  const isNegative = ['bad_number', 'not_interested'].includes(outcome.id);
+                  const isDNC = outcome.id === 'bad_fit' || outcome.nextAction?.type === 'mark_dnc';
+                  const isNegative = ['bad_number', 'not_interested', 'lost'].includes(outcome.id);
                   
                   return (
                     <Button
@@ -525,7 +529,8 @@ export default function Spotlight() {
                       variant={isPositive ? 'default' : 'outline'}
                       className={`w-full h-12 justify-start ${
                         isPositive ? 'bg-emerald-600 hover:bg-emerald-700 text-white' :
-                        isNegative ? 'border-red-200 text-red-600 hover:bg-red-50' :
+                        isDNC ? 'border-red-300 text-red-700 hover:bg-red-100 bg-red-50' :
+                        isNegative ? 'border-amber-200 text-amber-700 hover:bg-amber-50' :
                         'border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2]'
                       }`}
                       onClick={() => handleOutcome(outcome.id)}

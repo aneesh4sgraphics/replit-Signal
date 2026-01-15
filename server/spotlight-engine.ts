@@ -50,7 +50,7 @@ export interface TaskOutcome {
   label: string;
   icon?: string;
   nextAction?: {
-    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action';
+    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action' | 'mark_dnc';
     daysUntil?: number;
     taskType?: string;
   };
@@ -93,35 +93,55 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'no_email', label: 'No Email Available', icon: 'x', nextAction: { type: 'mark_complete' } },
     { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
   ],
+  hygiene_name: [
+    { id: 'found', label: 'Name Added', icon: 'user', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
+  ],
+  hygiene_company: [
+    { id: 'found', label: 'Company Added', icon: 'building', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
+  ],
+  hygiene_phone: [
+    { id: 'found', label: 'Phone Added', icon: 'phone', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
+  ],
   sales_call: [
     { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
-    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'call' } },
+    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'call' } },
     { id: 'no_answer', label: 'No Answer', icon: 'phone-missed', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
-    { id: 'bad_number', label: 'Bad Number', icon: 'x', nextAction: { type: 'mark_complete' } },
+    { id: 'bad_fit', label: 'Bad Fit / DNC', icon: 'ban', nextAction: { type: 'mark_dnc' } },
   ],
   sales_follow_up: [
     { id: 'completed', label: 'Done', icon: 'check', nextAction: { type: 'mark_complete' } },
-    { id: 'rescheduled', label: 'Reschedule', icon: 'calendar', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'rescheduled', label: 'Reschedule +3 Days', icon: 'calendar', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
     { id: 'not_interested', label: 'Not Interested', icon: 'x', nextAction: { type: 'mark_complete' } },
+    { id: 'bad_fit', label: 'Bad Fit / DNC', icon: 'ban', nextAction: { type: 'mark_dnc' } },
+  ],
+  sales_quote_follow_up: [
+    { id: 'completed', label: 'Got Response', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'rescheduled', label: 'Follow Up Again +3 Days', icon: 'calendar', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'quote_follow_up' } },
+    { id: 'lost', label: 'Lost / No Interest', icon: 'x', nextAction: { type: 'mark_complete' } },
   ],
   outreach_no_contact: [
     { id: 'email_sent', label: 'Sent Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
     { id: 'called', label: 'Called', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'bad_fit', label: 'Bad Fit / DNC', icon: 'ban', nextAction: { type: 'mark_dnc' } },
     { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
   ],
   outreach_drip: [
     { id: 'sent', label: 'Email Sent', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
     { id: 'already_engaged', label: 'Already Engaged', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'bad_fit', label: 'Bad Fit / DNC', icon: 'ban', nextAction: { type: 'mark_dnc' } },
     { id: 'skip', label: 'Not Now', icon: 'clock', nextAction: { type: 'no_action' } },
   ],
   enablement_swatchbook: [
     { id: 'sent', label: 'Sent SwatchBook', icon: 'package', nextAction: { type: 'schedule_follow_up', daysUntil: 10, taskType: 'follow_up' } },
-    { id: 'not_ready', label: 'Not Ready', icon: 'x', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
+    { id: 'not_ready', label: 'Not Ready', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
     { id: 'already_has', label: 'Already Has One', icon: 'check', nextAction: { type: 'mark_complete' } },
   ],
   enablement_press_test: [
     { id: 'sent', label: 'Sent Press Test', icon: 'package', nextAction: { type: 'schedule_follow_up', daysUntil: 10, taskType: 'follow_up' } },
-    { id: 'not_ready', label: 'Not Ready', icon: 'x', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
+    { id: 'not_ready', label: 'Not Ready', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
     { id: 'skip', label: 'Skip', icon: 'clock', nextAction: { type: 'no_action' } },
   ],
   enablement_price_list: [
@@ -625,6 +645,27 @@ class SpotlightEngine {
           updatedAt: new Date(),
         })
         .where(eq(followUpTasks.id, followUpId));
+    }
+
+    if (selectedOutcome?.nextAction?.type === 'mark_dnc') {
+      await db.update(customers)
+        .set({ 
+          doNotContact: true,
+          updatedAt: new Date(),
+        })
+        .where(eq(customers.id, customerId));
+      
+      await db.update(followUpTasks)
+        .set({ 
+          status: 'cancelled',
+          updatedAt: new Date(),
+        })
+        .where(and(
+          eq(followUpTasks.customerId, customerId),
+          ne(followUpTasks.status, 'completed')
+        ));
+      
+      console.log(`[Spotlight] Customer ${customerId} marked as DNC by user ${userId}`);
     }
 
     let nextFollowUp: { date: Date; type: string } | undefined;
