@@ -2062,11 +2062,13 @@ export default function ClientDatabase() {
       {/* Header - Odoo Style */}
       <div className="flex items-center justify-between bg-white rounded-lg shadow-sm border border-[#E6E1EB] p-4">
         <div>
-          <h1 className="font-odoo-heading text-2xl font-semibold text-[#2C2C2C] flex items-center gap-3">
-            <Building2 className="h-7 w-7 text-[#875A7B]" />
+          <h1 className="text-2xl font-semibold text-[#37352F] flex items-center gap-3" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+            <div className="w-8 h-8 rounded flex items-center justify-center" style={{ backgroundColor: '#0C6E99' }}>
+              <Building2 className="h-[18px] w-[18px] text-white" />
+            </div>
             Client Database
           </h1>
-          <p className="text-sm text-[#6B7280] mt-1">
+          <p className="text-sm text-[#9B9A97] mt-1" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
             Manage your client information and contacts
           </p>
         </div>
@@ -2091,17 +2093,19 @@ export default function ClientDatabase() {
         </div>
       </div>
 
-      {/* Data Health Score & Coaching Section - Collapsible - Odoo Style */}
+      {/* Data Health Score & Coaching Section - Collapsible - Notion Style */}
       <Collapsible open={statsOpen} onOpenChange={setStatsOpen}>
-        <div className="bg-white rounded-lg shadow-sm border border-[#E6E1EB] overflow-hidden">
+        <div className="bg-white rounded-lg border border-[#E8E8E8] overflow-hidden" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
           <CollapsibleTrigger asChild>
-            <button className="w-full flex items-center justify-between p-4 hover:bg-[#F7F6F9] transition-colors">
-              <div className="flex items-center gap-2">
-                <BarChart2 className="h-5 w-5 text-[#875A7B]" />
-                <span className="font-semibold text-[#2C2C2C]">Stats & Health</span>
+            <button className="w-full flex items-center justify-between p-4 hover:bg-[#F7F6F3] transition-colors">
+              <div className="flex items-center gap-2.5">
+                <div className="w-6 h-6 rounded flex items-center justify-center" style={{ backgroundColor: '#693FA5' }}>
+                  <BarChart2 className="h-3.5 w-3.5 text-white" />
+                </div>
+                <span className="font-semibold text-[#37352F]">Stats & Health</span>
               </div>
               <ChevronDown 
-                className={`h-5 w-5 text-[#6B7280] transition-transform ${statsOpen ? 'rotate-180' : ''}`}
+                className={`h-5 w-5 text-[#9B9A97] transition-transform ${statsOpen ? 'rotate-180' : ''}`}
               />
             </button>
           </CollapsibleTrigger>
@@ -2109,11 +2113,10 @@ export default function ClientDatabase() {
           <CollapsibleContent>
             <div className="px-4 pb-4">
               <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-                {/* Data Health Gauge */}
-                <Card className="glass-card border-0 lg:col-span-1">
-          <CardContent className="p-4">
+                {/* Data Health Gauge - Notion Style */}
+                <div className="lg:col-span-1 bg-[#FBFBFA] rounded-lg p-4 border border-[#E8E8E8]">
             <div className="flex flex-col items-center">
-              <p className="text-xs font-medium text-gray-500 mb-2">Database Health</p>
+              <p className="text-xs font-medium text-[#9B9A97] mb-2">Database Health</p>
               <div className="relative w-24 h-24">
                 <svg className="w-24 h-24 transform -rotate-90" viewBox="0 0 100 100">
                   <circle cx="50" cy="50" r="40" stroke="#e5e7eb" strokeWidth="12" fill="none" />
@@ -2154,49 +2157,45 @@ export default function ClientDatabase() {
                   </span>
                 </div>
               </div>
-              <p className="text-[10px] text-gray-500 mt-1 text-center">Email + address complete</p>
+              <p className="text-[10px] text-[#9B9A97] mt-1 text-center">Email + address complete</p>
             </div>
-          </CardContent>
-        </Card>
+        </div>
 
-        {/* Stats Cards Grid */}
+        {/* Stats Cards Grid - Notion Style */}
         <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
           {/* Total Clients - Live Count */}
-          <Card className="glass-card border-0">
-            <CardContent className="p-4">
+          <div className="bg-[#FBFBFA] rounded-lg p-4 border border-[#E8E8E8]">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-gray-500 flex items-center gap-1">
+                  <p className="text-xs font-medium text-[#9B9A97] flex items-center gap-1">
                     Total Clients
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-green-500 animate-pulse" title="Live" />
+                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0E7B6C] animate-pulse" title="Live" />
                   </p>
-                  <p className="text-2xl font-bold text-gray-900">{liveCount?.total ?? customers.length}</p>
+                  <p className="text-2xl font-bold text-[#37352F]">{liveCount?.total ?? customers.length}</p>
                 </div>
-                <div className="h-9 w-9 rounded-full bg-blue-50 flex items-center justify-center">
-                  <Users className="h-4 w-4 text-blue-500" />
+                <div className="h-8 w-8 rounded flex items-center justify-center" style={{ backgroundColor: '#0C6E99' }}>
+                  <Users className="h-4 w-4 text-white" />
                 </div>
               </div>
-              <div className="flex items-center justify-between mt-2 pt-2 border-t border-gray-100">
-                <p className="text-xs font-medium text-gray-500">Florida</p>
-                <p className="text-sm font-semibold text-blue-600" data-testid="florida-count">
+              <div className="flex items-center justify-between mt-2 pt-2 border-t border-[#E8E8E8]">
+                <p className="text-xs font-medium text-[#9B9A97]">Florida</p>
+                <p className="text-sm font-semibold text-[#0C6E99]" data-testid="florida-count">
                   {liveCount?.florida ?? customers.filter(c => c.province?.toUpperCase() === 'FL' || c.province?.toLowerCase() === 'florida').length}
                 </p>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          {/* Mailers & SwatchBooks Split Card */}
-          <Card className="glass-card border-0">
-            <CardContent className="p-0">
+          {/* Mailers & SwatchBooks Split Card - Notion Style */}
+          <div className="bg-[#FBFBFA] rounded-lg border border-[#E8E8E8] overflow-hidden">
               {/* Mailers (Top) */}
-              <div className="p-3 border-b border-gray-100">
+              <div className="p-3 border-b border-[#E8E8E8]">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">Mailers Sent</p>
-                    <p className="text-xl font-bold text-orange-600">{pressKitShipments.length}</p>
+                    <p className="text-[10px] font-medium text-[#9B9A97] uppercase tracking-wide">Mailers Sent</p>
+                    <p className="text-xl font-bold text-[#D9730B]">{pressKitShipments.length}</p>
                   </div>
-                  <div className="h-7 w-7 rounded-full bg-orange-50 flex items-center justify-center">
-                    <Mail className="h-3.5 w-3.5 text-orange-500" />
+                  <div className="h-7 w-7 rounded flex items-center justify-center" style={{ backgroundColor: '#D9730B' }}>
+                    <Mail className="h-3.5 w-3.5 text-white" />
                   </div>
                 </div>
               </div>
@@ -2204,38 +2203,38 @@ export default function ClientDatabase() {
               <div className="p-3">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="text-[10px] font-medium text-gray-400 uppercase tracking-wide">SwatchBooks</p>
-                    <p className="text-xl font-bold text-[#111111]">{swatchBookShipments.length}</p>
+                    <p className="text-[10px] font-medium text-[#9B9A97] uppercase tracking-wide">SwatchBooks</p>
+                    <p className="text-xl font-bold text-[#37352F]">{swatchBookShipments.length}</p>
                   </div>
-                  <div className="h-7 w-7 rounded-full bg-[#FAFAFA] flex items-center justify-center">
-                    <BookOpen className="h-3.5 w-3.5 text-[#666666]" />
+                  <div className="h-7 w-7 rounded flex items-center justify-center" style={{ backgroundColor: '#64473A' }}>
+                    <BookOpen className="h-3.5 w-3.5 text-white" />
                   </div>
                 </div>
               </div>
-            </CardContent>
-          </Card>
+          </div>
 
-          {/* Samples Sent with Weekly Goal */}
-          <Card 
-            className={`glass-card border-0 cursor-pointer transition-all hover:shadow-md ${showSamplesFilter ? 'ring-2 ring-green-500' : ''}`}
+          {/* Samples Sent with Weekly Goal - Notion Style */}
+          <div 
+            className={`bg-[#FBFBFA] rounded-lg p-3 border cursor-pointer transition-all hover:bg-[#F7F6F3] ${showSamplesFilter ? 'border-[#0E7B6C] ring-1 ring-[#0E7B6C]' : 'border-[#E8E8E8]'}`}
             onClick={() => setShowSamplesFilter(!showSamplesFilter)}
             data-testid="card-samples-sent"
           >
-            <CardContent className="p-3">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-gray-500">Samples This Week</p>
-                <Package className="h-4 w-4 text-green-500" />
+                <p className="text-xs font-medium text-[#9B9A97]">Samples This Week</p>
+                <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: '#0E7B6C' }}>
+                  <Package className="h-3.5 w-3.5 text-white" />
+                </div>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-gray-900">{samplesThisWeek}</span>
-                <span className="text-sm text-gray-400">/ 10</span>
+                <span className="text-2xl font-bold text-[#37352F]">{samplesThisWeek}</span>
+                <span className="text-sm text-[#9B9A97]">/ 10</span>
               </div>
               <Progress value={Math.min((samplesThisWeek / 10) * 100, 100)} className="h-1.5 mt-2" />
               {samplesThisWeek === 0 && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <p className="text-[10px] text-green-600 mt-1 cursor-help underline decoration-dotted">Pro tip: Send samples</p>
+                      <p className="text-[10px] text-[#0E7B6C] mt-1 cursor-help underline decoration-dotted">Pro tip: Send samples</p>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p>Click any client, then use "Log Sample" to track samples sent. Samples help build trust!</p>
@@ -2243,26 +2242,26 @@ export default function ClientDatabase() {
                   </Tooltip>
                 </TooltipProvider>
               )}
-            </CardContent>
-          </Card>
+          </div>
 
-          {/* Quotes Sent with Weekly Goal */}
-          <Card className="glass-card border-0">
-            <CardContent className="p-3">
+          {/* Quotes Sent with Weekly Goal - Notion Style */}
+          <div className="bg-[#FBFBFA] rounded-lg p-3 border border-[#E8E8E8]">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-gray-500">Quotes This Week</p>
-                <FileText className="h-4 w-4 text-[#666666]" />
+                <p className="text-xs font-medium text-[#9B9A97]">Quotes This Week</p>
+                <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: '#693FA5' }}>
+                  <FileText className="h-3.5 w-3.5 text-white" />
+                </div>
               </div>
               <div className="flex items-baseline gap-1">
-                <span className="text-2xl font-bold text-gray-900">{quotesThisWeek}</span>
-                <span className="text-sm text-gray-400">/ 15</span>
+                <span className="text-2xl font-bold text-[#37352F]">{quotesThisWeek}</span>
+                <span className="text-sm text-[#9B9A97]">/ 15</span>
               </div>
               <Progress value={Math.min((quotesThisWeek / 15) * 100, 100)} className="h-1.5 mt-2" />
               {quotesThisWeek === 0 && (
                 <TooltipProvider>
                   <Tooltip>
                     <TooltipTrigger asChild>
-                      <p className="text-[10px] text-[#111111] mt-1 cursor-help underline decoration-dotted">Pro tip: Send quotes</p>
+                      <p className="text-[10px] text-[#693FA5] mt-1 cursor-help underline decoration-dotted">Pro tip: Send quotes</p>
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p>Go to QuickQuotes to create and send professional quotes to customers.</p>
@@ -2270,49 +2269,49 @@ export default function ClientDatabase() {
                   </Tooltip>
                 </TooltipProvider>
               )}
-            </CardContent>
-          </Card>
+          </div>
 
-          {/* Needs Cleanup with Fix Now Button */}
-          <Card 
-            className={`glass-card border-0 transition-all ${showDataCleanupFilter ? 'ring-2 ring-amber-500' : ''}`}
+          {/* Needs Cleanup with Fix Now Button - Notion Style */}
+          <div 
+            className={`bg-[#FBFBFA] rounded-lg p-3 border transition-all ${showDataCleanupFilter ? 'border-[#DFAB00] ring-1 ring-[#DFAB00]' : 'border-[#E8E8E8]'}`}
             data-testid="card-data-cleanup"
           >
-            <CardContent className="p-3">
               <div className="flex items-center justify-between mb-1">
-                <p className="text-xs font-medium text-gray-500">Needs Cleanup</p>
-                <AlertTriangle className="h-4 w-4 text-amber-500" />
+                <p className="text-xs font-medium text-[#9B9A97]">Needs Cleanup</p>
+                <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: '#DFAB00' }}>
+                  <AlertTriangle className="h-3.5 w-3.5 text-[#37352F]" />
+                </div>
               </div>
-              <p className="text-2xl font-bold text-amber-600">
+              <p className="text-2xl font-bold text-[#DFAB00]">
                 {groupedByCompany.filter(g => g.customers.some(c => hasIncompleteEmail(c.email))).length}
               </p>
               <Button 
                 size="sm" 
                 variant={showDataCleanupFilter ? "secondary" : "default"}
-                className={`w-full mt-2 h-7 text-xs ${!showDataCleanupFilter ? 'bg-amber-500 hover:bg-amber-600' : ''}`}
+                className={`w-full mt-2 h-7 text-xs ${!showDataCleanupFilter ? 'bg-[#DFAB00] hover:bg-[#C99B00] text-[#37352F]' : ''}`}
                 onClick={(e) => { e.stopPropagation(); setShowDataCleanupFilter(!showDataCleanupFilter); }}
                 data-testid="button-fix-now"
               >
                 {showDataCleanupFilter ? 'Show All' : 'Fix Now'}
               </Button>
-            </CardContent>
-          </Card>
+          </div>
 
-          {/* Missing Sales Rep */}
-          <Card 
-            className={`glass-card border-0 transition-all hover:shadow-md ${filters.salesRep === 'unassigned' ? 'ring-2 ring-red-500' : ''}`}
+          {/* Missing Sales Rep - Notion Style */}
+          <div 
+            className={`bg-[#FBFBFA] rounded-lg p-3 border transition-all hover:bg-[#F7F6F3] ${filters.salesRep === 'unassigned' ? 'border-[#E03D3E] ring-1 ring-[#E03D3E]' : 'border-[#E8E8E8]'}`}
             data-testid="card-missing-sales-rep"
           >
-            <CardContent className="p-3">
               <div 
                 className="cursor-pointer"
                 onClick={() => setFilters({...filters, salesRep: filters.salesRep === 'unassigned' ? '' : 'unassigned'})}
               >
                 <div className="flex items-center justify-between mb-1">
-                  <p className="text-xs font-medium text-gray-500">No Sales Rep</p>
-                  <UserX className="h-4 w-4 text-red-500" />
+                  <p className="text-xs font-medium text-[#9B9A97]">No Sales Rep</p>
+                  <div className="h-6 w-6 rounded flex items-center justify-center" style={{ backgroundColor: '#E03D3E' }}>
+                    <UserX className="h-3.5 w-3.5 text-white" />
+                  </div>
                 </div>
-                <p className="text-2xl font-bold text-red-600" data-testid="text-missing-sales-rep-count">
+                <p className="text-2xl font-bold text-[#E03D3E]" data-testid="text-missing-sales-rep-count">
                   {customers.filter(c => !c.salesRepId || c.salesRepId.trim() === '').length}
                 </p>
               </div>
@@ -2329,7 +2328,7 @@ export default function ClientDatabase() {
                   </Button>
                   <Button 
                     size="sm" 
-                    className="w-full h-7 text-xs bg-red-500 hover:bg-red-600"
+                    className="w-full h-7 text-xs bg-[#E03D3E] hover:bg-[#C93536]"
                     onClick={(e) => { e.stopPropagation(); autoAssignSalesRepsMutation.mutate(); }}
                     disabled={autoAssignSalesRepsMutation.isPending}
                     data-testid="button-auto-assign-sales-reps"
@@ -2338,9 +2337,8 @@ export default function ClientDatabase() {
                   </Button>
                 </div>
               )}
-              {!isAdmin && <p className="text-[10px] text-gray-400 mt-1">Click to filter</p>}
-            </CardContent>
-          </Card>
+              {!isAdmin && <p className="text-[10px] text-[#9B9A97] mt-1">Click to filter</p>}
+          </div>
                 </div>
               </div>
             </div>
@@ -2938,62 +2936,74 @@ export default function ClientDatabase() {
               )}
             </div>
           ) : viewMode === 'table' ? (
-            /* ODOO-STYLE HIERARCHICAL TREE VIEW */
-            <div className="max-h-[600px] overflow-y-auto">
-              {/* Sticky Table Header */}
-              <div className="sticky top-0 z-10 bg-gray-100 border-b border-gray-200 px-3 py-2.5 flex items-center gap-3 text-xs font-semibold text-gray-700 uppercase tracking-wide">
+            /* NOTION-STYLE DATABASE VIEW */
+            <div className="max-h-[600px] overflow-y-auto" style={{ fontFamily: 'Inter, -apple-system, BlinkMacSystemFont, sans-serif' }}>
+              {/* Sticky Table Header - Notion Style */}
+              <div className="sticky top-0 z-10 bg-[#F7F6F3] border-b border-[#E8E8E8] px-3 py-2 flex items-center gap-3 text-xs font-medium text-[#9B9A97]">
                 <Checkbox 
                   checked={bulkSelected.size === filteredHierarchicalTree.length && filteredHierarchicalTree.length > 0}
                   onCheckedChange={(checked) => checked ? selectAllVisible() : clearBulkSelection()}
                   className="h-4 w-4"
                   data-testid="checkbox-select-all"
                 />
-                <span className="flex-1">Name</span>
-                <span className="w-24 text-center hidden md:block">Actions</span>
+                <div className="flex items-center gap-1.5 flex-1">
+                  <Building2 className="h-3.5 w-3.5 text-[#9B9A97]" />
+                  <span>Name</span>
+                </div>
+                <div className="w-24 flex items-center justify-center gap-1.5 hidden md:flex">
+                  <MoreHorizontal className="h-3.5 w-3.5 text-[#9B9A97]" />
+                  <span>Actions</span>
+                </div>
               </div>
               
-              <div className="divide-y divide-gray-100">
-                {/* Render hierarchical tree */}
+              <div className="divide-y divide-[#E8E8E8]">
+                {/* Render hierarchical tree - Notion style */}
                 {filteredHierarchicalTree.map((node) => {
                   const customer = node.customer;
                   const hasChildren = node.children.length > 0;
                   const isExpanded = expandedCompanies.has(customer.id);
                   const isBulkSelected = bulkSelected.has(customer.id);
                   
-                  // Get company icon - green square with initial for companies
+                  // Get company icon - Notion-style colored square with initial for companies
                   const getCompanyIcon = () => {
                     if (node.isCompany) {
                       const initial = node.displayName.charAt(0).toUpperCase();
+                      // Use Notion color palette - rotate based on initial letter
+                      const notionColors = ['#0C6E99', '#D9730B', '#693FA5', '#0E7B6C', '#E03D3E', '#AD1972', '#64473A'];
+                      const colorIndex = initial.charCodeAt(0) % notionColors.length;
                       return (
-                        <div className="w-8 h-8 rounded bg-green-600 flex items-center justify-center text-white font-bold text-sm flex-shrink-0">
+                        <div 
+                          className="w-8 h-8 rounded flex items-center justify-center text-white font-bold text-sm flex-shrink-0"
+                          style={{ backgroundColor: notionColors[colorIndex] }}
+                        >
                           {initial}
                         </div>
                       );
                     }
-                    return <User className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                    return <User className="h-5 w-5 text-[#9B9A97] flex-shrink-0" />;
                   };
                   
-                  // Get child contact icon based on type
+                  // Get child contact icon based on type - Notion style
                   const getContactIcon = (contactType: string) => {
                     switch (contactType) {
                       case 'delivery':
-                        return <Truck className="h-5 w-5 text-orange-400 flex-shrink-0" />;
+                        return <Truck className="h-5 w-5 text-[#D9730B] flex-shrink-0" />;
                       case 'invoice':
-                        return <Receipt className="h-5 w-5 text-blue-400 flex-shrink-0" />;
+                        return <Receipt className="h-5 w-5 text-[#0C6E99] flex-shrink-0" />;
                       case 'contact':
-                        return <User className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                        return <User className="h-5 w-5 text-[#9B9A97] flex-shrink-0" />;
                       default:
-                        return <Truck className="h-5 w-5 text-gray-400 flex-shrink-0" />;
+                        return <Truck className="h-5 w-5 text-[#9B9A97] flex-shrink-0" />;
                     }
                   };
                   
                   return (
                     <div key={customer.id} data-testid={`tree-node-${customer.id}`}>
-                      {/* Parent/Company Row */}
+                      {/* Parent/Company Row - Notion Style */}
                       <div 
-                        className={`group flex items-center gap-3 py-3 px-3 text-sm cursor-pointer transition-colors border-b border-gray-50
-                          ${isBulkSelected ? 'bg-blue-50' : ''}
-                          hover:bg-gray-50`}
+                        className={`group flex items-center gap-3 py-2.5 px-3 text-sm cursor-pointer transition-colors
+                          ${isBulkSelected ? 'bg-[#E8F4FD]' : ''}
+                          hover:bg-[#F7F6F3]`}
                         onClick={() => hasChildren && toggleCompanyExpansion(customer.id)}
                       >
                         <Checkbox 
@@ -3015,9 +3025,9 @@ export default function ClientDatabase() {
                         {/* Company/Contact Icon */}
                         {getCompanyIcon()}
                         
-                        {/* Name */}
+                        {/* Name - Notion style */}
                         <span 
-                          className="font-medium text-gray-900 hover:text-blue-600 hover:underline cursor-pointer flex-1 truncate"
+                          className="font-medium text-[#37352F] hover:text-[#0C6E99] hover:underline cursor-pointer flex-1 truncate"
                           onClick={(e) => { e.stopPropagation(); handleSelectCustomer(customer, node.children.map(c => c.customer)); }}
                           data-testid={`link-client-${customer.id}`}
                         >
@@ -3071,9 +3081,9 @@ export default function ClientDatabase() {
                         </div>
                       </div>
                       
-                      {/* Child Contacts - Indented like Odoo tree */}
+                      {/* Child Contacts - Indented Notion style */}
                       {isExpanded && hasChildren && (
-                        <div className="bg-gray-50/50">
+                        <div className="bg-[#FBFBFA]">
                           {node.children.map((child) => {
                             const childCustomer = child.customer;
                             const isChildSelected = bulkSelected.has(childCustomer.id);
@@ -3081,9 +3091,9 @@ export default function ClientDatabase() {
                             return (
                               <div 
                                 key={childCustomer.id}
-                                className={`group flex items-center gap-3 py-2.5 pl-16 pr-3 text-sm cursor-pointer transition-colors border-b border-gray-100
-                                  ${isChildSelected ? 'bg-blue-50' : ''}
-                                  hover:bg-gray-100/50`}
+                                className={`group flex items-center gap-3 py-2 pl-16 pr-3 text-sm cursor-pointer transition-colors border-b border-[#E8E8E8]
+                                  ${isChildSelected ? 'bg-[#E8F4FD]' : ''}
+                                  hover:bg-[#F7F6F3]`}
                                 data-testid={`tree-child-${childCustomer.id}`}
                                 onClick={() => handleSelectCustomer(childCustomer, [])}
                               >
@@ -3097,8 +3107,8 @@ export default function ClientDatabase() {
                                 {/* Contact Type Icon */}
                                 {getContactIcon(child.contactType)}
                                 
-                                {/* Formatted Name: "Parent, Child" */}
-                                <span className="text-gray-700 hover:text-blue-600 hover:underline cursor-pointer flex-1 truncate">
+                                {/* Formatted Name: "Parent, Child" - Notion style */}
+                                <span className="text-[#37352F] hover:text-[#0C6E99] hover:underline cursor-pointer flex-1 truncate">
                                   {child.displayName}
                                 </span>
                                 
