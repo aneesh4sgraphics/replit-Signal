@@ -12,7 +12,7 @@ import {
   Building2,
   Flame,
 } from "lucide-react";
-import { primaryApps } from "@/lib/nav-links";
+import { primaryApps, filterAppsByUser } from "@/lib/nav-links";
 import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
 import StartYourDayDashboard from "@/components/StartYourDayDashboard";
@@ -389,7 +389,7 @@ export default function Dashboard() {
           }}>
             <ScrollArea className="w-full">
               <div style={{ display: 'flex', gap: '8px', paddingBottom: '4px' }}>
-                {primaryApps.map((app) => {
+                {filterAppsByUser(primaryApps, user?.email).map((app) => {
                   const Icon = app.icon;
                   return (
                     <Link

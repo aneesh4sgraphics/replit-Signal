@@ -30,6 +30,55 @@ export interface NavLink {
   iconColor?: string;
 }
 
+// User-specific app visibility configuration
+// Key: user email (lowercase), Value: array of allowed app paths
+// Dashboard ('/') is always allowed for all users
+const USER_APP_RESTRICTIONS: Record<string, string[]> = {
+  'santiago@4sgraphics.com': [
+    '/',  // Dashboard always accessible
+    '/quick-quotes',
+    '/price-list', 
+    '/saved-quotes',
+    '/clients',
+    '/area-pricer',
+    '/competitor-pricing',
+    '/shipping-calculator',
+  ],
+  'warehouse@4sgraphics.com': [
+    '/',  // Dashboard always accessible
+    '/shipping-calculator',
+    '/shipping-labels',
+    '/product-labels',
+  ],
+};
+
+// Filter apps based on user email - returns only allowed apps for restricted users
+export function filterAppsByUser<T extends { path: string }>(apps: T[], userEmail?: string): T[] {
+  if (!userEmail) return apps;
+  
+  const email = userEmail.toLowerCase();
+  const allowedPaths = USER_APP_RESTRICTIONS[email];
+  
+  // If user has no restrictions, show all apps
+  if (!allowedPaths) return apps;
+  
+  // Filter to only allowed apps for this user
+  return apps.filter(app => allowedPaths.includes(app.path));
+}
+
+// Check if a specific path is allowed for a user
+export function isAppAllowedForUser(path: string, userEmail?: string): boolean {
+  if (!userEmail) return true;
+  
+  const email = userEmail.toLowerCase();
+  const allowedPaths = USER_APP_RESTRICTIONS[email];
+  
+  // If user has no restrictions, all apps are allowed
+  if (!allowedPaths) return true;
+  
+  return allowedPaths.includes(path);
+}
+
 export const primaryApps: NavLink[] = [
   { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', description: 'Create quotes', iconBg: '#D9730B', iconColor: '#FFFFFF' },
   { path: '/price-list', icon: PriceListIcon, label: 'Price List', description: 'View pricing', iconBg: '#DFAB00', iconColor: '#37352F' },

@@ -5,6 +5,7 @@ import { NAV_ITEMS } from './CommandPalette';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
 import { Input } from '@/components/ui/input';
+import { filterAppsByUser } from '@/lib/nav-links';
 
 interface AppSwitcherDrawerProps {
   open: boolean;
@@ -22,9 +23,10 @@ export function AppSwitcherDrawer({ open, onClose, onOpenCommandPalette }: AppSw
   const isAdmin = (user as any)?.role === 'admin';
   const topAppPaths = getTopApps(4);
 
-  const filteredItems = NAV_ITEMS
-    .filter(item => !item.adminOnly || isAdmin)
-    .filter(item => {
+  // Filter by admin access, then by user-specific restrictions, then by search
+  const adminFilteredItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  const userFilteredItems = filterAppsByUser(adminFilteredItems, user?.email);
+  const filteredItems = userFilteredItems.filter(item => {
       if (!searchQuery) return true;
       const query = searchQuery.toLowerCase();
       return (

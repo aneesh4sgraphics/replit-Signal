@@ -7,6 +7,7 @@ import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
 import { queryClient } from '@/lib/queryClient';
 import { resetAppData } from '@/lib/cache';
+import { filterAppsByUser } from '@/lib/nav-links';
 import {
   DashboardIcon,
   QuickQuotesIcon,
@@ -111,7 +112,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     onOpenChange(false);
   }, [onOpenChange]);
 
-  const filteredItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  // Filter by admin access, then by user-specific restrictions
+  const adminFilteredItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
+  const filteredItems = filterAppsByUser(adminFilteredItems, user?.email);
   const recentItems = filteredItems.filter(item => recentPaths.includes(item.path));
 
   return (
