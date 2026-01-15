@@ -480,7 +480,18 @@ export default function Dashboard() {
                             onMouseLeave={(e) => e.currentTarget.style.background = 'transparent'}
                             data-testid={`icon-${app.label.toLowerCase().replace(/\s+/g, '-')}`}
                           >
-                            <Icon size={24} style={{ color: '#111111', marginBottom: '8px' }} />
+                            <div style={{
+                              width: '36px',
+                              height: '36px',
+                              borderRadius: '8px',
+                              backgroundColor: app.iconBg || '#878682',
+                              display: 'flex',
+                              alignItems: 'center',
+                              justifyContent: 'center',
+                              marginBottom: '8px',
+                            }}>
+                              <Icon size={18} style={{ color: app.iconColor || '#FFFFFF' }} />
+                            </div>
                             <span style={{
                               fontSize: '9px',
                               fontWeight: 600,
