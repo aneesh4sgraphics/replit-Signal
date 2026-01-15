@@ -395,6 +395,90 @@ export default function Spotlight() {
     setSelectedFeedback([]);
   }, [currentTask?.task?.id]);
 
+  // Merge customers mutation
+  const mergeCustomersMutation = useMutation({
+    mutationFn: async ({ targetId, sourceId, fieldSelections }: { targetId: string; sourceId: string; fieldSelections?: Record<string, string> }) => {
+      return await apiRequest("POST", `/api/customers/merge`, { targetId, sourceId, fieldSelections });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["/api/customers"] });
+      toast({
+        title: "Clients merged",
+        description: "The two clients have been merged successfully",
+      });
+      setShowMergeModal(false);
+      setMergeData(null);
+      setMergeTarget(null);
+      setMergeFieldSelections({});
+      refetch();
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error merging clients",
+        description: error.message || "Failed to merge clients",
+        variant: "destructive",
+      });
+    },
+  });
+
+  const handleOpenMergeModal = async (duplicateIds: string[], currentCustomerId: string) => {
+    try {
+      // Fetch both customers' data
+      const [currentRes, duplicateRes] = await Promise.all([
+        fetch(`/api/customers/${currentCustomerId}`),
+        fetch(`/api/customers/${duplicateIds[0]}`)
+      ]);
+      
+      if (!currentRes.ok || !duplicateRes.ok) {
+        throw new Error('Failed to fetch customer data');
+      }
+      
+      const currentCustomer = await currentRes.json();
+      const duplicateCustomer = await duplicateRes.json();
+      
+      setMergeData({
+        sourceCustomer: currentCustomer,
+        targetCustomer: duplicateCustomer,
+        duplicateIds
+      });
+      setMergeTarget(duplicateIds[0]); // Default to keeping the duplicate as primary
+      setMergeFieldSelections({});
+      setShowMergeModal(true);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Could not load customer data for merge",
+        variant: "destructive"
+      });
+    }
+  };
+
+  const handleMerge = () => {
+    if (!mergeData || !mergeTarget) return;
+    
+    const sourceId = mergeTarget === mergeData.targetCustomer.id 
+      ? mergeData.sourceCustomer.id 
+      : mergeData.targetCustomer.id;
+    
+    mergeCustomersMutation.mutate({ 
+      targetId: mergeTarget, 
+      sourceId, 
+      fieldSelections: mergeFieldSelections 
+    });
+  };
+
+  const mergeFields = [
+    { key: 'company', label: 'Company Name' },
+    { key: 'firstName', label: 'First Name' },
+    { key: 'lastName', label: 'Last Name' },
+    { key: 'email', label: 'Primary Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'address1', label: 'Address' },
+    { key: 'city', label: 'City' },
+    { key: 'province', label: 'Province' },
+    { key: 'pricingTier', label: 'Pricing Tier' },
+  ];
+
   const handleOutcome = (outcomeId: string, field?: string, value?: string) => {
     if (!currentTask?.task) return;
     completeMutation.mutate({ 
@@ -658,15 +742,14 @@ export default function Spotlight() {
                     </div>
                     <div className="flex items-center gap-2">
                       {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && (
-                        <Link href={`/clients?id=${hint.metadata.duplicateIds[0]}&merge_with=${customer.id}&from=spotlight`}>
-                          <Button
-                            size="sm"
-                            variant="outline"
-                            className="text-xs"
-                          >
-                            {hint.ctaLabel}
-                          </Button>
-                        </Link>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs"
+                          onClick={() => handleOpenMergeModal(hint.metadata?.duplicateIds || [], customer.id)}
+                        >
+                          {hint.ctaLabel}
+                        </Button>
                       )}
                       {hint.ctaAction !== 'view_duplicate' && (
                         <Button
@@ -1143,6 +1226,133 @@ export default function Spotlight() {
               className="flex-1 bg-[#111111] hover:bg-[#333333]"
             >
               {fixDataMutation.isPending ? 'Saving...' : 'Save Changes'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Merge Customers Modal */}
+      <Dialog open={showMergeModal} onOpenChange={setShowMergeModal}>
+        <DialogContent className="sm:max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <GitMerge className="w-5 h-5 text-purple-500" />
+              Merge Duplicate Clients
+            </DialogTitle>
+            <DialogDescription>
+              Select which client to keep as the primary record. Data from the other client will be merged in.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {mergeData && (
+            <div className="py-4 space-y-4">
+              {/* Select Primary Client */}
+              <div className="grid grid-cols-2 gap-4">
+                <button
+                  type="button"
+                  onClick={() => setMergeTarget(mergeData.sourceCustomer.id)}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    mergeTarget === mergeData.sourceCustomer.id
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-gray-500 mb-1">Current Card</div>
+                  <div className="font-semibold text-[#111111]">
+                    {mergeData.sourceCustomer.company || `${mergeData.sourceCustomer.firstName || ''} ${mergeData.sourceCustomer.lastName || ''}`.trim() || 'Unknown'}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">{mergeData.sourceCustomer.email || 'No email'}</div>
+                  {mergeTarget === mergeData.sourceCustomer.id && (
+                    <Badge className="mt-2 bg-purple-500">Keep as Primary</Badge>
+                  )}
+                </button>
+                
+                <button
+                  type="button"
+                  onClick={() => setMergeTarget(mergeData.targetCustomer.id)}
+                  className={`p-4 rounded-lg border-2 text-left transition-all ${
+                    mergeTarget === mergeData.targetCustomer.id
+                      ? 'border-purple-500 bg-purple-50'
+                      : 'border-gray-200 hover:border-gray-300'
+                  }`}
+                >
+                  <div className="font-medium text-sm text-gray-500 mb-1">Duplicate Found</div>
+                  <div className="font-semibold text-[#111111]">
+                    {mergeData.targetCustomer.company || `${mergeData.targetCustomer.firstName || ''} ${mergeData.targetCustomer.lastName || ''}`.trim() || 'Unknown'}
+                  </div>
+                  <div className="text-sm text-gray-500 mt-1">{mergeData.targetCustomer.email || 'No email'}</div>
+                  {mergeTarget === mergeData.targetCustomer.id && (
+                    <Badge className="mt-2 bg-purple-500">Keep as Primary</Badge>
+                  )}
+                </button>
+              </div>
+
+              {/* Field Selection */}
+              <div className="border-t pt-4">
+                <h4 className="font-medium text-sm text-gray-700 mb-3">Choose which data to keep for each field:</h4>
+                <div className="space-y-3">
+                  {mergeFields.map(({ key, label }) => {
+                    const valueA = mergeData.sourceCustomer[key] || '';
+                    const valueB = mergeData.targetCustomer[key] || '';
+                    const selectedValue = mergeFieldSelections[key];
+                    
+                    if (!valueA && !valueB) return null;
+                    if (valueA === valueB) return null;
+                    
+                    return (
+                      <div key={key} className="bg-gray-50 rounded-lg p-3">
+                        <div className="text-xs font-medium text-gray-500 mb-2">{label}</div>
+                        <div className="grid grid-cols-2 gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setMergeFieldSelections(prev => ({ ...prev, [key]: mergeData.sourceCustomer.id }))}
+                            className={`p-2 text-left rounded border text-sm transition-all ${
+                              selectedValue === mergeData.sourceCustomer.id
+                                ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            {valueA || <span className="text-gray-400 italic">Empty</span>}
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setMergeFieldSelections(prev => ({ ...prev, [key]: mergeData.targetCustomer.id }))}
+                            className={`p-2 text-left rounded border text-sm transition-all ${
+                              selectedValue === mergeData.targetCustomer.id
+                                ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500'
+                                : 'border-gray-200 hover:border-gray-300'
+                            }`}
+                          >
+                            {valueB || <span className="text-gray-400 italic">Empty</span>}
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+            </div>
+          )}
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                setShowMergeModal(false);
+                setMergeData(null);
+                setMergeTarget(null);
+                setMergeFieldSelections({});
+              }}
+              className="flex-1"
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleMerge}
+              disabled={!mergeTarget || mergeCustomersMutation.isPending}
+              className="flex-1 bg-purple-600 hover:bg-purple-700"
+            >
+              {mergeCustomersMutation.isPending ? 'Merging...' : 'Merge Clients'}
             </Button>
           </DialogFooter>
         </DialogContent>
