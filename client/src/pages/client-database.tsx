@@ -925,9 +925,37 @@ export default function ClientDatabase() {
     }
   };
 
+  // Helper to check if a customer matches missing data filter criteria
+  const matchesMissingDataFilters = (c: Partial<Customer>): boolean => {
+    if (missingDataFilters.noEmail && c.email && c.email.trim() !== '') return false;
+    if (missingDataFilters.noPhone && c.phone && c.phone.trim() !== '') return false;
+    if (missingDataFilters.noTags && c.tags && c.tags.trim() !== '') return false;
+    if (missingDataFilters.noCompany && c.company && c.company.trim() !== '') return false;
+    return true;
+  };
+
   // Filter hierarchical tree based on search and filters
   const filteredHierarchicalTree: HierarchicalNode[] = React.useMemo(() => {
-    return hierarchicalTree.filter(node => {
+    // First, filter and transform nodes
+    const filtered = hierarchicalTree.map(node => {
+      const customer = node.customer;
+      
+      // Apply missing data filters to children first
+      let filteredChildren = node.children;
+      if (missingDataFilters.noEmail || missingDataFilters.noPhone || missingDataFilters.noTags || missingDataFilters.noCompany) {
+        filteredChildren = node.children.filter(child => matchesMissingDataFilters(child.customer));
+      }
+      
+      // Apply search filter to children
+      if (debouncedSearchTerm) {
+        filteredChildren = filteredChildren.filter(child =>
+          fuzzyMatch(child.displayName, debouncedSearchTerm) ||
+          fuzzyMatch(child.customer.email || '', debouncedSearchTerm)
+        );
+      }
+      
+      return { ...node, children: filteredChildren };
+    }).filter(node => {
       const customer = node.customer;
       
       // Alphabet filter
@@ -940,14 +968,11 @@ export default function ClientDatabase() {
         }
       }
       
-      // Search filter - match against parent or any child
+      // Search filter - match against parent or any remaining child
       if (debouncedSearchTerm) {
         const matchesParent = fuzzyMatch(node.displayName, debouncedSearchTerm) ||
           fuzzyMatch(customer.email || '', debouncedSearchTerm);
-        const matchesAnyChild = node.children.some(child => 
-          fuzzyMatch(child.displayName, debouncedSearchTerm) ||
-          fuzzyMatch(child.customer.email || '', debouncedSearchTerm)
-        );
+        const matchesAnyChild = node.children.length > 0;
         if (!matchesParent && !matchesAnyChild) return false;
       }
       
@@ -964,19 +989,18 @@ export default function ClientDatabase() {
         if (!isHot) return false;
       }
       
-      return true;
-    }).map(node => {
-      // Filter children too if searching
-      if (debouncedSearchTerm) {
-        const filteredChildren = node.children.filter(child =>
-          fuzzyMatch(child.displayName, debouncedSearchTerm) ||
-          fuzzyMatch(child.customer.email || '', debouncedSearchTerm)
-        );
-        return { ...node, children: filteredChildren };
+      // Missing data filters - parent must match OR have remaining children that match
+      if (missingDataFilters.noEmail || missingDataFilters.noPhone || missingDataFilters.noTags || missingDataFilters.noCompany) {
+        const parentMatches = matchesMissingDataFilters(customer);
+        const hasMatchingChildren = node.children.length > 0;
+        if (!parentMatches && !hasMatchingChildren) return false;
       }
-      return node;
+      
+      return true;
     });
-  }, [hierarchicalTree, selectedLetter, debouncedSearchTerm, filters, showHotOnly]);
+    
+    return filtered;
+  }, [hierarchicalTree, selectedLetter, debouncedSearchTerm, filters, showHotOnly, missingDataFilters]);
 
   // Filter companies based on search and filters (LEGACY - for cards/kanban views)
   const filteredCompanies = React.useMemo(() => {
