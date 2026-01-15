@@ -1398,10 +1398,10 @@ export default function Spotlight() {
                           <button
                             type="button"
                             onClick={() => setMergeFieldSelections(prev => ({ ...prev, [key]: mergeData.sourceCustomer.id }))}
-                            className={`p-2 text-left rounded border text-sm transition-all ${
+                            className={`p-2 text-left rounded border text-sm transition-all cursor-pointer hover:bg-gray-100 ${
                               selectedValue === mergeData.sourceCustomer.id
-                                ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-500 font-medium'
+                                : 'border-gray-200 hover:border-purple-300 bg-white'
                             }`}
                           >
                             {valueA || <span className="text-gray-400 italic">Empty</span>}
@@ -1409,10 +1409,10 @@ export default function Spotlight() {
                           <button
                             type="button"
                             onClick={() => setMergeFieldSelections(prev => ({ ...prev, [key]: mergeData.targetCustomer.id }))}
-                            className={`p-2 text-left rounded border text-sm transition-all ${
+                            className={`p-2 text-left rounded border text-sm transition-all cursor-pointer hover:bg-gray-100 ${
                               selectedValue === mergeData.targetCustomer.id
-                                ? 'border-purple-500 bg-purple-50 ring-1 ring-purple-500'
-                                : 'border-gray-200 hover:border-gray-300'
+                                ? 'border-purple-500 bg-purple-50 ring-2 ring-purple-500 font-medium'
+                                : 'border-gray-200 hover:border-purple-300 bg-white'
                             }`}
                           >
                             {valueB || <span className="text-gray-400 italic">Empty</span>}
