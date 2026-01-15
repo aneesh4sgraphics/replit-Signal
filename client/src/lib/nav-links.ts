@@ -56,5 +56,4 @@ export const adminApps: NavLink[] = [
   { path: '/activity-logs', icon: Activity, label: 'Activity', description: 'Activity logs' },
   { path: '/product-pricing-management', icon: Database, label: 'Products', description: 'Product database' },
   { path: '/pdf-settings', icon: FileText, label: 'PDF Settings', description: 'PDF customization' },
-  { path: '/now-mode-admin', icon: Target, label: 'NOW Mode Admin', description: 'NOW Mode analytics' },
 ];

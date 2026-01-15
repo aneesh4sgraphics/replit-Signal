@@ -40,8 +40,7 @@ import SalesAnalyticsPage from "@/pages/sales-analytics";
 import ReportsPage from "@/pages/reports";
 import GmailInsightsPage from "@/pages/gmail-insights";
 import EmailSyncDebug from "@/pages/email-sync-debug";
-import NowMode from "@/pages/now-mode";
-import NowModeAdmin from "@/pages/now-mode-admin";
+import Spotlight from "@/pages/spotlight";
 import CalendarPage from "@/pages/calendar";
 
 import NotFound from "@/pages/not-found";
@@ -106,8 +105,7 @@ const AppRoutes = () => (
     <Route path="/product-mapping" component={ProductMappingPage} />
     <Route path="/sales-analytics" component={SalesAnalyticsPage} />
     <Route path="/reports" component={ReportsPage} />
-    <Route path="/now-mode" component={NowMode} />
-    <Route path="/now-mode-admin" component={NowModeAdmin} />
+    <Route path="/spotlight" component={Spotlight} />
     <Route path="/calendar" component={CalendarPage} />
     <Route><Redirect to="/" /></Route>
   </Switch>

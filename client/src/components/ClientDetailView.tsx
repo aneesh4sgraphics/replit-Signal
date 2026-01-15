@@ -125,12 +125,12 @@ interface ClientDetailViewProps {
   onNext?: () => void;
   hasPrev?: boolean;
   hasNext?: boolean;
-  fromNowMode?: boolean; // Show "Back to NOW MODE" button
+  fromSpotlight?: boolean; // Show "Back to Spotlight" button
 }
 
-function NowModeActivitiesTab({ customerId }: { customerId: string }) {
+function SpotlightActivitiesTab({ customerId }: { customerId: string }) {
   const { data: activities = [], isLoading } = useQuery<any[]>({
-    queryKey: [`/api/customers/${customerId}/now-mode-activities`],
+    queryKey: [`/api/customers/${customerId}/activities`],
   });
 
   const getOutcomeBadgeColor = (outcome: string) => {
@@ -243,7 +243,7 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
       <CardHeader className="pb-2">
         <CardTitle className="text-base flex items-center gap-2">
           <Zap className="h-5 w-5 text-indigo-600" />
-          NOW MODE Activity History
+          Spotlight Activity History
         </CardTitle>
       </CardHeader>
       <CardContent className="p-6 pt-2">
@@ -315,8 +315,8 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
         ) : (
           <div className="text-center py-8">
             <Zap className="h-12 w-12 text-gray-300 mx-auto mb-3" />
-            <p className="text-gray-500">No NOW MODE activities recorded for this customer</p>
-            <p className="text-sm text-gray-400 mt-1">Activities appear when reps interact with this customer in NOW MODE</p>
+            <p className="text-gray-500">No Spotlight activities recorded for this customer</p>
+            <p className="text-sm text-gray-400 mt-1">Activities appear when reps interact with this customer in Spotlight</p>
           </div>
         )}
       </CardContent>
@@ -324,7 +324,7 @@ function NowModeActivitiesTab({ customerId }: { customerId: string }) {
   );
 }
 
-export default function ClientDetailView({ customer, companyContacts = [], onBack, onEdit, onDelete, onPrev, onNext, hasPrev = false, hasNext = false, fromNowMode = false }: ClientDetailViewProps) {
+export default function ClientDetailView({ customer, companyContacts = [], onBack, onEdit, onDelete, onPrev, onNext, hasPrev = false, hasNext = false, fromSpotlight = false }: ClientDetailViewProps) {
   const [activeTab, setActiveTab] = useState("quotes-prices");
   const [isAddPressProfileOpen, setIsAddPressProfileOpen] = useState(false);
   const [isAddSampleOpen, setIsAddSampleOpen] = useState(false);
@@ -842,8 +842,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       toast({ 
         title: (customer as any).doNotContact ? "Removed Do Not Contact" : "Marked as Do Not Contact",
         description: (customer as any).doNotContact 
-          ? `${customerName} is now active and will appear in NOW MODE`
-          : `${customerName} is marked as Bad Fit and excluded from NOW MODE`
+          ? `${customerName} is now active and will appear in Spotlight`
+          : `${customerName} is marked as Bad Fit and excluded from Spotlight`
       });
     },
     onError: (error: any) => {
@@ -1128,11 +1128,11 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
       }`}>
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-3">
-            {fromNowMode ? (
-              <Link href="/now-mode">
-                <Button variant="outline" size="sm" className="h-8 text-[#111111] border-[#EAEAEA] hover:bg-[#F2F2F2]" data-testid="btn-back-now-mode">
+            {fromSpotlight ? (
+              <Link href="/spotlight">
+                <Button variant="outline" size="sm" className="h-8 text-[#111111] border-[#EAEAEA] hover:bg-[#F2F2F2]" data-testid="btn-back-spotlight">
                   <ArrowLeft className="h-4 w-4 mr-1" />
-                  Back to NOW MODE
+                  Back to Spotlight
                 </Button>
               </Link>
             ) : (
@@ -1435,8 +1435,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                 </TooltipTrigger>
                 <TooltipContent>
                   {(customer as any).doNotContact 
-                    ? 'Remove Do Not Contact status and include in NOW MODE' 
-                    : 'Mark as Bad Fit / Do Not Contact - excludes from NOW MODE forever'}
+                    ? 'Remove Do Not Contact status and include in Spotlight' 
+                    : 'Mark as Bad Fit / Do Not Contact - excludes from Spotlight forever'}
                 </TooltipContent>
               </Tooltip>
             </TooltipProvider>
@@ -2295,9 +2295,9 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
             <Badge variant="secondary" className="ml-1 h-5 px-1.5 text-xs">{pressProfiles.length}</Badge>
           </TabsTrigger>
           <TabsTrigger 
-            value="now-mode" 
+            value="spotlight" 
             className="flex items-center gap-1 data-[state=active]:bg-white data-[state=active]:text-indigo-700 data-[state=active]:shadow-sm data-[state=active]:font-medium transition-all text-xs"
-            data-testid="tab-now-mode"
+            data-testid="tab-spotlight"
           >
             <Zap className="h-4 w-4" />
             <span className="hidden sm:inline">NOW</span>
@@ -2905,8 +2905,8 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
           </Card>
         </TabsContent>
 
-        <TabsContent value="now-mode" className="mt-4">
-          <NowModeActivitiesTab customerId={customer.id} />
+        <TabsContent value="spotlight" className="mt-4">
+          <SpotlightActivitiesTab customerId={customer.id} />
         </TabsContent>
       </Tabs>
 

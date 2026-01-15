@@ -6,10 +6,7 @@ import {
   Settings,
   AlertCircle,
   ChevronRight,
-  Clock,
   Mail,
-  Gauge,
-  Lightbulb,
   Calendar,
   Zap,
   Building2,
@@ -132,48 +129,6 @@ export default function Dashboard() {
     retry: 1,
   });
 
-  // Efficiency score for NOW MODE
-  const { data: efficiencyData } = useQuery<{ efficiencyScore: number; totalTasksCompleted: number }>({
-    queryKey: ['/api/now-mode/efficiency'],
-    refetchOnWindowFocus: false,
-    staleTime: 60 * 1000,
-    retry: 1,
-  });
-
-  // Dormancy check for popup
-  const { data: dormancyData } = useQuery<{
-    isDormant: boolean;
-    efficiencyScore: number;
-    todayCompleted: number;
-    todayRemaining: number;
-    coachingMessage: string;
-  }>({
-    queryKey: ['/api/now-mode/dormancy-check'],
-    refetchOnWindowFocus: true,
-    refetchInterval: 5 * 60 * 1000, // Check every 5 minutes
-    retry: 1,
-  });
-
-  const [showDormancyPopup, setShowDormancyPopup] = useState(false);
-  const [dormancyDismissed, setDormancyDismissed] = useState(false);
-  const [lastDormancyCheck, setLastDormancyCheck] = useState<boolean | null>(null);
-
-  // Show dormancy popup when user has been inactive for 90 minutes (DISABLED - interferes with app testing)
-  // Reset dismissed state when user becomes active again (to allow popup on next dormancy)
-  useEffect(() => {
-    return; // DISABLED: Time for Check-in feature temporarily removed
-    // if (dormancyData?.isDormant !== undefined) {
-    //   // Reset dismissed state when user returns from dormancy (was dormant, now active)
-    //   if (lastDormancyCheck === true && !dormancyData.isDormant) {
-    //     setDormancyDismissed(false);
-    //   }
-    //   // Show popup when dormant and not dismissed
-    //   if (dormancyData.isDormant && !dormancyDismissed) {
-    //     setShowDormancyPopup(true);
-    //   }
-    //   setLastDormancyCheck(dormancyData.isDormant);
-    // }
-  }, [dormancyData?.isDormant, dormancyDismissed, lastDormancyCheck]);
 
   const openObjections = objections.filter(o => o.status === 'open').length;
 
@@ -291,36 +246,6 @@ export default function Dashboard() {
                   <h1 style={{ fontSize: '24px', fontWeight: 600, color: '#111111', margin: 0 }}>
                     Welcome back, {firstName}
                   </h1>
-                  {/* Efficiency Score Badge */}
-                  {efficiencyData && (
-                    <Tooltip>
-                      <TooltipTrigger asChild>
-                        <div style={{
-                          display: 'flex',
-                          alignItems: 'center',
-                          gap: '6px',
-                          padding: '6px 12px',
-                          borderRadius: '20px',
-                          background: 'rgba(17, 17, 17, 0.05)',
-                          border: '1px solid rgba(17, 17, 17, 0.15)',
-                          cursor: 'pointer',
-                        }}>
-                          <Gauge size={18} style={{ color: '#111111' }} />
-                          <span style={{
-                            fontSize: '14px',
-                            fontWeight: 600,
-                            color: '#111111',
-                          }}>
-                            {efficiencyData.efficiencyScore}%
-                          </span>
-                        </div>
-                      </TooltipTrigger>
-                      <TooltipContent>
-                        <p>Your 7-day efficiency score</p>
-                        <p style={{ fontSize: '12px', color: '#6B6B8C' }}>{efficiencyData.totalTasksCompleted} total tasks completed</p>
-                      </TooltipContent>
-                    </Tooltip>
-                  )}
                 </div>
                 <p style={{ fontSize: '14px', color: '#6B6B8C', margin: 0 }}>{dateString}</p>
               </div>
@@ -520,8 +445,8 @@ export default function Dashboard() {
             </ScrollArea>
           </div>
 
-          {/* Now Mode Entry Card */}
-          <Link href="/now-mode" style={{ textDecoration: 'none', display: 'block', marginBottom: '24px' }}>
+          {/* Spotlight Entry Card */}
+          <Link href="/spotlight" style={{ textDecoration: 'none', display: 'block', marginBottom: '24px' }}>
             <div style={{
               background: '#111111',
               borderRadius: '12px',
@@ -546,10 +471,10 @@ export default function Dashboard() {
                 </div>
                 <div>
                   <div style={{ fontSize: '16px', fontWeight: 600, color: '#FFFFFF', marginBottom: '2px' }}>
-                    Now Mode
+                    Spotlight
                   </div>
                   <div style={{ fontSize: '14px', color: 'rgba(255,255,255,0.7)' }}>
-                    One customer. One action. Right now.
+                    One client at a time. Focus on what matters.
                   </div>
                 </div>
               </div>
@@ -621,143 +546,6 @@ export default function Dashboard() {
 
         </div>
       </div>
-
-      {/* Dormancy Popup - appears after 90 minutes of inactivity */}
-      {showDormancyPopup && dormancyData && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(0, 0, 0, 0.5)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: '#FFFFFF',
-            borderRadius: '2px',
-            boxShadow: '0 8px 32px rgba(0, 0, 0, 0.2)',
-            maxWidth: '420px',
-            width: '90%',
-            padding: '32px',
-            textAlign: 'center',
-          }}>
-            <div style={{
-              width: '80px',
-              height: '80px',
-              borderRadius: '50%',
-              background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              margin: '0 auto 24px',
-            }}>
-              <Clock size={40} style={{ color: '#FFFFFF' }} />
-            </div>
-            
-            <h2 style={{ fontSize: '24px', fontWeight: 700, color: '#2C2C54', marginBottom: '8px' }}>
-              Time for a check-in!
-            </h2>
-            
-            <p style={{ fontSize: '14px', color: '#6B6B8C', marginBottom: '24px' }}>
-              No activity in 90 minutes. Here's your progress:
-            </p>
-
-            {/* Progress Display - x/10 format */}
-            <div style={{
-              display: 'flex',
-              alignItems: 'center',
-              justifyContent: 'center',
-              gap: '16px',
-              padding: '20px',
-              background: '#F8F9FA',
-              borderRadius: '8px',
-              marginBottom: '16px',
-            }}>
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  fontSize: '36px',
-                  fontWeight: 700,
-                  color: '#6F42C1',
-                  lineHeight: 1,
-                }}>
-                  {dormancyData.todayCompleted}/10
-                </div>
-                <div style={{ fontSize: '13px', color: '#6B6B8C', marginTop: '4px' }}>Today's Progress</div>
-              </div>
-              <div style={{
-                width: '1px',
-                height: '50px',
-                background: '#E0E0E0',
-              }} />
-              <div style={{ textAlign: 'center' }}>
-                <div style={{
-                  fontSize: '36px',
-                  fontWeight: 700,
-                  color: dormancyData.efficiencyScore >= 80 ? '#111111' : 
-                         dormancyData.efficiencyScore >= 50 ? '#FFC107' : '#DC3545',
-                  lineHeight: 1,
-                }}>
-                  {dormancyData.efficiencyScore}
-                </div>
-                <div style={{ fontSize: '13px', color: '#6B6B8C', marginTop: '4px' }}>Efficiency Score</div>
-              </div>
-            </div>
-
-            {/* Coaching Message */}
-            <div style={{
-              background: 'rgba(111, 66, 193, 0.08)',
-              borderRadius: '8px',
-              padding: '16px',
-              marginBottom: '24px',
-              textAlign: 'left',
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: '12px' }}>
-                <Lightbulb size={20} style={{ color: '#6F42C1', flexShrink: 0, marginTop: '2px' }} />
-                <p style={{ fontSize: '14px', color: '#2C2C54', margin: 0, lineHeight: 1.5 }}>
-                  {dormancyData.coachingMessage}
-                </p>
-              </div>
-            </div>
-
-            {/* Action Buttons */}
-            <div style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
-              <Link href="/now-mode" style={{ textDecoration: 'none' }}>
-                <Button
-                  onClick={() => {
-                    setShowDormancyPopup(false);
-                    setDormancyDismissed(true);
-                  }}
-                  style={{
-                    width: '100%',
-                    background: 'linear-gradient(135deg, #6F42C1 0%, #8B5CF6 100%)',
-                    color: '#FFFFFF',
-                    padding: '12px 24px',
-                  }}
-                >
-                  <Zap size={18} style={{ marginRight: '8px' }} />
-                  Resume NOW MODE
-                </Button>
-              </Link>
-              <Button
-                variant="outline"
-                onClick={() => {
-                  setShowDormancyPopup(false);
-                  setDormancyDismissed(true);
-                  setTimeout(() => setDormancyDismissed(false), 60 * 60 * 1000);
-                }}
-                style={{ width: '100%' }}
-              >
-                <Clock size={16} style={{ marginRight: '8px' }} />
-                Snooze 60 mins
-              </Button>
-            </div>
-          </div>
-        </div>
-      )}
 
       <style>{`
         @media (max-width: 768px) {
