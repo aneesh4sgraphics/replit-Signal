@@ -3157,3 +3157,39 @@ export const insertSpotlightEventSchema = createInsertSchema(spotlightEvents).om
 });
 export type SpotlightEvent = typeof spotlightEvents.$inferSelect;
 export type InsertSpotlightEvent = z.infer<typeof insertSpotlightEventSchema>;
+
+export const moments = pgTable("moments", {
+  id: serial("id").primaryKey(),
+  momentId: varchar("moment_id", { length: 100 }).notNull().unique(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  momentType: varchar("moment_type", { length: 50 }).notNull(),
+  priorityScore: integer("priority_score").default(0),
+  reasonWhyNow: text("reason_why_now"),
+  dueAt: timestamp("due_at"),
+  suggestedPayload: jsonb("suggested_payload").$type<Record<string, any>>().default({}),
+  status: varchar("status", { length: 20 }).notNull().default('queued'),
+  outcome: varchar("outcome", { length: 50 }),
+  followUpTaskId: integer("follow_up_task_id").references(() => followUpTasks.id, { onDelete: "set null" }),
+  queueDate: varchar("queue_date", { length: 10 }).notNull(),
+  queuePosition: integer("queue_position").default(0),
+  servedAt: timestamp("served_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  completedAt: timestamp("completed_at"),
+}, (table) => ({
+  userIdx: index("moments_user_idx").on(table.userId),
+  customerIdx: index("moments_customer_idx").on(table.customerId),
+  statusIdx: index("moments_status_idx").on(table.status),
+  queueDateIdx: index("moments_queue_date_idx").on(table.queueDate),
+  userQueueIdx: index("moments_user_queue_idx").on(table.userId, table.queueDate, table.status),
+  momentTypeIdx: index("moments_type_idx").on(table.momentType),
+}));
+
+export const insertMomentSchema = createInsertSchema(moments).omit({
+  id: true,
+  createdAt: true,
+  completedAt: true,
+  servedAt: true,
+});
+export type Moment = typeof moments.$inferSelect;
+export type InsertMoment = z.infer<typeof insertMomentSchema>;

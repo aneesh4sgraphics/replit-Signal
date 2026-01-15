@@ -1,6 +1,7 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents } from "@shared/schema";
-import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray } from "drizzle-orm";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, moments } from "@shared/schema";
+import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray, count } from "drizzle-orm";
+import { nanoid } from "nanoid";
 
 export type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
 
@@ -338,6 +339,340 @@ class SpotlightEngine {
       this.sessions.set(sessionKey, session);
     }
     return session;
+  }
+
+  async generateDailyQueue(userId: string): Promise<number> {
+    const today = this.getTodayKey();
+    
+    const existingCount = await db
+      .select({ count: count() })
+      .from(moments)
+      .where(and(
+        eq(moments.userId, userId),
+        eq(moments.queueDate, today)
+      ));
+    
+    if (Number(existingCount[0]?.count || 0) >= 30) {
+      console.log(`[Spotlight] Queue already generated for ${userId} on ${today}`);
+      return Number(existingCount[0]?.count || 0);
+    }
+
+    const readiness = await this.calculateDataReadiness(userId);
+    const quotas = this.calculateAdaptiveQuotas(readiness);
+    
+    const momentTypes: { type: string; bucket: TaskBucket; quota: number }[] = [
+      { type: 'call', bucket: 'calls', quota: quotas.calls },
+      { type: 'follow_up', bucket: 'follow_ups', quota: quotas.follow_ups },
+      { type: 'email', bucket: 'outreach', quota: Math.ceil(quotas.outreach * 0.6) },
+      { type: 'data_hygiene', bucket: 'data_hygiene', quota: quotas.data_hygiene },
+      { type: 'swatchbook', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.4) },
+      { type: 'press_test', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
+      { type: 'price_list', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
+    ];
+
+    let position = 0;
+    const momentsToInsert: any[] = [];
+
+    for (const { type, bucket, quota } of momentTypes) {
+      const candidates = await this.findCandidatesForMomentType(userId, type, quota);
+      
+      for (const candidate of candidates) {
+        momentsToInsert.push({
+          momentId: `${type}_${candidate.customerId}_${nanoid(8)}`,
+          userId,
+          customerId: candidate.customerId,
+          momentType: type,
+          priorityScore: candidate.priority,
+          reasonWhyNow: candidate.whyNow,
+          dueAt: candidate.dueAt,
+          suggestedPayload: candidate.payload || {},
+          status: 'queued',
+          queueDate: today,
+          queuePosition: position++,
+        });
+      }
+    }
+
+    if (momentsToInsert.length > 0) {
+      await db.insert(moments).values(momentsToInsert);
+      console.log(`[Spotlight] Generated ${momentsToInsert.length} moments for ${userId} on ${today}`);
+    }
+
+    return momentsToInsert.length;
+  }
+
+  private async findCandidatesForMomentType(userId: string, type: string, quota: number): Promise<Array<{
+    customerId: string;
+    priority: number;
+    whyNow: string;
+    dueAt?: Date;
+    payload?: Record<string, any>;
+  }>> {
+    const candidates: Array<{ customerId: string; priority: number; whyNow: string; dueAt?: Date; payload?: Record<string, any> }> = [];
+    
+    switch (type) {
+      case 'call':
+        const callCustomers = await db.select({ id: customers.id })
+          .from(customers)
+          .where(and(
+            isNotNull(customers.phone),
+            eq(customers.doNotContact, false),
+            or(isNull(customers.salesRepId), eq(customers.salesRepId, userId))
+          ))
+          .orderBy(asc(customers.updatedAt))
+          .limit(quota);
+        
+        callCustomers.forEach((c, i) => candidates.push({
+          customerId: c.id,
+          priority: 100 - i,
+          whyNow: 'Time for a call - build the relationship!',
+        }));
+        break;
+        
+      case 'follow_up':
+        const now = new Date();
+        const followUps = await db.select({ 
+          customerId: followUpTasks.customerId, 
+          dueDate: followUpTasks.dueDate,
+          title: followUpTasks.title,
+          id: followUpTasks.id 
+        })
+          .from(followUpTasks)
+          .where(and(
+            or(eq(followUpTasks.assignedTo, userId), isNull(followUpTasks.assignedTo)),
+            ne(followUpTasks.status, 'completed'),
+            lte(followUpTasks.dueDate, now)
+          ))
+          .orderBy(asc(followUpTasks.dueDate))
+          .limit(quota);
+        
+        followUps.forEach((f, i) => {
+          if (f.customerId) {
+            candidates.push({
+              customerId: f.customerId,
+              priority: 100 - i,
+              whyNow: f.title || 'Follow-up is due - keep the momentum going!',
+              dueAt: f.dueDate || undefined,
+              payload: { followUpTaskId: f.id },
+            });
+          }
+        });
+        break;
+
+      case 'email':
+        const thirtyDaysAgo = new Date();
+        thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+        
+        const emailCustomers = await db.select({ id: customers.id })
+          .from(customers)
+          .where(and(
+            isNotNull(customers.email),
+            isNotNull(customers.pricingTier),
+            eq(customers.doNotContact, false),
+            or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+            or(isNull(customers.updatedAt), lt(customers.updatedAt, thirtyDaysAgo))
+          ))
+          .orderBy(asc(customers.updatedAt))
+          .limit(quota);
+        
+        emailCustomers.forEach((c, i) => candidates.push({
+          customerId: c.id,
+          priority: 80 - i,
+          whyNow: 'No recent contact - reach out before they forget you.',
+        }));
+        break;
+
+      case 'data_hygiene':
+        const hygieneTypes = [
+          { field: 'salesRepId', whyNow: 'This customer has no assigned sales rep - claim them now!' },
+          { field: 'pricingTier', whyNow: 'Set the pricing tier so quotes are accurate.' },
+          { field: 'phone', whyNow: 'No phone number on file - add it for call outreach.' },
+          { field: 'email', whyNow: 'Missing primary email - essential for follow-ups.' },
+        ];
+        
+        let hygieneCount = 0;
+        for (const { field, whyNow } of hygieneTypes) {
+          if (hygieneCount >= quota) break;
+          
+          const condition = field === 'salesRepId' ? isNull(customers.salesRepId)
+            : field === 'pricingTier' ? isNull(customers.pricingTier)
+            : field === 'phone' ? isNull(customers.phone)
+            : isNull(customers.email);
+          
+          const hygieneCustomers = await db.select({ id: customers.id })
+            .from(customers)
+            .where(and(condition, eq(customers.doNotContact, false)))
+            .orderBy(asc(customers.createdAt))
+            .limit(Math.ceil((quota - hygieneCount) / hygieneTypes.length));
+          
+          hygieneCustomers.forEach((c, i) => {
+            candidates.push({
+              customerId: c.id,
+              priority: 60 - i,
+              whyNow,
+              payload: { missingField: field },
+            });
+            hygieneCount++;
+          });
+        }
+        break;
+
+      case 'swatchbook':
+      case 'press_test':
+      case 'price_list':
+        const enablementCustomers = await db.select({ id: customers.id })
+          .from(customers)
+          .where(and(
+            isNotNull(customers.pricingTier),
+            eq(customers.doNotContact, false),
+            or(isNull(customers.salesRepId), eq(customers.salesRepId, userId))
+          ))
+          .orderBy(asc(customers.updatedAt))
+          .limit(quota);
+        
+        enablementCustomers.forEach((c, i) => candidates.push({
+          customerId: c.id,
+          priority: 50 - i,
+          whyNow: type === 'swatchbook' ? 'Send a SwatchBook to showcase your products.'
+            : type === 'press_test' ? 'Send a Press Test Kit to demonstrate quality.'
+            : 'They have samples - now send the price list!',
+          payload: { productKitType: type },
+        }));
+        break;
+    }
+
+    return candidates.slice(0, quota);
+  }
+
+  async getNextMomentFromQueue(userId: string): Promise<{ moment: any | null; session: SpotlightSession }> {
+    const today = this.getTodayKey();
+    const session = await this.getSessionAsync(userId);
+
+    const queuedCount = await db.select({ count: count() })
+      .from(moments)
+      .where(and(
+        eq(moments.userId, userId),
+        eq(moments.queueDate, today)
+      ));
+
+    if (Number(queuedCount[0]?.count || 0) < 10) {
+      await this.generateDailyQueue(userId);
+    }
+
+    const nextMoment = await db.select()
+      .from(moments)
+      .where(and(
+        eq(moments.userId, userId),
+        eq(moments.queueDate, today),
+        eq(moments.status, 'queued')
+      ))
+      .orderBy(asc(moments.queuePosition))
+      .limit(1);
+
+    if (nextMoment.length === 0) {
+      return { moment: null, session };
+    }
+
+    await db.update(moments)
+      .set({ status: 'active', servedAt: new Date() })
+      .where(eq(moments.id, nextMoment[0].id));
+
+    const customer = await db.select()
+      .from(customers)
+      .where(eq(customers.id, nextMoment[0].customerId || ''))
+      .limit(1);
+
+    return {
+      moment: {
+        ...nextMoment[0],
+        customer: customer[0] || null,
+      },
+      session,
+    };
+  }
+
+  async completeMoment(momentId: string, outcome: string, userId: string): Promise<{ success: boolean; nextFollowUp?: any }> {
+    const today = this.getTodayKey();
+    
+    const moment = await db.select()
+      .from(moments)
+      .where(eq(moments.momentId, momentId))
+      .limit(1);
+
+    if (!moment[0]) {
+      return { success: false };
+    }
+
+    await db.update(moments)
+      .set({ 
+        status: 'completed', 
+        outcome, 
+        completedAt: new Date() 
+      })
+      .where(eq(moments.momentId, momentId));
+
+    if (moment[0].customerId) {
+      await db.insert(customerActivityEvents).values({
+        customerId: moment[0].customerId,
+        userId,
+        eventType: 'spotlight_moment',
+        description: `Completed ${moment[0].momentType} moment: ${outcome}`,
+        metadata: { momentId, outcome, momentType: moment[0].momentType },
+      });
+    }
+
+    await db.insert(spotlightEvents).values({
+      eventType: 'completed',
+      userId,
+      customerId: moment[0].customerId,
+      bucket: this.getBucketForMomentType(moment[0].momentType),
+      taskSubtype: moment[0].momentType,
+      outcomeId: outcome,
+      outcomeLabel: outcome,
+      dayOfWeek: new Date().getDay(),
+      hourOfDay: new Date().getHours(),
+      metadata: { momentId },
+    });
+
+    const session = this.getSession(userId);
+    const bucket = session.buckets.find(b => b.bucket === this.getBucketForMomentType(moment[0].momentType));
+    if (bucket) {
+      bucket.completed++;
+      session.totalCompleted++;
+    }
+
+    return { success: true };
+  }
+
+  async skipMoment(momentId: string, reason: string, userId: string): Promise<boolean> {
+    await db.update(moments)
+      .set({ status: 'skipped', outcome: reason, completedAt: new Date() })
+      .where(eq(moments.momentId, momentId));
+
+    await db.insert(spotlightEvents).values({
+      eventType: 'skipped',
+      userId,
+      bucket: 'calls',
+      skipReason: reason,
+      dayOfWeek: new Date().getDay(),
+      hourOfDay: new Date().getHours(),
+      metadata: { momentId },
+    });
+
+    return true;
+  }
+
+  private getBucketForMomentType(type: string): TaskBucket {
+    switch (type) {
+      case 'call': return 'calls';
+      case 'follow_up': return 'follow_ups';
+      case 'email': return 'outreach';
+      case 'data_hygiene': return 'data_hygiene';
+      case 'swatchbook':
+      case 'press_test':
+      case 'price_list': return 'enablement';
+      default: return 'outreach';
+    }
   }
 
   async calculateEfficiencyScore(userId: string): Promise<{ score: number; breakdown: Record<string, number>; streak: number }> {
