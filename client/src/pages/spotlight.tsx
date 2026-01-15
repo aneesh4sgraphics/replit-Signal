@@ -504,6 +504,27 @@ export default function Spotlight() {
     },
   });
 
+  // Do Not Merge mutation - mark customers as separate entities
+  const doNotMergeMutation = useMutation({
+    mutationFn: async ({ customerId1, customerId2 }: { customerId1: string; customerId2: string }) => {
+      return await apiRequest("POST", `/api/customers/do-not-merge`, { customerId1, customerId2 });
+    },
+    onSuccess: () => {
+      toast({
+        title: "Marked as separate",
+        description: "These customers won't be suggested as duplicates again",
+      });
+      refetch(); // Refresh to get new hints without this duplicate
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to mark as do not merge",
+        variant: "destructive",
+      });
+    },
+  });
+
   const handleOpenMergeModal = async (duplicateIds: string[], currentCustomerId: string) => {
     try {
       // Fetch both customers' data
@@ -867,6 +888,22 @@ export default function Spotlight() {
                           disabled={completeMutation.isPending || skipMutation.isPending}
                         >
                           {hint.ctaLabel}
+                        </Button>
+                      )}
+                      {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50"
+                          onClick={() => {
+                            doNotMergeMutation.mutate({ 
+                              customerId1: customer.id, 
+                              customerId2: hint.metadata?.duplicateIds?.[0] 
+                            });
+                          }}
+                          disabled={doNotMergeMutation.isPending}
+                        >
+                          Not a Duplicate
                         </Button>
                       )}
                       {hint.ctaAction === 'view_duplicate' && (

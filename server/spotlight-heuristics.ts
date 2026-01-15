@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { customers, customerActivityEvents, customerMachineProfiles, adminCategories, adminMachineTypes } from "@shared/schema";
-import { eq, and, sql, desc, lt, count, arrayContains } from "drizzle-orm";
+import { customers, customerActivityEvents, customerMachineProfiles, adminCategories, adminMachineTypes, customerDoNotMerge } from "@shared/schema";
+import { eq, and, sql, desc, lt, count, arrayContains, or } from "drizzle-orm";
 
 export interface SpotlightHint {
   type: 'bad_fit' | 'stale_contact' | 'duplicate' | 'missing_field' | 'already_handled' | 'quick_win';
@@ -125,18 +125,41 @@ async function checkDuplicate(email: string | null, phone: string | null, custom
       .limit(3);
     
     if (duplicates.length > 0) {
-      const duplicateNames = duplicates.map(d => d.company || 'Unknown').slice(0, 2).join(', ');
-      return {
-        type: 'duplicate',
-        severity: 'medium',
-        message: `Possible duplicate of: ${duplicateNames}`,
-        ctaLabel: 'View to Merge',
-        ctaAction: 'view_duplicate',
-        metadata: { 
-          duplicateIds: duplicates.map(d => d.id),
-          duplicateNames: duplicates.map(d => ({ id: d.id, company: d.company })),
-        },
-      };
+      // Filter out pairs that are marked as "do not merge"
+      const doNotMergeRecords = await db.select()
+        .from(customerDoNotMerge)
+        .where(or(
+          and(eq(customerDoNotMerge.customerId1, customerId)),
+          and(eq(customerDoNotMerge.customerId2, customerId))
+        ));
+      
+      // Build a set of IDs that should not be suggested as duplicates
+      const excludedIds = new Set<string>();
+      for (const record of doNotMergeRecords) {
+        if (record.customerId1 === customerId) {
+          excludedIds.add(record.customerId2);
+        } else {
+          excludedIds.add(record.customerId1);
+        }
+      }
+      
+      // Filter duplicates that are excluded
+      const filteredDuplicates = duplicates.filter(d => !excludedIds.has(d.id));
+      
+      if (filteredDuplicates.length > 0) {
+        const duplicateNames = filteredDuplicates.map(d => d.company || 'Unknown').slice(0, 2).join(', ');
+        return {
+          type: 'duplicate',
+          severity: 'medium',
+          message: `Possible duplicate of: ${duplicateNames}`,
+          ctaLabel: 'View to Merge',
+          ctaAction: 'view_duplicate',
+          metadata: { 
+            duplicateIds: filteredDuplicates.map(d => d.id),
+            duplicateNames: filteredDuplicates.map(d => ({ id: d.id, company: d.company })),
+          },
+        };
+      }
     }
   } catch (e) {
     console.error('[Heuristics] Duplicate check error:', e);

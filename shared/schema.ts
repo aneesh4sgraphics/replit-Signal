@@ -262,6 +262,22 @@ export type PricingTierType = typeof PRICING_TIERS[number];
 // export type Customer = typeof customers.$inferSelect;
 // export type InsertCustomer = typeof customers.$inferInsert;
 
+// Do Not Merge - pairs of customers that should NOT be merged (they are separate entities)
+export const customerDoNotMerge = pgTable("customer_do_not_merge", {
+  id: serial("id").primaryKey(),
+  customerId1: varchar("customer_id_1").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  customerId2: varchar("customer_id_2").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  markedBy: varchar("marked_by", { length: 255 }), // User email who marked
+  reason: varchar("reason", { length: 255 }), // Optional reason
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_do_not_merge_customer1").on(table.customerId1),
+  index("IDX_do_not_merge_customer2").on(table.customerId2),
+]);
+
+export type CustomerDoNotMerge = typeof customerDoNotMerge.$inferSelect;
+export type InsertCustomerDoNotMerge = typeof customerDoNotMerge.$inferInsert;
+
 // Customer Contacts - multiple contacts per customer company
 export const customerContacts = pgTable("customer_contacts", {
   id: serial("id").primaryKey(),

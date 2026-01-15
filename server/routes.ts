@@ -135,6 +135,7 @@ import {
   nowModeSessions,
   followUpTasks,
   insertFollowUpTaskSchema,
+  customerDoNotMerge,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -2639,6 +2640,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error merging customers:", error);
       res.status(500).json({ error: "Failed to merge customers" });
+    }
+  });
+
+  // Mark customers as "Do Not Merge" - they are separate entities
+  app.post("/api/customers/do-not-merge", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId1, customerId2, reason } = req.body;
+      
+      if (!customerId1 || !customerId2) {
+        return res.status(400).json({ error: "Both customerId1 and customerId2 are required" });
+      }
+      
+      // Sort IDs to ensure consistent ordering (smaller ID first)
+      const [id1, id2] = [customerId1, customerId2].sort();
+      
+      // Check if already marked
+      const existing = await db.select().from(customerDoNotMerge)
+        .where(sql`(${customerDoNotMerge.customerId1} = ${id1} AND ${customerDoNotMerge.customerId2} = ${id2})`);
+      
+      if (existing.length > 0) {
+        return res.json({ message: "Already marked as do not merge", exists: true });
+      }
+      
+      // Insert the do not merge record
+      const [result] = await db.insert(customerDoNotMerge).values({
+        customerId1: id1,
+        customerId2: id2,
+        markedBy: req.user?.email || 'unknown',
+        reason: reason || 'Marked as separate customers in SPOTLIGHT',
+      }).returning();
+      
+      res.json({ message: "Customers marked as do not merge", record: result });
+    } catch (error) {
+      console.error("Error marking do not merge:", error);
+      res.status(500).json({ error: "Failed to mark as do not merge" });
     }
   });
 
