@@ -1,13 +1,24 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerContacts } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents } from "@shared/schema";
 import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray } from "drizzle-orm";
+
+export type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
+
+export interface BucketQuota {
+  bucket: TaskBucket;
+  target: number;
+  completed: number;
+  skipped: number;
+}
 
 export interface SpotlightTask {
   id: string;
   customerId: string;
-  taskType: 'hygiene' | 'sales';
+  bucket: TaskBucket;
   taskSubtype: string;
   priority: number;
+  whyNow: string;
+  outcomes: TaskOutcome[];
   customer: {
     id: string;
     company: string | null;
@@ -18,7 +29,7 @@ export interface SpotlightTask {
     address1: string | null;
     address2: string | null;
     city: string | null;
-    state: string | null;
+    province: string | null;
     zip: string | null;
     country: string | null;
     website: string | null;
@@ -27,98 +38,383 @@ export interface SpotlightTask {
     pricingTier: string | null;
   };
   context?: {
-    quoteId?: number;
     followUpId?: number;
     followUpTitle?: string;
     followUpDueDate?: string;
+    lastContact?: string;
+  };
+}
+
+export interface TaskOutcome {
+  id: string;
+  label: string;
+  icon?: string;
+  nextAction?: {
+    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action';
+    daysUntil?: number;
+    taskType?: string;
   };
 }
 
 export interface SpotlightSession {
   userId: string;
+  date: string;
+  buckets: BucketQuota[];
+  totalTarget: number;
   totalCompleted: number;
-  hygieneCompleted: number;
-  salesCompleted: number;
-  lastTaskAt: Date | null;
   skippedCustomerIds: string[];
+  lastTaskAt: Date | null;
+  dayComplete: boolean;
 }
 
-const HYGIENE_WEIGHT = 2;
-const SALES_WEIGHT = 3;
-const BATCH_SIZE = 5; // Fetch 5 candidates at a time
+const DAILY_QUOTAS: Record<TaskBucket, number> = {
+  calls: 2,
+  follow_ups: 3,
+  outreach: 10,
+  data_hygiene: 10,
+  enablement: 5,
+};
+
+const TOTAL_DAILY_QUOTA = Object.values(DAILY_QUOTAS).reduce((a, b) => a + b, 0);
+
+const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
+  hygiene_sales_rep: [
+    { id: 'assigned', label: 'Assign to Me', icon: 'user-check', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Not My Territory', icon: 'x', nextAction: { type: 'no_action' } },
+  ],
+  hygiene_pricing_tier: [
+    { id: 'retail', label: 'Retail', icon: 'tag', nextAction: { type: 'mark_complete' } },
+    { id: 'wholesale', label: 'Wholesale', icon: 'building', nextAction: { type: 'mark_complete' } },
+    { id: 'distributor', label: 'Distributor', icon: 'truck', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Need More Info', icon: 'help-circle', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'research' } },
+  ],
+  hygiene_email: [
+    { id: 'found', label: 'Email Found', icon: 'mail', nextAction: { type: 'mark_complete' } },
+    { id: 'no_email', label: 'No Email Available', icon: 'x', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
+  ],
+  sales_call: [
+    { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'call' } },
+    { id: 'no_answer', label: 'No Answer', icon: 'phone-missed', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
+    { id: 'bad_number', label: 'Bad Number', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  sales_follow_up: [
+    { id: 'completed', label: 'Done', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'rescheduled', label: 'Reschedule', icon: 'calendar', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'not_interested', label: 'Not Interested', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  outreach_no_contact: [
+    { id: 'email_sent', label: 'Sent Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'called', label: 'Called', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  outreach_drip: [
+    { id: 'sent', label: 'Email Sent', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'already_engaged', label: 'Already Engaged', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Not Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  enablement_swatchbook: [
+    { id: 'sent', label: 'Sent SwatchBook', icon: 'package', nextAction: { type: 'schedule_follow_up', daysUntil: 10, taskType: 'follow_up' } },
+    { id: 'not_ready', label: 'Not Ready', icon: 'x', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
+    { id: 'already_has', label: 'Already Has One', icon: 'check', nextAction: { type: 'mark_complete' } },
+  ],
+  enablement_press_test: [
+    { id: 'sent', label: 'Sent Press Test', icon: 'package', nextAction: { type: 'schedule_follow_up', daysUntil: 10, taskType: 'follow_up' } },
+    { id: 'not_ready', label: 'Not Ready', icon: 'x', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'outreach' } },
+    { id: 'skip', label: 'Skip', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  enablement_price_list: [
+    { id: 'sent', label: 'Sent Price List', icon: 'file-text', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'not_ready', label: 'Not Ready Yet', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'outreach' } },
+  ],
+};
+
+const WHY_NOW_MESSAGES: Record<string, string> = {
+  hygiene_sales_rep: 'This customer has no assigned sales rep - claim them now!',
+  hygiene_pricing_tier: 'Set the pricing tier so quotes are accurate.',
+  hygiene_email: 'Missing primary email - essential for follow-ups.',
+  hygiene_name: 'Add the contact name for personalized outreach.',
+  hygiene_company: 'Company name is missing - add it for better organization.',
+  hygiene_phone: 'No phone number on file - add it for call outreach.',
+  sales_call: 'Time for a call - build the relationship!',
+  sales_follow_up: 'Follow-up is due - keep the momentum going.',
+  sales_quote_follow_up: 'Quote sent but no response - time to check in.',
+  outreach_no_contact: 'No recent contact - reach out before they forget you.',
+  outreach_drip: 'Send a nurture email to stay top of mind.',
+  enablement_swatchbook: 'Send a SwatchBook to showcase your products.',
+  enablement_press_test: 'Send a Press Test Kit to demonstrate quality.',
+  enablement_price_list: 'They have samples - now send the price list!',
+};
 
 class SpotlightEngine {
   private sessions: Map<string, SpotlightSession> = new Map();
 
+  private getTodayKey(): string {
+    return new Date().toISOString().split('T')[0];
+  }
+
   private getSession(userId: string): SpotlightSession {
-    let session = this.sessions.get(userId);
-    if (!session) {
+    const today = this.getTodayKey();
+    const sessionKey = `${userId}_${today}`;
+    
+    let session = this.sessions.get(sessionKey);
+    if (!session || session.date !== today) {
       session = {
         userId,
+        date: today,
+        buckets: Object.entries(DAILY_QUOTAS).map(([bucket, target]) => ({
+          bucket: bucket as TaskBucket,
+          target,
+          completed: 0,
+          skipped: 0,
+        })),
+        totalTarget: TOTAL_DAILY_QUOTA,
         totalCompleted: 0,
-        hygieneCompleted: 0,
-        salesCompleted: 0,
-        lastTaskAt: null,
         skippedCustomerIds: [],
+        lastTaskAt: null,
+        dayComplete: false,
       };
-      this.sessions.set(userId, session);
+      this.sessions.set(sessionKey, session);
     }
     return session;
   }
 
-  private shouldShowHygiene(session: SpotlightSession): boolean {
-    const totalRatio = session.hygieneCompleted + session.salesCompleted;
-    if (totalRatio === 0) return true;
+  private getNextBucket(session: SpotlightSession): TaskBucket | null {
+    const incomplete = session.buckets.filter(b => b.completed < b.target);
+    if (incomplete.length === 0) return null;
     
-    const hygieneRatio = session.hygieneCompleted / totalRatio;
-    const targetRatio = HYGIENE_WEIGHT / (HYGIENE_WEIGHT + SALES_WEIGHT);
+    const bucketPriority: TaskBucket[] = ['calls', 'follow_ups', 'data_hygiene', 'outreach', 'enablement'];
     
-    return hygieneRatio < targetRatio;
+    for (const bucket of bucketPriority) {
+      const bucketData = incomplete.find(b => b.bucket === bucket);
+      if (bucketData && bucketData.completed < bucketData.target) {
+        return bucket;
+      }
+    }
+    
+    return incomplete[0]?.bucket || null;
   }
 
   async getNextTask(userId: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean }> {
     const session = this.getSession(userId);
     
+    if (session.totalCompleted >= session.totalTarget) {
+      session.dayComplete = true;
+      return { task: null, session, allDone: true };
+    }
+    
     try {
-      const user = await db.select().from(users).where(eq(users.id, userId)).limit(1);
-      const userEmail = user[0]?.email;
+      const nextBucket = this.getNextBucket(session);
+      if (!nextBucket) {
+        session.dayComplete = true;
+        return { task: null, session, allDone: true };
+      }
 
-      const shouldDoHygiene = this.shouldShowHygiene(session);
-      
       let task: SpotlightTask | null = null;
       
-      if (shouldDoHygiene) {
-        task = await this.findHygieneTask(userId, userEmail, session.skippedCustomerIds);
+      switch (nextBucket) {
+        case 'calls':
+          task = await this.findCallTask(userId, session.skippedCustomerIds);
+          break;
+        case 'follow_ups':
+          task = await this.findFollowUpTask(userId, session.skippedCustomerIds);
+          break;
+        case 'outreach':
+          task = await this.findOutreachTask(userId, session.skippedCustomerIds);
+          break;
+        case 'data_hygiene':
+          task = await this.findHygieneTask(userId, session.skippedCustomerIds);
+          break;
+        case 'enablement':
+          task = await this.findEnablementTask(userId, session.skippedCustomerIds);
+          break;
       }
-      
+
       if (!task) {
-        task = await this.findSalesTask(userId, userEmail, session.skippedCustomerIds);
+        const bucketData = session.buckets.find(b => b.bucket === nextBucket);
+        if (bucketData) {
+          bucketData.completed = bucketData.target;
+        }
+        return this.getNextTask(userId);
       }
       
-      if (!task && !shouldDoHygiene) {
-        task = await this.findHygieneTask(userId, userEmail, session.skippedCustomerIds);
-      }
-      
-      return {
-        task,
-        session,
-        allDone: !task,
-      };
+      return { task, session, allDone: false };
     } catch (error) {
       console.error('[Spotlight] Error getting next task:', error);
       return { task: null, session, allDone: true };
     }
   }
 
-  private async findHygieneTask(userId: string, userEmail: string | undefined, skippedIds: string[]): Promise<SpotlightTask | null> {
+  private async findCallTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    let conditions = [
+      eq(customers.doNotContact, false),
+      isNotNull(customers.phone),
+      or(
+        isNull(customers.salesRepId),
+        eq(customers.salesRepId, userId)
+      ),
+    ];
+    
+    if (skippedIds.length > 0) {
+      conditions.push(notInArray(customers.id, skippedIds));
+    }
+
+    const result = await db
+      .select({
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        email: customers.email,
+        phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        province: customers.province,
+        zip: customers.zip,
+        country: customers.country,
+        website: customers.website,
+        salesRepId: customers.salesRepId,
+        salesRepName: customers.salesRepName,
+        pricingTier: customers.pricingTier,
+      })
+      .from(customers)
+      .where(and(...conditions))
+      .orderBy(desc(customers.updatedAt))
+      .limit(1);
+
+    if (result.length > 0) {
+      const customer = result[0];
+      return this.buildTask(customer, 'calls', 'sales_call');
+    }
+    return null;
+  }
+
+  private async findFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    const now = new Date();
+    
+    let conditions = [
+      or(
+        eq(followUpTasks.assignedTo, userId),
+        isNull(followUpTasks.assignedTo)
+      ),
+      ne(followUpTasks.status, 'completed'),
+      lte(followUpTasks.dueDate, now),
+    ];
+
+    if (skippedIds.length > 0) {
+      conditions.push(notInArray(sql`${followUpTasks.customerId}::text`, skippedIds));
+    }
+
+    const result = await db
+      .select({
+        taskId: followUpTasks.id,
+        customerId: followUpTasks.customerId,
+        title: followUpTasks.title,
+        taskType: followUpTasks.taskType,
+        dueDate: followUpTasks.dueDate,
+        customer: {
+          id: customers.id,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          email: customers.email,
+          phone: customers.phone,
+          address1: customers.address1,
+          address2: customers.address2,
+          city: customers.city,
+          province: customers.province,
+          zip: customers.zip,
+          country: customers.country,
+          website: customers.website,
+          salesRepId: customers.salesRepId,
+          salesRepName: customers.salesRepName,
+          pricingTier: customers.pricingTier,
+        },
+      })
+      .from(followUpTasks)
+      .leftJoin(customers, eq(followUpTasks.customerId, customers.id))
+      .where(and(...conditions))
+      .orderBy(asc(followUpTasks.dueDate))
+      .limit(1);
+
+    if (result.length > 0 && result[0].customer) {
+      const task = result[0];
+      const subtype = task.taskType === 'quote_follow_up' ? 'sales_quote_follow_up' : 'sales_follow_up';
+      return {
+        ...this.buildTask(task.customer, 'follow_ups', subtype),
+        context: {
+          followUpId: task.taskId,
+          followUpTitle: task.title || undefined,
+          followUpDueDate: task.dueDate?.toISOString(),
+        },
+      };
+    }
+    return null;
+  }
+
+  private async findOutreachTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    let conditions = [
+      eq(customers.doNotContact, false),
+      isNotNull(customers.email),
+      or(
+        isNull(customers.salesRepId),
+        eq(customers.salesRepId, userId)
+      ),
+      or(
+        isNull(customers.updatedAt),
+        lt(customers.updatedAt, thirtyDaysAgo)
+      ),
+    ];
+    
+    if (skippedIds.length > 0) {
+      conditions.push(notInArray(customers.id, skippedIds));
+    }
+
+    const result = await db
+      .select({
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        email: customers.email,
+        phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        province: customers.province,
+        zip: customers.zip,
+        country: customers.country,
+        website: customers.website,
+        salesRepId: customers.salesRepId,
+        salesRepName: customers.salesRepName,
+        pricingTier: customers.pricingTier,
+        updatedAt: customers.updatedAt,
+      })
+      .from(customers)
+      .where(and(...conditions))
+      .orderBy(asc(customers.updatedAt))
+      .limit(1);
+
+    if (result.length > 0) {
+      const customer = result[0];
+      return this.buildTask(customer, 'outreach', 'outreach_no_contact');
+    }
+    return null;
+  }
+
+  private async findHygieneTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
     const priorityOrder = [
       { subtype: 'hygiene_sales_rep', condition: isNull(customers.salesRepId) },
       { subtype: 'hygiene_pricing_tier', condition: isNull(customers.pricingTier) },
+      { subtype: 'hygiene_email', condition: isNull(customers.email) },
       { subtype: 'hygiene_name', condition: and(isNull(customers.firstName), isNull(customers.lastName)) },
       { subtype: 'hygiene_company', condition: isNull(customers.company) },
       { subtype: 'hygiene_phone', condition: isNull(customers.phone) },
-      { subtype: 'hygiene_address', condition: isNull(customers.address1) },
-      { subtype: 'hygiene_website', condition: isNull(customers.website) },
     ];
 
     for (let i = 0; i < priorityOrder.length; i++) {
@@ -133,8 +429,7 @@ class SpotlightEngine {
         whereConditions.push(notInArray(customers.id, skippedIds));
       }
       
-      if (subtype === 'hygiene_sales_rep') {
-      } else {
+      if (subtype !== 'hygiene_sales_rep') {
         whereConditions.push(
           or(
             isNull(customers.salesRepId),
@@ -154,7 +449,7 @@ class SpotlightEngine {
           address1: customers.address1,
           address2: customers.address2,
           city: customers.city,
-          state: customers.province,
+          province: customers.province,
           zip: customers.zip,
           country: customers.country,
           website: customers.website,
@@ -169,219 +464,127 @@ class SpotlightEngine {
 
       if (result.length > 0) {
         const customer = result[0];
-        return {
-          id: `hygiene_${customer.id}_${subtype}`,
-          customerId: customer.id.toString(),
-          taskType: 'hygiene',
-          taskSubtype: subtype,
-          priority: i + 1,
-          customer: {
-            id: customer.id.toString(),
-            company: customer.company,
-            firstName: customer.firstName,
-            lastName: customer.lastName,
-            email: customer.email,
-            phone: customer.phone,
-            address1: customer.address1,
-            address2: customer.address2,
-            city: customer.city,
-            state: customer.state,
-            zip: customer.zip,
-            country: customer.country,
-            website: customer.website,
-            salesRepId: customer.salesRepId,
-            salesRepName: customer.salesRepName,
-            pricingTier: customer.pricingTier,
-          },
-        };
+        return this.buildTask(customer, 'data_hygiene', subtype, i + 1);
       }
     }
 
     return null;
   }
 
-  private async findSalesTask(userId: string, userEmail: string | undefined, skippedIds: string[]): Promise<SpotlightTask | null> {
-    const now = new Date();
-    const nextWeek = new Date(now.getTime() + 7 * 24 * 60 * 60 * 1000);
-
-    const baseConditions = [
+  private async findEnablementTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    let conditions = [
+      eq(customers.doNotContact, false),
+      isNotNull(customers.email),
+      isNotNull(customers.address1),
       or(
-        eq(followUpTasks.assignedTo, userId),
-        and(
-          isNull(followUpTasks.assignedTo),
-          or(
-            isNull(customers.salesRepId),
-            eq(customers.salesRepId, userId)
-          )
-        )
+        isNull(customers.salesRepId),
+        eq(customers.salesRepId, userId)
       ),
-      ne(followUpTasks.status, 'completed'),
     ];
-
+    
     if (skippedIds.length > 0) {
-      baseConditions.push(notInArray(sql`${followUpTasks.customerId}::text`, skippedIds));
+      conditions.push(notInArray(customers.id, skippedIds));
     }
 
-    const overdueTask = await db
+    const result = await db
       .select({
-        taskId: followUpTasks.id,
-        customerId: followUpTasks.customerId,
-        title: followUpTasks.title,
-        taskType: followUpTasks.taskType,
-        dueDate: followUpTasks.dueDate,
-        customer: {
-          id: customers.id,
-          company: customers.company,
-          firstName: customers.firstName,
-          lastName: customers.lastName,
-          email: customers.email,
-          phone: customers.phone,
-          address1: customers.address1,
-          address2: customers.address2,
-          city: customers.city,
-          state: customers.province,
-          zip: customers.zip,
-          country: customers.country,
-          website: customers.website,
-          salesRepId: customers.salesRepId,
-          salesRepName: customers.salesRepName,
-          pricingTier: customers.pricingTier,
-        },
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        email: customers.email,
+        phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        province: customers.province,
+        zip: customers.zip,
+        country: customers.country,
+        website: customers.website,
+        salesRepId: customers.salesRepId,
+        salesRepName: customers.salesRepName,
+        pricingTier: customers.pricingTier,
       })
-      .from(followUpTasks)
-      .leftJoin(customers, eq(followUpTasks.customerId, customers.id))
-      .where(and(...baseConditions, lte(followUpTasks.dueDate, now)))
-      .orderBy(asc(followUpTasks.dueDate))
+      .from(customers)
+      .where(and(...conditions))
+      .orderBy(desc(customers.updatedAt))
       .limit(1);
 
-    if (overdueTask.length > 0 && overdueTask[0].customer) {
-      return this.buildSalesTaskFromResult(overdueTask[0]);
+    if (result.length > 0) {
+      const customer = result[0];
+      return this.buildTask(customer, 'enablement', 'enablement_swatchbook');
     }
-
-    const upcomingTask = await db
-      .select({
-        taskId: followUpTasks.id,
-        customerId: followUpTasks.customerId,
-        title: followUpTasks.title,
-        taskType: followUpTasks.taskType,
-        dueDate: followUpTasks.dueDate,
-        customer: {
-          id: customers.id,
-          company: customers.company,
-          firstName: customers.firstName,
-          lastName: customers.lastName,
-          email: customers.email,
-          phone: customers.phone,
-          address1: customers.address1,
-          address2: customers.address2,
-          city: customers.city,
-          state: customers.province,
-          zip: customers.zip,
-          country: customers.country,
-          website: customers.website,
-          salesRepId: customers.salesRepId,
-          salesRepName: customers.salesRepName,
-          pricingTier: customers.pricingTier,
-        },
-      })
-      .from(followUpTasks)
-      .leftJoin(customers, eq(followUpTasks.customerId, customers.id))
-      .where(and(...baseConditions, gte(followUpTasks.dueDate, now), lte(followUpTasks.dueDate, nextWeek)))
-      .orderBy(asc(followUpTasks.dueDate))
-      .limit(1);
-
-    if (upcomingTask.length > 0 && upcomingTask[0].customer) {
-      return this.buildSalesTaskFromResult(upcomingTask[0]);
-    }
-
     return null;
   }
 
-  private buildSalesTaskFromResult(result: any): SpotlightTask {
-    const task = result;
-    const cust = task.customer!;
-    const taskSubtype = task.taskType === 'quote_follow_up' ? 'sales_quote_follow_up' : 
-                        task.taskType === 'call' ? 'sales_call' :
-                        task.taskType === 'outreach' ? 'sales_outreach' : 'sales_follow_up';
-    
+  private buildTask(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1): SpotlightTask {
     return {
-      id: `sales_${task.taskId}_${taskSubtype}`,
-      customerId: task.customerId?.toString() || '',
-      taskType: 'sales',
-      taskSubtype,
-      priority: 1,
+      id: `${bucket}_${customer.id}_${subtype}`,
+      customerId: customer.id.toString(),
+      bucket,
+      taskSubtype: subtype,
+      priority,
+      whyNow: WHY_NOW_MESSAGES[subtype] || 'Take action on this customer.',
+      outcomes: TASK_OUTCOMES[subtype] || [
+        { id: 'done', label: 'Done', icon: 'check', nextAction: { type: 'mark_complete' } },
+        { id: 'skip', label: 'Skip', icon: 'x', nextAction: { type: 'no_action' } },
+      ],
       customer: {
-        id: cust.id.toString(),
-        company: cust.company,
-        firstName: cust.firstName,
-        lastName: cust.lastName,
-        email: cust.email,
-        phone: cust.phone,
-        address1: cust.address1,
-        address2: cust.address2,
-        city: cust.city,
-        state: cust.state,
-        zip: cust.zip,
-        country: cust.country,
-        website: cust.website,
-        salesRepId: cust.salesRepId,
-        salesRepName: cust.salesRepName,
-        pricingTier: cust.pricingTier,
-      },
-      context: {
-        followUpId: task.taskId,
-        followUpTitle: task.title || undefined,
-        followUpDueDate: task.dueDate?.toISOString(),
+        id: customer.id.toString(),
+        company: customer.company,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        phone: customer.phone,
+        address1: customer.address1,
+        address2: customer.address2,
+        city: customer.city,
+        province: customer.province,
+        zip: customer.zip,
+        country: customer.country,
+        website: customer.website,
+        salesRepId: customer.salesRepId,
+        salesRepName: customer.salesRepName,
+        pricingTier: customer.pricingTier,
       },
     };
   }
 
-  async completeTask(userId: string, taskId: string, field?: string, value?: string): Promise<void> {
+  async completeTask(
+    userId: string, 
+    taskId: string, 
+    outcomeId: string,
+    field?: string, 
+    value?: string,
+    notes?: string
+  ): Promise<{ success: boolean; nextFollowUp?: { date: Date; type: string } }> {
     const session = this.getSession(userId);
     
     const parts = taskId.split('_');
-    const taskType = parts[0] as 'hygiene' | 'sales';
+    const bucket = parts[0] as TaskBucket;
     const customerId = parts[1];
     const subtype = parts.slice(2).join('_');
 
-    if (taskType === 'hygiene' && field && value) {
-      const updateData: Record<string, any> = {
-        updatedAt: new Date(),
-      };
-
+    const outcomes = TASK_OUTCOMES[subtype] || [];
+    const selectedOutcome = outcomes.find(o => o.id === outcomeId);
+    
+    if (bucket === 'data_hygiene' && field && value) {
       const subtypeAllowedFields: Record<string, string[]> = {
         'hygiene_sales_rep': ['salesRepId'],
         'hygiene_pricing_tier': ['pricingTier'],
+        'hygiene_email': ['email'],
         'hygiene_name': ['firstName', 'lastName'],
         'hygiene_company': ['company'],
         'hygiene_phone': ['phone'],
-        'hygiene_address': ['address1', 'city', 'state', 'zip'],
-        'hygiene_website': ['website'],
       };
 
       const allowedFields = subtypeAllowedFields[subtype] || [];
-      if (!allowedFields.includes(field)) {
-        console.error(`[Spotlight] Field "${field}" not allowed for subtype "${subtype}"`);
-        return;
-      }
+      if (allowedFields.includes(field)) {
+        const updateData: Record<string, any> = {
+          updatedAt: new Date(),
+          [field]: value,
+        };
 
-      const fieldMap: Record<string, string> = {
-        salesRepId: 'salesRepId',
-        pricingTier: 'pricingTier',
-        firstName: 'firstName',
-        lastName: 'lastName',
-        company: 'company',
-        phone: 'phone',
-        website: 'website',
-        address1: 'address1',
-        city: 'city',
-        state: 'state',
-        zip: 'zip',
-      };
-
-      if (fieldMap[field]) {
-        updateData[fieldMap[field]] = value;
-        
         if (field === 'salesRepId') {
           const [rep] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email })
             .from(users)
@@ -392,16 +595,15 @@ class SpotlightEngine {
               : rep.email;
           }
         }
+
+        await db.update(customers)
+          .set(updateData)
+          .where(eq(customers.id, customerId));
       }
+    }
 
-      await db.update(customers)
-        .set(updateData)
-        .where(eq(customers.id, customerId));
-
-      session.hygieneCompleted++;
-    } else if (taskType === 'sales') {
+    if (bucket === 'follow_ups' && parts[1]) {
       const followUpId = parseInt(parts[1]);
-      
       if (!isNaN(followUpId)) {
         await db.update(followUpTasks)
           .set({ 
@@ -411,10 +613,44 @@ class SpotlightEngine {
           })
           .where(eq(followUpTasks.id, followUpId));
       }
-
-      session.salesCompleted++;
     }
 
+    let nextFollowUp: { date: Date; type: string } | undefined;
+    if (selectedOutcome?.nextAction?.type === 'schedule_follow_up' && selectedOutcome.nextAction.daysUntil) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + selectedOutcome.nextAction.daysUntil);
+      
+      await db.insert(followUpTasks).values({
+        customerId,
+        title: `Follow-up: ${selectedOutcome.label}`,
+        description: notes || null,
+        taskType: selectedOutcome.nextAction.taskType || 'follow_up',
+        dueDate,
+        status: 'pending',
+        assignedTo: userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      nextFollowUp = { date: dueDate, type: selectedOutcome.nextAction.taskType || 'follow_up' };
+    }
+
+    try {
+      await db.insert(customerActivityEvents).values({
+        customerId,
+        eventType: 'spotlight_action',
+        description: `Spotlight: ${subtype} - ${selectedOutcome?.label || outcomeId}`,
+        timestamp: new Date(),
+        userId,
+      });
+    } catch (e) {
+      console.error('[Spotlight] Failed to log activity:', e);
+    }
+
+    const bucketData = session.buckets.find(b => b.bucket === bucket);
+    if (bucketData) {
+      bucketData.completed++;
+    }
     session.totalCompleted++;
     session.lastTaskAt = new Date();
     
@@ -422,6 +658,8 @@ class SpotlightEngine {
     if (skipIndex > -1) {
       session.skippedCustomerIds.splice(skipIndex, 1);
     }
+
+    return { success: true, nextFollowUp };
   }
 
   async skipTask(userId: string, taskId: string, reason: string): Promise<void> {
@@ -439,6 +677,12 @@ class SpotlightEngine {
 
   getSessionStats(userId: string): SpotlightSession {
     return this.getSession(userId);
+  }
+
+  resetSession(userId: string): void {
+    const today = this.getTodayKey();
+    const sessionKey = `${userId}_${today}`;
+    this.sessions.delete(sessionKey);
   }
 }
 

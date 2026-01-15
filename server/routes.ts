@@ -16606,8 +16606,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         task,
         session: {
           totalCompleted: session.totalCompleted,
-          hygieneCompleted: session.hygieneCompleted,
-          salesCompleted: session.salesCompleted,
+          totalTarget: session.totalTarget,
+          buckets: session.buckets,
+          dayComplete: session.dayComplete,
         },
         allDone,
       });
@@ -16624,14 +16625,14 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { taskId, field, value } = req.body;
-      if (!taskId) {
-        return res.status(400).json({ error: "taskId is required" });
+      const { taskId, outcomeId, field, value, notes } = req.body;
+      if (!taskId || !outcomeId) {
+        return res.status(400).json({ error: "taskId and outcomeId are required" });
       }
 
-      await spotlightEngine.completeTask(userId, taskId, field, value);
+      const result = await spotlightEngine.completeTask(userId, taskId, outcomeId, field, value, notes);
       
-      res.json({ success: true });
+      res.json(result);
     } catch (error) {
       console.error("[Spotlight] Error completing task:", error);
       res.status(500).json({ error: "Failed to complete task" });

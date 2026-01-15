@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -6,15 +6,14 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter } from "@/components/ui/dialog";
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Badge } from "@/components/ui/badge";
+import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
+import { Textarea } from "@/components/ui/textarea";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft,
-  ChevronRight,
   Mail,
   Phone,
   Building2,
@@ -31,17 +30,42 @@ import {
   RefreshCw,
   Sparkles,
   AlertCircle,
-  Edit2,
-  Save,
   ExternalLink,
+  MessageSquare,
+  Send,
+  PhoneCall,
+  PhoneMissed,
+  Voicemail,
+  Clock,
+  Calendar,
+  HelpCircle,
+  Truck,
+  Tag,
+  CheckCircle,
+  Target,
 } from "lucide-react";
+
+type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
+
+interface TaskOutcome {
+  id: string;
+  label: string;
+  icon?: string;
+  nextAction?: {
+    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action';
+    daysUntil?: number;
+    taskType?: string;
+  };
+}
 
 interface SpotlightTask {
   id: string;
   customerId: string;
-  taskType: 'hygiene' | 'sales';
+  bucket: TaskBucket;
   taskSubtype: string;
   priority: number;
+  whyNow: string;
+  outcomes: TaskOutcome[];
   customer: {
     id: string;
     company: string | null;
@@ -52,7 +76,7 @@ interface SpotlightTask {
     address1: string | null;
     address2: string | null;
     city: string | null;
-    state: string | null;
+    province: string | null;
     zip: string | null;
     country: string | null;
     website: string | null;
@@ -61,42 +85,62 @@ interface SpotlightTask {
     pricingTier: string | null;
   };
   context?: {
-    quoteId?: number;
     followUpId?: number;
     followUpTitle?: string;
     followUpDueDate?: string;
+    lastContact?: string;
   };
+}
+
+interface BucketQuota {
+  bucket: TaskBucket;
+  target: number;
+  completed: number;
+  skipped: number;
 }
 
 interface SpotlightSession {
   totalCompleted: number;
-  hygieneCompleted: number;
-  salesCompleted: number;
+  totalTarget: number;
+  buckets: BucketQuota[];
+  dayComplete: boolean;
 }
 
-const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
-
-const taskTypeLabels: Record<string, { label: string; icon: any; color: string }> = {
-  'hygiene_sales_rep': { label: 'Assign Sales Rep', icon: UserCog, color: '#6366F1' },
-  'hygiene_pricing_tier': { label: 'Set Pricing Tier', icon: DollarSign, color: '#8B5CF6' },
-  'hygiene_name': { label: 'Complete Name', icon: User, color: '#0EA5E9' },
-  'hygiene_company': { label: 'Add Company', icon: Building2, color: '#14B8A6' },
-  'hygiene_phone': { label: 'Add Phone', icon: Phone, color: '#F59E0B' },
-  'hygiene_website': { label: 'Add Website', icon: Globe, color: '#EC4899' },
-  'hygiene_address': { label: 'Complete Address', icon: MapPin, color: '#EF4444' },
-  'sales_follow_up': { label: 'Follow Up', icon: RefreshCw, color: '#22C55E' },
-  'sales_quote_follow_up': { label: 'Quote Follow Up', icon: FileText, color: '#3B82F6' },
-  'sales_outreach': { label: 'Outreach', icon: Mail, color: '#F97316' },
-  'sales_call': { label: 'Make Call', icon: Phone, color: '#A855F7' },
-  'sales_sample_send': { label: 'Send Sample', icon: Package, color: '#06B6D4' },
+const BUCKET_INFO: Record<TaskBucket, { label: string; icon: any; color: string }> = {
+  calls: { label: 'Calls', icon: PhoneCall, color: '#A855F7' },
+  follow_ups: { label: 'Follow-ups', icon: RefreshCw, color: '#22C55E' },
+  outreach: { label: 'Outreach', icon: Send, color: '#F97316' },
+  data_hygiene: { label: 'Data Hygiene', icon: UserCog, color: '#6366F1' },
+  enablement: { label: 'Enablement', icon: Package, color: '#06B6D4' },
 };
+
+const OUTCOME_ICONS: Record<string, any> = {
+  'check': Check,
+  'user-check': CheckCircle,
+  'x': X,
+  'tag': Tag,
+  'building': Building2,
+  'truck': Truck,
+  'help-circle': HelpCircle,
+  'mail': Mail,
+  'clock': Clock,
+  'phone': Phone,
+  'voicemail': Voicemail,
+  'phone-missed': PhoneMissed,
+  'calendar': Calendar,
+  'send': Send,
+  'package': Package,
+  'file-text': FileText,
+};
+
+const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
 
 export default function Spotlight() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
-  const [editingField, setEditingField] = useState<string | null>(null);
   const [fieldValue, setFieldValue] = useState("");
-  const [showQuotePopup, setShowQuotePopup] = useState(false);
+  const [notes, setNotes] = useState("");
+  const [showNotes, setShowNotes] = useState(false);
 
   const { data: currentTask, isLoading, refetch } = useQuery<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean }>({
     queryKey: ['/api/spotlight/current'],
@@ -110,15 +154,25 @@ export default function Spotlight() {
   });
 
   const completeMutation = useMutation({
-    mutationFn: async (data: { taskId: string; field?: string; value?: string }) => {
+    mutationFn: async (data: { taskId: string; outcomeId: string; field?: string; value?: string; notes?: string }) => {
       const res = await apiRequest('POST', '/api/spotlight/complete', data);
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (result) => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
-      setEditingField(null);
       setFieldValue("");
-      toast({ title: "Task completed", description: "Moving to next task..." });
+      setNotes("");
+      setShowNotes(false);
+      
+      if (result.nextFollowUp) {
+        const date = new Date(result.nextFollowUp.date).toLocaleDateString();
+        toast({ 
+          title: "Task completed", 
+          description: `Follow-up scheduled for ${date}` 
+        });
+      } else {
+        toast({ title: "Task completed", description: "Moving to next moment..." });
+      }
     },
     onError: (error: any) => {
       toast({ title: "Error", description: error.message, variant: "destructive" });
@@ -132,34 +186,29 @@ export default function Spotlight() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
-      toast({ title: "Task skipped", description: "Moving to next task..." });
+      toast({ title: "Skipped", description: "Moving to next moment..." });
     },
   });
 
-  const handleComplete = (field?: string, value?: string) => {
+  const handleOutcome = (outcomeId: string, field?: string, value?: string) => {
     if (!currentTask?.task) return;
-    completeMutation.mutate({ taskId: currentTask.task.id, field, value });
+    completeMutation.mutate({ 
+      taskId: currentTask.task.id, 
+      outcomeId,
+      field, 
+      value,
+      notes: notes.trim() || undefined,
+    });
   };
 
-  const handleSkip = (reason: string = 'not_now') => {
+  const handleSkip = () => {
     if (!currentTask?.task) return;
-    skipMutation.mutate({ taskId: currentTask.task.id, reason });
-  };
-
-  const startEditField = (field: string, currentValue: string) => {
-    setEditingField(field);
-    setFieldValue(currentValue || "");
-  };
-
-  const saveField = () => {
-    if (editingField && fieldValue.trim()) {
-      handleComplete(editingField, fieldValue.trim());
-    }
+    skipMutation.mutate({ taskId: currentTask.task.id, reason: 'not_now' });
   };
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center">
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
         <div className="text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-[#111111] mx-auto mb-4" />
           <p className="text-[#666666] text-sm font-medium">Loading Spotlight...</p>
@@ -168,17 +217,43 @@ export default function Spotlight() {
     );
   }
 
-  if (currentTask?.allDone || !currentTask?.task) {
+  const session = currentTask?.session;
+  const progress = session ? (session.totalCompleted / session.totalTarget) * 100 : 0;
+
+  if (currentTask?.allDone || currentTask?.session?.dayComplete) {
     return (
-      <div className="min-h-screen bg-[#F7F7F7] flex items-center justify-center p-4">
-        <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA]">
-          <div className="w-20 h-20 rounded-full bg-[#22C55E]/10 flex items-center justify-center mx-auto mb-6">
-            <Sparkles className="w-10 h-10 text-[#22C55E]" />
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA] bg-white">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-green-100 to-emerald-100 flex items-center justify-center mx-auto mb-6">
+            <Sparkles className="w-12 h-12 text-emerald-500" />
           </div>
-          <CardTitle className="text-2xl mb-2 text-[#111111]">All Caught Up!</CardTitle>
-          <CardDescription className="text-[#666666] mb-6">
-            You've completed all available tasks for now. Great work!
+          <CardTitle className="text-2xl mb-2 text-[#111111]">Day Complete!</CardTitle>
+          <CardDescription className="text-[#666666] mb-6 text-base">
+            You've finished your {session?.totalTarget || 30} moments for today. 
+            <br />Great work building momentum!
           </CardDescription>
+          
+          {session && (
+            <div className="grid grid-cols-5 gap-2 mb-6">
+              {session.buckets.map((bucket) => {
+                const info = BUCKET_INFO[bucket.bucket];
+                const BucketIcon = info.icon;
+                return (
+                  <div key={bucket.bucket} className="text-center">
+                    <div 
+                      className="w-10 h-10 rounded-full flex items-center justify-center mx-auto mb-1"
+                      style={{ backgroundColor: info.color + '20' }}
+                    >
+                      <BucketIcon className="w-5 h-5" style={{ color: info.color }} />
+                    </div>
+                    <p className="text-xs font-medium text-[#111111]">{bucket.completed}/{bucket.target}</p>
+                    <p className="text-xs text-[#999999]">{info.label}</p>
+                  </div>
+                );
+              })}
+            </div>
+          )}
+
           <div className="flex gap-4 justify-center">
             <Link href="/">
               <Button variant="outline" className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2]">
@@ -186,9 +261,33 @@ export default function Spotlight() {
                 Back to Dashboard
               </Button>
             </Link>
+          </div>
+        </Card>
+      </div>
+    );
+  }
+
+  if (!currentTask?.task) {
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA] bg-white">
+          <div className="w-20 h-20 rounded-full bg-[#F2F2F2] flex items-center justify-center mx-auto mb-6">
+            <Target className="w-10 h-10 text-[#999999]" />
+          </div>
+          <CardTitle className="text-xl mb-2 text-[#111111]">No Tasks Available</CardTitle>
+          <CardDescription className="text-[#666666] mb-6">
+            Check back later or refresh to find new moments.
+          </CardDescription>
+          <div className="flex gap-4 justify-center">
+            <Link href="/">
+              <Button variant="outline" className="border-[#EAEAEA]">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+            </Link>
             <Button onClick={() => refetch()} className="bg-[#111111] hover:bg-[#333333] text-white">
               <RefreshCw className="w-4 h-4 mr-2" />
-              Check Again
+              Refresh
             </Button>
           </div>
         </Card>
@@ -197,89 +296,120 @@ export default function Spotlight() {
   }
 
   const task = currentTask.task;
-  const taskInfo = taskTypeLabels[task.taskSubtype] || { label: task.taskSubtype, icon: AlertCircle, color: '#666666' };
-  const TaskIcon = taskInfo.icon;
+  const bucketInfo = BUCKET_INFO[task.bucket];
+  const BucketIcon = bucketInfo.icon;
   const customer = task.customer;
-  const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown';
+  const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown Client';
 
   return (
-    <div className="min-h-screen bg-[#F7F7F7]">
-      {/* Header */}
+    <div className="min-h-screen bg-[#FAFAFA]">
+      {/* Header with Progress */}
       <div className="bg-white border-b border-[#EAEAEA] sticky top-0 z-10">
-        <div className="max-w-4xl mx-auto px-4 py-4 flex items-center justify-between">
-          <div className="flex items-center gap-4">
-            <Link href="/">
-              <Button variant="ghost" size="icon" className="text-[#666666] hover:text-[#111111] hover:bg-[#F2F2F2]">
-                <ArrowLeft className="w-5 h-5" />
-              </Button>
-            </Link>
-            <div>
-              <h1 className="text-lg font-semibold text-[#111111]">Spotlight</h1>
-              <p className="text-sm text-[#666666]">One client at a time</p>
+        <div className="max-w-2xl mx-auto px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <div className="flex items-center gap-3">
+              <Link href="/">
+                <Button variant="ghost" size="icon" className="text-[#666666] hover:text-[#111111] h-8 w-8">
+                  <ArrowLeft className="w-5 h-5" />
+                </Button>
+              </Link>
+              <div>
+                <h1 className="text-base font-semibold text-[#111111]">Spotlight</h1>
+                <p className="text-xs text-[#666666]">
+                  {session?.totalCompleted || 0} of {session?.totalTarget || 30} moments
+                </p>
+              </div>
+            </div>
+            <div className="flex items-center gap-2">
+              {session?.buckets.map((bucket) => {
+                const info = BUCKET_INFO[bucket.bucket];
+                const BIcon = info.icon;
+                const isActive = bucket.bucket === task.bucket;
+                return (
+                  <div 
+                    key={bucket.bucket}
+                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${isActive ? 'ring-2' : ''}`}
+                    style={{ 
+                      backgroundColor: info.color + '15',
+                      color: info.color,
+                      ringColor: info.color,
+                    }}
+                  >
+                    <BIcon className="w-3 h-3" />
+                    <span className="font-medium">{bucket.completed}/{bucket.target}</span>
+                  </div>
+                );
+              })}
             </div>
           </div>
-          <div className="flex items-center gap-4 text-sm text-[#666666]">
-            <span className="font-medium">{currentTask.session.totalCompleted} completed</span>
-          </div>
+          <Progress value={progress} className="h-1.5" />
         </div>
       </div>
 
-      <div className="max-w-4xl mx-auto p-4 pt-6">
-        {/* Task Type Badge */}
-        <div className="flex items-center gap-2 mb-4">
-          <Badge 
-            style={{ backgroundColor: taskInfo.color + '20', color: taskInfo.color, borderColor: taskInfo.color }}
-            className="font-medium px-3 py-1"
-          >
-            <TaskIcon className="w-4 h-4 mr-1.5" />
-            {taskInfo.label}
-          </Badge>
-          {task.taskType === 'hygiene' && (
-            <Badge variant="outline" className="text-[#666666] border-[#EAEAEA]">Data Cleanup</Badge>
-          )}
-          {task.taskType === 'sales' && (
-            <Badge variant="outline" className="text-[#666666] border-[#EAEAEA]">Sales Activity</Badge>
-          )}
+      <div className="max-w-2xl mx-auto p-4 pt-6">
+        {/* Why Now Card */}
+        <div 
+          className="rounded-xl p-4 mb-4 flex items-start gap-3"
+          style={{ backgroundColor: bucketInfo.color + '10', borderLeft: `4px solid ${bucketInfo.color}` }}
+        >
+          <BucketIcon className="w-5 h-5 mt-0.5" style={{ color: bucketInfo.color }} />
+          <div>
+            <p className="font-medium text-[#111111] text-sm">{bucketInfo.label}</p>
+            <p className="text-[#666666] text-sm mt-0.5">{task.whyNow}</p>
+          </div>
         </div>
 
         {/* Main Client Card */}
-        <Card className="border-[#EAEAEA] mb-6">
-          <CardHeader className="pb-4">
+        <Card className="border-[#EAEAEA] bg-white mb-4">
+          <CardHeader className="pb-3">
             <div className="flex items-start justify-between">
               <div>
                 <CardTitle className="text-xl text-[#111111] flex items-center gap-2">
                   {customerName}
-                  <Link href={`/clients/${customer.id}`}>
+                  <Link href={`/clients?id=${customer.id}&from=spotlight`}>
                     <Button variant="ghost" size="icon" className="h-6 w-6 text-[#999999] hover:text-[#111111]">
                       <ExternalLink className="w-4 h-4" />
                     </Button>
                   </Link>
                 </CardTitle>
-                {customer.email && (
-                  <CardDescription className="flex items-center gap-1.5 mt-1">
-                    <Mail className="w-4 h-4" />
-                    {customer.email}
-                  </CardDescription>
-                )}
+                <div className="flex items-center gap-3 mt-1.5 text-sm text-[#666666]">
+                  {customer.email && (
+                    <span className="flex items-center gap-1">
+                      <Mail className="w-3.5 h-3.5" />
+                      {customer.email}
+                    </span>
+                  )}
+                  {customer.phone && (
+                    <span className="flex items-center gap-1">
+                      <Phone className="w-3.5 h-3.5" />
+                      {customer.phone}
+                    </span>
+                  )}
+                </div>
               </div>
-              {/* Print Label Button for physical tasks */}
-              {(task.taskSubtype === 'sales_sample_send' || task.taskSubtype === 'sales_swatch_send') && customer.address1 && (
-                <Button variant="outline" size="sm" className="border-[#EAEAEA] text-[#666666] hover:text-[#111111]">
-                  <Printer className="w-4 h-4 mr-1.5" />
-                  Print Label
-                </Button>
-              )}
             </div>
           </CardHeader>
 
           <Separator />
 
           <CardContent className="pt-4">
-            {/* Task-specific content */}
+            {/* Follow-up context */}
+            {task.context?.followUpTitle && (
+              <div className="bg-[#F7F7F7] rounded-lg p-3 mb-4">
+                <p className="font-medium text-[#111111] text-sm">{task.context.followUpTitle}</p>
+                {task.context.followUpDueDate && (
+                  <p className="text-xs text-[#666666] mt-1">
+                    Due: {new Date(task.context.followUpDueDate).toLocaleDateString()}
+                  </p>
+                )}
+              </div>
+            )}
+
+            {/* Data Hygiene: Sales Rep Assignment */}
             {task.taskSubtype === 'hygiene_sales_rep' && (
-              <div className="space-y-4">
-                <Label className="text-sm text-[#666666]">Assign a sales rep to this client:</Label>
-                <Select onValueChange={(value) => handleComplete('salesRepId', value)}>
+              <div className="space-y-3">
+                <Label className="text-sm text-[#666666]">Assign sales rep:</Label>
+                <Select onValueChange={(value) => handleOutcome('assigned', 'salesRepId', value)}>
                   <SelectTrigger className="border-[#EAEAEA]">
                     <SelectValue placeholder="Select sales rep..." />
                   </SelectTrigger>
@@ -294,248 +424,198 @@ export default function Spotlight() {
               </div>
             )}
 
+            {/* Data Hygiene: Pricing Tier */}
             {task.taskSubtype === 'hygiene_pricing_tier' && (
-              <div className="space-y-4">
-                <Label className="text-sm text-[#666666]">Set the pricing tier for this client:</Label>
-                <div className="grid grid-cols-2 gap-3">
-                  {PRICING_TIERS.map((tier) => (
-                    <Button
-                      key={tier}
-                      variant="outline"
-                      className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2] capitalize h-12"
-                      onClick={() => handleComplete('pricingTier', tier)}
-                    >
-                      <DollarSign className="w-4 h-4 mr-2" />
-                      {tier}
-                    </Button>
-                  ))}
-                </div>
+              <div className="grid grid-cols-2 gap-2">
+                {task.outcomes.filter(o => o.id !== 'skip').map((outcome) => (
+                  <Button
+                    key={outcome.id}
+                    variant="outline"
+                    className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2] h-11 capitalize"
+                    onClick={() => handleOutcome(outcome.id, 'pricingTier', outcome.id)}
+                  >
+                    {outcome.icon && OUTCOME_ICONS[outcome.icon] && (
+                      (() => {
+                        const Icon = OUTCOME_ICONS[outcome.icon];
+                        return <Icon className="w-4 h-4 mr-2" />;
+                      })()
+                    )}
+                    {outcome.label}
+                  </Button>
+                ))}
               </div>
             )}
 
-            {(task.taskSubtype === 'hygiene_name' || task.taskSubtype === 'hygiene_company' || 
-              task.taskSubtype === 'hygiene_phone' || task.taskSubtype === 'hygiene_website') && (
-              <div className="space-y-4">
-                <Label className="text-sm text-[#666666]">{taskInfo.label}:</Label>
+            {/* Data Hygiene: Email */}
+            {task.taskSubtype === 'hygiene_email' && (
+              <div className="space-y-3">
+                <Label className="text-sm text-[#666666]">Enter primary email:</Label>
                 <div className="flex gap-2">
                   <Input
+                    type="email"
                     value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
-                    placeholder={`Enter ${taskInfo.label.toLowerCase()}...`}
+                    placeholder="email@company.com"
                     className="border-[#EAEAEA]"
-                    onKeyDown={(e) => e.key === 'Enter' && saveField()}
+                    onKeyDown={(e) => e.key === 'Enter' && fieldValue.trim() && handleOutcome('found', 'email', fieldValue.trim())}
                   />
                   <Button 
-                    onClick={saveField}
+                    onClick={() => handleOutcome('found', 'email', fieldValue.trim())}
                     className="bg-[#111111] hover:bg-[#333333] text-white"
                     disabled={!fieldValue.trim()}
                   >
-                    <Save className="w-4 h-4 mr-1.5" />
                     Save
                   </Button>
                 </div>
               </div>
             )}
 
-            {task.taskSubtype === 'hygiene_address' && (
-              <div className="space-y-4">
-                <Label className="text-sm text-[#666666]">Complete the address for this client:</Label>
-                <div className="grid gap-3">
-                  <Input 
-                    placeholder="Address Line 1" 
-                    className="border-[#EAEAEA]"
-                    value={editingField === 'address1' ? fieldValue : customer.address1 || ''}
-                    onFocus={() => startEditField('address1', customer.address1 || '')}
+            {/* Data Hygiene: Name, Company, Phone */}
+            {(task.taskSubtype === 'hygiene_name' || task.taskSubtype === 'hygiene_company' || task.taskSubtype === 'hygiene_phone') && (
+              <div className="space-y-3">
+                <Label className="text-sm text-[#666666]">
+                  {task.taskSubtype === 'hygiene_name' && 'Enter contact name:'}
+                  {task.taskSubtype === 'hygiene_company' && 'Enter company name:'}
+                  {task.taskSubtype === 'hygiene_phone' && 'Enter phone number:'}
+                </Label>
+                <div className="flex gap-2">
+                  <Input
+                    value={fieldValue}
                     onChange={(e) => setFieldValue(e.target.value)}
+                    placeholder={
+                      task.taskSubtype === 'hygiene_name' ? 'First Last' :
+                      task.taskSubtype === 'hygiene_company' ? 'Company Name' : 
+                      '(555) 555-5555'
+                    }
+                    className="border-[#EAEAEA]"
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter' && fieldValue.trim()) {
+                        const field = task.taskSubtype === 'hygiene_name' ? 'firstName' :
+                                      task.taskSubtype === 'hygiene_company' ? 'company' : 'phone';
+                        handleOutcome('found', field, fieldValue.trim());
+                      }
+                    }}
                   />
-                  <div className="grid grid-cols-3 gap-3">
-                    <Input 
-                      placeholder="City" 
-                      className="border-[#EAEAEA]"
-                      value={editingField === 'city' ? fieldValue : customer.city || ''}
-                      onFocus={() => startEditField('city', customer.city || '')}
-                      onChange={(e) => setFieldValue(e.target.value)}
-                    />
-                    <Input 
-                      placeholder="State" 
-                      className="border-[#EAEAEA]"
-                      value={editingField === 'state' ? fieldValue : customer.state || ''}
-                      onFocus={() => startEditField('state', customer.state || '')}
-                      onChange={(e) => setFieldValue(e.target.value)}
-                    />
-                    <Input 
-                      placeholder="ZIP" 
-                      className="border-[#EAEAEA]"
-                      value={editingField === 'zip' ? fieldValue : customer.zip || ''}
-                      onFocus={() => startEditField('zip', customer.zip || '')}
-                      onChange={(e) => setFieldValue(e.target.value)}
-                    />
-                  </div>
                   <Button 
-                    onClick={saveField}
+                    onClick={() => {
+                      const field = task.taskSubtype === 'hygiene_name' ? 'firstName' :
+                                    task.taskSubtype === 'hygiene_company' ? 'company' : 'phone';
+                      handleOutcome('found', field, fieldValue.trim());
+                    }}
                     className="bg-[#111111] hover:bg-[#333333] text-white"
                     disabled={!fieldValue.trim()}
                   >
-                    <Save className="w-4 h-4 mr-1.5" />
-                    Save Changes
+                    Save
                   </Button>
                 </div>
               </div>
             )}
 
-            {task.taskSubtype === 'sales_quote_follow_up' && task.context?.quoteId && (
-              <div className="space-y-4">
-                <Label className="text-sm text-[#666666]">Follow up on quote #{task.context.quoteId}:</Label>
-                <div className="flex gap-3">
-                  <Button 
-                    variant="outline"
-                    className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2]"
-                    onClick={() => setShowQuotePopup(true)}
-                  >
-                    <FileText className="w-4 h-4 mr-1.5" />
-                    View Quote
-                  </Button>
-                  <Button 
-                    className="bg-[#22C55E] hover:bg-[#16A34A] text-white"
-                    onClick={() => handleComplete()}
-                  >
-                    <Check className="w-4 h-4 mr-1.5" />
-                    Mark Complete
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {(task.taskSubtype === 'sales_follow_up' || task.taskSubtype === 'sales_outreach' || 
-              task.taskSubtype === 'sales_call') && (
-              <div className="space-y-4">
-                {task.context?.followUpTitle && (
-                  <div className="bg-[#F7F7F7] rounded-lg p-4 mb-4">
-                    <p className="font-medium text-[#111111]">{task.context.followUpTitle}</p>
-                    {task.context.followUpDueDate && (
-                      <p className="text-sm text-[#666666] mt-1">
-                        Due: {new Date(task.context.followUpDueDate).toLocaleDateString()}
-                      </p>
-                    )}
-                  </div>
-                )}
-                <div className="flex gap-3">
-                  <Button 
-                    className="bg-[#22C55E] hover:bg-[#16A34A] text-white flex-1"
-                    onClick={() => handleComplete()}
-                  >
-                    <Check className="w-4 h-4 mr-1.5" />
-                    Mark Complete
-                  </Button>
-                </div>
-              </div>
-            )}
-
-            {(task.taskSubtype === 'sales_sample_send' || task.taskSubtype === 'sales_swatch_send') && (
-              <div className="space-y-4">
-                {!customer.address1 && (
-                  <div className="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
-                    <div className="flex items-start gap-2">
-                      <AlertCircle className="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" />
-                      <div>
-                        <p className="font-medium text-amber-800">Address Required</p>
-                        <p className="text-sm text-amber-700 mt-1">Add a shipping address before printing the label.</p>
-                      </div>
-                    </div>
-                  </div>
-                )}
-                <div className="flex gap-3">
-                  {customer.address1 && (
-                    <Button variant="outline" className="border-[#EAEAEA] text-[#111111]">
-                      <Printer className="w-4 h-4 mr-1.5" />
-                      Print Label
+            {/* Outcome Buttons for non-data-hygiene tasks */}
+            {task.bucket !== 'data_hygiene' && task.outcomes.length > 0 && (
+              <div className="space-y-2">
+                {task.outcomes.map((outcome) => {
+                  const OutcomeIcon = outcome.icon ? OUTCOME_ICONS[outcome.icon] : Check;
+                  const isPositive = ['connected', 'completed', 'sent', 'done', 'email_sent', 'called', 'already_has', 'already_engaged'].includes(outcome.id);
+                  const isNegative = ['bad_number', 'not_interested'].includes(outcome.id);
+                  
+                  return (
+                    <Button
+                      key={outcome.id}
+                      variant={isPositive ? 'default' : 'outline'}
+                      className={`w-full h-12 justify-start ${
+                        isPositive ? 'bg-emerald-600 hover:bg-emerald-700 text-white' :
+                        isNegative ? 'border-red-200 text-red-600 hover:bg-red-50' :
+                        'border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2]'
+                      }`}
+                      onClick={() => handleOutcome(outcome.id)}
+                    >
+                      {OutcomeIcon && <OutcomeIcon className="w-4 h-4 mr-3" />}
+                      <span className="flex-1 text-left">{outcome.label}</span>
+                      {outcome.nextAction?.daysUntil && (
+                        <span className="text-xs opacity-70 ml-2">
+                          +{outcome.nextAction.daysUntil}d
+                        </span>
+                      )}
                     </Button>
-                  )}
-                  <Button 
-                    className="bg-[#22C55E] hover:bg-[#16A34A] text-white flex-1"
-                    onClick={() => handleComplete()}
-                    disabled={!customer.address1}
-                  >
-                    <Check className="w-4 h-4 mr-1.5" />
-                    {customer.address1 ? 'Mark Sent' : 'Add Address First'}
-                  </Button>
-                </div>
+                  );
+                })}
               </div>
             )}
           </CardContent>
         </Card>
 
-        {/* Client Info Summary */}
-        <Card className="border-[#EAEAEA]">
-          <CardHeader className="pb-2">
-            <CardTitle className="text-sm font-medium text-[#666666]">Client Details</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid grid-cols-2 gap-4 text-sm">
+        {/* Quick Notes (optional) */}
+        <div className="mb-4">
+          {!showNotes ? (
+            <Button 
+              variant="ghost" 
+              size="sm"
+              className="text-[#999999] hover:text-[#666666] w-full"
+              onClick={() => setShowNotes(true)}
+            >
+              <MessageSquare className="w-4 h-4 mr-2" />
+              Add a note (optional)
+            </Button>
+          ) : (
+            <div className="space-y-2">
+              <Textarea
+                value={notes}
+                onChange={(e) => setNotes(e.target.value)}
+                placeholder="Quick note about this interaction..."
+                className="border-[#EAEAEA] min-h-[80px] text-sm"
+              />
+              <div className="flex gap-2">
+                <Button 
+                  variant="ghost" 
+                  size="sm"
+                  className="text-[#999999]"
+                  onClick={() => { setShowNotes(false); setNotes(""); }}
+                >
+                  Cancel
+                </Button>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Client Details Summary */}
+        <Card className="border-[#EAEAEA] bg-white/50">
+          <CardContent className="pt-4">
+            <div className="grid grid-cols-2 gap-3 text-sm">
               <div>
-                <span className="text-[#999999]">Sales Rep:</span>
+                <span className="text-[#999999] text-xs">Sales Rep</span>
                 <p className="font-medium text-[#111111]">{customer.salesRepName || '—'}</p>
               </div>
               <div>
-                <span className="text-[#999999]">Pricing Tier:</span>
+                <span className="text-[#999999] text-xs">Pricing Tier</span>
                 <p className="font-medium text-[#111111] capitalize">{customer.pricingTier || '—'}</p>
               </div>
-              <div>
-                <span className="text-[#999999]">Phone:</span>
-                <p className="font-medium text-[#111111]">{customer.phone || '—'}</p>
-              </div>
-              <div>
-                <span className="text-[#999999]">Website:</span>
-                <p className="font-medium text-[#111111]">{customer.website || '—'}</p>
-              </div>
-              <div className="col-span-2">
-                <span className="text-[#999999]">Address:</span>
-                <p className="font-medium text-[#111111]">
-                  {customer.address1 ? (
-                    `${customer.address1}${customer.city ? `, ${customer.city}` : ''}${customer.state ? `, ${customer.state}` : ''} ${customer.zip || ''}`
-                  ) : '—'}
-                </p>
-              </div>
+              {customer.address1 && (
+                <div className="col-span-2">
+                  <span className="text-[#999999] text-xs">Address</span>
+                  <p className="font-medium text-[#111111]">
+                    {customer.address1}{customer.city ? `, ${customer.city}` : ''}{customer.province ? `, ${customer.province}` : ''} {customer.zip || ''}
+                  </p>
+                </div>
+              )}
             </div>
           </CardContent>
         </Card>
 
         {/* Skip Button */}
-        <div className="mt-6 flex justify-center">
+        <div className="mt-6 flex justify-center pb-8">
           <Button 
             variant="ghost" 
             className="text-[#999999] hover:text-[#666666]"
-            onClick={() => handleSkip('not_now')}
+            onClick={handleSkip}
+            disabled={skipMutation.isPending}
           >
-            Skip for now
+            <X className="w-4 h-4 mr-2" />
+            Skip this one
           </Button>
         </div>
       </div>
-
-      {/* Quote Preview Dialog */}
-      <Dialog open={showQuotePopup} onOpenChange={setShowQuotePopup}>
-        <DialogContent className="max-w-2xl">
-          <DialogHeader>
-            <DialogTitle>Quote #{task.context?.quoteId}</DialogTitle>
-          </DialogHeader>
-          <div className="py-4">
-            <p className="text-[#666666]">Quote details would be displayed here...</p>
-          </div>
-          <DialogFooter>
-            <Button variant="outline" onClick={() => setShowQuotePopup(false)}>Close</Button>
-            <Button 
-              className="bg-[#22C55E] hover:bg-[#16A34A] text-white"
-              onClick={() => {
-                setShowQuotePopup(false);
-                handleComplete();
-              }}
-            >
-              <Check className="w-4 h-4 mr-1.5" />
-              Mark Follow Up Complete
-            </Button>
-          </DialogFooter>
-        </DialogContent>
-      </Dialog>
     </div>
   );
 }
