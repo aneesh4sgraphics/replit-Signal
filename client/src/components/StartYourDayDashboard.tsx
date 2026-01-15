@@ -240,6 +240,12 @@ export default function StartYourDayDashboard() {
     t.completedAt && 
     isToday(new Date(t.completedAt))
   ) || [];
+  
+  // Email Intelligence tasks (email engagement type)
+  const emailTasks = allTasks?.filter(t => 
+    t.status === 'pending' && 
+    t.taskType?.includes('email')
+  ) || [];
 
   // Calculate stats based on current view
   const displayedTodayTasks = taskView === 'my' ? myTodayTasks : teamTodayTasks;
@@ -482,6 +488,31 @@ export default function StartYourDayDashboard() {
                 </div>
                 <div className={`p-3 rounded-full ${(customers?.filter(c => c.isHotProspect).length || 0) > 0 ? 'bg-orange-100' : 'bg-gray-100'}`}>
                   <Flame className={`h-6 w-6 ${(customers?.filter(c => c.isHotProspect).length || 0) > 0 ? 'text-orange-500 fill-orange-500' : 'text-gray-400'}`} />
+                </div>
+              </div>
+            </CardContent>
+          </Card>
+        </Link>
+
+        <Link href="/tasks?filter=email">
+          <Card 
+            data-testid="stat-email-tasks" 
+            className={`cursor-pointer transition-all hover:shadow-md ${
+              emailTasks.length > 0 
+                ? 'border-blue-300 bg-blue-50/50' 
+                : ''
+            }`}
+          >
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Email Tasks</p>
+                  <p className={`text-3xl font-bold ${emailTasks.length > 0 ? 'text-blue-600' : ''}`}>
+                    {emailTasks.length}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-full ${emailTasks.length > 0 ? 'bg-blue-100' : 'bg-gray-100'}`}>
+                  <Mail className={`h-6 w-6 ${emailTasks.length > 0 ? 'text-blue-600' : 'text-gray-400'}`} />
                 </div>
               </div>
             </CardContent>

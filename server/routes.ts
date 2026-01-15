@@ -16921,6 +16921,17 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
           )
         );
 
+      // Email Intelligence tasks count
+      const [emailResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(followUpTasks)
+        .where(
+          and(
+            eq(followUpTasks.status, 'pending'),
+            ilike(followUpTasks.taskType, '%email%')
+          )
+        );
+
       const session = spotlightEngine.getSessionStats(userId);
       const spotlightSkipped = session.skippedCustomerIds?.length || 0;
       const spotlightRemaining = (session.totalTarget || 30) - (session.totalCompleted || 0);
@@ -16928,6 +16939,7 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       res.json({
         today: todayResult.count || 0,
         overdue: (overdueResult.count || 0) + spotlightSkipped,
+        email: emailResult.count || 0,
         spotlightSkipped,
         spotlightRemaining,
         spotlightCompleted: session.totalCompleted || 0,
@@ -17054,6 +17066,46 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
               skippedAt: new Date().toISOString(),
             });
           }
+        }
+      }
+
+      // Email Intelligence tasks filter
+      if (filter === 'email') {
+        const emailTasks = await db
+          .select({
+            id: followUpTasks.id,
+            customerId: followUpTasks.customerId,
+            taskType: followUpTasks.taskType,
+            title: followUpTasks.title,
+            description: followUpTasks.description,
+            dueDate: followUpTasks.dueDate,
+            priority: followUpTasks.priority,
+            status: followUpTasks.status,
+          })
+          .from(followUpTasks)
+          .where(
+            and(
+              eq(followUpTasks.status, 'pending'),
+              ilike(followUpTasks.taskType, '%email%')
+            )
+          )
+          .orderBy(desc(followUpTasks.priority), asc(followUpTasks.dueDate));
+
+        for (const task of emailTasks) {
+          const [customer] = await db
+            .select({ company: customers.company, firstName: customers.firstName, lastName: customers.lastName })
+            .from(customers)
+            .where(eq(customers.id, task.customerId));
+          
+          const dueDate = new Date(task.dueDate);
+          const isOverdue = dueDate < today;
+          
+          tasks.push({
+            ...task,
+            source: 'calendar',
+            category: isOverdue ? 'overdue' : 'today',
+            customerName: customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Unknown',
+          });
         }
       }
 

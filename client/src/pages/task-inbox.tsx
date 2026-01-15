@@ -45,6 +45,7 @@ interface TaskSummary {
   today: number;
   overdue: number;
   pending: number;
+  email: number;
   spotlightSkipped: number;
   spotlightRemaining: number;
   spotlightCompleted: number;
@@ -150,7 +151,7 @@ export default function TaskInboxPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-3 gap-4 mb-6">
+        <div className="grid grid-cols-4 gap-4 mb-6">
           <Card className={activeTab === 'today' ? 'border-blue-500 ring-1 ring-blue-500' : ''}>
             <CardContent className="p-4 cursor-pointer" onClick={() => setActiveTab('today')}>
               <div className="flex items-center justify-between">
@@ -177,6 +178,18 @@ export default function TaskInboxPage() {
               </div>
             </CardContent>
           </Card>
+
+          <Card className={activeTab === 'email' ? 'border-blue-500 ring-1 ring-blue-500' : ''}>
+            <CardContent className="p-4 cursor-pointer" onClick={() => setActiveTab('email')}>
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm text-muted-foreground">Email Tasks</p>
+                  <p className="text-2xl font-bold text-blue-600">{summary?.email || 0}</p>
+                </div>
+                <Mail className="h-6 w-6 text-blue-500" />
+              </div>
+            </CardContent>
+          </Card>
           
           <Card className={activeTab === 'pending' ? 'border-amber-500 ring-1 ring-amber-500' : ''}>
             <CardContent className="p-4 cursor-pointer" onClick={() => setActiveTab('pending')}>
@@ -196,8 +209,12 @@ export default function TaskInboxPage() {
             <CardTitle className="flex items-center gap-2">
               {activeTab === 'today' && <Calendar className="h-5 w-5" />}
               {activeTab === 'overdue' && <AlertTriangle className="h-5 w-5 text-red-500" />}
+              {activeTab === 'email' && <Mail className="h-5 w-5 text-blue-500" />}
               {activeTab === 'pending' && <Clock className="h-5 w-5" />}
-              {activeTab === 'today' ? "Today's Tasks" : activeTab === 'overdue' ? "Overdue Tasks" : "All Pending Tasks"}
+              {activeTab === 'today' ? "Today's Tasks" : 
+               activeTab === 'overdue' ? "Overdue Tasks" : 
+               activeTab === 'email' ? "Email Intelligence Tasks" : 
+               "All Pending Tasks"}
             </CardTitle>
             <CardDescription>
               Click on a task to view details or take action
