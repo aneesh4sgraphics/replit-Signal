@@ -16598,7 +16598,10 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
   app.get("/api/now-mode/current", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
+      console.log(`[NOW MODE API] Request from user: ${userId}, email: ${req.user?.email}`);
+      
       if (!userId) {
+        console.log(`[NOW MODE API] No userId found in request - returning 401`);
         return res.status(401).json({ error: "Not authenticated" });
       }
 
@@ -16607,7 +16610,10 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       const { card, session, allDone } = await nowModeEngine.getEligibleCard(userId);
       const bucketProgress = nowModeEngine.getBucketProgress(session);
       
+      console.log(`[NOW MODE API] Result for user ${userId}: card=${card ? card.cardType : 'null'}, allDone=${allDone}, sessionId=${session.id}`);
+      
       if (!card) {
+        console.log(`[NOW MODE API] No card returned for user ${userId} - allDone=${allDone}`);
         return res.json({ 
           card: null, 
           completed: session.totalCompleted || 0,

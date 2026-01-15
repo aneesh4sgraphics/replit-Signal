@@ -478,6 +478,13 @@ export class NowModeEngine {
     }
     
     console.log(`[NOW MODE] No matching card found in bucket '${bucket}' after checking ${eligibleCustomers.length} customers`);
+    
+    // Debug: log why no cards matched
+    if (eligibleCustomers.length > 0 && bucket === "data_hygiene") {
+      const sample = eligibleCustomers[0];
+      console.log(`[NOW MODE DEBUG] Sample customer data check - pricingTier: ${sample.pricingTier}, salesRepId: ${sample.salesRepId}, hasMachineProfile: ${sample.hasMachineProfile}, email: ${sample.email ? 'yes' : 'no'}, hasAddress: ${!!(sample.address1 && sample.city && sample.state && sample.zip)}`);
+    }
+    
     return null;
   }
 
@@ -567,6 +574,12 @@ export class NowModeEngine {
     } else if (result.length > 0) {
       const sample = result[0];
       console.log(`[NOW MODE] Sample customer: id=${sample.id}, pricingTier=${sample.pricingTier}, salesRepId=${sample.salesRepId}, hasMachineProfile=${sample.hasMachineProfile}`);
+      
+      // Log data hygiene opportunities for debugging
+      const missingPricingTier = result.filter(c => !c.pricingTier).length;
+      const missingSalesRep = result.filter(c => !c.salesRepId).length;
+      const missingMachineProfile = result.filter(c => !c.hasMachineProfile).length;
+      console.log(`[NOW MODE] Data hygiene opportunities: missingPricingTier=${missingPricingTier}, missingSalesRep=${missingSalesRep}, missingMachineProfile=${missingMachineProfile}`);
     }
     
     const filtered = result.filter((c) => !excludeIds.includes(c.id));
@@ -585,7 +598,10 @@ export class NowModeEngine {
     switch (bucket) {
       case "data_hygiene":
         // Critical data fields in priority order
-        if (!customer.pricingTier) return "set_pricing_tier";
+        if (!customer.pricingTier) {
+          console.log(`[NOW MODE DEBUG] Customer ${customer.id} needs set_pricing_tier (pricingTier=${customer.pricingTier})`);
+          return "set_pricing_tier";
+        }
         if (!customer.salesRepId) return "set_sales_rep";
         if (!customer.hasMachineProfile) return "set_machine_profile";  // Critical: collect machine info
         if (!customer.email) return "set_primary_email";
