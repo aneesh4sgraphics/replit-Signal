@@ -1243,10 +1243,10 @@ export default function Spotlight() {
             </DialogTitle>
             <DialogDescription className="space-y-1">
               <div className="font-medium text-gray-900">
-                {currentData?.customer?.company || currentData?.customer?.firstName || 'Unknown'}
+                {customer?.company || customer?.firstName || 'Unknown'}
               </div>
-              {currentData?.customer?.email && (
-                <div className="text-sm text-gray-500">{currentData.customer.email}</div>
+              {customer?.email && (
+                <div className="text-sm text-gray-500">{customer.email}</div>
               )}
               <div className="text-gray-400 mt-1">Fill in the missing information to improve data quality.</div>
             </DialogDescription>
