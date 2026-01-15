@@ -16675,6 +16675,102 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  app.get("/api/admin/spotlight/analytics", isAuthenticated, async (req: any, res) => {
+    try {
+      const isAdmin = req.user?.role === 'admin';
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const { startDate, endDate } = req.query;
+      const start = startDate ? new Date(startDate as string) : new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+      const end = endDate ? new Date(endDate as string) : new Date();
+
+      const analytics = await db.execute(sql`
+        WITH user_stats AS (
+          SELECT 
+            se.user_id,
+            u.email as user_email,
+            u.first_name,
+            u.last_name,
+            COUNT(*) FILTER (WHERE se.event_type = 'completed') as completed_count,
+            COUNT(*) FILTER (WHERE se.event_type = 'skipped') as skipped_count,
+            COUNT(*) as total_events,
+            COUNT(DISTINCT DATE(se.created_at)) as active_days
+          FROM spotlight_events se
+          LEFT JOIN users u ON se.user_id = u.id
+          WHERE se.created_at >= ${start} AND se.created_at <= ${end}
+          GROUP BY se.user_id, u.email, u.first_name, u.last_name
+        ),
+        bucket_stats AS (
+          SELECT 
+            user_id,
+            bucket,
+            COUNT(*) FILTER (WHERE event_type = 'completed') as bucket_completed,
+            COUNT(*) FILTER (WHERE event_type = 'skipped') as bucket_skipped
+          FROM spotlight_events
+          WHERE created_at >= ${start} AND created_at <= ${end}
+            AND bucket IS NOT NULL
+          GROUP BY user_id, bucket
+        ),
+        bucket_agg AS (
+          SELECT 
+            user_id,
+            jsonb_object_agg(
+              bucket,
+              jsonb_build_object('completed', bucket_completed, 'skipped', bucket_skipped)
+            ) as bucket_breakdown
+          FROM bucket_stats
+          GROUP BY user_id
+        )
+        SELECT 
+          us.*,
+          ROUND(100.0 * us.completed_count / NULLIF(us.total_events, 0), 1) as completion_rate,
+          ROUND(100.0 * us.skipped_count / NULLIF(us.total_events, 0), 1) as skip_rate,
+          COALESCE(ba.bucket_breakdown, '{}'::jsonb) as bucket_breakdown
+        FROM user_stats us
+        LEFT JOIN bucket_agg ba ON us.user_id = ba.user_id
+        ORDER BY us.completed_count DESC
+      `);
+
+      const outcomes = await db.execute(sql`
+        SELECT 
+          outcome_id,
+          outcome_label,
+          COUNT(*) as count
+        FROM spotlight_events
+        WHERE event_type = 'completed'
+          AND created_at >= ${start} AND created_at <= ${end}
+          AND outcome_id IS NOT NULL
+        GROUP BY outcome_id, outcome_label
+        ORDER BY count DESC
+        LIMIT 20
+      `);
+
+      const dailyTrend = await db.execute(sql`
+        SELECT 
+          DATE(created_at) as date,
+          COUNT(*) FILTER (WHERE event_type = 'completed') as completed,
+          COUNT(*) FILTER (WHERE event_type = 'skipped') as skipped
+        FROM spotlight_events
+        WHERE created_at >= ${start} AND created_at <= ${end}
+        GROUP BY DATE(created_at)
+        ORDER BY date DESC
+        LIMIT 30
+      `);
+
+      res.json({
+        perRep: analytics.rows,
+        outcomes: outcomes.rows,
+        dailyTrend: dailyTrend.rows,
+        dateRange: { start, end },
+      });
+    } catch (error) {
+      console.error("[Spotlight] Analytics error:", error);
+      res.status(500).json({ error: "Failed to fetch analytics" });
+    }
+  });
+
   // ============================================
   // Calendar Hub API Routes
   // ============================================
