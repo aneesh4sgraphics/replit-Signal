@@ -14,6 +14,7 @@ import { z } from "zod";
 import { parseCustomerCSV } from "./customer-parser";
 import { parseOdooExcel } from "./odoo-parser";
 import { odooClient } from "./odoo";
+import { isBlockedCompany, getBlockedKeywordMatch, BLOCKED_COMPANY_KEYWORDS } from "./customer-blocklist";
 
 import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber, generateQuoteNumber } from "./stub-functions";
 import { normalizeEmail } from "@shared/email-normalizer";
@@ -11287,11 +11288,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
         skipped: 0,
         skippedVendors: 0,
         skippedNoEmail: 0,
+        skippedBlocked: 0,
         alreadyExists: 0,
         deleted: 0,
         failed: 0,
         errors: [] as string[],
         skippedPartners: [] as string[],
+        skippedBlockedNames: [] as string[],
         deletedCustomers: [] as string[],
         mode: useFullReset ? 'full_reset' : useSyncWithDeletions ? 'sync_with_deletions' : 'add_new',
       };
@@ -11318,6 +11321,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Skip partners without email (email is required for CRM to work)
           if (!partner.email || partner.email.trim() === '') {
             results.skippedNoEmail++;
+            continue;
+          }
+          
+          // Skip blocked companies (cargo, freight, logistics, etc.)
+          const blockedKeyword = getBlockedKeywordMatch(partner.name);
+          if (blockedKeyword) {
+            results.skippedBlocked++;
+            if (results.skippedBlockedNames.length < 20) {
+              results.skippedBlockedNames.push(`${partner.name} (${blockedKeyword})`);
+            }
+            console.log(`[Odoo Import] Skipped blocked company: ${partner.name} (matched: ${blockedKeyword})`);
             continue;
           }
           
@@ -11405,7 +11419,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      console.log(`[Odoo Import] Complete: ${results.imported} imported, ${results.alreadyExists} already existed, ${results.skipped} skipped, ${results.skippedVendors} vendors skipped, ${results.failed} failed`);
+      console.log(`[Odoo Import] Complete: ${results.imported} imported, ${results.alreadyExists} already existed, ${results.skipped} skipped, ${results.skippedVendors} vendors skipped, ${results.skippedBlocked} blocked, ${results.skippedNoEmail} no email, ${results.failed} failed`);
       
       // Step 5: Resolve parent customer IDs (link children to their parent companies)
       console.log("[Odoo Import] Resolving parent relationships...");
@@ -11470,7 +11484,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: `Imported ${results.imported} partners from Odoo${results.skippedNoEmail > 0 ? ` (skipped ${results.skippedNoEmail} without email)` : ''}${results.deleted > 0 ? `, deleted ${results.deleted} removed from Odoo` : ''}`,
+        message: `Imported ${results.imported} partners from Odoo${results.skippedNoEmail > 0 ? ` (skipped ${results.skippedNoEmail} without email)` : ''}${results.skippedBlocked > 0 ? ` (skipped ${results.skippedBlocked} blocked companies)` : ''}${results.deleted > 0 ? `, deleted ${results.deleted} removed from Odoo` : ''}`,
         parentLinksResolved,
         ...results
       });
@@ -14614,12 +14628,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let matched = 0;
       let imported = 0;
       let skipped = 0;
+      let skippedBlocked = 0;
       let primaryEmailsSet = 0;
       let mappingsCreated = 0;
       let mappingsUpdated = 0;
       let mappingsDeactivated = 0;
       const matchedCustomers: string[] = [];
       const importedCustomers: string[] = [];
+      const skippedBlockedNames: string[] = [];
 
       for (const shopifyCustomer of allShopifyCustomers) {
         const shopifyEmail = shopifyCustomer.email?.toLowerCase();
@@ -14711,6 +14727,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Determine if this is a company (has company name in address)
           const hasCompany = defaultAddress.company && defaultAddress.company.trim().length > 0;
           const personName = `${shopifyCustomer.first_name || ''} ${shopifyCustomer.last_name || ''}`.trim();
+          
+          // Skip blocked companies (cargo, freight, logistics, etc.)
+          const companyToCheck = defaultAddress.company || personName;
+          const blockedKeyword = getBlockedKeywordMatch(companyToCheck);
+          if (blockedKeyword) {
+            skippedBlocked++;
+            if (skippedBlockedNames.length < 20) {
+              skippedBlockedNames.push(`${companyToCheck} (${blockedKeyword})`);
+            }
+            console.log(`[Shopify Sync] Skipped blocked company: ${companyToCheck} (matched: ${blockedKeyword})`);
+            continue;
+          }
           
           // Check if customer already exists by Shopify ID
           const existingByShopifyId = await db.select({ id: customers.id })
@@ -14832,12 +14860,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         matched,
         imported,
         skipped,
+        skippedBlocked,
         primaryEmailsSet,
         mappingsCreated,
         mappingsUpdated,
         mappingsDeactivated,
         matchedCustomers: matchedCustomers.slice(0, 20), // Limit to first 20 for display
         importedCustomers: importedCustomers.slice(0, 20),
+        skippedBlockedNames: skippedBlockedNames.slice(0, 20),
       });
     } catch (error: any) {
       console.error("Error syncing Shopify customers:", error.response?.data || error);
@@ -17849,6 +17879,103 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     } catch (error) {
       console.error("Error creating Google Calendar event:", error);
       res.status(500).json({ error: "Failed to create event" });
+    }
+  });
+
+  // Admin endpoint to find and delete blocked companies (cargo, freight, logistics, etc.)
+  app.get("/api/admin/blocked-customers", requireAdmin, async (req: any, res) => {
+    try {
+      // Find all customers that match blocked keywords
+      const allCustomers = await db.select({
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        email: customers.email,
+        sources: customers.sources,
+      }).from(customers);
+      
+      const blockedCustomers = allCustomers.filter(c => {
+        const name = c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+        return isBlockedCompany(name);
+      }).map(c => ({
+        id: c.id,
+        name: c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim(),
+        email: c.email,
+        sources: c.sources,
+        matchedKeyword: getBlockedKeywordMatch(c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim()),
+      }));
+      
+      res.json({
+        count: blockedCustomers.length,
+        blockedKeywords: BLOCKED_COMPANY_KEYWORDS,
+        customers: blockedCustomers,
+      });
+    } catch (error) {
+      console.error("Error finding blocked customers:", error);
+      res.status(500).json({ error: "Failed to find blocked customers" });
+    }
+  });
+  
+  app.delete("/api/admin/blocked-customers", requireAdmin, async (req: any, res) => {
+    try {
+      // Find all customers that match blocked keywords
+      const allCustomers = await db.select({
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+      }).from(customers);
+      
+      const blockedIds = allCustomers.filter(c => {
+        const name = c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim();
+        return isBlockedCompany(name);
+      }).map(c => c.id);
+      
+      if (blockedIds.length === 0) {
+        return res.json({ deleted: 0, message: "No blocked customers found" });
+      }
+      
+      // Delete in batches
+      let deleted = 0;
+      const batchSize = 50;
+      const deletedNames: string[] = [];
+      
+      for (let i = 0; i < blockedIds.length; i += batchSize) {
+        const batch = blockedIds.slice(i, i + batchSize);
+        
+        for (const id of batch) {
+          const customer = allCustomers.find(c => c.id === id);
+          const name = customer ? (customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim()) : id;
+          
+          // Delete related records first due to foreign keys
+          await db.delete(customerContacts).where(eq(customerContacts.customerId, id));
+          await db.delete(customerJourney).where(eq(customerJourney.customerId, id));
+          await db.delete(categoryTrust).where(eq(categoryTrust.customerId, id));
+          await db.delete(customerCoachState).where(eq(customerCoachState.customerId, id));
+          await db.delete(customerMachineProfiles).where(eq(customerMachineProfiles.customerId, id));
+          await db.delete(sampleRequests).where(eq(sampleRequests.customerId, id));
+          await db.delete(followUpTasks).where(eq(followUpTasks.customerId, id));
+          
+          // Delete the customer
+          await db.delete(customers).where(eq(customers.id, id));
+          deleted++;
+          if (deletedNames.length < 20) {
+            deletedNames.push(name);
+          }
+        }
+      }
+      
+      console.log(`[Admin] Deleted ${deleted} blocked customers`);
+      
+      res.json({
+        deleted,
+        deletedNames: deletedNames.slice(0, 20),
+        message: `Successfully deleted ${deleted} blocked customers`,
+      });
+    } catch (error) {
+      console.error("Error deleting blocked customers:", error);
+      res.status(500).json({ error: "Failed to delete blocked customers" });
     }
   });
 
