@@ -19,7 +19,7 @@ import {
   Wrench,
   type LucideIcon
 } from "lucide-react";
-import { QuickQuotesIcon, SavedQuotesIcon } from "@/components/CommandPalette";
+import { QuickQuotesIcon, SavedQuotesIcon, PriceListIcon, SalesChartsIcon } from "@/components/HandDrawnIcons";
 
 export interface NavLink {
   path: string;
@@ -30,10 +30,10 @@ export interface NavLink {
 
 export const primaryApps: NavLink[] = [
   { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', description: 'Create quotes' },
-  { path: '/price-list', icon: DollarSign, label: 'Price List', description: 'View pricing' },
+  { path: '/price-list', icon: PriceListIcon, label: 'Price List', description: 'View pricing' },
   { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', description: 'Past quotes' },
   { path: '/clients', icon: Users, label: 'Clients', description: 'Customer database' },
-  { path: '/sales-analytics', icon: TrendingUp, label: 'Sales Charts', description: 'Analytics' },
+  { path: '/sales-analytics', icon: SalesChartsIcon, label: 'Sales Charts', description: 'Analytics' },
   { path: '/area-pricer', icon: Calculator, label: 'SqM Calculator', description: 'Area pricing' },
   { path: '/competitor-pricing', icon: TrendingUp, label: 'Market Prices', description: 'Competition' },
   { path: '/shipping-calculator', icon: Truck, label: 'Shipping', description: 'Calculate shipping' },
