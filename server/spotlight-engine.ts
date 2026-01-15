@@ -372,10 +372,10 @@ class SpotlightEngine {
     const quotas = this.calculateAdaptiveQuotas(readiness);
     
     const momentTypes: { type: string; bucket: TaskBucket; quota: number }[] = [
-      { type: 'call', bucket: 'calls', quota: quotas.calls },
-      { type: 'follow_up', bucket: 'follow_ups', quota: quotas.follow_ups },
-      { type: 'email', bucket: 'outreach', quota: Math.ceil(quotas.outreach * 0.6) },
       { type: 'data_hygiene', bucket: 'data_hygiene', quota: quotas.data_hygiene },
+      { type: 'follow_up', bucket: 'follow_ups', quota: quotas.follow_ups },
+      { type: 'call', bucket: 'calls', quota: quotas.calls },
+      { type: 'email', bucket: 'outreach', quota: Math.ceil(quotas.outreach * 0.6) },
       { type: 'swatchbook', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.4) },
       { type: 'press_test', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
       { type: 'price_list', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
@@ -870,7 +870,7 @@ class SpotlightEngine {
     const incomplete = session.buckets.filter(b => b.completed < b.target);
     if (incomplete.length === 0) return null;
     
-    const bucketPriority: TaskBucket[] = ['calls', 'follow_ups', 'data_hygiene', 'outreach', 'enablement'];
+    const bucketPriority: TaskBucket[] = ['data_hygiene', 'follow_ups', 'calls', 'outreach', 'enablement'];
     const SKIP_THRESHOLD = 3;
     
     const sortedBuckets = bucketPriority.filter(bucket => {
