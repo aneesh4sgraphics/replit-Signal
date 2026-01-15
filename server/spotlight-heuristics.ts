@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { customers, customerActivityEvents } from "@shared/schema";
-import { eq, and, sql, desc, lt } from "drizzle-orm";
+import { customers, customerActivityEvents, customerMachineProfiles, MACHINE_FAMILIES, CATEGORY_MACHINE_COMPATIBILITY } from "@shared/schema";
+import { eq, and, sql, desc, lt, count } from "drizzle-orm";
 
 export interface SpotlightHint {
   type: 'bad_fit' | 'stale_contact' | 'duplicate' | 'missing_field' | 'already_handled' | 'quick_win';
@@ -222,6 +222,57 @@ function checkQuickWin(customer: {
   }
   
   return null;
+}
+
+// Check if customer has machine profile
+export async function getCustomerMachineProfiles(customerId: string): Promise<string[]> {
+  try {
+    const profiles = await db.select({ machineFamily: customerMachineProfiles.machineFamily })
+      .from(customerMachineProfiles)
+      .where(eq(customerMachineProfiles.customerId, customerId));
+    return profiles.map(p => p.machineFamily);
+  } catch (e) {
+    console.error('[Heuristics] Machine profile check error:', e);
+    return [];
+  }
+}
+
+// Check if customer has core data but missing machine profile
+export async function checkMissingMachineProfile(
+  customerId: string,
+  customer: {
+    pricingTier: string | null;
+    phone: string | null;
+    salesRepId: string | null;
+    streetAddress: string | null;
+  }
+): Promise<boolean> {
+  // Only suggest machine profile confirmation if core data is complete
+  const hasCoreDta = customer.pricingTier && customer.phone && customer.salesRepId;
+  if (!hasCoreDta) return false;
+  
+  const machineProfiles = await getCustomerMachineProfiles(customerId);
+  return machineProfiles.length === 0;
+}
+
+// Get product suggestions based on machine types
+export function getProductSuggestionsForMachines(machineTypes: string[]): string[] {
+  const products: Set<string> = new Set();
+  
+  for (const machineType of machineTypes) {
+    const compatible = CATEGORY_MACHINE_COMPATIBILITY[machineType];
+    if (compatible) {
+      compatible.forEach(p => products.add(p));
+    }
+  }
+  
+  return Array.from(products).slice(0, 3); // Limit to 3 suggestions
+}
+
+// Get machine label from machine family ID
+export function getMachineLabel(machineFamily: string): string {
+  const machine = MACHINE_FAMILIES.find(m => m.id === machineFamily);
+  return machine?.label || machineFamily;
 }
 
 export async function analyzeForHints(

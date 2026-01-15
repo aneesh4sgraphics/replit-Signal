@@ -2,7 +2,7 @@ import { db } from "./db";
 import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, moments } from "@shared/schema";
 import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
-import { analyzeForHints, SpotlightHint } from "./spotlight-heuristics";
+import { analyzeForHints, SpotlightHint, getCustomerMachineProfiles, getProductSuggestionsForMachines, getMachineLabel, checkMissingMachineProfile } from "./spotlight-heuristics";
 
 export type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
 
@@ -44,6 +44,10 @@ export interface SpotlightTask {
     followUpTitle?: string;
     followUpDueDate?: string;
     lastContact?: string;
+    machineTypes?: string[];
+    machineLabels?: string[];
+    suggestedProducts?: string[];
+    machineContext?: string;
   };
 }
 
@@ -516,6 +520,41 @@ class SpotlightEngine {
             hygieneCount++;
           });
         }
+        
+        // Add machine profile confirmation task for customers with complete data but missing machine profile
+        if (hygieneCount < quota) {
+          const machineProfileCandidates = await db.select({ 
+            id: customers.id,
+            pricingTier: customers.pricingTier,
+            phone: customers.phone,
+            salesRepId: customers.salesRepId,
+            streetAddress: customers.streetAddress
+          })
+            .from(customers)
+            .where(and(
+              isNotNull(customers.pricingTier),
+              isNotNull(customers.phone),
+              isNotNull(customers.salesRepId),
+              eq(customers.doNotContact, false),
+              or(isNull(customers.salesRepId), eq(customers.salesRepId, userId))
+            ))
+            .orderBy(asc(customers.updatedAt))
+            .limit(Math.min(5, quota - hygieneCount));
+          
+          for (const c of machineProfileCandidates) {
+            if (hygieneCount >= quota) break;
+            const needsMachine = await checkMissingMachineProfile(c.id, c);
+            if (needsMachine) {
+              candidates.push({
+                customerId: c.id,
+                priority: 55,
+                whyNow: 'Core data is complete - call to confirm what machines they use. This helps recommend the right products!',
+                payload: { missingField: 'machineProfile', taskSubtype: 'hygiene_machine_profile' },
+              });
+              hygieneCount++;
+            }
+          }
+        }
         break;
 
       case 'swatchbook':
@@ -935,7 +974,7 @@ class SpotlightEngine {
 
     if (result.length > 0) {
       const customer = result[0];
-      return this.buildTask(customer, 'calls', 'sales_call');
+      return this.buildTaskWithMachineContext(customer, 'calls', 'sales_call');
     }
     return null;
   }
@@ -1057,7 +1096,7 @@ class SpotlightEngine {
 
     if (result.length > 0) {
       const customer = result[0];
-      return this.buildTask(customer, 'outreach', 'outreach_no_contact');
+      return this.buildTaskWithMachineContext(customer, 'outreach', 'outreach_no_contact');
     }
     return null;
   }
@@ -1176,6 +1215,79 @@ class SpotlightEngine {
     return null;
   }
 
+  private async buildTaskWithMachineContext(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1): Promise<SpotlightTask> {
+    const isHot = customer.isHotProspect === true;
+    let whyNow = WHY_NOW_MESSAGES[subtype] || 'Take action on this customer.';
+    
+    if (isHot) {
+      whyNow = `🔥 HOT PROSPECT - ${whyNow} Call more often, email at least weekly!`;
+    }
+    
+    // Fetch machine profile for context
+    let context: SpotlightTask['context'] = {};
+    
+    // For calls and outreach, add machine context if available
+    if (bucket === 'calls' || bucket === 'outreach') {
+      try {
+        const machineTypes = await getCustomerMachineProfiles(customer.id);
+        if (machineTypes.length > 0) {
+          const machineLabels = machineTypes.map(m => getMachineLabel(m));
+          const suggestedProducts = getProductSuggestionsForMachines(machineTypes);
+          
+          context.machineTypes = machineTypes;
+          context.machineLabels = machineLabels;
+          context.suggestedProducts = suggestedProducts;
+          
+          // Build machine context message
+          const machineList = machineLabels.slice(0, 2).join(' & ');
+          const productList = suggestedProducts.slice(0, 2).join(', ');
+          
+          if (machineLabels.length > 0 && suggestedProducts.length > 0) {
+            context.machineContext = `This client has ${machineList} - talk to them about ${productList}!`;
+          } else if (machineLabels.length > 0) {
+            context.machineContext = `This client has ${machineList} machines.`;
+          }
+        }
+      } catch (e) {
+        console.error('[Spotlight] Error fetching machine context:', e);
+      }
+    }
+    
+    return {
+      id: `${bucket}_${customer.id}_${subtype}`,
+      customerId: customer.id.toString(),
+      bucket,
+      taskSubtype: subtype,
+      priority: isHot ? priority + 100 : priority,
+      whyNow,
+      outcomes: TASK_OUTCOMES[subtype] || [
+        { id: 'done', label: 'Done', icon: 'check', nextAction: { type: 'mark_complete' } },
+        { id: 'skip', label: 'Skip', icon: 'x', nextAction: { type: 'no_action' } },
+      ],
+      customer: {
+        id: customer.id.toString(),
+        company: customer.company,
+        firstName: customer.firstName,
+        lastName: customer.lastName,
+        email: customer.email,
+        phone: customer.phone,
+        address1: customer.address1,
+        address2: customer.address2,
+        city: customer.city,
+        province: customer.province,
+        zip: customer.zip,
+        country: customer.country,
+        website: customer.website,
+        salesRepId: customer.salesRepId,
+        salesRepName: customer.salesRepName,
+        pricingTier: customer.pricingTier,
+        isHotProspect: customer.isHotProspect,
+        updatedAt: customer.updatedAt,
+      },
+      context,
+    };
+  }
+  
   private buildTask(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1): SpotlightTask {
     const isHot = customer.isHotProspect === true;
     let whyNow = WHY_NOW_MESSAGES[subtype] || 'Take action on this customer.';
