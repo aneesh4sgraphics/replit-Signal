@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { customers, customerActivityEvents, customerMachineProfiles, MACHINE_FAMILIES, CATEGORY_MACHINE_COMPATIBILITY } from "@shared/schema";
-import { eq, and, sql, desc, lt, count } from "drizzle-orm";
+import { customers, customerActivityEvents, customerMachineProfiles, adminCategories, adminMachineTypes } from "@shared/schema";
+import { eq, and, sql, desc, lt, count, arrayContains } from "drizzle-orm";
 
 export interface SpotlightHint {
   type: 'bad_fit' | 'stale_contact' | 'duplicate' | 'missing_field' | 'already_handled' | 'quick_win';
@@ -255,24 +255,53 @@ export async function checkMissingMachineProfile(
   return machineProfiles.length === 0;
 }
 
-// Get product suggestions based on machine types
-export function getProductSuggestionsForMachines(machineTypes: string[]): string[] {
-  const products: Set<string> = new Set();
+// Get product suggestions based on machine types - queries actual admin taxonomy
+export async function getProductSuggestionsForMachines(machineTypes: string[]): Promise<string[]> {
+  if (machineTypes.length === 0) return [];
   
-  for (const machineType of machineTypes) {
-    const compatible = CATEGORY_MACHINE_COMPATIBILITY[machineType];
-    if (compatible) {
-      compatible.forEach(p => products.add(p));
+  try {
+    // Query admin_categories that are compatible with any of the customer's machine types
+    const categories = await db.select({ 
+      label: adminCategories.label,
+      compatibleMachineTypes: adminCategories.compatibleMachineTypes 
+    })
+      .from(adminCategories)
+      .where(eq(adminCategories.isActive, true));
+    
+    const matchingCategories: Set<string> = new Set();
+    
+    for (const cat of categories) {
+      if (cat.compatibleMachineTypes && Array.isArray(cat.compatibleMachineTypes)) {
+        // Check if any of customer's machine types are in this category's compatible machines
+        const hasMatch = machineTypes.some(mt => 
+          cat.compatibleMachineTypes!.includes(mt)
+        );
+        if (hasMatch) {
+          matchingCategories.add(cat.label);
+        }
+      }
     }
+    
+    return Array.from(matchingCategories).slice(0, 3); // Limit to 3 suggestions
+  } catch (e) {
+    console.error('[Heuristics] Error fetching product suggestions:', e);
+    return [];
   }
-  
-  return Array.from(products).slice(0, 3); // Limit to 3 suggestions
 }
 
-// Get machine label from machine family ID
-export function getMachineLabel(machineFamily: string): string {
-  const machine = MACHINE_FAMILIES.find(m => m.id === machineFamily);
-  return machine?.label || machineFamily;
+// Get machine label from machine type code - queries actual admin taxonomy
+export async function getMachineLabel(machineTypeCode: string): Promise<string> {
+  try {
+    const [machine] = await db.select({ label: adminMachineTypes.label })
+      .from(adminMachineTypes)
+      .where(eq(adminMachineTypes.code, machineTypeCode))
+      .limit(1);
+    
+    return machine?.label || machineTypeCode;
+  } catch (e) {
+    console.error('[Heuristics] Error fetching machine label:', e);
+    return machineTypeCode;
+  }
 }
 
 export async function analyzeForHints(

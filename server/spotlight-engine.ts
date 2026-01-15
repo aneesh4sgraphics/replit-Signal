@@ -1231,8 +1231,9 @@ class SpotlightEngine {
       try {
         const machineTypes = await getCustomerMachineProfiles(customer.id);
         if (machineTypes.length > 0) {
-          const machineLabels = machineTypes.map(m => getMachineLabel(m));
-          const suggestedProducts = getProductSuggestionsForMachines(machineTypes);
+          // These are now async - fetch labels and products from admin taxonomy
+          const machineLabels = await Promise.all(machineTypes.map(m => getMachineLabel(m)));
+          const suggestedProducts = await getProductSuggestionsForMachines(machineTypes);
           
           context.machineTypes = machineTypes;
           context.machineLabels = machineLabels;
