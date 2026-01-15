@@ -63,7 +63,7 @@ import {
   Edit,
   XCircle
 } from "lucide-react";
-import { queryClient, apiRequest } from "@/lib/queryClient";
+import { queryClient, apiRequest, ApiError } from "@/lib/queryClient";
 import { useToast } from "@/hooks/use-toast";
 import { useEmailComposer } from "@/components/email-composer";
 import { Copy } from "lucide-react";
@@ -546,13 +546,12 @@ export default function NowMode() {
   }, [data?.card?.customerId, data?.card?.cardType]);
   
   // Check if the error is a session/auth error (401 only)
-  // Only show session expired for actual 401 status - not for other errors that might mention "session"
-  // Be very strict about this check to avoid false positives
-  const isSessionExpired = isError && error && 
-    typeof error === 'object' && 
-    'status' in (error as object) &&
-    (error as any).status === 401 &&
-    !(error as any).isNetworkError;
+  // Use ApiError's isAuthError property for reliable detection
+  // This prevents showing "No cards available" when the real issue is session expiration
+  const isSessionExpired = isError && error && (
+    (error instanceof ApiError && error.isAuthError && error.status === 401) ||
+    (typeof error === 'object' && 'status' in (error as object) && (error as any).status === 401 && !(error as any).isNetworkError)
+  );
 
   // Day recap query - for end-of-day closure (must be after main data query)
   const { data: recapData } = useQuery<{
