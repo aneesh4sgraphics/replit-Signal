@@ -14864,35 +14864,69 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       console.log(`[Shopify Email Backfill] Found ${customersWithoutEmail.length} customers without email`);
 
+      // Get all Shopify orders with emails for matching
+      const ordersWithEmails = await db.select({
+        email: shopifyOrders.email,
+        companyName: shopifyOrders.companyName,
+        customerName: shopifyOrders.customerName,
+        customerId: shopifyOrders.customerId,
+      })
+        .from(shopifyOrders)
+        .where(and(
+          not(isNull(shopifyOrders.email)),
+          not(eq(shopifyOrders.email, ''))
+        ));
+
+      console.log(`[Shopify Email Backfill] Found ${ordersWithEmails.length} Shopify orders with emails`);
+
       let emailsAdded = 0;
       const updatedCustomers: string[] = [];
 
       for (const customer of customersWithoutEmail) {
-        // Find Shopify order with this customer's ID that has an email
-        const orderWithEmail = await db.select({
-          email: shopifyOrders.email,
-          companyName: shopifyOrders.companyName,
-        })
-          .from(shopifyOrders)
-          .where(and(
-            eq(shopifyOrders.customerId, customer.id),
-            not(isNull(shopifyOrders.email)),
-            not(eq(shopifyOrders.email, ''))
-          ))
-          .limit(1);
+        const displayName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
+        const customerFullName = `${customer.firstName || ''} ${customer.lastName || ''}`.trim().toLowerCase();
+        const companyName = customer.company?.toLowerCase() || '';
 
-        if (orderWithEmail.length > 0 && orderWithEmail[0].email) {
+        // Try to find matching Shopify order
+        let matchedEmail: string | null = null;
+
+        // First try: match by linked customerId
+        const directMatch = ordersWithEmails.find(o => o.customerId === customer.id);
+        if (directMatch) {
+          matchedEmail = directMatch.email;
+        }
+
+        // Second try: match by company name (exact, case-insensitive)
+        if (!matchedEmail && companyName) {
+          const companyMatch = ordersWithEmails.find(o => 
+            o.companyName?.toLowerCase() === companyName
+          );
+          if (companyMatch) {
+            matchedEmail = companyMatch.email;
+          }
+        }
+
+        // Third try: match by customer name (exact, case-insensitive)
+        if (!matchedEmail && customerFullName) {
+          const nameMatch = ordersWithEmails.find(o => 
+            o.customerName?.toLowerCase() === customerFullName
+          );
+          if (nameMatch) {
+            matchedEmail = nameMatch.email;
+          }
+        }
+
+        if (matchedEmail) {
           await db.update(customers)
             .set({ 
-              email: orderWithEmail[0].email,
+              email: matchedEmail,
               updatedAt: new Date()
             })
             .where(eq(customers.id, customer.id));
           
           emailsAdded++;
-          const displayName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim();
-          updatedCustomers.push(`${displayName}: ${orderWithEmail[0].email}`);
-          console.log(`[Shopify Email Backfill] Added email ${orderWithEmail[0].email} to ${displayName}`);
+          updatedCustomers.push(`${displayName}: ${matchedEmail}`);
+          console.log(`[Shopify Email Backfill] Added email ${matchedEmail} to ${displayName}`);
         }
       }
 
