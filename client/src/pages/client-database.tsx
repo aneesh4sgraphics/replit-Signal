@@ -2246,15 +2246,24 @@ export default function ClientDatabase() {
 
         {/* Stats Cards Grid - Notion Style */}
         <div className="lg:col-span-3 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
-          {/* Total Clients - Live Count */}
+          {/* Total Companies - Live Count */}
           <div className="bg-[#FBFBFA] rounded-lg p-4 border border-[#E8E8E8]">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-xs font-medium text-[#9B9A97] flex items-center gap-1">
-                    Total Clients
-                    <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0E7B6C] animate-pulse" title="Live" />
-                  </p>
-                  <p className="text-2xl font-bold text-[#37352F]">{liveCount?.total ?? customers.length}</p>
+                  <TooltipProvider>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <p className="text-xs font-medium text-[#9B9A97] flex items-center gap-1 cursor-help">
+                          Total Companies
+                          <span className="inline-block w-1.5 h-1.5 rounded-full bg-[#0E7B6C] animate-pulse" title="Live" />
+                        </p>
+                      </TooltipTrigger>
+                      <TooltipContent>
+                        <p className="text-xs">{liveCount?.total ?? customers.length} total records in database</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  </TooltipProvider>
+                  <p className="text-2xl font-bold text-[#37352F]">{liveCount?.companies ?? customers.filter(c => c.isCompany).length}</p>
                 </div>
                 <div className="h-8 w-8 rounded flex items-center justify-center" style={{ backgroundColor: '#0C6E99' }}>
                   <Users className="h-4 w-4 text-white" />

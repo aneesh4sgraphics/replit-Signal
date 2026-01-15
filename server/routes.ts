@@ -1902,8 +1902,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const missingPricingTierCount = customers.filter(c => !c.pricingTier || c.pricingTier.trim() === '').length;
       const missingMachineCount = customers.filter(c => !customersWithMachines.has(c.id)).length;
       
+      // Companies count (isCompany = true)
+      const companiesCount = customers.filter(c => c.isCompany === true).length;
+      
       res.json({ 
-        total: customers.length, 
+        total: customers.length,
+        companies: companiesCount,
         florida: floridaCount,
         needsCleanup: needsCleanupCount,
         noSalesRep: noSalesRepCount,
