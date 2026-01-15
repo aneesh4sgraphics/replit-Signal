@@ -787,7 +787,7 @@ export default function Spotlight() {
 
               {/* Outcome Buttons for non-data-hygiene tasks */}
               {task.bucket !== 'data_hygiene' && task.outcomes.length > 0 && (
-                <div className="space-y-2">
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
                   {task.outcomes.map((outcome) => {
                     const OutcomeIcon = outcome.icon ? OUTCOME_ICONS[outcome.icon] : Check;
                     const isPositive = ['connected', 'completed', 'sent', 'done', 'email_sent', 'called', 'already_has', 'already_engaged'].includes(outcome.id);
@@ -798,7 +798,7 @@ export default function Spotlight() {
                       <Button
                         key={outcome.id}
                         variant={isPositive ? 'default' : 'outline'}
-                        className={`w-full h-12 justify-start ${
+                        className={`h-auto py-3 px-3 flex flex-col items-center justify-center gap-1 text-center ${
                           isPositive ? 'bg-emerald-600 hover:bg-emerald-700 text-white' :
                           isDNC ? 'border-red-300 text-red-700 hover:bg-red-100 bg-red-50' :
                           isNegative ? 'border-amber-200 text-amber-700 hover:bg-amber-50' :
@@ -806,10 +806,10 @@ export default function Spotlight() {
                         }`}
                         onClick={() => handleOutcome(outcome.id)}
                       >
-                        {OutcomeIcon && <OutcomeIcon className="w-4 h-4 mr-3" />}
-                        <span className="flex-1 text-left">{outcome.label}</span>
+                        {OutcomeIcon && <OutcomeIcon className="w-5 h-5" />}
+                        <span className="text-xs font-medium leading-tight">{outcome.label}</span>
                         {outcome.nextAction?.daysUntil && (
-                          <span className="text-xs opacity-70 ml-2">
+                          <span className="text-[10px] opacity-70">
                             +{outcome.nextAction.daysUntil}d
                           </span>
                         )}
