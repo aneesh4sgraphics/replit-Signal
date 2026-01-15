@@ -93,18 +93,24 @@ async function checkStaleContact(customerId: string, updatedAt: Date | null): Pr
   return null;
 }
 
+function normalizePhone(phone: string | null): string {
+  if (!phone) return '';
+  return phone.replace(/\D/g, '').slice(-10);
+}
+
 async function checkDuplicate(email: string | null, phone: string | null, customerId: string): Promise<SpotlightHint | null> {
   if (!email && !phone) return null;
   
   try {
     const conditions = [];
     if (email) {
-      conditions.push(sql`LOWER(${customers.email}) = LOWER(${email})`);
+      const normalizedEmail = email.toLowerCase().trim();
+      conditions.push(sql`LOWER(TRIM(${customers.email})) = ${normalizedEmail}`);
     }
     if (phone) {
-      const cleanPhone = phone.replace(/\D/g, '');
-      if (cleanPhone.length >= 10) {
-        conditions.push(sql`REPLACE(REPLACE(REPLACE(REPLACE(${customers.phone}, '-', ''), ' ', ''), '(', ''), ')', '') LIKE ${'%' + cleanPhone.slice(-10)}`);
+      const normalizedPhone = normalizePhone(phone);
+      if (normalizedPhone.length === 10) {
+        conditions.push(sql`RIGHT(REGEXP_REPLACE(${customers.phone}, '[^0-9]', '', 'g'), 10) = ${normalizedPhone}`);
       }
     }
     

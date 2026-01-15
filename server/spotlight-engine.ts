@@ -925,6 +925,8 @@ class SpotlightEngine {
         salesRepId: customers.salesRepId,
         salesRepName: customers.salesRepName,
         pricingTier: customers.pricingTier,
+        updatedAt: customers.updatedAt,
+        isHotProspect: customers.isHotProspect,
       })
       .from(customers)
       .where(and(...conditions))
@@ -978,6 +980,8 @@ class SpotlightEngine {
           salesRepId: customers.salesRepId,
           salesRepName: customers.salesRepName,
           pricingTier: customers.pricingTier,
+          updatedAt: customers.updatedAt,
+          isHotProspect: customers.isHotProspect,
         },
       })
       .from(followUpTasks)
@@ -1044,6 +1048,7 @@ class SpotlightEngine {
         salesRepName: customers.salesRepName,
         pricingTier: customers.pricingTier,
         updatedAt: customers.updatedAt,
+        isHotProspect: customers.isHotProspect,
       })
       .from(customers)
       .where(and(...conditions))
@@ -1106,6 +1111,8 @@ class SpotlightEngine {
           salesRepId: customers.salesRepId,
           salesRepName: customers.salesRepName,
           pricingTier: customers.pricingTier,
+          updatedAt: customers.updatedAt,
+          isHotProspect: customers.isHotProspect,
         })
         .from(customers)
         .where(and(...whereConditions))
@@ -1154,6 +1161,8 @@ class SpotlightEngine {
         salesRepId: customers.salesRepId,
         salesRepName: customers.salesRepName,
         pricingTier: customers.pricingTier,
+        updatedAt: customers.updatedAt,
+        isHotProspect: customers.isHotProspect,
       })
       .from(customers)
       .where(and(...conditions))
