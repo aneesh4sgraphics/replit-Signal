@@ -10547,6 +10547,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // MACHINE PROFILE APIs
   // ========================================
 
+  // Get available machine types from admin taxonomy (for all authenticated users)
+  app.get("/api/crm/machine-types", isAuthenticated, async (req, res) => {
+    try {
+      const types = await db.select({
+        id: adminMachineTypes.id,
+        code: adminMachineTypes.code,
+        label: adminMachineTypes.label,
+        icon: adminMachineTypes.icon,
+        description: adminMachineTypes.description,
+        sortOrder: adminMachineTypes.sortOrder,
+      })
+        .from(adminMachineTypes)
+        .where(eq(adminMachineTypes.isActive, true))
+        .orderBy(adminMachineTypes.sortOrder);
+      res.json(types);
+    } catch (error) {
+      console.error("Error fetching machine types:", error);
+      res.status(500).json({ error: "Failed to fetch machine types" });
+    }
+  });
+
   // Get machine profiles for a customer
   app.get("/api/crm/machine-profiles/:customerId", isAuthenticated, async (req, res) => {
     try {

@@ -9,6 +9,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { startDripEmailWorker } from "./drip-email-worker";
 import { startQuoteFollowUpWorker } from "./quote-followup-worker";
 import { startDataRetentionWorker } from "./data-retention";
+import { ensureTaxonomySeeded } from "./taxonomy-seed";
 
 // Configure Puppeteer to use system Chromium for PDF generation
 if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -253,6 +254,9 @@ app.use((req, res, next) => {
   // this serves both the API and the client.
   // It is the only port that is not firewalled.
   const port = 5000;
+  // Ensure admin taxonomy is seeded before starting server
+  await ensureTaxonomySeeded();
+  
   server.listen({
     port,
     host: "0.0.0.0",

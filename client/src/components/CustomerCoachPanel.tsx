@@ -84,47 +84,81 @@ const CATEGORY_STATE_CONFIG: Record<string, { label: string; progress: number; c
   habitual: { label: 'Habitual', progress: 100, color: 'text-emerald-600', bgColor: 'bg-emerald-200' },
 };
 
-const MACHINE_FAMILIES = [
+// Fallback machine families matching admin taxonomy codes
+const FALLBACK_MACHINE_FAMILIES = [
   { id: 'offset', label: 'Offset', icon: '🖨️', color: 'text-blue-600' },
-  { id: 'digital_toner', label: 'Digital Dry Toner', icon: '⚡', color: 'text-yellow-600' },
-  { id: 'hp_indigo', label: 'Digital - HP Indigo', icon: '💠', color: 'text-indigo-600' },
-  { id: 'digital_inkjet_uv', label: 'Digital Inkjet UV', icon: '☀️', color: 'text-orange-500' },
-  { id: 'label_press', label: 'Label Press', icon: '🏷️', color: 'text-pink-600' },
+  { id: 'digital_dry_toner', label: 'Digital Dry Toner', icon: '⚡', color: 'text-yellow-600' },
+  { id: 'hp_indigo', label: 'HP Indigo', icon: '💠', color: 'text-indigo-600' },
+  { id: 'inkjet_uv_sheetfed', label: 'Inkjet UV Sheetfed', icon: '☀️', color: 'text-orange-500' },
+  { id: 'flexo', label: 'Flexo/Label Press', icon: '🏷️', color: 'text-pink-600' },
   { id: 'screen_printing', label: 'Screen Printing', icon: '🎨', color: 'text-purple-600' },
-  { id: 'wide_format_flatbed', label: 'Wide Format - Flatbed', icon: '📐', color: 'text-teal-600' },
-  { id: 'wide_format_roll', label: 'Wide Format - Roll', icon: '📜', color: 'text-cyan-600' },
-  { id: 'aqueous_photo', label: 'Aqueous Photo', icon: '💧', color: 'text-sky-500' },
+  { id: 'wide_format_eco-sol/uv/latex', label: 'Wide Format', icon: '📐', color: 'text-teal-600' },
+  { id: 'aqueous_inkjet', label: 'Aqueous Inkjet', icon: '💧', color: 'text-sky-500' },
   { id: 'distributor', label: 'Distributor', icon: '🏢', color: 'text-gray-600', requiresNote: true },
   { id: 'dealer', label: 'Dealer', icon: '🤝', color: 'text-gray-600', requiresNote: true },
-  { id: 'other', label: 'Other', icon: '⚙️', color: 'text-gray-500', requiresNote: true },
 ];
+
+// Icon mapping for machine types from admin (Lucide icon names to emoji)
+const MACHINE_ICON_MAP: Record<string, string> = {
+  'Printer': '🖨️',
+  'Zap': '⚡',
+  'Sparkles': '💠',
+  'Droplet': '💧',
+  'Layers': '📋',
+  'Maximize': '📐',
+  'Sun': '☀️',
+  'Tag': '🏷️',
+};
+
+// Color mapping for machine types (using admin taxonomy codes)
+const MACHINE_COLOR_MAP: Record<string, string> = {
+  'offset': 'text-blue-600',
+  'digital_dry_toner': 'text-yellow-600',
+  'hp_indigo': 'text-indigo-600',
+  'inkjet_uv_sheetfed': 'text-orange-500',
+  'flexo': 'text-pink-600',
+  'wide_format_eco-sol/uv/latex': 'text-teal-600',
+  'aqueous_inkjet': 'text-sky-500',
+  'screen_printing': 'text-purple-600',
+  'distributor': 'text-gray-600',
+  'dealer': 'text-gray-600',
+};
 
 const REQUIRES_NOTE_MACHINES = ['distributor', 'dealer', 'other'];
 
+interface MachineType {
+  id: number;
+  code: string;
+  label: string;
+  icon: string | null;
+  description: string | null;
+  sortOrder: number | null;
+}
+
 // Category Groups based on machine compatibility (using QuickQuotes Product Categories)
-// Group A: Graffiti Logic - works with Offset, Digital Dry Toner, HP Indigo, Digital Inkjet UV
+// Uses admin taxonomy codes for machine types
 const GRAFFITI_CATEGORIES = [
   'Graffiti Polyester Paper',
   'Graffiti Blended Poly',
   'Graffiti SOFT Poly',
   'Graffiti STICK',
 ];
-const GRAFFITI_MACHINES = ['offset', 'digital_toner', 'hp_indigo', 'digital_inkjet_uv'];
+const GRAFFITI_MACHINES = ['offset', 'digital_dry_toner', 'hp_indigo', 'inkjet_uv_sheetfed'];
 
-// Group B: Wide Format
+// Wide Format
 const WIDE_FORMAT_CATEGORIES = [
   'Solvit Sign & Display Media',
   'Rang Print Canvas',
 ];
-const WIDE_FORMAT_MACHINES = ['wide_format_flatbed', 'wide_format_roll'];
+const WIDE_FORMAT_MACHINES = ['wide_format_eco-sol/uv/latex'];
 
-// Group C: Aqueous
+// Aqueous
 const AQUEOUS_CATEGORIES = [
   'CliQ Aqueous Medias',
 ];
-const AQUEOUS_MACHINES = ['aqueous_photo'];
+const AQUEOUS_MACHINES = ['aqueous_inkjet'];
 
-// Group D: Screen Print / DTF
+// Screen Print / DTF
 const SCREEN_PRINT_CATEGORIES = [
   'Screen Printing Positives',
   'DTF Film',
@@ -146,19 +180,37 @@ const ALL_PRODUCT_CATEGORIES = [
 ];
 
 // Machine to category group mapping
+// Supports both new admin taxonomy codes AND legacy codes for backward compatibility
 const CATEGORY_MACHINE_COMPATIBILITY: Record<string, string[]> = {
+  // New admin taxonomy codes
   offset: [...GRAFFITI_CATEGORIES, ...OFFSET_PLATE_CATEGORIES],
-  digital_toner: GRAFFITI_CATEGORIES,
+  digital_dry_toner: GRAFFITI_CATEGORIES,
   hp_indigo: GRAFFITI_CATEGORIES,
-  digital_inkjet_uv: GRAFFITI_CATEGORIES,
-  label_press: GRAFFITI_CATEGORIES,
+  inkjet_uv_sheetfed: GRAFFITI_CATEGORIES,
+  flexo: GRAFFITI_CATEGORIES,
   screen_printing: SCREEN_PRINT_CATEGORIES,
-  wide_format_flatbed: WIDE_FORMAT_CATEGORIES,
-  wide_format_roll: WIDE_FORMAT_CATEGORIES,
-  aqueous_photo: AQUEOUS_CATEGORIES,
+  'wide_format_eco-sol/uv/latex': WIDE_FORMAT_CATEGORIES,
+  aqueous_inkjet: AQUEOUS_CATEGORIES,
   distributor: ALL_PRODUCT_CATEGORIES,
   dealer: ALL_PRODUCT_CATEGORIES,
   other: ALL_PRODUCT_CATEGORIES,
+  // Legacy codes (for existing database records)
+  digital_toner: GRAFFITI_CATEGORIES,
+  digital_inkjet_uv: GRAFFITI_CATEGORIES,
+  label_press: GRAFFITI_CATEGORIES,
+  wide_format_flatbed: WIDE_FORMAT_CATEGORIES,
+  wide_format_roll: WIDE_FORMAT_CATEGORIES,
+  aqueous_photo: AQUEOUS_CATEGORIES,
+};
+
+// Legacy code to label mapping for display purposes
+const LEGACY_CODE_LABELS: Record<string, string> = {
+  digital_toner: 'Digital Dry Toner',
+  digital_inkjet_uv: 'Inkjet UV Sheetfed',
+  label_press: 'Flexo/Label Press',
+  wide_format_flatbed: 'Wide Format',
+  wide_format_roll: 'Wide Format',
+  aqueous_photo: 'Aqueous Inkjet',
 };
 
 const OBJECTION_TYPES = [
@@ -193,6 +245,44 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
       return res.json();
     },
   });
+
+  // Fetch machine types from admin taxonomy
+  const { data: apiMachineTypes = [] } = useQuery<MachineType[]>({
+    queryKey: ['/api/crm/machine-types'],
+    queryFn: async () => {
+      const res = await fetch('/api/crm/machine-types', { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 5 * 60 * 1000, // Cache for 5 minutes
+  });
+
+  // Transform API machine types to component format, with fallback
+  const baseMachineFamilies = apiMachineTypes.length > 0 
+    ? apiMachineTypes.map(mt => ({
+        id: mt.code,
+        label: mt.label,
+        icon: mt.icon ? (MACHINE_ICON_MAP[mt.icon] || '⚙️') : '⚙️',
+        color: MACHINE_COLOR_MAP[mt.code] || 'text-gray-600',
+        requiresNote: REQUIRES_NOTE_MACHINES.includes(mt.code),
+      }))
+    : FALLBACK_MACHINE_FAMILIES;
+
+  // Include any legacy machine codes from customer's existing profiles
+  // that aren't in the admin taxonomy (for backward compatibility)
+  const existingLegacyCodes = machineProfiles
+    .map(p => p.machineFamily)
+    .filter(code => !baseMachineFamilies.some(m => m.id === code));
+
+  const legacyMachineEntries = existingLegacyCodes.map(code => ({
+    id: code,
+    label: LEGACY_CODE_LABELS[code] || code.replace(/_/g, ' ').replace(/\b\w/g, c => c.toUpperCase()),
+    icon: '⚙️',
+    color: MACHINE_COLOR_MAP[code] || 'text-gray-600',
+    requiresNote: false,
+  }));
+
+  const MACHINE_FAMILIES = [...baseMachineFamilies, ...legacyMachineEntries];
 
   const { data: categoryTrusts = [], refetch: refetchTrusts } = useQuery<CategoryTrust[]>({
     queryKey: ['/api/crm/category-trust', customer.id],
@@ -761,7 +851,7 @@ export default function CustomerCoachPanel({ customer, onNavigateToPressProfiles
                     </TooltipTrigger>
                     <TooltipContent className="max-w-xs">
                       <p className="font-medium mb-1">Compatible with:</p>
-                      <p className="text-xs">{allMachines.map(m => MACHINE_FAMILIES.find(f => f.id === m)?.label).join(', ')}</p>
+                      <p className="text-xs">{allMachines.map(m => MACHINE_FAMILIES.find(f => f.id === m)?.label || LEGACY_CODE_LABELS[m] || m).join(', ')}</p>
                     </TooltipContent>
                   </Tooltip>
                 </TooltipProvider>
