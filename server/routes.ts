@@ -2555,6 +2555,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       mergedData.totalOrders = (parseInt(String(mergedData.totalOrders)) || 0) + (parseInt(String(sourceCustomer.totalOrders)) || 0);
       mergedData.totalSpent = (parseFloat(String(mergedData.totalSpent)) || 0) + (parseFloat(String(sourceCustomer.totalSpent)) || 0);
       
+      // Handle extra emails - append to notes
+      if (fieldSelections?.extraEmailsForNotes) {
+        const extraEmailsNote = `Additional email addresses: ${fieldSelections.extraEmailsForNotes}`;
+        mergedData.note = mergedData.note 
+          ? `${mergedData.note}\n\n${extraEmailsNote}`
+          : extraEmailsNote;
+      }
+      
       // Merge notes if not already handled by fieldSelections
       if (!fieldSelections?.notes && sourceCustomer.note && sourceCustomer.note !== mergedData.note) {
         mergedData.note = mergedData.note 

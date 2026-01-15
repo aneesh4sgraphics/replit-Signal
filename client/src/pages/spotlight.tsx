@@ -210,6 +210,7 @@ export default function Spotlight() {
   const [mergeData, setMergeData] = useState<{ sourceCustomer: any; targetCustomer: any; duplicateIds: string[] } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [mergeFieldSelections, setMergeFieldSelections] = useState<Record<string, string>>({});
+  const [mergeEmailSelections, setMergeEmailSelections] = useState<{ primary: string; secondary: string }>({ primary: '', secondary: '' });
   const lastActivityRef = useRef(Date.now());
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
@@ -493,6 +494,7 @@ export default function Spotlight() {
       setMergeData(null);
       setMergeTarget(null);
       setMergeFieldSelections({});
+      setMergeEmailSelections({ primary: '', secondary: '' });
       refetch();
     },
     onError: (error: any) => {
@@ -540,13 +542,26 @@ export default function Spotlight() {
       const currentCustomer = await currentRes.json();
       const duplicateCustomer = await duplicateRes.json();
       
+      // Collect all unique emails from both customers
+      const allEmails: string[] = [];
+      if (currentCustomer.email) allEmails.push(currentCustomer.email);
+      if (currentCustomer.email2) allEmails.push(currentCustomer.email2);
+      if (duplicateCustomer.email) allEmails.push(duplicateCustomer.email);
+      if (duplicateCustomer.email2) allEmails.push(duplicateCustomer.email2);
+      const uniqueEmails = [...new Set(allEmails.filter(e => e && e.trim()))];
+      
       setMergeData({
         sourceCustomer: currentCustomer,
         targetCustomer: duplicateCustomer,
-        duplicateIds
+        duplicateIds,
       });
       setMergeTarget(duplicateIds[0]); // Default to keeping the duplicate as primary
       setMergeFieldSelections({});
+      // Pre-select first email as primary, second as secondary
+      setMergeEmailSelections({
+        primary: uniqueEmails[0] || '',
+        secondary: uniqueEmails[1] || ''
+      });
       setShowMergeModal(true);
     } catch (error) {
       toast({
@@ -564,10 +579,28 @@ export default function Spotlight() {
       ? mergeData.sourceCustomer.id 
       : mergeData.targetCustomer.id;
     
+    // Build email-related field selections
+    const allEmails = getMergeEmails();
+    const emailFieldSelections: Record<string, string> = { ...mergeFieldSelections };
+    
+    // Set primary email
+    if (mergeEmailSelections.primary) {
+      emailFieldSelections['email'] = mergeEmailSelections.primary;
+    }
+    // Set secondary email
+    if (mergeEmailSelections.secondary) {
+      emailFieldSelections['email2'] = mergeEmailSelections.secondary;
+    }
+    // Any extra emails go to notes
+    const extraEmails = allEmails.filter(e => e !== mergeEmailSelections.primary && e !== mergeEmailSelections.secondary);
+    if (extraEmails.length > 0) {
+      emailFieldSelections['extraEmailsForNotes'] = extraEmails.join(', ');
+    }
+    
     mergeCustomersMutation.mutate({ 
       targetId: mergeTarget, 
       sourceId, 
-      fieldSelections: mergeFieldSelections 
+      fieldSelections: emailFieldSelections 
     });
   };
 
@@ -575,13 +608,23 @@ export default function Spotlight() {
     { key: 'company', label: 'Company Name' },
     { key: 'firstName', label: 'First Name' },
     { key: 'lastName', label: 'Last Name' },
-    { key: 'email', label: 'Primary Email' },
     { key: 'phone', label: 'Phone' },
     { key: 'address1', label: 'Address' },
     { key: 'city', label: 'City' },
     { key: 'province', label: 'Province' },
     { key: 'pricingTier', label: 'Pricing Tier' },
   ];
+
+  // Get all unique emails from both customers for merge modal
+  const getMergeEmails = () => {
+    if (!mergeData) return [];
+    const allEmails: string[] = [];
+    if (mergeData.sourceCustomer.email) allEmails.push(mergeData.sourceCustomer.email);
+    if (mergeData.sourceCustomer.email2) allEmails.push(mergeData.sourceCustomer.email2);
+    if (mergeData.targetCustomer.email) allEmails.push(mergeData.targetCustomer.email);
+    if (mergeData.targetCustomer.email2) allEmails.push(mergeData.targetCustomer.email2);
+    return [...new Set(allEmails.filter(e => e && e.trim()))];
+  };
 
   const handleOutcome = (outcomeId: string, field?: string, value?: string) => {
     if (!currentTask?.task) return;
@@ -1479,6 +1522,96 @@ export default function Spotlight() {
                 </button>
               </div>
 
+              {/* Email Selection */}
+              {(() => {
+                const allEmails = getMergeEmails();
+                if (allEmails.length === 0) return null;
+                
+                const extraEmails = allEmails.filter(e => e !== mergeEmailSelections.primary && e !== mergeEmailSelections.secondary);
+                
+                return (
+                  <div className="border-t pt-4">
+                    <h4 className="font-medium text-sm text-gray-700 mb-3">
+                      <Mail className="w-4 h-4 inline mr-1" />
+                      Email Addresses ({allEmails.length} found)
+                    </h4>
+                    <div className="space-y-3">
+                      {/* Primary Email */}
+                      <div className="bg-blue-50 rounded-lg p-3">
+                        <div className="text-xs font-medium text-blue-700 mb-2">Primary Email</div>
+                        <div className="flex flex-wrap gap-2">
+                          {allEmails.map((email) => (
+                            <button
+                              key={`primary-${email}`}
+                              type="button"
+                              onClick={() => {
+                                setMergeEmailSelections(prev => ({
+                                  primary: email,
+                                  secondary: prev.secondary === email ? '' : prev.secondary
+                                }));
+                              }}
+                              className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                                mergeEmailSelections.primary === email
+                                  ? 'bg-blue-600 text-white border-blue-600'
+                                  : 'bg-white border-gray-300 hover:border-blue-400 text-gray-700'
+                              }`}
+                            >
+                              {email}
+                            </button>
+                          ))}
+                        </div>
+                      </div>
+                      
+                      {/* Secondary Email */}
+                      {allEmails.length > 1 && (
+                        <div className="bg-gray-50 rounded-lg p-3">
+                          <div className="text-xs font-medium text-gray-600 mb-2">Secondary Email</div>
+                          <div className="flex flex-wrap gap-2">
+                            <button
+                              type="button"
+                              onClick={() => setMergeEmailSelections(prev => ({ ...prev, secondary: '' }))}
+                              className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                                !mergeEmailSelections.secondary
+                                  ? 'bg-gray-600 text-white border-gray-600'
+                                  : 'bg-white border-gray-300 hover:border-gray-400 text-gray-700'
+                              }`}
+                            >
+                              None
+                            </button>
+                            {allEmails.filter(e => e !== mergeEmailSelections.primary).map((email) => (
+                              <button
+                                key={`secondary-${email}`}
+                                type="button"
+                                onClick={() => setMergeEmailSelections(prev => ({ ...prev, secondary: email }))}
+                                className={`px-3 py-1.5 text-sm rounded-full border transition-all ${
+                                  mergeEmailSelections.secondary === email
+                                    ? 'bg-gray-600 text-white border-gray-600'
+                                    : 'bg-white border-gray-300 hover:border-gray-400 text-gray-700'
+                                }`}
+                              >
+                                {email}
+                              </button>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                      
+                      {/* Extra Emails Warning */}
+                      {extraEmails.length > 0 && (
+                        <div className="bg-amber-50 rounded-lg p-3 border border-amber-200">
+                          <div className="text-xs font-medium text-amber-700 mb-1">
+                            Extra emails will be added to Notes:
+                          </div>
+                          <div className="text-sm text-amber-800">
+                            {extraEmails.join(', ')}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
+
               {/* Field Selection */}
               <div className="border-t pt-4">
                 <h4 className="font-medium text-sm text-gray-700 mb-3">Choose which data to keep for each field:</h4>
@@ -1565,6 +1698,7 @@ export default function Spotlight() {
                 setMergeData(null);
                 setMergeTarget(null);
                 setMergeFieldSelections({});
+                setMergeEmailSelections({ primary: '', secondary: '' });
               }}
               className="flex-1"
             >
