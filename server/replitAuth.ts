@@ -438,7 +438,19 @@ export const isAuthenticated: RequestHandler = async (req: Request, res: Respons
     return next();
   }
   
-  if (!req.isAuthenticated || !req.isAuthenticated()) {
+  // Debug logging for production auth issues
+  const hasSession = !!req.session;
+  const hasPassport = !!(req.session as any)?.passport;
+  const passportUser = (req.session as any)?.passport?.user;
+  const hasReqUser = !!req.user;
+  const isAuthenticatedFn = req.isAuthenticated ? req.isAuthenticated() : false;
+  const cookieHeader = req.headers.cookie ? 'present' : 'missing';
+  
+  if (!isAuthenticatedFn) {
+    console.log(`[Auth] isAuthenticated FAILED for ${req.path}: session=${hasSession}, passport=${hasPassport}, passportUser=${!!passportUser}, reqUser=${hasReqUser}, isAuthenticatedFn=${isAuthenticatedFn}, cookie=${cookieHeader}`);
+    if (passportUser) {
+      console.log(`[Auth] Passport user found but isAuthenticated=false: id=${passportUser.id}, email=${passportUser.email}`);
+    }
     return res.status(401).json({ message: "Not authenticated" });
   }
 
