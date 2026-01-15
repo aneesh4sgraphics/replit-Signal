@@ -315,6 +315,7 @@ export interface IStorage {
   getSentQuotesSince(date: Date): Promise<SentQuote[]>;
   getSentQuotesByCustomerInfo(email?: string, company?: string): Promise<SentQuote[]>;
   getCustomersCount(): Promise<number>;
+  getHotLeadsCount(): Promise<number>;
   getProductsCount(): Promise<number>;
   
   // Parsed Contacts methods
@@ -1749,6 +1750,19 @@ export class DatabaseStorage implements IStorage {
       return result.count || 0;
     } catch (error) {
       console.error("Error getting customers count:", error);
+      return 0;
+    }
+  }
+
+  async getHotLeadsCount(): Promise<number> {
+    try {
+      const [result] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.isHotProspect, true));
+      return result.count || 0;
+    } catch (error) {
+      console.error("Error getting hot leads count:", error);
       return 0;
     }
   }

@@ -515,6 +515,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       let quotesThisMonth = 0;
       let monthlyRevenue = 0;
       let totalCustomers = 0;
+      let hotLeads = 0;
       let totalProducts = 0;
       let activityCount = 0;
 
@@ -532,6 +533,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
       } catch (e) {
         const errorMessage = e instanceof Error ? e.message : "Unknown error";
         console.warn("Failed to get customers count:", errorMessage);
+      }
+
+      try {
+        hotLeads = await storage.getHotLeadsCount();
+        debugLog("✓ Hot leads:", hotLeads);
+      } catch (e) {
+        const errorMessage = e instanceof Error ? e.message : "Unknown error";
+        console.warn("Failed to get hot leads count:", errorMessage);
       }
 
       try {
@@ -566,6 +575,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         quotesThisMonth,
         monthlyRevenue,
         totalCustomers,
+        hotLeads,
         totalProducts,
         activityCount
       };

@@ -10,6 +10,7 @@ import {
   Calendar,
   Zap,
   Building2,
+  Flame,
 } from "lucide-react";
 import { primaryApps } from "@/lib/nav-links";
 import { useAuth } from "@/hooks/useAuth";
@@ -25,6 +26,7 @@ interface DashboardStats {
   quotesThisMonth: number;
   monthlyRevenue: number;
   totalCustomers: number;
+  hotLeads: number;
   totalProducts: number;
   activityCount: number;
 }
@@ -263,6 +265,15 @@ export default function Dashboard() {
                       <div style={{ fontSize: '24px', fontWeight: 700, color: '#111111' }}>{stats.totalCustomers}</div>
                       <div style={{ fontSize: '12px', color: '#666666' }}>Customers</div>
                     </div>
+                    <Link href="/clients?filter=hot" style={{ textDecoration: 'none' }}>
+                      <div style={{ textAlign: 'center', cursor: 'pointer' }}>
+                        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '4px' }}>
+                          <Flame size={18} style={{ color: '#E03D3E' }} />
+                          <span style={{ fontSize: '24px', fontWeight: 700, color: '#E03D3E' }}>{stats.hotLeads || 0}</span>
+                        </div>
+                        <div style={{ fontSize: '12px', color: '#E03D3E', fontWeight: 500 }}>Hot Leads</div>
+                      </div>
+                    </Link>
                     <div style={{ textAlign: 'center' }}>
                       <div style={{ fontSize: '24px', fontWeight: 700, color: '#111111' }}>{stats.quotesThisMonth}</div>
                       <div style={{ fontSize: '12px', color: '#666666' }}>This Month</div>
