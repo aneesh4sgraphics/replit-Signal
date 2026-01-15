@@ -65,6 +65,12 @@ export interface SpotlightSession {
   skippedCustomerIds: string[];
   lastTaskAt: Date | null;
   dayComplete: boolean;
+  isPaused: boolean;
+  pausedAt: Date | null;
+  cardsBeforePause: number;
+  lastActivityAt: Date | null;
+  efficiencyScore: number;
+  currentStreak: number;
 }
 
 const DAILY_QUOTAS: Record<TaskBucket, number> = {
@@ -181,9 +187,17 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
 
 class SpotlightEngine {
   private sessions: Map<string, SpotlightSession> = new Map();
+  private streakCache: Map<string, { streak: number; lastChecked: string }> = new Map();
 
   private getTodayKey(): string {
-    return new Date().toISOString().split('T')[0];
+    const now = new Date();
+    const hour = now.getHours();
+    if (hour >= 18) {
+      const tomorrow = new Date(now);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+      return tomorrow.toISOString().split('T')[0];
+    }
+    return now.toISOString().split('T')[0];
   }
 
   private getSession(userId: string): SpotlightSession {
@@ -206,10 +220,142 @@ class SpotlightEngine {
         skippedCustomerIds: [],
         lastTaskAt: null,
         dayComplete: false,
+        isPaused: false,
+        pausedAt: null,
+        cardsBeforePause: 0,
+        lastActivityAt: new Date(),
+        efficiencyScore: 0,
+        currentStreak: 0,
       };
       this.sessions.set(sessionKey, session);
     }
     return session;
+  }
+
+  async calculateEfficiencyScore(userId: string): Promise<{ score: number; breakdown: Record<string, number>; streak: number }> {
+    const session = this.getSession(userId);
+    const breakdown: Record<string, number> = {};
+    let score = 0;
+
+    score += session.totalCompleted * 10;
+    breakdown.completedMoments = session.totalCompleted * 10;
+
+    const bucketsWithProgress = session.buckets.filter(b => b.completed > 0).length;
+    const varietyBonus = bucketsWithProgress >= 3 ? 15 : bucketsWithProgress >= 2 ? 8 : 0;
+    score += varietyBonus;
+    breakdown.varietyBonus = varietyBonus;
+
+    const totalSkipped = session.buckets.reduce((sum, b) => sum + b.skipped, 0);
+    const skipPenalty = totalSkipped > 5 ? (totalSkipped - 5) * -5 : 0;
+    score += skipPenalty;
+    breakdown.skipPenalty = skipPenalty;
+
+    try {
+      const overdueResult = await db.execute(sql`
+        SELECT COUNT(*) as count FROM follow_up_tasks 
+        WHERE (assigned_to = ${userId} OR assigned_to IS NULL)
+        AND status != 'completed'
+        AND due_date < NOW() - INTERVAL '1 day'
+      `);
+      const overdueCount = Number(overdueResult.rows[0]?.count || 0);
+      const overduePenalty = overdueCount > 0 ? Math.min(overdueCount * -3, -15) : 0;
+      score += overduePenalty;
+      breakdown.overduePenalty = overduePenalty;
+
+      const complianceResult = await db.execute(sql`
+        SELECT COUNT(*) as compliant FROM follow_up_tasks
+        WHERE assigned_to = ${userId}
+        AND status = 'completed'
+        AND completed_at <= due_date + INTERVAL '1 day'
+        AND completed_at >= NOW() - INTERVAL '7 days'
+      `);
+      const compliantCount = Number(complianceResult.rows[0]?.compliant || 0);
+      const complianceBonus = Math.min(compliantCount * 2, 20);
+      score += complianceBonus;
+      breakdown.complianceBonus = complianceBonus;
+    } catch (e) {
+      console.error('[Spotlight] Error calculating efficiency bonuses:', e);
+    }
+
+    const streak = await this.calculateStreak(userId);
+    const streakBonus = streak >= 5 ? 25 : streak >= 3 ? 10 : streak >= 2 ? 5 : 0;
+    score += streakBonus;
+    breakdown.streakBonus = streakBonus;
+
+    session.efficiencyScore = Math.max(0, score);
+    session.currentStreak = streak;
+
+    return { score: Math.max(0, score), breakdown, streak };
+  }
+
+  private async calculateStreak(userId: string): Promise<number> {
+    const today = this.getTodayKey();
+    const cached = this.streakCache.get(userId);
+    if (cached && cached.lastChecked === today) {
+      return cached.streak;
+    }
+
+    try {
+      const result = await db.execute(sql`
+        WITH daily_completions AS (
+          SELECT DISTINCT DATE(created_at) as activity_date
+          FROM spotlight_events
+          WHERE user_id = ${userId}
+          AND event_type = 'completed'
+          ORDER BY activity_date DESC
+        ),
+        streak_calc AS (
+          SELECT activity_date,
+            activity_date - (ROW_NUMBER() OVER (ORDER BY activity_date DESC))::int AS streak_group
+          FROM daily_completions
+        )
+        SELECT COUNT(*) as streak_length
+        FROM streak_calc
+        WHERE streak_group = (SELECT streak_group FROM streak_calc LIMIT 1)
+      `);
+      const streak = Number(result.rows[0]?.streak_length || 0);
+      this.streakCache.set(userId, { streak, lastChecked: today });
+      return streak;
+    } catch (e) {
+      console.error('[Spotlight] Error calculating streak:', e);
+      return 0;
+    }
+  }
+
+  pauseSession(userId: string): void {
+    const session = this.getSession(userId);
+    session.isPaused = true;
+    session.pausedAt = new Date();
+    session.cardsBeforePause = session.totalCompleted;
+
+    db.insert(spotlightEvents).values({
+      eventType: 'paused',
+      userId,
+      bucket: 'calls',
+      metadata: { cardsBeforePause: session.cardsBeforePause, remaining: session.totalTarget - session.totalCompleted },
+      dayOfWeek: new Date().getDay(),
+      hourOfDay: new Date().getHours(),
+    }).catch(e => console.error('[Spotlight] Failed to log pause event:', e));
+  }
+
+  resumeSession(userId: string): void {
+    const session = this.getSession(userId);
+    session.isPaused = false;
+    session.pausedAt = null;
+    session.lastActivityAt = new Date();
+
+    db.insert(spotlightEvents).values({
+      eventType: 'resumed',
+      userId,
+      bucket: 'calls',
+      dayOfWeek: new Date().getDay(),
+      hourOfDay: new Date().getHours(),
+    }).catch(e => console.error('[Spotlight] Failed to log resume event:', e));
+  }
+
+  updateActivity(userId: string): void {
+    const session = this.getSession(userId);
+    session.lastActivityAt = new Date();
   }
 
   private getNextBucket(session: SpotlightSession): TaskBucket | null {
@@ -228,8 +374,14 @@ class SpotlightEngine {
     return incomplete[0]?.bucket || null;
   }
 
-  async getNextTask(userId: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean }> {
+  async getNextTask(userId: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
     const session = this.getSession(userId);
+    
+    if (session.isPaused) {
+      return { task: null, session, allDone: false, isPaused: true };
+    }
+    
+    session.lastActivityAt = new Date();
     
     if (session.totalCompleted >= session.totalTarget) {
       session.dayComplete = true;

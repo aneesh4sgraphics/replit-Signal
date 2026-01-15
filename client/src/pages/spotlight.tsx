@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect, useRef } from "react";
 import { Link } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Progress } from "@/components/ui/progress";
 import { Separator } from "@/components/ui/separator";
 import { Textarea } from "@/components/ui/textarea";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -44,6 +45,11 @@ import {
   CheckCircle,
   Target,
   Ban,
+  Pause,
+  Play,
+  Flame,
+  Zap,
+  Coffee,
 } from "lucide-react";
 
 type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
@@ -105,6 +111,16 @@ interface SpotlightSession {
   totalTarget: number;
   buckets: BucketQuota[];
   dayComplete: boolean;
+  isPaused?: boolean;
+  efficiencyScore?: number;
+  currentStreak?: number;
+  lastActivityAt?: string;
+}
+
+interface EfficiencyData {
+  score: number;
+  breakdown: Record<string, number>;
+  streak: number;
 }
 
 const BUCKET_INFO: Record<TaskBucket, { label: string; icon: any; color: string }> = {
@@ -138,6 +154,8 @@ const OUTCOME_ICONS: Record<string, any> = {
 
 const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
 
+const IDLE_TIMEOUT_MS = 3 * 60 * 60 * 1000; // 3 hours
+
 export default function Spotlight() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -146,11 +164,70 @@ export default function Spotlight() {
   const [showNotes, setShowNotes] = useState(false);
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [showIdleModal, setShowIdleModal] = useState(false);
+  const lastActivityRef = useRef(Date.now());
+  const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
 
-  const { data: currentTask, isLoading, refetch } = useQuery<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean }>({
+  const { data: currentTask, isLoading, refetch } = useQuery<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }>({
     queryKey: ['/api/spotlight/current'],
     refetchOnWindowFocus: false,
     staleTime: 30 * 1000,
+  });
+
+  const { data: efficiency } = useQuery<EfficiencyData>({
+    queryKey: ['/api/spotlight/efficiency'],
+    staleTime: 60 * 1000,
+    enabled: !!currentTask,
+  });
+
+  useEffect(() => {
+    const resetIdleTimer = () => {
+      lastActivityRef.current = Date.now();
+      if (idleTimerRef.current) {
+        clearTimeout(idleTimerRef.current);
+      }
+      idleTimerRef.current = setTimeout(() => {
+        if (!currentTask?.allDone && !currentTask?.isPaused && currentTask?.session) {
+          const remaining = currentTask.session.totalTarget - currentTask.session.totalCompleted;
+          if (remaining > 0) {
+            setShowIdleModal(true);
+          }
+        }
+      }, IDLE_TIMEOUT_MS);
+    };
+
+    resetIdleTimer();
+    const events = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+    events.forEach(event => window.addEventListener(event, resetIdleTimer));
+
+    return () => {
+      if (idleTimerRef.current) clearTimeout(idleTimerRef.current);
+      events.forEach(event => window.removeEventListener(event, resetIdleTimer));
+    };
+  }, [currentTask]);
+
+  const pauseMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/spotlight/pause', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
+      setShowIdleModal(false);
+      toast({ title: "Session paused", description: "See you tomorrow!" });
+    },
+  });
+
+  const resumeMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/spotlight/resume', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/efficiency'] });
+      toast({ title: "Let's go!", description: "Session resumed" });
+    },
   });
 
   const { data: salesReps = [] } = useQuery<{ id: string; email: string; firstName?: string; lastName?: string }[]>({
@@ -232,6 +309,56 @@ export default function Spotlight() {
 
   const session = currentTask?.session;
   const progress = session ? (session.totalCompleted / session.totalTarget) * 100 : 0;
+
+  if (currentTask?.isPaused) {
+    const remaining = (session?.totalTarget || 30) - (session?.totalCompleted || 0);
+    return (
+      <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
+        <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA] bg-white">
+          <div className="w-24 h-24 rounded-full bg-gradient-to-br from-blue-50 to-indigo-100 flex items-center justify-center mx-auto mb-6">
+            <Coffee className="w-12 h-12 text-indigo-500" />
+          </div>
+          <CardTitle className="text-2xl mb-2 text-[#111111]">Session Paused</CardTitle>
+          <CardDescription className="text-[#666666] mb-6 text-base">
+            You've paused for today with {remaining} moments remaining.
+            <br />Take a break and come back refreshed!
+          </CardDescription>
+          
+          {efficiency && (
+            <div className="flex items-center justify-center gap-4 mb-6">
+              <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-600">
+                <Zap className="w-4 h-4" />
+                <span className="font-medium">Score: {efficiency.score}</span>
+              </div>
+              {efficiency.streak > 0 && (
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-orange-50 text-orange-600">
+                  <Flame className="w-4 h-4" />
+                  <span className="font-medium">{efficiency.streak} day streak</span>
+                </div>
+              )}
+            </div>
+          )}
+
+          <div className="flex gap-4 justify-center">
+            <Link href="/">
+              <Button variant="outline" className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2]">
+                <ArrowLeft className="w-4 h-4 mr-2" />
+                Dashboard
+              </Button>
+            </Link>
+            <Button 
+              onClick={() => resumeMutation.mutate()}
+              disabled={resumeMutation.isPending}
+              className="bg-[#111111] hover:bg-[#333333] text-white"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Resume Session
+            </Button>
+          </div>
+        </Card>
+      </div>
+    );
+  }
 
   if (currentTask?.allDone || currentTask?.session?.dayComplete) {
     return (
@@ -333,26 +460,42 @@ export default function Spotlight() {
                 </p>
               </div>
             </div>
-            <div className="flex items-center gap-2">
-              {session?.buckets.map((bucket) => {
-                const info = BUCKET_INFO[bucket.bucket];
-                const BIcon = info.icon;
-                const isActive = bucket.bucket === task.bucket;
-                return (
-                  <div 
-                    key={bucket.bucket}
-                    className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${isActive ? 'ring-2' : ''}`}
-                    style={{ 
-                      backgroundColor: info.color + '15',
-                      color: info.color,
-                      ringColor: info.color,
-                    }}
-                  >
-                    <BIcon className="w-3 h-3" />
-                    <span className="font-medium">{bucket.completed}/{bucket.target}</span>
+            <div className="flex items-center gap-3">
+              {efficiency && (
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-amber-50 text-amber-600">
+                    <Zap className="w-3 h-3" />
+                    <span className="text-xs font-medium">{efficiency.score}</span>
                   </div>
-                );
-              })}
+                  {efficiency.streak > 0 && (
+                    <div className="flex items-center gap-1 px-2 py-1 rounded-full bg-orange-50 text-orange-600">
+                      <Flame className="w-3 h-3" />
+                      <span className="text-xs font-medium">{efficiency.streak}d</span>
+                    </div>
+                  )}
+                </div>
+              )}
+              <div className="flex items-center gap-1">
+                {session?.buckets.map((bucket) => {
+                  const info = BUCKET_INFO[bucket.bucket];
+                  const BIcon = info.icon;
+                  const isActive = bucket.bucket === task.bucket;
+                  return (
+                    <div 
+                      key={bucket.bucket}
+                      className={`flex items-center gap-1 px-2 py-1 rounded-full text-xs ${isActive ? 'ring-2' : ''}`}
+                      style={{ 
+                        backgroundColor: info.color + '15',
+                        color: info.color,
+                        ringColor: info.color,
+                      }}
+                    >
+                      <BIcon className="w-3 h-3" />
+                      <span className="font-medium">{bucket.completed}/{bucket.target}</span>
+                    </div>
+                  );
+                })}
+              </div>
             </div>
           </div>
           <Progress value={progress} className="h-1.5" />
@@ -643,6 +786,60 @@ export default function Spotlight() {
           </div>
         </div>
       </div>
+
+      {/* Idle Check-in Modal */}
+      <Dialog open={showIdleModal} onOpenChange={setShowIdleModal}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Coffee className="w-5 h-5 text-indigo-500" />
+              Taking a break?
+            </DialogTitle>
+            <DialogDescription>
+              You've been away for a while. Would you like to continue or pause for today?
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="py-4">
+            {efficiency && (
+              <div className="flex items-center justify-center gap-4 mb-4">
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-amber-50 text-amber-600">
+                  <Zap className="w-4 h-4" />
+                  <span className="font-medium">Score: {efficiency.score}</span>
+                </div>
+                <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-blue-50 text-blue-600">
+                  <Target className="w-4 h-4" />
+                  <span className="font-medium">{(session?.totalTarget || 30) - (session?.totalCompleted || 0)} left</span>
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="flex gap-2 sm:gap-2">
+            <Button
+              variant="outline"
+              onClick={() => {
+                pauseMutation.mutate();
+              }}
+              disabled={pauseMutation.isPending}
+              className="flex-1"
+            >
+              <Pause className="w-4 h-4 mr-2" />
+              Pause Until Tomorrow
+            </Button>
+            <Button
+              onClick={() => {
+                setShowIdleModal(false);
+                lastActivityRef.current = Date.now();
+              }}
+              className="flex-1 bg-[#111111] hover:bg-[#333333]"
+            >
+              <Play className="w-4 h-4 mr-2" />
+              Keep Going
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

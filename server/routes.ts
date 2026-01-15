@@ -16771,6 +16771,89 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  app.post("/api/spotlight/pause", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      spotlightEngine.pauseSession(userId);
+      res.json({ success: true, message: "Session paused until tomorrow" });
+    } catch (error) {
+      console.error("[Spotlight] Error pausing session:", error);
+      res.status(500).json({ error: "Failed to pause session" });
+    }
+  });
+
+  app.post("/api/spotlight/resume", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      spotlightEngine.resumeSession(userId);
+      res.json({ success: true, message: "Session resumed" });
+    } catch (error) {
+      console.error("[Spotlight] Error resuming session:", error);
+      res.status(500).json({ error: "Failed to resume session" });
+    }
+  });
+
+  app.get("/api/spotlight/efficiency", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      const efficiency = await spotlightEngine.calculateEfficiencyScore(userId);
+      res.json(efficiency);
+    } catch (error) {
+      console.error("[Spotlight] Error calculating efficiency:", error);
+      res.status(500).json({ error: "Failed to calculate efficiency" });
+    }
+  });
+
+  app.get("/api/admin/spotlight/pause-patterns", isAuthenticated, async (req: any, res) => {
+    try {
+      const isAdmin = req.user?.role === 'admin';
+      if (!isAdmin) {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      const pausePatterns = await db.execute(sql`
+        SELECT 
+          user_id,
+          u.email as user_email,
+          u.first_name,
+          u.last_name,
+          AVG((metadata->>'cardsBeforePause')::int) as avg_cards_before_pause,
+          COUNT(*) as pause_count,
+          jsonb_agg(jsonb_build_object(
+            'date', created_at,
+            'cardsBeforePause', metadata->'cardsBeforePause',
+            'remaining', metadata->'remaining'
+          ) ORDER BY created_at DESC) as pause_history
+        FROM spotlight_events se
+        LEFT JOIN users u ON se.user_id = u.id
+        WHERE event_type = 'paused'
+        AND created_at >= NOW() - INTERVAL '30 days'
+        GROUP BY user_id, u.email, u.first_name, u.last_name
+        ORDER BY pause_count DESC
+      `);
+
+      const isFriday = new Date().getDay() === 5;
+
+      res.json({
+        patterns: pausePatterns.rows,
+        isFriday,
+        recommendation: isFriday ? "It's Friday! Consider reviewing pause patterns to adjust daily card count." : null,
+      });
+    } catch (error) {
+      console.error("[Spotlight] Pause patterns error:", error);
+      res.status(500).json({ error: "Failed to fetch pause patterns" });
+    }
+  });
+
   // ============================================
   // Calendar Hub API Routes
   // ============================================
