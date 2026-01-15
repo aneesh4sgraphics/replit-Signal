@@ -49,33 +49,35 @@ interface NavItem {
   label: string;
   keywords?: string[];
   adminOnly?: boolean;
+  iconBg?: string;
+  iconColor?: string;
 }
 
 export const NAV_ITEMS: NavItem[] = [
-  { path: '/', icon: DashboardIcon, label: 'Dashboard', keywords: ['home', 'main', 'overview'] },
-  { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', keywords: ['quote', 'estimate', 'pricing'] },
-  { path: '/clients', icon: ClientsIcon, label: 'Clients', keywords: ['customers', 'contacts', 'database'] },
-  { path: '/reports', icon: ReportsIcon, label: 'Reports', keywords: ['analytics', 'reports', 'dashboard', 'sales', 'metrics', 'insights'] },
-  { path: '/calendar', icon: CalendarIcon, label: 'Calendar', keywords: ['calendar', 'tasks', 'events', 'schedule', 'google', 'meetings'] },
-  { path: '/price-list', icon: PriceListIcon, label: 'Price List', keywords: ['prices', 'costs', 'rates'] },
-  { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', keywords: ['history', 'saved', 'previous'] },
-  { path: '/area-pricer', icon: CalculatorIcon, label: 'SqM Calculator', keywords: ['area', 'square meter', 'calculate'] },
-  { path: '/competitor-pricing', icon: MarketPricesIcon, label: 'Market Prices', keywords: ['competitors', 'market', 'comparison'] },
-  { path: '/shipping-calculator', icon: ShippingIcon, label: 'Shipping', keywords: ['delivery', 'freight', 'transport'] },
-  { path: '/shipping-labels', icon: ShippingLabelsIcon, label: 'Shipping Labels', keywords: ['labels', 'packages', 'shipment'] },
-  { path: '/product-labels', icon: ProductLabelsIcon, label: 'Product Labels', keywords: ['tags', 'stickers', 'product'] },
-  { path: '/crm-journey', icon: CrmJourneyIcon, label: 'CRM Journey', keywords: ['pipeline', 'sales', 'customers', 'conversion', 'samples', 'swatches'] },
-  { path: '/objections', icon: ObjectionsIcon, label: 'Objections', keywords: ['objections', 'issues', 'blockers', 'concerns', 'problems'] },
-  { path: '/email-app', icon: EmailIcon, label: 'Email Studio', keywords: ['email', 'templates', 'mail', 'compose', 'send'], adminOnly: true },
-  { path: '/email-insights', icon: SparkleIcon, label: 'Email Intelligence', keywords: ['ai', 'insights', 'promises', 'followup', 'sales', 'opportunities', 'reminders'] },
-  { path: '/integrations', icon: IntegrationsIcon, label: 'Integrations', keywords: ['gmail', 'calendar', 'odoo', 'connect', 'settings', 'google'], adminOnly: true },
-  { path: '/product-mapping', icon: ProductMappingIcon, label: 'Product Mapping', keywords: ['map', 'category', 'type', 'size', 'sqm', 'fix', 'unmapped'], adminOnly: true },
-  { path: '/shopify-settings', icon: SiShopify, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true },
-  { path: '/odoo-settings', icon: OdooIcon, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true },
-  { path: '/admin', icon: UsersIcon, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true },
-  { path: '/activity-logs', icon: ActivityIcon, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true },
-  { path: '/product-pricing-management', icon: DatabaseIcon, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true },
-  { path: '/pdf-settings', icon: PdfIcon, label: 'PDF Settings', keywords: ['pdf', 'export', 'documents'], adminOnly: true },
+  { path: '/', icon: DashboardIcon, label: 'Dashboard', keywords: ['home', 'main', 'overview'], iconBg: '#DDEBF1', iconColor: '#0C6E99' },
+  { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', keywords: ['quote', 'estimate', 'pricing'], iconBg: '#FAEBDD', iconColor: '#D9730B' },
+  { path: '/clients', icon: ClientsIcon, label: 'Clients', keywords: ['customers', 'contacts', 'database'], iconBg: '#EAE3F2', iconColor: '#693FA5' },
+  { path: '/reports', icon: ReportsIcon, label: 'Reports', keywords: ['analytics', 'reports', 'dashboard', 'sales', 'metrics', 'insights'], iconBg: '#DDEDEA', iconColor: '#0E7B6C' },
+  { path: '/calendar', icon: CalendarIcon, label: 'Calendar', keywords: ['calendar', 'tasks', 'events', 'schedule', 'google', 'meetings'], iconBg: '#FBE4E3', iconColor: '#E03D3E' },
+  { path: '/price-list', icon: PriceListIcon, label: 'Price List', keywords: ['prices', 'costs', 'rates'], iconBg: '#FBF3DA', iconColor: '#DFAB00' },
+  { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', keywords: ['history', 'saved', 'previous'], iconBg: '#F4DFEB', iconColor: '#AD1972' },
+  { path: '/area-pricer', icon: CalculatorIcon, label: 'SqM Calculator', keywords: ['area', 'square meter', 'calculate'], iconBg: '#EBECED', iconColor: '#878682' },
+  { path: '/competitor-pricing', icon: MarketPricesIcon, label: 'Market Prices', keywords: ['competitors', 'market', 'comparison'], iconBg: '#DDEDEA', iconColor: '#0E7B6C' },
+  { path: '/shipping-calculator', icon: ShippingIcon, label: 'Shipping', keywords: ['delivery', 'freight', 'transport'], iconBg: '#E5E1DF', iconColor: '#64473A' },
+  { path: '/shipping-labels', icon: ShippingLabelsIcon, label: 'Shipping Labels', keywords: ['labels', 'packages', 'shipment'], iconBg: '#E5E1DF', iconColor: '#64473A' },
+  { path: '/product-labels', icon: ProductLabelsIcon, label: 'Product Labels', keywords: ['tags', 'stickers', 'product'], iconBg: '#FAEBDD', iconColor: '#D9730B' },
+  { path: '/crm-journey', icon: CrmJourneyIcon, label: 'CRM Journey', keywords: ['pipeline', 'sales', 'customers', 'conversion', 'samples', 'swatches'], iconBg: '#EAE3F2', iconColor: '#693FA5' },
+  { path: '/objections', icon: ObjectionsIcon, label: 'Objections', keywords: ['objections', 'issues', 'blockers', 'concerns', 'problems'], iconBg: '#FBE4E3', iconColor: '#E03D3E' },
+  { path: '/email-app', icon: EmailIcon, label: 'Email Studio', keywords: ['email', 'templates', 'mail', 'compose', 'send'], adminOnly: true, iconBg: '#DDEBF1', iconColor: '#0C6E99' },
+  { path: '/email-insights', icon: SparkleIcon, label: 'Email Intelligence', keywords: ['ai', 'insights', 'promises', 'followup', 'sales', 'opportunities', 'reminders'], iconBg: '#FBF3DA', iconColor: '#DFAB00' },
+  { path: '/integrations', icon: IntegrationsIcon, label: 'Integrations', keywords: ['gmail', 'calendar', 'odoo', 'connect', 'settings', 'google'], adminOnly: true, iconBg: '#EBECED', iconColor: '#878682' },
+  { path: '/product-mapping', icon: ProductMappingIcon, label: 'Product Mapping', keywords: ['map', 'category', 'type', 'size', 'sqm', 'fix', 'unmapped'], adminOnly: true, iconBg: '#F4DFEB', iconColor: '#AD1972' },
+  { path: '/shopify-settings', icon: SiShopify, label: 'Shopify', keywords: ['shopify', 'orders', 'ecommerce', 'integration'], adminOnly: true, iconBg: '#DDEDEA', iconColor: '#0E7B6C' },
+  { path: '/odoo-settings', icon: OdooIcon, label: 'Odoo', keywords: ['odoo', 'erp', 'sync', 'partners', 'integration'], adminOnly: true, iconBg: '#EAE3F2', iconColor: '#693FA5' },
+  { path: '/admin', icon: UsersIcon, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true, iconBg: '#DDEBF1', iconColor: '#0C6E99' },
+  { path: '/activity-logs', icon: ActivityIcon, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true, iconBg: '#EBECED', iconColor: '#878682' },
+  { path: '/product-pricing-management', icon: DatabaseIcon, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true, iconBg: '#FAEBDD', iconColor: '#D9730B' },
+  { path: '/pdf-settings', icon: PdfIcon, label: 'PDF Settings', keywords: ['pdf', 'export', 'documents'], adminOnly: true, iconBg: '#FBE4E3', iconColor: '#E03D3E' },
 ];
 
 interface CommandPaletteProps {

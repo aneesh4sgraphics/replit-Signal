@@ -181,7 +181,12 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                   )}
-                  <Icon className="h-5 w-5" />
+                  <span 
+                    className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0"
+                    style={{ backgroundColor: item.iconBg || '#F7F7F5' }}
+                  >
+                    <Icon className="h-4 w-4" style={{ color: item.iconColor || '#73726E' }} />
+                  </span>
                   <span className="text-sm">{item.label}</span>
                 </Link>
               );
@@ -286,7 +291,12 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                   {isActive && (
                     <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                   )}
-                  <Icon className="h-5 w-5 flex-shrink-0" />
+                  <span 
+                    className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                    style={{ backgroundColor: item.iconBg || '#F7F7F5' }}
+                  >
+                    <Icon className="h-4 w-4" style={{ color: item.iconColor || '#73726E' }} />
+                  </span>
                   {sidebarExpanded && (
                     <span className="text-sm truncate">{item.label}</span>
                   )}
@@ -318,7 +328,12 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                     {isActive && (
                       <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
                     )}
-                    <Icon className="h-5 w-5 flex-shrink-0" />
+                    <span 
+                      className="w-7 h-7 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                      style={{ backgroundColor: item.iconBg || '#F7F7F5' }}
+                    >
+                      <Icon className="h-4 w-4" style={{ color: item.iconColor || '#73726E' }} />
+                    </span>
                     {sidebarExpanded && (
                       <span className="text-sm truncate">{item.label}</span>
                     )}
