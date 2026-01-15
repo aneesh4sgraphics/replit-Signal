@@ -13,6 +13,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { PRICING_TIERS } from "@shared/schema";
 import {
   ArrowLeft,
   Mail,
@@ -288,17 +289,16 @@ export default function Spotlight() {
     return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).toLowerCase();
   };
 
-  // Deduplicate sales reps by email (lowercase)
+  // Deduplicate sales reps by email (lowercase) and filter out test accounts
   const salesReps = rawSalesReps.filter((rep, index, arr) => {
     if (!rep.email) return false;
     const normalizedEmail = rep.email.toLowerCase();
+    // Filter out test accounts
+    if (normalizedEmail.includes('test')) return false;
     return arr.findIndex(r => r.email?.toLowerCase() === normalizedEmail) === index;
   });
 
-  const { data: pricingTiers = [] } = useQuery<{ id: number; name: string }[]>({
-    queryKey: ['/api/pricing-tiers'],
-    staleTime: 5 * 60 * 1000,
-  });
+  // Use PRICING_TIERS constant from shared/schema.ts - single source of truth
 
   const completeMutation = useMutation({
     mutationFn: async (data: { taskId: string; outcomeId: string; field?: string; value?: string; notes?: string }) => {
@@ -1291,9 +1291,9 @@ export default function Spotlight() {
                     <SelectValue placeholder="Select pricing tier..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {pricingTiers.map((tier) => (
-                      <SelectItem key={tier.id} value={tier.name}>
-                        {tier.name}
+                    {PRICING_TIERS.map((tier) => (
+                      <SelectItem key={tier} value={tier}>
+                        {tier}
                       </SelectItem>
                     ))}
                   </SelectContent>
@@ -1422,9 +1422,9 @@ export default function Spotlight() {
                               <SelectValue placeholder="Select pricing tier..." />
                             </SelectTrigger>
                             <SelectContent>
-                              {pricingTiers.map((tier) => (
-                                <SelectItem key={tier.id} value={tier.name}>
-                                  {tier.name}
+                              {PRICING_TIERS.map((tier) => (
+                                <SelectItem key={tier} value={tier}>
+                                  {tier}
                                 </SelectItem>
                               ))}
                             </SelectContent>
