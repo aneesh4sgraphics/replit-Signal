@@ -191,12 +191,13 @@ function checkMissingCriticalField(customer: {
   if (!customer.email) missing.push('email');
   if (!customer.phone) missing.push('phone');
   if (!customer.pricingTier) missing.push('pricing tier');
+  if (!customer.salesRepId) missing.push('sales rep');
   
   if (missing.length >= 2) {
     return {
       type: 'missing_field',
       severity: 'medium',
-      message: `Missing ${missing.join(' and ')} - consider updating data first.`,
+      message: `Missing ${missing.slice(0, 3).join(', ')}${missing.length > 3 ? '...' : ''} - consider updating data first.`,
       ctaLabel: 'Fix Data First',
       ctaAction: 'fix_data',
       metadata: { missingFields: missing },

@@ -200,8 +200,9 @@ export default function Spotlight() {
   const [showSuccess, setShowSuccess] = useState(false);
   const [showIdleModal, setShowIdleModal] = useState(false);
   const [showFixDataModal, setShowFixDataModal] = useState(false);
-  const [fixDataFields, setFixDataFields] = useState<{ email: string; pricingTier: string }>({ email: '', pricingTier: '' });
+  const [fixDataFields, setFixDataFields] = useState<{ email: string; pricingTier: string; salesRepId: string }>({ email: '', pricingTier: '', salesRepId: '' });
   const [missingFieldsToFix, setMissingFieldsToFix] = useState<string[]>([]);
+  const [availableEmails, setAvailableEmails] = useState<string[]>([]);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeData, setMergeData] = useState<{ sourceCustomer: any; targetCustomer: any; duplicateIds: string[] } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
@@ -359,7 +360,8 @@ export default function Spotlight() {
     onSuccess: () => {
       toast({ title: "Data updated", description: "Customer information has been updated." });
       setShowFixDataModal(false);
-      setFixDataFields({ email: '', pricingTier: '' });
+      setFixDataFields({ email: '', pricingTier: '', salesRepId: '' });
+      setAvailableEmails([]);
       refetch();
     },
     onError: () => {
@@ -367,12 +369,37 @@ export default function Spotlight() {
     },
   });
 
-  const handleFixData = (missingFields: string[]) => {
+  const handleFixData = async (missingFields: string[]) => {
     setMissingFieldsToFix(missingFields);
     const customer = currentTask?.task?.customer;
+    const customerId = currentTask?.task?.customerId;
+    
+    // Collect emails from customer
+    const emails: string[] = [];
+    if (customer?.email) emails.push(customer.email);
+    
+    // Fetch contacts to get additional emails
+    if (customerId) {
+      try {
+        const res = await fetch(`/api/customers/${customerId}/contacts`);
+        if (res.ok) {
+          const contacts = await res.json();
+          contacts.forEach((contact: any) => {
+            if (contact.email && !emails.includes(contact.email)) {
+              emails.push(contact.email);
+            }
+          });
+        }
+      } catch (e) {
+        console.error('Failed to fetch contacts:', e);
+      }
+    }
+    
+    setAvailableEmails(emails);
     setFixDataFields({
       email: customer?.email || '',
       pricingTier: customer?.pricingTier || '',
+      salesRepId: customer?.salesRepId || '',
     });
     setShowFixDataModal(true);
   };
@@ -385,6 +412,14 @@ export default function Spotlight() {
     }
     if (missingFieldsToFix.includes('pricing tier') && fixDataFields.pricingTier) {
       updates.pricingTier = fixDataFields.pricingTier;
+    }
+    if (missingFieldsToFix.includes('sales rep') && fixDataFields.salesRepId) {
+      updates.salesRepId = fixDataFields.salesRepId;
+      // Also set salesRepName
+      const rep = salesReps.find(r => r.id === fixDataFields.salesRepId);
+      if (rep) {
+        updates.salesRepName = `${rep.firstName || ''} ${rep.lastName || ''}`.trim() || rep.email;
+      }
     }
     if (Object.keys(updates).length > 0) {
       fixDataMutation.mutate({ customerId: currentTask.task.customerId, updates });
@@ -1180,14 +1215,46 @@ export default function Spotlight() {
             {missingFieldsToFix.includes('email') && (
               <div className="space-y-2">
                 <Label htmlFor="fix-email" className="text-sm font-medium">Email Address</Label>
-                <Input
-                  id="fix-email"
-                  type="email"
-                  value={fixDataFields.email}
-                  onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
-                  placeholder="customer@example.com"
-                  className="border-[#EAEAEA]"
-                />
+                {availableEmails.length > 0 ? (
+                  <div className="space-y-2">
+                    <Select 
+                      value={fixDataFields.email} 
+                      onValueChange={(value) => setFixDataFields(prev => ({ ...prev, email: value === '__new__' ? '' : value }))}
+                    >
+                      <SelectTrigger className="border-[#EAEAEA]">
+                        <SelectValue placeholder="Select an email..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {availableEmails.map((email) => (
+                          <SelectItem key={email} value={email}>
+                            {email}
+                          </SelectItem>
+                        ))}
+                        <SelectItem value="__new__">
+                          <span className="text-blue-600">+ Enter new email</span>
+                        </SelectItem>
+                      </SelectContent>
+                    </Select>
+                    {fixDataFields.email === '' && (
+                      <Input
+                        type="email"
+                        value={fixDataFields.email}
+                        onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
+                        placeholder="Enter new email address..."
+                        className="border-[#EAEAEA]"
+                      />
+                    )}
+                  </div>
+                ) : (
+                  <Input
+                    id="fix-email"
+                    type="email"
+                    value={fixDataFields.email}
+                    onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
+                    placeholder="customer@example.com"
+                    className="border-[#EAEAEA]"
+                  />
+                )}
               </div>
             )}
             {missingFieldsToFix.includes('pricing tier') && (
@@ -1204,6 +1271,28 @@ export default function Spotlight() {
                     {PRICING_TIERS.map((tier) => (
                       <SelectItem key={tier} value={tier} className="capitalize">
                         {tier.charAt(0).toUpperCase() + tier.slice(1)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {missingFieldsToFix.includes('sales rep') && (
+              <div className="space-y-2">
+                <Label htmlFor="fix-salesrep" className="text-sm font-medium">Sales Rep</Label>
+                <Select 
+                  value={fixDataFields.salesRepId} 
+                  onValueChange={(value) => setFixDataFields(prev => ({ ...prev, salesRepId: value }))}
+                >
+                  <SelectTrigger className="border-[#EAEAEA]">
+                    <SelectValue placeholder="Select sales rep..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {salesReps.filter(r => r.email).map((rep) => (
+                      <SelectItem key={rep.id} value={rep.id}>
+                        {rep.firstName && rep.lastName 
+                          ? `${rep.firstName} ${rep.lastName}` 
+                          : rep.email}
                       </SelectItem>
                     ))}
                   </SelectContent>
