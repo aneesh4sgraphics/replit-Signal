@@ -1193,39 +1193,75 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
               {/* Sales Rep Assignment */}
               <div className="flex items-center gap-2 mt-1" data-testid="sales-rep-assignment">
                 <UserCog className="h-4 w-4 text-green-600" />
-                <Select
-                  value={(customer as any).salesRepId || ""}
-                  onValueChange={(value) => {
-                    const selectedUser = teamUsers.find(u => u.id === value);
-                    if (selectedUser) {
-                      updateSalesRepMutation.mutate({
-                        salesRepId: selectedUser.id,
-                        salesRepName: selectedUser.displayName
-                      });
-                    }
-                  }}
-                >
-                  <SelectTrigger className="h-7 w-[180px] text-sm bg-white border-green-200" data-testid="select-sales-rep">
-                    <SelectValue placeholder="Assign Sales Rep" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {teamUsersLoading ? (
-                      <div className="px-2 py-1 text-sm text-gray-500">Loading...</div>
-                    ) : teamUsers.length === 0 ? (
-                      <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
-                    ) : (
-                      teamUsers.map(user => (
-                        <SelectItem key={user.id} value={user.id}>
-                          {user.displayName}
-                        </SelectItem>
-                      ))
-                    )}
-                  </SelectContent>
-                </Select>
-                {(customer as any).salesRepName && (
-                  <span className="text-sm text-green-700 font-medium">
-                    {(customer as any).salesRepName}
-                  </span>
+                {/* If sales rep is assigned, show name with edit option */}
+                {(customer as any).salesRepName ? (
+                  <Popover>
+                    <PopoverTrigger asChild>
+                      <button className="flex items-center gap-1.5 px-2 py-1 text-sm text-green-700 font-medium bg-green-50 hover:bg-green-100 rounded-md border border-green-200 transition-colors" data-testid="sales-rep-display">
+                        <span>{(customer as any).salesRepName}</span>
+                        <Pencil className="h-3 w-3 text-green-500" />
+                      </button>
+                    </PopoverTrigger>
+                    <PopoverContent className="w-56 p-2" align="start">
+                      <div className="text-xs text-gray-500 mb-2 font-medium">Change Sales Rep</div>
+                      <div className="space-y-1">
+                        {teamUsersLoading ? (
+                          <div className="px-2 py-1 text-sm text-gray-500">Loading...</div>
+                        ) : teamUsers.length === 0 ? (
+                          <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                        ) : (
+                          teamUsers.map(user => (
+                            <button
+                              key={user.id}
+                              onClick={() => {
+                                updateSalesRepMutation.mutate({
+                                  salesRepId: user.id,
+                                  salesRepName: user.displayName
+                                });
+                              }}
+                              className={`w-full text-left px-2 py-1.5 rounded text-sm flex items-center justify-between hover:bg-gray-100 ${
+                                user.id === (customer as any).salesRepId ? 'bg-green-50 border border-green-200' : ''
+                              }`}
+                            >
+                              <span>{user.displayName}</span>
+                              {user.id === (customer as any).salesRepId && <Check className="h-3 w-3 text-green-600" />}
+                            </button>
+                          ))
+                        )}
+                      </div>
+                    </PopoverContent>
+                  </Popover>
+                ) : (
+                  /* If no sales rep assigned, show dropdown to easily pick */
+                  <Select
+                    value={(customer as any).salesRepId || ""}
+                    onValueChange={(value) => {
+                      const selectedUser = teamUsers.find(u => u.id === value);
+                      if (selectedUser) {
+                        updateSalesRepMutation.mutate({
+                          salesRepId: selectedUser.id,
+                          salesRepName: selectedUser.displayName
+                        });
+                      }
+                    }}
+                  >
+                    <SelectTrigger className="h-7 w-[180px] text-sm bg-white border-amber-300 border-dashed" data-testid="select-sales-rep">
+                      <SelectValue placeholder="Assign Sales Rep" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {teamUsersLoading ? (
+                        <div className="px-2 py-1 text-sm text-gray-500">Loading...</div>
+                      ) : teamUsers.length === 0 ? (
+                        <div className="px-2 py-1 text-sm text-gray-500">No sales reps available</div>
+                      ) : (
+                        teamUsers.map(user => (
+                          <SelectItem key={user.id} value={user.id}>
+                            {user.displayName}
+                          </SelectItem>
+                        ))
+                      )}
+                    </SelectContent>
+                  </Select>
                 )}
               </div>
               {/* Contact Lines */}
