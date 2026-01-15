@@ -3125,3 +3125,35 @@ export const insertNowModeEventSchema = createInsertSchema(nowModeEvents).omit({
 });
 export type NowModeEvent = typeof nowModeEvents.$inferSelect;
 export type InsertNowModeEvent = z.infer<typeof insertNowModeEventSchema>;
+
+export const spotlightEvents = pgTable("spotlight_events", {
+  id: serial("id").primaryKey(),
+  eventType: varchar("event_type", { length: 50 }).notNull(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  bucket: varchar("bucket", { length: 30 }).notNull(),
+  taskSubtype: varchar("task_subtype", { length: 50 }),
+  outcomeId: varchar("outcome_id", { length: 50 }),
+  outcomeLabel: varchar("outcome_label", { length: 100 }),
+  skipReason: varchar("skip_reason", { length: 100 }),
+  timeToActionMs: integer("time_to_action_ms"),
+  scheduledFollowUpDays: integer("scheduled_follow_up_days"),
+  markedDnc: boolean("marked_dnc").default(false),
+  dayOfWeek: integer("day_of_week"),
+  hourOfDay: integer("hour_of_day"),
+  metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  eventTypeIdx: index("spotlight_events_event_type_idx").on(table.eventType),
+  userIdx: index("spotlight_events_user_idx").on(table.userId),
+  bucketIdx: index("spotlight_events_bucket_idx").on(table.bucket),
+  createdAtIdx: index("spotlight_events_created_at_idx").on(table.createdAt),
+  userDateIdx: index("spotlight_events_user_date_idx").on(table.userId, table.createdAt),
+}));
+
+export const insertSpotlightEventSchema = createInsertSchema(spotlightEvents).omit({
+  id: true,
+  createdAt: true,
+});
+export type SpotlightEvent = typeof spotlightEvents.$inferSelect;
+export type InsertSpotlightEvent = z.infer<typeof insertSpotlightEventSchema>;

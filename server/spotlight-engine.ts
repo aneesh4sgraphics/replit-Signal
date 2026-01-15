@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents } from "@shared/schema";
 import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray } from "drizzle-orm";
 
 export type TaskBucket = 'calls' | 'follow_ups' | 'outreach' | 'data_hygiene' | 'enablement';
@@ -149,6 +149,18 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'not_ready', label: 'Not Ready Yet', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'outreach' } },
   ],
 };
+
+const BUCKET_LABELS: Record<TaskBucket, string> = {
+  calls: 'Call',
+  follow_ups: 'Follow-up',
+  outreach: 'Outreach',
+  data_hygiene: 'Data Hygiene',
+  enablement: 'Enablement',
+};
+
+function bucketInfo(bucket: TaskBucket): string {
+  return BUCKET_LABELS[bucket] || bucket;
+}
 
 const WHY_NOW_MESSAGES: Record<string, string> = {
   hygiene_sales_rep: 'This customer has no assigned sales rep - claim them now!',
@@ -688,20 +700,42 @@ class SpotlightEngine {
       nextFollowUp = { date: dueDate, type: selectedOutcome.nextAction.taskType || 'follow_up' };
     }
 
+    const now = new Date();
+    const markedDnc = selectedOutcome?.nextAction?.type === 'mark_dnc';
+    
     try {
       await db.insert(customerActivityEvents).values({
         customerId,
         eventType: 'spotlight_action',
         title: `Spotlight: ${selectedOutcome?.label || outcomeId}`,
-        description: notes || `Task: ${subtype}`,
+        description: notes || `${bucketInfo(bucket)} task: ${subtype}`,
         sourceType: 'auto',
         sourceTable: 'spotlight',
-        createdAt: new Date(),
-        updatedAt: new Date(),
+        createdAt: now,
+        updatedAt: now,
         userId,
       });
     } catch (e) {
-      console.error('[Spotlight] Failed to log activity:', e);
+      console.error('[Spotlight] Failed to log customer activity:', e);
+    }
+
+    try {
+      await db.insert(spotlightEvents).values({
+        eventType: 'completed',
+        userId,
+        customerId,
+        bucket,
+        taskSubtype: subtype,
+        outcomeId,
+        outcomeLabel: selectedOutcome?.label || outcomeId,
+        scheduledFollowUpDays: selectedOutcome?.nextAction?.daysUntil || null,
+        markedDnc,
+        dayOfWeek: now.getDay(),
+        hourOfDay: now.getHours(),
+        metadata: { notes, field, value },
+      });
+    } catch (e) {
+      console.error('[Spotlight] Failed to log spotlight event:', e);
     }
 
     const bucketData = session.buckets.find(b => b.bucket === bucket);
@@ -724,15 +758,18 @@ class SpotlightEngine {
     
     let customerId: string;
     let bucket: TaskBucket;
+    let subtype: string;
     
     if (taskId.includes('::')) {
       const parts = taskId.split('::');
       bucket = parts[0] as TaskBucket;
       customerId = parts[2];
+      subtype = parts[3];
     } else {
       const parts = taskId.split('_');
       bucket = parts[0] as TaskBucket;
       customerId = parts[1];
+      subtype = parts.slice(2).join('_');
     }
 
     if (!session.skippedCustomerIds.includes(customerId)) {
@@ -742,6 +779,22 @@ class SpotlightEngine {
     const bucketData = session.buckets.find(b => b.bucket === bucket);
     if (bucketData) {
       bucketData.skipped++;
+    }
+
+    const now = new Date();
+    try {
+      await db.insert(spotlightEvents).values({
+        eventType: 'skipped',
+        userId,
+        customerId,
+        bucket,
+        taskSubtype: subtype,
+        skipReason: reason,
+        dayOfWeek: now.getDay(),
+        hourOfDay: now.getHours(),
+      });
+    } catch (e) {
+      console.error('[Spotlight] Failed to log skip event:', e);
     }
 
     console.log(`[Spotlight] User ${userId} skipped task ${taskId}: ${reason}`);
