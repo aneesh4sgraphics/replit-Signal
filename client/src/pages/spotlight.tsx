@@ -506,17 +506,27 @@ export default function Spotlight() {
     },
   });
 
-  // Do Not Merge mutation - mark customers as separate entities
+  // Do Not Merge mutation - mark customers as separate entities and complete the task
   const doNotMergeMutation = useMutation({
-    mutationFn: async ({ customerId1, customerId2 }: { customerId1: string; customerId2: string }) => {
-      return await apiRequest("POST", `/api/customers/do-not-merge`, { customerId1, customerId2 });
+    mutationFn: async ({ customerId1, customerId2, taskId }: { customerId1: string; customerId2: string; taskId?: string }) => {
+      const result = await apiRequest("POST", `/api/customers/do-not-merge`, { customerId1, customerId2 });
+      return { result, taskId };
     },
-    onSuccess: () => {
+    onSuccess: ({ taskId }) => {
       toast({
         title: "Marked as separate",
         description: "These customers won't be suggested as duplicates again",
       });
-      refetch(); // Refresh to get new hints without this duplicate
+      // Complete the task to move to the next card
+      if (taskId) {
+        completeMutation.mutate({ 
+          taskId, 
+          outcomeId: 'not_duplicate',
+          notes: 'Marked as separate customers - not duplicates'
+        });
+      } else {
+        refetch(); // Fallback: just refresh hints
+      }
     },
     onError: (error: any) => {
       toast({
@@ -941,10 +951,11 @@ export default function Spotlight() {
                           onClick={() => {
                             doNotMergeMutation.mutate({ 
                               customerId1: customer.id, 
-                              customerId2: hint.metadata?.duplicateIds?.[0] 
+                              customerId2: hint.metadata?.duplicateIds?.[0],
+                              taskId: task.id
                             });
                           }}
-                          disabled={doNotMergeMutation.isPending}
+                          disabled={doNotMergeMutation.isPending || completeMutation.isPending}
                         >
                           Not a Duplicate
                         </Button>
