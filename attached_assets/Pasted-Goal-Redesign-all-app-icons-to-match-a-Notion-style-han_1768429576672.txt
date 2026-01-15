@@ -1,74 +1,0 @@
-Goal
-Redesign all app icons to match a Notion-style, hand-drawn line art aesthetic that feels light, human, and non-corporate.
-This is not a “polished SaaS icon set.” It should feel sketched, imperfect, and expressive, like the reference attached.
-
-Icon Style Rules (Very Important)
-Overall feel
-* Black & white only
-* Bold, hand-drawn line work
-* Slightly imperfect strokes (not geometric, not pixel-perfect)
-* Rounded ends, uneven curves are OK (and preferred)
-* Friendly, playful, human — not sharp or mechanical
-Line characteristics
-* Stroke weight: medium-thick and consistent (but not rigid)
-* No fills, no gradients, no shadows
-* No thin hairlines
-* Corners should feel organic, not snapped to angles
-What to avoid
-* No outline + fill combos
-* No SVGs that look auto-generated or “Material UI”
-* No flat icon packs, no Heroicons, no Lucide, no Feather
-* No emojis
-
-Typography Alignment
-* App font: Roboto only
-* Icons must visually “sit well” next to Roboto
-* Icons should feel like they were drawn with the same pen as the text
-
-Icon Size & Usage
-* Default icon size: 20–24px (scales cleanly to 16px and 32px)
-* Must look good in:
-    * Top navigation
-    * Buttons
-    * Empty states
-    * NOW MODE cards
-* Icons should still read clearly at small sizes
-
-Icons Needed (Initial Set)
-Please redesign icons for the following modules using this style:
-1. QuickQuotes → Hand-drawn document with a $ or simple quote mark
-2. Price List → Stacked paper or list with a price symbol
-3. Saved Quotes → Bookmark or folded paper
-4. Clients → Two or three simple human outlines (very minimal)
-5. Sales Charts → Loose upward trend line (not a bar chart)
-6. SqM Calculator → Calculator drawn loosely, imperfect buttons
-7. Market Prices → Wavy arrow + dollar sign or tag
-8. Shipping → Box with motion lines
-9. Shipping Labels → Tag with string (hand-drawn)
-10. Product Labels → Sticker-style label outline
-11. Samples → Small box + sparkle / dot accent
-
-NOW MODE Icons (Extra Important)
-NOW MODE icons must feel motivational, not operational.
-Examples:
-* Call → Hand-drawn phone
-* Follow-up → Curved arrow
-* Outreach → Paper plane or arrow
-* Data Hygiene → Broom or checklist (simple)
-* Enablement → Light bulb or spark
-These should feel like nudges, not tasks.
-
-Implementation Guidance
-* Icons should be delivered as SVG
-* Keep paths simple (low node count)
-* One icon = one SVG (no sprite sheets initially)
-* Use stroke="currentColor" so icons inherit text color
-* Default color: black (#000)
-* Hover/active states handled by opacity, not color changes
-
-Consistency Rule (Critical)
-Once this style is approved:
-* All icons across the app must use this style
-* No mixing with existing icon libraries
-* If a new feature is added later, its icon must follow the same rules
-This is part of SIGNAL’s brand, not just UI decoration.
