@@ -16843,6 +16843,227 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // Get skipped SPOTLIGHT tasks for today
+  app.get("/api/spotlight/skipped-tasks", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const session = spotlightEngine.getSessionStats(userId);
+      const skippedCustomerIds = session.skippedCustomerIds || [];
+
+      if (skippedCustomerIds.length === 0) {
+        return res.json([]);
+      }
+
+      const skippedCustomers = await db
+        .select({
+          id: customers.id,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          email: customers.email,
+          phone: customers.phone,
+        })
+        .from(customers)
+        .where(sql`${customers.id} = ANY(${skippedCustomerIds})`);
+
+      res.json(skippedCustomers.map(c => ({
+        id: `spotlight_skipped_${c.id}`,
+        source: 'spotlight',
+        customerId: c.id,
+        customerName: c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+        customerEmail: c.email,
+        customerPhone: c.phone,
+        title: 'Skipped SPOTLIGHT Task',
+        status: 'skipped',
+        skippedAt: new Date().toISOString(),
+      })));
+    } catch (error) {
+      console.error("[Spotlight] Error getting skipped tasks:", error);
+      res.status(500).json({ error: "Failed to get skipped tasks" });
+    }
+  });
+
+  // Unified task summary for dashboard
+  app.get("/api/tasks/summary", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      const [todayResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(followUpTasks)
+        .where(
+          and(
+            gte(followUpTasks.dueDate, today),
+            lt(followUpTasks.dueDate, tomorrow),
+            eq(followUpTasks.status, 'pending')
+          )
+        );
+
+      const [overdueResult] = await db
+        .select({ count: sql<number>`count(*)` })
+        .from(followUpTasks)
+        .where(
+          and(
+            lt(followUpTasks.dueDate, today),
+            eq(followUpTasks.status, 'pending')
+          )
+        );
+
+      const session = spotlightEngine.getSessionStats(userId);
+      const spotlightSkipped = session.skippedCustomerIds?.length || 0;
+      const spotlightRemaining = (session.totalTarget || 30) - (session.totalCompleted || 0);
+
+      res.json({
+        today: todayResult.count || 0,
+        overdue: (overdueResult.count || 0) + spotlightSkipped,
+        spotlightSkipped,
+        spotlightRemaining,
+        spotlightCompleted: session.totalCompleted || 0,
+        spotlightTarget: session.totalTarget || 30,
+        pending: (todayResult.count || 0) + (overdueResult.count || 0) + spotlightSkipped,
+      });
+    } catch (error) {
+      console.error("[Tasks] Error getting summary:", error);
+      res.status(500).json({ error: "Failed to get task summary" });
+    }
+  });
+
+  // Unified task list
+  app.get("/api/tasks/list", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const filter = req.query.filter as string || 'all';
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      const tomorrow = new Date(today);
+      tomorrow.setDate(tomorrow.getDate() + 1);
+
+      let tasks: any[] = [];
+
+      if (filter === 'today' || filter === 'all' || filter === 'pending') {
+        const todayTasks = await db
+          .select({
+            id: followUpTasks.id,
+            customerId: followUpTasks.customerId,
+            taskType: followUpTasks.taskType,
+            title: followUpTasks.title,
+            description: followUpTasks.description,
+            dueDate: followUpTasks.dueDate,
+            priority: followUpTasks.priority,
+            status: followUpTasks.status,
+          })
+          .from(followUpTasks)
+          .where(
+            and(
+              gte(followUpTasks.dueDate, today),
+              lt(followUpTasks.dueDate, tomorrow),
+              eq(followUpTasks.status, 'pending')
+            )
+          )
+          .orderBy(desc(followUpTasks.priority), asc(followUpTasks.dueDate));
+
+        for (const task of todayTasks) {
+          const [customer] = await db
+            .select({ company: customers.company, firstName: customers.firstName, lastName: customers.lastName })
+            .from(customers)
+            .where(eq(customers.id, task.customerId));
+          
+          tasks.push({
+            ...task,
+            source: 'calendar',
+            category: 'today',
+            customerName: customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Unknown',
+          });
+        }
+      }
+
+      if (filter === 'overdue' || filter === 'all' || filter === 'pending') {
+        const overdueTasks = await db
+          .select({
+            id: followUpTasks.id,
+            customerId: followUpTasks.customerId,
+            taskType: followUpTasks.taskType,
+            title: followUpTasks.title,
+            description: followUpTasks.description,
+            dueDate: followUpTasks.dueDate,
+            priority: followUpTasks.priority,
+            status: followUpTasks.status,
+          })
+          .from(followUpTasks)
+          .where(
+            and(
+              lt(followUpTasks.dueDate, today),
+              eq(followUpTasks.status, 'pending')
+            )
+          )
+          .orderBy(desc(followUpTasks.priority), asc(followUpTasks.dueDate));
+
+        for (const task of overdueTasks) {
+          const [customer] = await db
+            .select({ company: customers.company, firstName: customers.firstName, lastName: customers.lastName })
+            .from(customers)
+            .where(eq(customers.id, task.customerId));
+          
+          tasks.push({
+            ...task,
+            source: 'calendar',
+            category: 'overdue',
+            customerName: customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Unknown',
+          });
+        }
+
+        const session = spotlightEngine.getSessionStats(userId);
+        const skippedCustomerIds = session.skippedCustomerIds || [];
+        if (skippedCustomerIds.length > 0) {
+          const skippedCustomers = await db
+            .select({
+              id: customers.id,
+              company: customers.company,
+              firstName: customers.firstName,
+              lastName: customers.lastName,
+            })
+            .from(customers)
+            .where(sql`${customers.id} = ANY(${skippedCustomerIds})`);
+
+          for (const c of skippedCustomers) {
+            tasks.push({
+              id: `spotlight_${c.id}`,
+              customerId: c.id,
+              source: 'spotlight',
+              category: 'overdue',
+              title: 'Skipped SPOTLIGHT Task',
+              taskType: 'spotlight',
+              status: 'skipped',
+              customerName: c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+              skippedAt: new Date().toISOString(),
+            });
+          }
+        }
+      }
+
+      res.json(tasks);
+    } catch (error) {
+      console.error("[Tasks] Error getting list:", error);
+      res.status(500).json({ error: "Failed to get task list" });
+    }
+  });
+
   app.get("/api/admin/spotlight/pause-patterns", isAuthenticated, async (req: any, res) => {
     try {
       const isAdmin = req.user?.role === 'admin';

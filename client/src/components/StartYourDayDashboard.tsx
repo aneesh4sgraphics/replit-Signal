@@ -445,21 +445,23 @@ export default function StartYourDayDashboard() {
           </Card>
         </Link>
 
-        <Card data-testid="stat-overdue-tasks" className={stats.overdueTasks > 0 ? 'border-red-200' : ''}>
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Overdue</p>
-                <p className={`text-3xl font-bold ${stats.overdueTasks > 0 ? 'text-red-600' : ''}`}>
-                  {stats.overdueTasks}
-                </p>
+        <Link href="/tasks?filter=overdue">
+          <Card data-testid="stat-overdue-tasks" className={`cursor-pointer transition-all hover:shadow-md ${stats.overdueTasks > 0 ? 'border-red-200 bg-red-50/30' : ''}`}>
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Overdue</p>
+                  <p className={`text-3xl font-bold ${stats.overdueTasks > 0 ? 'text-red-600' : ''}`}>
+                    {stats.overdueTasks}
+                  </p>
+                </div>
+                <div className={`p-3 rounded-full ${stats.overdueTasks > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
+                  <AlertTriangle className={`h-6 w-6 ${stats.overdueTasks > 0 ? 'text-red-600' : 'text-gray-400'}`} />
+                </div>
               </div>
-              <div className={`p-3 rounded-full ${stats.overdueTasks > 0 ? 'bg-red-100' : 'bg-gray-100'}`}>
-                <AlertTriangle className={`h-6 w-6 ${stats.overdueTasks > 0 ? 'text-red-600' : 'text-gray-400'}`} />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Link href="/client-database?filter=hot">
           <Card 
@@ -486,19 +488,21 @@ export default function StartYourDayDashboard() {
           </Card>
         </Link>
 
-        <Card data-testid="stat-pending-tasks">
-          <CardContent className="p-4">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Pending Total</p>
-                <p className="text-3xl font-bold">{stats.pendingTasks}</p>
+        <Link href="/tasks?filter=pending">
+          <Card data-testid="stat-pending-tasks" className="cursor-pointer transition-all hover:shadow-md">
+            <CardContent className="p-4">
+              <div className="flex items-center justify-between">
+                <div>
+                  <p className="text-sm font-medium text-muted-foreground">Pending Total</p>
+                  <p className="text-3xl font-bold">{stats.pendingTasks}</p>
+                </div>
+                <div className="p-3 rounded-full bg-amber-100">
+                  <Clock className="h-6 w-6 text-amber-600" />
+                </div>
               </div>
-              <div className="p-3 rounded-full bg-amber-100">
-                <Clock className="h-6 w-6 text-amber-600" />
-              </div>
-            </div>
-          </CardContent>
-        </Card>
+            </CardContent>
+          </Card>
+        </Link>
 
         <Card data-testid="stat-completed-today">
           <CardContent className="p-4">
