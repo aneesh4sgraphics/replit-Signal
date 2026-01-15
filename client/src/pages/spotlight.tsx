@@ -1241,8 +1241,14 @@ export default function Spotlight() {
               <UserCog className="w-5 h-5 text-blue-500" />
               Update Missing Data
             </DialogTitle>
-            <DialogDescription>
-              Fill in the missing information to improve data quality.
+            <DialogDescription className="space-y-1">
+              <div className="font-medium text-gray-900">
+                {currentData?.customer?.company || currentData?.customer?.firstName || 'Unknown'}
+              </div>
+              {currentData?.customer?.email && (
+                <div className="text-sm text-gray-500">{currentData.customer.email}</div>
+              )}
+              <div className="text-gray-400 mt-1">Fill in the missing information to improve data quality.</div>
             </DialogDescription>
           </DialogHeader>
           
