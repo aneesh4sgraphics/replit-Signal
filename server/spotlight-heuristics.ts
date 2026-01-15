@@ -125,13 +125,17 @@ async function checkDuplicate(email: string | null, phone: string | null, custom
       .limit(3);
     
     if (duplicates.length > 0) {
+      const duplicateNames = duplicates.map(d => d.company || 'Unknown').slice(0, 2).join(', ');
       return {
         type: 'duplicate',
         severity: 'medium',
-        message: `Possible duplicate of "${duplicates[0].company || 'another contact'}"`,
-        ctaLabel: 'Skip (Duplicate)',
-        ctaAction: 'skip_duplicate',
-        metadata: { duplicateIds: duplicates.map(d => d.id) },
+        message: `Possible duplicate of: ${duplicateNames}`,
+        ctaLabel: 'View to Merge',
+        ctaAction: 'view_duplicate',
+        metadata: { 
+          duplicateIds: duplicates.map(d => d.id),
+          duplicateNames: duplicates.map(d => ({ id: d.id, company: d.company })),
+        },
       };
     }
   } catch (e) {

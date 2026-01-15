@@ -559,23 +559,49 @@ export default function Spotlight() {
                       <HintIcon className={`w-4 h-4 flex-shrink-0 ${style.textColor}`} />
                       <span className={`text-sm ${style.textColor}`}>{hint.message}</span>
                     </div>
-                    <Button
-                      size="sm"
-                      variant={hint.severity === 'high' ? 'default' : 'outline'}
-                      className={hint.severity === 'high' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-xs'}
-                      onClick={() => {
-                        if (hint.ctaAction === 'bad_fit') {
-                          completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' });
-                        } else if (hint.ctaAction === 'skip_duplicate' || hint.ctaAction === 'skip_recent') {
-                          skipMutation.mutate({ taskId: task.id, reason: hint.type });
-                        } else if (hint.ctaAction === 'reactivation_email') {
-                          completeMutation.mutate({ taskId: task.id, outcomeId: 'send_email', outcomeLabel: 'Send Reactivation Email' });
-                        }
-                      }}
-                      disabled={completeMutation.isPending || skipMutation.isPending}
-                    >
-                      {hint.ctaLabel}
-                    </Button>
+                    <div className="flex items-center gap-2">
+                      {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && (
+                        <Link href={`/clients?id=${hint.metadata.duplicateIds[0]}&merge_with=${customer.id}&from=spotlight`}>
+                          <Button
+                            size="sm"
+                            variant="outline"
+                            className="text-xs"
+                          >
+                            {hint.ctaLabel}
+                          </Button>
+                        </Link>
+                      )}
+                      {hint.ctaAction !== 'view_duplicate' && (
+                        <Button
+                          size="sm"
+                          variant={hint.severity === 'high' ? 'default' : 'outline'}
+                          className={hint.severity === 'high' ? 'bg-red-600 hover:bg-red-700 text-white' : 'text-xs'}
+                          onClick={() => {
+                            if (hint.ctaAction === 'bad_fit') {
+                              completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' });
+                            } else if (hint.ctaAction === 'skip_recent') {
+                              skipMutation.mutate({ taskId: task.id, reason: hint.type });
+                            } else if (hint.ctaAction === 'reactivation_email') {
+                              completeMutation.mutate({ taskId: task.id, outcomeId: 'send_email', outcomeLabel: 'Send Reactivation Email' });
+                            }
+                          }}
+                          disabled={completeMutation.isPending || skipMutation.isPending}
+                        >
+                          {hint.ctaLabel}
+                        </Button>
+                      )}
+                      {hint.ctaAction === 'view_duplicate' && (
+                        <Button
+                          size="sm"
+                          variant="ghost"
+                          className="text-xs text-gray-500"
+                          onClick={() => skipMutation.mutate({ taskId: task.id, reason: 'duplicate' })}
+                          disabled={skipMutation.isPending}
+                        >
+                          Skip
+                        </Button>
+                      )}
+                    </div>
                   </div>
                 );
               })}
