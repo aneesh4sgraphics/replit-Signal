@@ -92,11 +92,9 @@ import {
   shippingCompanies,
   savedRecipients,
   productLabels,
-  notionProducts,
   // CRM tables
   pressProfiles,
   sampleRequests,
-  testOutcomes,
   validationEvents,
   swatches,
   swatchBookShipments,
@@ -194,8 +192,6 @@ import {
   coachingMoments,
   type CoachingMoment,
   type InsertCoachingMoment,
-  dailyMomentCaps,
-  type DailyMomentCap,
   customerCoachState,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
@@ -1933,50 +1929,6 @@ export class DatabaseStorage implements IStorage {
     await db.delete(productLabels).where(eq(productLabels.id, id));
   }
 
-  // Notion Products
-  async getNotionProducts(): Promise<NotionProduct[]> {
-    return await db.select().from(notionProducts).orderBy(notionProducts.productName);
-  }
-
-  async searchNotionProducts(query: string): Promise<NotionProduct[]> {
-    if (!query.trim()) {
-      return this.getNotionProducts();
-    }
-    return await db
-      .select()
-      .from(notionProducts)
-      .where(
-        or(
-          ilike(notionProducts.productName, `%${query}%`),
-          ilike(notionProducts.sku, `%${query}%`),
-          ilike(notionProducts.description, `%${query}%`)
-        )
-      )
-      .orderBy(notionProducts.productName);
-  }
-
-  async syncNotionProducts(products: InsertNotionProduct[]): Promise<{ synced: number; created: number; updated: number }> {
-    let created = 0;
-    let updated = 0;
-
-    for (const product of products) {
-      // Check if product exists by SKU or product name
-      const existing = product.sku
-        ? await db.select().from(notionProducts).where(eq(notionProducts.sku, product.sku)).then(r => r[0])
-        : await db.select().from(notionProducts).where(eq(notionProducts.productName, product.productName)).then(r => r[0]);
-
-      if (existing) {
-        await db.update(notionProducts).set({ ...product, syncedAt: new Date() }).where(eq(notionProducts.id, existing.id));
-        updated++;
-      } else {
-        await db.insert(notionProducts).values(product);
-        created++;
-      }
-    }
-
-    return { synced: products.length, created, updated };
-  }
-
   // ========================================
   // CRM / Paper Distribution Implementation
   // ========================================
@@ -2033,29 +1985,6 @@ export class DatabaseStorage implements IStorage {
 
   async deleteSampleRequest(id: number): Promise<void> {
     await db.delete(sampleRequests).where(eq(sampleRequests.id, id));
-  }
-
-  // Test Outcomes
-  async getTestOutcomes(customerId?: string): Promise<TestOutcome[]> {
-    if (customerId) {
-      return await db.select().from(testOutcomes).where(eq(testOutcomes.customerId, customerId)).orderBy(desc(testOutcomes.createdAt));
-    }
-    return await db.select().from(testOutcomes).orderBy(desc(testOutcomes.createdAt));
-  }
-
-  async getTestOutcome(id: number): Promise<TestOutcome | undefined> {
-    const [outcome] = await db.select().from(testOutcomes).where(eq(testOutcomes.id, id));
-    return outcome;
-  }
-
-  async createTestOutcome(data: InsertTestOutcome): Promise<TestOutcome> {
-    const [outcome] = await db.insert(testOutcomes).values(data).returning();
-    return outcome;
-  }
-
-  async updateTestOutcome(id: number, data: Partial<InsertTestOutcome>): Promise<TestOutcome | undefined> {
-    const [outcome] = await db.update(testOutcomes).set(data).where(eq(testOutcomes.id, id)).returning();
-    return outcome;
   }
 
   // Validation Events
@@ -3438,100 +3367,7 @@ export class DatabaseStorage implements IStorage {
     return moment;
   }
 
-  async getDailyMomentCount(userId: string, dateKey: string): Promise<number> {
-    const [cap] = await db
-      .select()
-      .from(dailyMomentCaps)
-      .where(and(
-        eq(dailyMomentCaps.userId, userId),
-        eq(dailyMomentCaps.dateKey, dateKey)
-      ));
-    return cap?.momentsCompleted || 0;
-  }
-
-  async incrementDailyMomentCount(userId: string, dateKey: string, isCall: boolean = false): Promise<void> {
-    const existing = await db
-      .select()
-      .from(dailyMomentCaps)
-      .where(and(
-        eq(dailyMomentCaps.userId, userId),
-        eq(dailyMomentCaps.dateKey, dateKey)
-      ));
-    
-    if (existing.length > 0) {
-      const updates: any = { momentsCompleted: sql`${dailyMomentCaps.momentsCompleted} + 1` };
-      if (isCall) {
-        updates.callsMade = sql`COALESCE(${dailyMomentCaps.callsMade}, 0) + 1`;
-      }
-      await db
-        .update(dailyMomentCaps)
-        .set(updates)
-        .where(eq(dailyMomentCaps.id, existing[0].id));
-    } else {
-      await db.insert(dailyMomentCaps).values({
-        userId,
-        dateKey,
-        momentsCompleted: 1,
-        momentsSkipped: 0,
-        momentsCap: 10,
-        callsMade: isCall ? 1 : 0,
-      });
-    }
-    
-    // Update user's total tasks completed and efficiency score
-    await db.update(users)
-      .set({
-        totalTasksCompleted: sql`COALESCE(${users.totalTasksCompleted}, 0) + 1`,
-        lastActivityAt: new Date(),
-      })
-      .where(eq(users.id, userId));
-  }
-
-  async incrementSkippedCount(userId: string, dateKey: string): Promise<void> {
-    const existing = await db
-      .select()
-      .from(dailyMomentCaps)
-      .where(and(
-        eq(dailyMomentCaps.userId, userId),
-        eq(dailyMomentCaps.dateKey, dateKey)
-      ));
-    
-    if (existing.length > 0) {
-      await db
-        .update(dailyMomentCaps)
-        .set({ momentsSkipped: sql`COALESCE(${dailyMomentCaps.momentsSkipped}, 0) + 1` })
-        .where(eq(dailyMomentCaps.id, existing[0].id));
-    }
-  }
-
-  async getDailyStats(userId: string, dateKey: string): Promise<{ completed: number; skipped: number; calls: number; cap: number }> {
-    const [cap] = await db
-      .select()
-      .from(dailyMomentCaps)
-      .where(and(
-        eq(dailyMomentCaps.userId, userId),
-        eq(dailyMomentCaps.dateKey, dateKey)
-      ));
-    return {
-      completed: cap?.momentsCompleted || 0,
-      skipped: cap?.momentsSkipped || 0,
-      calls: cap?.callsMade || 0,
-      cap: cap?.momentsCap || 10,
-    };
-  }
-
   async generateMomentsForUser(userId: string): Promise<CoachingMoment[]> {
-    const dateKey = new Date().toISOString().split('T')[0];
-    const stats = await this.getDailyStats(userId, dateKey);
-    const dailyCap = 10;
-    
-    // Target = 10 + skipped (to replace skipped tasks)
-    const targetTasks = dailyCap + stats.skipped;
-    
-    if (stats.completed >= targetTasks) {
-      return [];
-    }
-    
     const pendingMoments = await db
       .select()
       .from(coachingMoments)
@@ -3831,40 +3667,6 @@ export class DatabaseStorage implements IStorage {
     await db.update(users)
       .set({ lastActivityAt: new Date() })
       .where(eq(users.id, userId));
-  }
-
-  async calculateEfficiencyScore(userId: string): Promise<number> {
-    // Get stats for the last 7 days
-    const sevenDaysAgo = new Date();
-    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
-    
-    const stats = await db
-      .select()
-      .from(dailyMomentCaps)
-      .where(and(
-        eq(dailyMomentCaps.userId, userId),
-        sql`${dailyMomentCaps.dateKey} >= ${sevenDaysAgo.toISOString().split('T')[0]}`
-      ));
-    
-    if (stats.length === 0) return 0;
-    
-    let totalCompleted = 0;
-    let totalTarget = 0;
-    
-    for (const day of stats) {
-      totalCompleted += day.momentsCompleted || 0;
-      totalTarget += day.momentsCap || 10;
-    }
-    
-    // Calculate efficiency: completed / target * 100, max 100
-    const efficiency = totalTarget > 0 ? Math.min(100, Math.round((totalCompleted / totalTarget) * 100)) : 0;
-    
-    // Update user's efficiency score
-    await db.update(users)
-      .set({ efficiencyScore: efficiency })
-      .where(eq(users.id, userId));
-    
-    return efficiency;
   }
 }
 

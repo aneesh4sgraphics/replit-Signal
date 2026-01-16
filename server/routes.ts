@@ -26,7 +26,6 @@ import {
   insertProductLabelSchema,
   insertPressProfileSchema,
   insertSampleRequestSchema,
-  insertTestOutcomeSchema,
   insertValidationEventSchema,
   insertSwatchSchema,
   insertSwatchBookShipmentSchema,
@@ -69,7 +68,6 @@ import {
   quoteEvents, 
   priceListEvents, 
   pressProfiles, 
-  testOutcomes,
   categoryTrust,
   sentQuotes,
   customerCoachState,
@@ -132,8 +130,6 @@ import {
   emailSalesEvents,
   gmailMessages,
   gmailMessageMatches,
-  nowModeActivities,
-  nowModeSessions,
   followUpTasks,
   deletedCustomerExclusions,
   insertFollowUpTaskSchema,
@@ -2706,12 +2702,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .set({ customerId: targetId })
         .where(eq(pressProfiles.customerId, sourceId));
       console.log("✓ Transferred press profiles");
-      
-      // Transfer test outcomes
-      await db.update(testOutcomes)
-        .set({ customerId: targetId })
-        .where(eq(testOutcomes.customerId, sourceId));
-      console.log("✓ Transferred test outcomes");
       
       // Note: swatches table is product-based, not customer-based, so no transfer needed
       
@@ -7572,15 +7562,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Notion Products (locally synced)
+  // Notion Products - Legacy route removed (table dropped). Use Notion API search instead.
   app.get("/api/notion-products", isAuthenticated, async (req, res) => {
-    try {
-      const products = await storage.getNotionProducts();
-      res.json(products);
-    } catch (error) {
-      console.error("Error fetching products:", error);
-      res.status(500).json({ error: "Failed to fetch products" });
-    }
+    res.json([]); // Legacy table removed - use /api/notion-products/search for Notion API search
   });
 
   app.get("/api/notion-products/search", isAuthenticated, async (req, res) => {
@@ -8063,83 +8047,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Test Outcomes
+  // Test Outcomes - Legacy routes removed (table dropped). Use sample requests with result field instead.
   app.get("/api/crm/test-outcomes", isAuthenticated, async (req, res) => {
-    try {
-      const customerId = req.query.customerId as string | undefined;
-      const outcomes = await storage.getTestOutcomes(customerId);
-      res.json(outcomes);
-    } catch (error) {
-      console.error("Error fetching test outcomes:", error);
-      res.status(500).json({ error: "Failed to fetch test outcomes" });
-    }
+    res.json([]); // Legacy table removed
   });
 
   app.post("/api/crm/test-outcomes", isAuthenticated, async (req: any, res) => {
-    try {
-      const validatedData = insertTestOutcomeSchema.parse(req.body);
-      const outcome = await storage.createTestOutcome(validatedData);
-
-      // === AUTO-UPDATE CATEGORY TRUST TO "EVALUATED" ===
-      if (validatedData.customerId && validatedData.productCategory) {
-        try {
-          const existingTrust = await db.select().from(categoryTrust)
-            .where(sql`${categoryTrust.customerId} = ${validatedData.customerId} AND ${categoryTrust.categoryName} = ${validatedData.productCategory}`);
-
-          if (existingTrust.length > 0) {
-            const trust = existingTrust[0];
-            // Progress to evaluated if currently at introduced or lower
-            const shouldAdvance = trust.trustLevel === 'not_introduced' || trust.trustLevel === 'introduced';
-            if (shouldAdvance) {
-              await db.update(categoryTrust)
-                .set({
-                  trustLevel: 'evaluated',
-                  updatedAt: new Date(),
-                  updatedBy: req.user?.email
-                })
-                .where(eq(categoryTrust.id, trust.id));
-              console.log(`[Test Outcome] Advanced category trust for ${validatedData.customerId}/${validatedData.productCategory} to evaluated`);
-            }
-          } else {
-            // Create new category trust at "evaluated" level
-            await db.insert(categoryTrust).values({
-              customerId: validatedData.customerId,
-              categoryName: validatedData.productCategory,
-              trustLevel: 'evaluated',
-              updatedBy: req.user?.email
-            });
-            console.log(`[Test Outcome] Created category trust for ${validatedData.customerId}/${validatedData.productCategory} at evaluated`);
-          }
-        } catch (trustError) {
-          console.error("[Test Outcome] Error updating category trust:", trustError);
-        }
-      }
-
-      res.status(201).json(outcome);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      console.error("Error creating test outcome:", error);
-      res.status(500).json({ error: "Failed to create test outcome" });
-    }
+    res.status(410).json({ error: "Test outcomes feature deprecated - use sample request feedback instead" });
   });
 
   app.put("/api/crm/test-outcomes/:id", isAuthenticated, async (req, res) => {
-    try {
-      const validatedData = insertTestOutcomeSchema.partial().parse(req.body);
-      const outcome = await storage.updateTestOutcome(parseInt(req.params.id), validatedData);
-      if (!outcome) {
-        return res.status(404).json({ error: "Test outcome not found" });
-      }
-      res.json(outcome);
-    } catch (error) {
-      if (error instanceof z.ZodError) {
-        return res.status(400).json({ error: error.errors });
-      }
-      console.error("Error updating test outcome:", error);
-      res.status(500).json({ error: "Failed to update test outcome" });
-    }
+    res.status(410).json({ error: "Test outcomes feature deprecated - use sample request feedback instead" });
   });
 
   // Validation Events
@@ -10587,16 +10505,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // AUTO-SYNC CATEGORY TRUST FROM EXISTING DATA
   // ========================================
 
-  // Sync category trust from sample requests and test outcomes
+  // Sync category trust from sample requests
   app.post("/api/crm/category-trust/:customerId/sync", isAuthenticated, async (req: any, res) => {
     try {
       const { customerId } = req.params;
       
       // Get sample requests for this customer
       const samples = await storage.getSampleRequestsByCustomerId(customerId);
-      
-      // Get test outcomes
-      const outcomes = await db.select().from(testOutcomes).where(eq(testOutcomes.customerId, customerId));
       
       // Get existing category trusts
       const existingTrusts = await db.select().from(categoryTrust).where(eq(categoryTrust.customerId, customerId));
@@ -10620,13 +10535,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         if (sample.status === 'testing' || sample.status === 'shipped') {
           trustLevel = 'evaluated';
         } else if (sample.status === 'completed') {
-          // Check if there's a passing test outcome
-          const outcome = outcomes.find(o => o.sampleRequestId === sample.id);
-          if (outcome?.overallResult === 'pass') {
-            trustLevel = 'adopted';
-          } else if (outcome) {
-            trustLevel = 'evaluated';
-          }
+          trustLevel = 'adopted';
         }
         
         // Only update if new level is higher

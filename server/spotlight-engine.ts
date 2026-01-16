@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, moments, customerContacts } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts } from "@shared/schema";
 import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { analyzeForHints, SpotlightHint, getCustomerMachineProfiles, getProductSuggestionsForMachines, getMachineLabel, checkMissingMachineProfile } from "./spotlight-heuristics";
@@ -353,63 +353,9 @@ class SpotlightEngine {
   }
 
   async generateDailyQueue(userId: string): Promise<number> {
-    const today = this.getTodayKey();
-    
-    const existingCount = await db
-      .select({ count: count() })
-      .from(moments)
-      .where(and(
-        eq(moments.userId, userId),
-        eq(moments.queueDate, today)
-      ));
-    
-    if (Number(existingCount[0]?.count || 0) >= 30) {
-      console.log(`[Spotlight] Queue already generated for ${userId} on ${today}`);
-      return Number(existingCount[0]?.count || 0);
-    }
-
-    const readiness = await this.calculateDataReadiness(userId);
-    const quotas = this.calculateAdaptiveQuotas(readiness);
-    
-    const momentTypes: { type: string; bucket: TaskBucket; quota: number }[] = [
-      { type: 'data_hygiene', bucket: 'data_hygiene', quota: quotas.data_hygiene },
-      { type: 'follow_up', bucket: 'follow_ups', quota: quotas.follow_ups },
-      { type: 'call', bucket: 'calls', quota: quotas.calls },
-      { type: 'email', bucket: 'outreach', quota: Math.ceil(quotas.outreach * 0.6) },
-      { type: 'swatchbook', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.4) },
-      { type: 'press_test', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
-      { type: 'price_list', bucket: 'enablement', quota: Math.ceil(quotas.enablement * 0.3) },
-    ];
-
-    let position = 0;
-    const momentsToInsert: any[] = [];
-
-    for (const { type, bucket, quota } of momentTypes) {
-      const candidates = await this.findCandidatesForMomentType(userId, type, quota);
-      
-      for (const candidate of candidates) {
-        momentsToInsert.push({
-          momentId: `${type}_${candidate.customerId}_${nanoid(8)}`,
-          userId,
-          customerId: candidate.customerId,
-          momentType: type,
-          priorityScore: candidate.priority,
-          reasonWhyNow: candidate.whyNow,
-          dueAt: candidate.dueAt,
-          suggestedPayload: candidate.payload || {},
-          status: 'queued',
-          queueDate: today,
-          queuePosition: position++,
-        });
-      }
-    }
-
-    if (momentsToInsert.length > 0) {
-      await db.insert(moments).values(momentsToInsert);
-      console.log(`[Spotlight] Generated ${momentsToInsert.length} moments for ${userId} on ${today}`);
-    }
-
-    return momentsToInsert.length;
+    // Legacy queue-based system removed - SPOTLIGHT uses dynamic task selection via getNextTask()
+    console.log(`[Spotlight] generateDailyQueue called for ${userId} - using dynamic task selection instead`);
+    return 0;
   }
 
   private async findCandidatesForMomentType(userId: string, type: string, quota: number): Promise<Array<{
@@ -534,7 +480,7 @@ class SpotlightEngine {
             pricingTier: customers.pricingTier,
             phone: customers.phone,
             salesRepId: customers.salesRepId,
-            streetAddress: customers.streetAddress
+            address1: customers.address1
           })
             .from(customers)
             .where(and(
@@ -591,140 +537,21 @@ class SpotlightEngine {
   }
 
   async getNextMomentFromQueue(userId: string): Promise<{ moment: any | null; session: SpotlightSession; hints: SpotlightHint[] }> {
-    const today = this.getTodayKey();
+    // Legacy queue-based system removed - use getNextTask() instead
     const session = await this.getSessionAsync(userId);
-
-    const queuedCount = await db.select({ count: count() })
-      .from(moments)
-      .where(and(
-        eq(moments.userId, userId),
-        eq(moments.queueDate, today)
-      ));
-
-    if (Number(queuedCount[0]?.count || 0) < 10) {
-      await this.generateDailyQueue(userId);
-    }
-
-    const nextMoment = await db.select()
-      .from(moments)
-      .where(and(
-        eq(moments.userId, userId),
-        eq(moments.queueDate, today),
-        eq(moments.status, 'queued')
-      ))
-      .orderBy(asc(moments.queuePosition))
-      .limit(1);
-
-    if (nextMoment.length === 0) {
-      return { moment: null, session, hints: [] };
-    }
-
-    await db.update(moments)
-      .set({ status: 'active', servedAt: new Date() })
-      .where(eq(moments.id, nextMoment[0].id));
-
-    const customer = await db.select()
-      .from(customers)
-      .where(eq(customers.id, nextMoment[0].customerId || ''))
-      .limit(1);
-
-    let hints: SpotlightHint[] = [];
-    if (customer[0]) {
-      hints = await analyzeForHints(
-        customer[0].id,
-        {
-          company: customer[0].company,
-          website: customer[0].website,
-          email: customer[0].email,
-          phone: customer[0].phone,
-          pricingTier: customer[0].pricingTier,
-          salesRepId: customer[0].salesRepId,
-          updatedAt: customer[0].updatedAt,
-          isHotProspect: customer[0].isHotProspect,
-        },
-        nextMoment[0].momentType
-      );
-    }
-
-    return {
-      moment: {
-        ...nextMoment[0],
-        customer: customer[0] || null,
-      },
-      session,
-      hints,
-    };
+    return { moment: null, session, hints: [] };
   }
 
   async completeMoment(momentId: string, outcome: string, userId: string): Promise<{ success: boolean; nextFollowUp?: any }> {
-    const today = this.getTodayKey();
-    
-    const moment = await db.select()
-      .from(moments)
-      .where(eq(moments.momentId, momentId))
-      .limit(1);
-
-    if (!moment[0]) {
-      return { success: false };
-    }
-
-    await db.update(moments)
-      .set({ 
-        status: 'completed', 
-        outcome, 
-        completedAt: new Date() 
-      })
-      .where(eq(moments.momentId, momentId));
-
-    if (moment[0].customerId) {
-      await db.insert(customerActivityEvents).values({
-        customerId: moment[0].customerId,
-        userId,
-        eventType: 'spotlight_moment',
-        description: `Completed ${moment[0].momentType} moment: ${outcome}`,
-        metadata: { momentId, outcome, momentType: moment[0].momentType },
-      });
-    }
-
-    await db.insert(spotlightEvents).values({
-      eventType: 'completed',
-      userId,
-      customerId: moment[0].customerId,
-      bucket: this.getBucketForMomentType(moment[0].momentType),
-      taskSubtype: moment[0].momentType,
-      outcomeId: outcome,
-      outcomeLabel: outcome,
-      dayOfWeek: new Date().getDay(),
-      hourOfDay: new Date().getHours(),
-      metadata: { momentId },
-    });
-
-    const session = this.getSession(userId);
-    const bucket = session.buckets.find(b => b.bucket === this.getBucketForMomentType(moment[0].momentType));
-    if (bucket) {
-      bucket.completed++;
-      session.totalCompleted++;
-    }
-
-    return { success: true };
+    // Legacy queue-based system removed - use completeTask() instead
+    console.log(`[Spotlight] Legacy completeMoment called for ${momentId} - use completeTask() instead`);
+    return { success: false };
   }
 
   async skipMoment(momentId: string, reason: string, userId: string): Promise<boolean> {
-    await db.update(moments)
-      .set({ status: 'skipped', outcome: reason, completedAt: new Date() })
-      .where(eq(moments.momentId, momentId));
-
-    await db.insert(spotlightEvents).values({
-      eventType: 'skipped',
-      userId,
-      bucket: 'calls',
-      skipReason: reason,
-      dayOfWeek: new Date().getDay(),
-      hourOfDay: new Date().getHours(),
-      metadata: { momentId },
-    });
-
-    return true;
+    // Legacy queue-based system removed - use skipTask() instead
+    console.log(`[Spotlight] Legacy skipMoment called for ${momentId} - use skipTask() instead`);
+    return false;
   }
 
   private getBucketForMomentType(type: string): TaskBucket {
