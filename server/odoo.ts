@@ -740,6 +740,153 @@ ${plainTextBody}`;
       messageType: 'email',
     });
   }
+
+  // Get partner with extended business fields (payment terms, salesperson)
+  async getPartnerBusinessDetails(partnerId: number): Promise<{
+    salesPerson: string | null;
+    paymentTerms: string | null;
+    pricelist: string | null;
+    creditLimit: number;
+    totalReceivable: number;
+  } | null> {
+    try {
+      const partners = await this.searchRead('res.partner', [['id', '=', partnerId]], [
+        'id', 'name', 'user_id', 'property_payment_term_id', 'property_product_pricelist',
+        'credit_limit', 'credit', 'debit', 'total_invoiced',
+      ], { limit: 1 });
+
+      if (!partners || partners.length === 0) {
+        return null;
+      }
+
+      const partner = partners[0];
+      return {
+        salesPerson: partner.user_id ? partner.user_id[1] : null,
+        paymentTerms: partner.property_payment_term_id ? partner.property_payment_term_id[1] : null,
+        pricelist: partner.property_product_pricelist ? partner.property_product_pricelist[1] : null,
+        creditLimit: partner.credit_limit || 0,
+        totalReceivable: partner.credit || 0,
+      };
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching partner business details for ${partnerId}:`, error.message);
+      return null;
+    }
+  }
+
+  // Get sale order lines for a partner to find top products purchased
+  async getSaleOrderLinesForPartner(partnerId: number): Promise<Array<{
+    productId: number;
+    productName: string;
+    quantity: number;
+    priceTotal: number;
+    orderId: number;
+    orderName: string;
+  }>> {
+    try {
+      // First get all confirmed sale orders for this partner
+      const orders = await this.searchRead('sale.order', [
+        ['partner_id', '=', partnerId],
+        ['state', 'in', ['sale', 'done']]
+      ], ['id', 'name'], { limit: 500 });
+
+      if (!orders || orders.length === 0) {
+        return [];
+      }
+
+      const orderIds = orders.map(o => o.id);
+      const orderMap = new Map(orders.map(o => [o.id, o.name]));
+
+      // Get all sale order lines for these orders
+      const lines = await this.searchRead('sale.order.line', [
+        ['order_id', 'in', orderIds]
+      ], [
+        'id', 'product_id', 'product_uom_qty', 'price_subtotal', 'order_id',
+      ], { limit: 2000 });
+
+      return lines
+        .filter((line: any) => line.product_id)
+        .map((line: any) => ({
+          productId: line.product_id[0],
+          productName: line.product_id[1],
+          quantity: line.product_uom_qty || 0,
+          priceTotal: line.price_subtotal || 0,
+          orderId: line.order_id[0],
+          orderName: orderMap.get(line.order_id[0]) || '',
+        }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching sale order lines for partner ${partnerId}:`, error.message);
+      return [];
+    }
+  }
+
+  // Get comprehensive business metrics for a partner
+  async getPartnerBusinessMetrics(partnerId: number): Promise<{
+    salesPerson: string | null;
+    paymentTerms: string | null;
+    totalOutstanding: number;
+    lifetimeSales: number;
+    averageMargin: number;
+    topProducts: Array<{ name: string; quantity: number; totalSpent: number }>;
+  } | null> {
+    try {
+      // Fetch data in parallel for speed
+      const [partnerDetails, invoices, orderLines] = await Promise.all([
+        this.getPartnerBusinessDetails(partnerId),
+        this.getInvoicesByPartner(partnerId),
+        this.getSaleOrderLinesForPartner(partnerId),
+      ]);
+
+      if (!partnerDetails) {
+        return null;
+      }
+
+      // Calculate total outstanding from invoices
+      const totalOutstanding = invoices
+        .filter((inv: any) => inv.state === 'posted' && inv.payment_state !== 'paid')
+        .reduce((sum: number, inv: any) => sum + (inv.amount_residual || 0), 0);
+
+      // Calculate lifetime sales from invoices
+      const lifetimeSales = invoices
+        .filter((inv: any) => inv.move_type === 'out_invoice')
+        .reduce((sum: number, inv: any) => sum + (inv.amount_total || 0), 0);
+
+      // Calculate refunds for net sales
+      const totalRefunds = invoices
+        .filter((inv: any) => inv.move_type === 'out_refund')
+        .reduce((sum: number, inv: any) => sum + (inv.amount_total || 0), 0);
+
+      // Aggregate products by name to find top products
+      const productAggregates = new Map<string, { quantity: number; totalSpent: number }>();
+      for (const line of orderLines) {
+        const existing = productAggregates.get(line.productName) || { quantity: 0, totalSpent: 0 };
+        existing.quantity += line.quantity;
+        existing.totalSpent += line.priceTotal;
+        productAggregates.set(line.productName, existing);
+      }
+
+      // Sort by total spent and take top 10
+      const topProducts = Array.from(productAggregates.entries())
+        .map(([name, data]) => ({ name, ...data }))
+        .sort((a, b) => b.totalSpent - a.totalSpent)
+        .slice(0, 10);
+
+      // Calculate average margin (placeholder - would need cost data for real calculation)
+      // For now, estimate based on typical wholesale margin of 25-35%
+      const estimatedMargin = lifetimeSales > 0 ? 30 : 0;
+
+      return {
+        salesPerson: partnerDetails.salesPerson,
+        paymentTerms: partnerDetails.paymentTerms,
+        totalOutstanding,
+        lifetimeSales: lifetimeSales - totalRefunds,
+        averageMargin: estimatedMargin,
+        topProducts,
+      };
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching business metrics for partner ${partnerId}:`, error.message);
+      return null;
+    }
+  }
 }
 
 export const odooClient = new OdooClient();

@@ -11100,6 +11100,49 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get comprehensive business metrics for a customer from Odoo
+  // Returns: salesPerson, paymentTerms, totalOutstanding, lifetimeSales, averageMargin, topProducts
+  app.get("/api/odoo/customer/:customerId/business-metrics", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json({
+          salesPerson: null,
+          paymentTerms: null,
+          totalOutstanding: 0,
+          lifetimeSales: 0,
+          averageMargin: 0,
+          topProducts: [],
+          connected: false,
+        });
+      }
+      
+      const metrics = await odooClient.getPartnerBusinessMetrics(customer[0].odooPartnerId);
+      if (!metrics) {
+        return res.json({
+          salesPerson: null,
+          paymentTerms: null,
+          totalOutstanding: 0,
+          lifetimeSales: 0,
+          averageMargin: 0,
+          topProducts: [],
+          connected: false,
+        });
+      }
+      
+      res.json({
+        ...metrics,
+        connected: true,
+      });
+    } catch (error: any) {
+      console.error("Error fetching Odoo business metrics for customer:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch business metrics from Odoo" });
+    }
+  });
+
   // Resync a customer's data from Odoo (updates address and other fields)
   app.post("/api/odoo/customer/:customerId/resync", requireApproval, async (req: any, res) => {
     try {

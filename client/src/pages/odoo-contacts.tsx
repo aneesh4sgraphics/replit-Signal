@@ -1,6 +1,6 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -106,9 +106,10 @@ const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
 export default function OdooContacts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
+  const [, navigate] = useLocation();
   
-  // View state
-  const [viewMode, setViewMode] = useState<ViewMode>('table');
+  // View state - Default to cards view
+  const [viewMode, setViewMode] = useState<ViewMode>('cards');
   const [searchQuery, setSearchQuery] = useState('');
   const [debouncedSearch, setDebouncedSearch] = useState('');
   const [sortField, setSortField] = useState<SortField>('updatedAt');
@@ -118,9 +119,9 @@ export default function OdooContacts() {
   const [editingField, setEditingField] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   
-  // Filters
+  // Filters - Default to showing only companies
   const [filters, setFilters] = useState({
-    isCompany: null as boolean | null,
+    isCompany: true as boolean | null,
     pricingTier: null as string | null,
     hasEmail: null as boolean | null,
     isHotProspect: null as boolean | null,
@@ -299,18 +300,18 @@ export default function OdooContacts() {
               <span className="hover:text-gray-900 cursor-pointer">Home</span>
             </Link>
             <ChevronRight className="w-3 h-3" />
-            <span className="text-gray-900 font-medium">Contacts</span>
+            <span className="text-gray-900 font-medium">Companies</span>
           </div>
           
           {/* Title Row */}
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-4">
               <div className="w-10 h-10 rounded-lg bg-gradient-to-br from-violet-500 to-purple-600 flex items-center justify-center text-white shadow-lg shadow-violet-200">
-                <Users className="w-5 h-5" />
+                <Building2 className="w-5 h-5" />
               </div>
               <div>
-                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Contacts</h1>
-                <p className="text-sm text-gray-500">{filteredContacts.length.toLocaleString()} contacts</p>
+                <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">Companies</h1>
+                <p className="text-sm text-gray-500">{filteredContacts.length.toLocaleString()} companies</p>
               </div>
             </div>
             
@@ -567,7 +568,7 @@ export default function OdooContacts() {
                       animate={{ opacity: 1, y: 0 }}
                       transition={{ delay: index * 0.02 }}
                       className="group hover:bg-violet-50/50 transition-colors cursor-pointer"
-                      onClick={() => setDetailContact(contact)}
+                      onClick={() => navigate(`/odoo-contacts/${contact.id}`)}
                     >
                       <td className="px-4 py-3" onClick={e => e.stopPropagation()}>
                         <Checkbox
@@ -659,7 +660,7 @@ export default function OdooContacts() {
                             </Button>
                           </DropdownMenuTrigger>
                           <DropdownMenuContent align="end">
-                            <DropdownMenuItem onClick={() => setDetailContact(contact)}>
+                            <DropdownMenuItem onClick={() => navigate(`/odoo-contacts/${contact.id}`)}>
                               <ExternalLink className="w-4 h-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
@@ -702,7 +703,7 @@ export default function OdooContacts() {
                 >
                   <Card 
                     className="group hover:shadow-lg hover:border-violet-200 transition-all duration-200 cursor-pointer bg-white"
-                    onClick={() => setDetailContact(contact)}
+                    onClick={() => navigate(`/odoo-contacts/${contact.id}`)}
                   >
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
