@@ -855,18 +855,17 @@ ${plainTextBody}`;
         .filter((inv: any) => inv.move_type === 'out_refund')
         .reduce((sum: number, inv: any) => sum + (inv.amount_total || 0), 0);
 
-      // Aggregate products by name to find top products
-      const productAggregates = new Map<string, { quantity: number; totalSpent: number }>();
+      // Aggregate products by product ID (SKU) to find top products
+      const productAggregates = new Map<number, { name: string; quantity: number; totalSpent: number }>();
       for (const line of orderLines) {
-        const existing = productAggregates.get(line.productName) || { quantity: 0, totalSpent: 0 };
+        const existing = productAggregates.get(line.productId) || { name: line.productName, quantity: 0, totalSpent: 0 };
         existing.quantity += line.quantity;
         existing.totalSpent += line.priceTotal;
-        productAggregates.set(line.productName, existing);
+        productAggregates.set(line.productId, existing);
       }
 
       // Sort by total spent and take top 10
-      const topProducts = Array.from(productAggregates.entries())
-        .map(([name, data]) => ({ name, ...data }))
+      const topProducts = Array.from(productAggregates.values())
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 10);
 
