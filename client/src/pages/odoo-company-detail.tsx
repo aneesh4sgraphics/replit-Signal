@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link, useRoute } from "wouter";
+import { Link, useRoute, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -29,6 +29,7 @@ import {
   AlertCircle,
   ExternalLink,
   ChevronRight,
+  ChevronLeft,
   Tag,
   Pencil,
   RefreshCw,
@@ -111,6 +112,7 @@ interface OdooContact {
 export default function OdooCompanyDetail() {
   const [, params] = useRoute("/odoo-contacts/:id");
   const companyId = params?.id;
+  const [, setLocation] = useLocation();
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [tagSaveSuccess, setTagSaveSuccess] = useState(false);
   const [paymentTermsSaveSuccess, setPaymentTermsSaveSuccess] = useState(false);
@@ -213,6 +215,28 @@ export default function OdooCompanyDetail() {
   const isShopifyEmail = (email: string | null): boolean => {
     if (!email) return false;
     return shopifyEmails.has(email.toLowerCase());
+  };
+
+  // Fetch all companies for prev/next navigation
+  const { data: allCompanies = [] } = useQuery<Contact[]>({
+    queryKey: ['/api/customers'],
+    staleTime: 60000,
+  });
+
+  // Calculate prev/next navigation - filter to companies only, sorted by company name
+  const companiesList = allCompanies
+    .filter(c => c.isCompany)
+    .sort((a, b) => (a.company || '').localeCompare(b.company || ''));
+  
+  const currentIndex = companiesList.findIndex(c => c.id === companyId);
+  const prevCompany = currentIndex > 0 ? companiesList[currentIndex - 1] : null;
+  const nextCompany = currentIndex < companiesList.length - 1 ? companiesList[currentIndex + 1] : null;
+
+  const navigateToPrev = () => {
+    if (prevCompany) setLocation(`/odoo-contacts/${prevCompany.id}`);
+  };
+  const navigateToNext = () => {
+    if (nextCompany) setLocation(`/odoo-contacts/${nextCompany.id}`);
   };
 
   // Mutation to update payment terms (immediate Odoo update)
@@ -547,6 +571,30 @@ export default function OdooCompanyDetail() {
                   )}
                 </>
               )}
+              
+              <div className="flex items-center gap-1 border-l pl-2 ml-1">
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={navigateToPrev}
+                  disabled={!prevCompany}
+                  className="px-2"
+                  title={prevCompany ? `Previous: ${prevCompany.company}` : 'No previous company'}
+                >
+                  <ChevronLeft className="w-4 h-4" />
+                </Button>
+                <Button 
+                  variant="outline" 
+                  size="sm" 
+                  onClick={navigateToNext}
+                  disabled={!nextCompany}
+                  className="px-2"
+                  title={nextCompany ? `Next: ${nextCompany.company}` : 'No next company'}
+                >
+                  <ChevronRight className="w-4 h-4" />
+                </Button>
+              </div>
+              
               <Link href="/odoo-contacts">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />
