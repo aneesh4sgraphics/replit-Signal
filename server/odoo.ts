@@ -1138,6 +1138,33 @@ ${plainTextBody}`;
       return [];
     }
   }
+
+  // Get available payment terms from Odoo
+  async getPaymentTerms(): Promise<Array<{ id: number; name: string }>> {
+    try {
+      const terms = await this.searchRead('account.payment.term', [['active', '=', true]], ['id', 'name'], { limit: 100 });
+      return terms.map((t: any) => ({
+        id: t.id,
+        name: t.name,
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching payment terms:`, error.message);
+      return [];
+    }
+  }
+
+  // Update partner payment terms in Odoo
+  async updatePartnerPaymentTerms(partnerId: number, paymentTermId: number | null): Promise<{ success: boolean; error?: string }> {
+    try {
+      await this.write('res.partner', [partnerId], {
+        property_payment_term_id: paymentTermId || false,
+      });
+      return { success: true };
+    } catch (error: any) {
+      console.error(`[Odoo] Error updating payment terms for partner ${partnerId}:`, error.message);
+      return { success: false, error: error.message };
+    }
+  }
 }
 
 export const odooClient = new OdooClient();

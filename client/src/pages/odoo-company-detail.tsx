@@ -11,6 +11,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -146,6 +147,39 @@ export default function OdooCompanyDetail() {
     },
     enabled: !!companyId,
     staleTime: 60000,
+  });
+
+  // Fetch available payment terms from Odoo
+  const { data: paymentTermsOptions } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ['/api/odoo/payment-terms'],
+    queryFn: async () => {
+      const res = await fetch('/api/odoo/payment-terms');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 300000, // Cache for 5 minutes
+  });
+
+  // Mutation to update payment terms (immediate Odoo update)
+  const updatePaymentTermsMutation = useMutation({
+    mutationFn: async ({ paymentTermId, paymentTermName }: { paymentTermId: number | null; paymentTermName: string }) => {
+      const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/payment-terms`, { paymentTermId, paymentTermName });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Payment Terms Updated",
+        description: "Payment terms updated in Odoo",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer', companyId, 'business-metrics'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update payment terms",
+        variant: "destructive",
+      });
+    },
   });
 
   // Mutation to save customer edits (queues for Odoo sync)
@@ -739,10 +773,32 @@ export default function OdooCompanyDetail() {
 
                 <div className="flex items-start gap-3">
                   <CreditCard className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500">Payment Terms</p>
+                  <div className="flex-1">
+                    <p className="text-sm text-gray-500 mb-1">Payment Terms</p>
                     {metricsLoading ? (
-                      <Skeleton className="h-5 w-32 mt-1" />
+                      <Skeleton className="h-9 w-full" />
+                    ) : paymentTermsOptions && paymentTermsOptions.length > 0 ? (
+                      <Select
+                        value={paymentTermsOptions.find(t => t.name === metrics?.paymentTerms)?.id.toString() || ''}
+                        onValueChange={(value) => {
+                          const term = paymentTermsOptions.find(t => t.id.toString() === value);
+                          if (term) {
+                            updatePaymentTermsMutation.mutate({ paymentTermId: term.id, paymentTermName: term.name });
+                          }
+                        }}
+                        disabled={updatePaymentTermsMutation.isPending}
+                      >
+                        <SelectTrigger className="w-full">
+                          <SelectValue placeholder={metrics?.paymentTerms || 'Select payment terms'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {paymentTermsOptions.map((term) => (
+                            <SelectItem key={term.id} value={term.id.toString()}>
+                              {term.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <p className="font-medium text-gray-900">
                         {metrics?.paymentTerms || 'Not Set'}

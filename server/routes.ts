@@ -10866,6 +10866,46 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get available payment terms from Odoo
+  app.get("/api/odoo/payment-terms", requireApproval, async (req: any, res) => {
+    try {
+      const terms = await odooClient.getPaymentTerms();
+      res.json(terms);
+    } catch (error: any) {
+      console.error("Error fetching payment terms:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch payment terms from Odoo" });
+    }
+  });
+
+  // Update customer payment terms (immediate Odoo update)
+  app.post("/api/odoo/customer/:customerId/payment-terms", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { paymentTermId, paymentTermName } = req.body;
+      
+      // Get customer to find their odooPartnerId
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo" });
+      }
+      
+      // Update payment terms directly in Odoo (this is a critical business field)
+      const result = await odooClient.updatePartnerPaymentTerms(customer.odooPartnerId, paymentTermId);
+      
+      if (!result.success) {
+        return res.status(500).json({ error: result.error || "Failed to update payment terms in Odoo" });
+      }
+      
+      res.json({ success: true, message: "Payment terms updated in Odoo" });
+    } catch (error: any) {
+      console.error("Error updating payment terms:", error);
+      res.status(500).json({ error: error.message || "Failed to update payment terms" });
+    }
+  });
+
   // Get partners (customers/companies) from Odoo
   app.get("/api/odoo/partners", requireApproval, async (req: any, res) => {
     try {
