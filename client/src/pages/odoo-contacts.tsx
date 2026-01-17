@@ -66,6 +66,9 @@ import {
   ChevronRight,
   Copy,
   ArrowLeft,
+  Loader2,
+  CreditCard,
+  UserCheck,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 
@@ -137,6 +140,10 @@ export default function OdooContacts() {
     isHotProspect: null as boolean | null,
   });
   const [showFilters, setShowFilters] = useState(false);
+  
+  // Bulk edit state
+  const [bulkEditOpen, setBulkEditOpen] = useState<'tags' | 'salesRep' | 'paymentTerms' | null>(null);
+  const [bulkEditLoading, setBulkEditLoading] = useState(false);
 
   // Debounced search
   const debouncedSetSearch = useCallback(
@@ -195,6 +202,103 @@ export default function OdooContacts() {
   const isShopifyCustomer = (contact: Contact): boolean => {
     if (!contact.email) return false;
     return shopifyEmails.has(contact.email.toLowerCase());
+  };
+
+  // Fetch payment terms from Odoo for bulk edit
+  const { data: paymentTerms = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ['/api/odoo/payment-terms'],
+    staleTime: 300000,
+  });
+
+  // Fetch sales people from Odoo for bulk edit
+  const { data: salesPeople = [] } = useQuery<Array<{ id: number; name: string; email: string }>>({
+    queryKey: ['/api/odoo/sales-people'],
+    staleTime: 300000,
+  });
+
+  // Bulk update handlers
+  const handleBulkUpdateTags = async (categoryId: number, categoryName: string) => {
+    setBulkEditLoading(true);
+    try {
+      const res = await apiRequest('POST', '/api/odoo/customers/bulk/category', {
+        customerIds: Array.from(selectedContacts),
+        categoryId,
+        categoryName
+      });
+      const result = await res.json();
+      toast({
+        title: result.success ? "Bulk Update Complete" : "Bulk Update Failed",
+        description: result.message,
+        variant: result.failed > 0 ? "destructive" : "default"
+      });
+      // Invalidate both local customer cache and Odoo business metrics for updated companies
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer'] });
+      if (result.success) {
+        setSelectedContacts(new Set());
+      }
+      setBulkEditOpen(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkEditLoading(false);
+    }
+  };
+
+  const handleBulkUpdateSalesRep = async (salesPersonId: number | null, salesPersonName: string | null) => {
+    setBulkEditLoading(true);
+    try {
+      const res = await apiRequest('POST', '/api/odoo/customers/bulk/sales-person', {
+        customerIds: Array.from(selectedContacts),
+        salesPersonId,
+        salesPersonName
+      });
+      const result = await res.json();
+      toast({
+        title: result.success ? "Bulk Update Complete" : "Bulk Update Failed",
+        description: result.message,
+        variant: result.failed > 0 ? "destructive" : "default"
+      });
+      // Invalidate both local customer cache and Odoo business metrics for updated companies
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer'] });
+      if (result.success) {
+        setSelectedContacts(new Set());
+      }
+      setBulkEditOpen(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkEditLoading(false);
+    }
+  };
+
+  const handleBulkUpdatePaymentTerms = async (paymentTermId: number, paymentTermName: string) => {
+    setBulkEditLoading(true);
+    try {
+      const res = await apiRequest('POST', '/api/odoo/customers/bulk/payment-terms', {
+        customerIds: Array.from(selectedContacts),
+        paymentTermId,
+        paymentTermName
+      });
+      const result = await res.json();
+      toast({
+        title: result.success ? "Bulk Update Complete" : "Bulk Update Failed",
+        description: result.message,
+        variant: result.failed > 0 ? "destructive" : "default"
+      });
+      // Invalidate both local customer cache and Odoo business metrics for updated companies
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer'] });
+      if (result.success) {
+        setSelectedContacts(new Set());
+      }
+      setBulkEditOpen(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkEditLoading(false);
+    }
   };
 
   // Filter and sort contacts
@@ -584,6 +688,124 @@ export default function OdooContacts() {
           </AnimatePresence>
         </div>
       </div>
+
+      {/* Bulk Actions Bar */}
+      <AnimatePresence>
+        {selectedContacts.size > 0 && (
+          <motion.div
+            initial={{ height: 0, opacity: 0 }}
+            animate={{ height: 'auto', opacity: 1 }}
+            exit={{ height: 0, opacity: 0 }}
+            className="bg-violet-50 border-b border-violet-200"
+          >
+            <div className="max-w-[1600px] mx-auto px-6 py-3">
+              <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 text-sm font-medium text-violet-700">
+                  <Check className="w-4 h-4" />
+                  {selectedContacts.size} selected
+                </div>
+                
+                <div className="h-4 w-px bg-violet-300" />
+                
+                {/* Bulk Edit Tags */}
+                <DropdownMenu open={bulkEditOpen === 'tags'} onOpenChange={(open) => setBulkEditOpen(open ? 'tags' : null)}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 bg-white" disabled={bulkEditLoading}>
+                      {bulkEditLoading && bulkEditOpen === 'tags' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Tag className="w-4 h-4" />
+                      )}
+                      Set Tags
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                    {partnerCategories.map(category => (
+                      <DropdownMenuItem 
+                        key={category.id} 
+                        onClick={() => handleBulkUpdateTags(category.id, category.name)}
+                        disabled={bulkEditLoading}
+                      >
+                        {category.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Bulk Edit Sales Rep */}
+                <DropdownMenu open={bulkEditOpen === 'salesRep'} onOpenChange={(open) => setBulkEditOpen(open ? 'salesRep' : null)}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 bg-white" disabled={bulkEditLoading}>
+                      {bulkEditLoading && bulkEditOpen === 'salesRep' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <UserCheck className="w-4 h-4" />
+                      )}
+                      Set Sales Rep
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                    <DropdownMenuItem 
+                      onClick={() => handleBulkUpdateSalesRep(null, null)}
+                      disabled={bulkEditLoading}
+                      className="text-gray-500"
+                    >
+                      Unassign Sales Rep
+                    </DropdownMenuItem>
+                    <DropdownMenuSeparator />
+                    {salesPeople.map(person => (
+                      <DropdownMenuItem 
+                        key={person.id} 
+                        onClick={() => handleBulkUpdateSalesRep(person.id, person.name)}
+                        disabled={bulkEditLoading}
+                      >
+                        {person.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Bulk Edit Payment Terms */}
+                <DropdownMenu open={bulkEditOpen === 'paymentTerms'} onOpenChange={(open) => setBulkEditOpen(open ? 'paymentTerms' : null)}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 bg-white" disabled={bulkEditLoading}>
+                      {bulkEditLoading && bulkEditOpen === 'paymentTerms' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <CreditCard className="w-4 h-4" />
+                      )}
+                      Set Payment Terms
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                    {paymentTerms.map(term => (
+                      <DropdownMenuItem 
+                        key={term.id} 
+                        onClick={() => handleBulkUpdatePaymentTerms(term.id, term.name)}
+                        disabled={bulkEditLoading}
+                      >
+                        {term.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                <div className="flex-1" />
+                
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setSelectedContacts(new Set())}
+                  className="text-gray-500"
+                >
+                  <X className="w-4 h-4 mr-1" />
+                  Clear Selection
+                </Button>
+              </div>
+            </div>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
       {/* Content */}
       <div className="max-w-[1600px] mx-auto px-6 py-6">

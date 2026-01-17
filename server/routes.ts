@@ -11042,6 +11042,175 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Bulk update payment terms for multiple customers
+  app.post("/api/odoo/customers/bulk/payment-terms", requireApproval, async (req: any, res) => {
+    try {
+      const { customerIds, paymentTermId, paymentTermName } = req.body;
+      
+      if (!Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({ error: "customerIds array is required" });
+      }
+      if (!paymentTermId) {
+        return res.status(400).json({ error: "paymentTermId is required" });
+      }
+
+      const results = { success: 0, failed: 0, errors: [] as string[] };
+      
+      for (const customerId of customerIds) {
+        try {
+          const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+          if (!customer || !customer.odooPartnerId) {
+            results.failed++;
+            results.errors.push(`Customer ${customerId}: Not linked to Odoo`);
+            continue;
+          }
+          
+          const result = await odooClient.updatePartnerPaymentTerms(customer.odooPartnerId, paymentTermId);
+          if (result.success) {
+            // Also update local customer record with payment term
+            await db.update(customers).set({
+              updatedAt: new Date()
+            }).where(eq(customers.id, customerId));
+            results.success++;
+          } else {
+            results.failed++;
+            results.errors.push(`Customer ${customer.company || customerId}: ${result.error}`);
+          }
+        } catch (err: any) {
+          results.failed++;
+          results.errors.push(`Customer ${customerId}: ${err.message}`);
+        }
+      }
+      
+      res.json({
+        success: results.success > 0,
+        message: `Updated ${results.success} of ${customerIds.length} customers`,
+        ...results
+      });
+    } catch (error: any) {
+      console.error("Error bulk updating payment terms:", error);
+      res.status(500).json({ error: error.message || "Failed to bulk update payment terms" });
+    }
+  });
+
+  // Bulk update sales person for multiple customers
+  app.post("/api/odoo/customers/bulk/sales-person", requireApproval, async (req: any, res) => {
+    try {
+      const { customerIds, salesPersonId, salesPersonName } = req.body;
+      
+      if (!Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({ error: "customerIds array is required" });
+      }
+
+      const results = { success: 0, failed: 0, errors: [] as string[] };
+      
+      for (const customerId of customerIds) {
+        try {
+          const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+          if (!customer || !customer.odooPartnerId) {
+            results.failed++;
+            results.errors.push(`Customer ${customerId}: Not linked to Odoo`);
+            continue;
+          }
+          
+          await odooClient.write('res.partner', customer.odooPartnerId, {
+            user_id: salesPersonId || false
+          });
+          
+          await db.update(customers).set({
+            salesRepName: salesPersonName || null,
+            updatedAt: new Date()
+          }).where(eq(customers.id, customerId));
+          
+          results.success++;
+        } catch (err: any) {
+          results.failed++;
+          results.errors.push(`Customer ${customerId}: ${err.message}`);
+        }
+      }
+      
+      res.json({
+        success: results.success > 0,
+        message: `Updated ${results.success} of ${customerIds.length} customers`,
+        ...results
+      });
+    } catch (error: any) {
+      console.error("Error bulk updating sales person:", error);
+      res.status(500).json({ error: error.message || "Failed to bulk update sales person" });
+    }
+  });
+
+  // Bulk update category/tag for multiple customers
+  app.post("/api/odoo/customers/bulk/category", requireApproval, async (req: any, res) => {
+    try {
+      const { customerIds, categoryId, categoryName } = req.body;
+      
+      if (!Array.isArray(customerIds) || customerIds.length === 0) {
+        return res.status(400).json({ error: "customerIds array is required" });
+      }
+      if (!categoryId) {
+        return res.status(400).json({ error: "categoryId is required" });
+      }
+
+      const results = { success: 0, failed: 0, childrenUpdated: 0, errors: [] as string[] };
+      
+      for (const customerId of customerIds) {
+        try {
+          const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+          if (!customer || !customer.odooPartnerId) {
+            results.failed++;
+            results.errors.push(`Customer ${customerId}: Not linked to Odoo`);
+            continue;
+          }
+          
+          // Update category in Odoo for the company
+          await odooClient.write('res.partner', customer.odooPartnerId, {
+            category_id: [[6, 0, [categoryId]]]
+          });
+          
+          // Get and update child contacts
+          const childContacts = await odooClient.searchRead('res.partner', [
+            ['parent_id', '=', customer.odooPartnerId],
+            ['is_company', '=', false]
+          ], ['id'], { limit: 500 });
+          
+          if (childContacts && childContacts.length > 0) {
+            for (const child of childContacts) {
+              try {
+                await odooClient.write('res.partner', child.id, {
+                  category_id: [[6, 0, [categoryId]]]
+                });
+                results.childrenUpdated++;
+              } catch (childError: any) {
+                // Log but continue
+              }
+            }
+          }
+          
+          // Update local pricing tier
+          await db.update(customers).set({
+            pricingTier: categoryName,
+            updatedAt: new Date()
+          }).where(eq(customers.id, customerId));
+          
+          results.success++;
+        } catch (err: any) {
+          results.failed++;
+          results.errors.push(`Customer ${customerId}: ${err.message}`);
+        }
+      }
+      
+      res.json({
+        success: results.success > 0,
+        message: `Updated ${results.success} of ${customerIds.length} customers${results.childrenUpdated > 0 ? ` (${results.childrenUpdated} child contacts)` : ''}`,
+        ...results
+      });
+    } catch (error: any) {
+      console.error("Error bulk updating category:", error);
+      res.status(500).json({ error: error.message || "Failed to bulk update category" });
+    }
+  });
+
   // Get partners (customers/companies) from Odoo
   app.get("/api/odoo/partners", requireApproval, async (req: any, res) => {
     try {
