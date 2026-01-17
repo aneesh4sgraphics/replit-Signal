@@ -797,7 +797,15 @@ export default function OdooCompanyDetail() {
                 <div className="flex items-start gap-3">
                   <CreditCard className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm text-gray-500 mb-1">Payment Terms</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm text-gray-500">Payment Terms</p>
+                      {updatePaymentTermsMutation.isPending && (
+                        <Loader2 className="w-3 h-3 animate-spin text-violet-500" />
+                      )}
+                      {updatePaymentTermsMutation.isSuccess && !updatePaymentTermsMutation.isPending && (
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                      )}
+                    </div>
                     {metricsLoading ? (
                       <Skeleton className="h-9 w-full" />
                     ) : paymentTermsOptions && paymentTermsOptions.length > 0 ? (
@@ -811,7 +819,7 @@ export default function OdooCompanyDetail() {
                         }}
                         disabled={updatePaymentTermsMutation.isPending}
                       >
-                        <SelectTrigger className="w-full">
+                        <SelectTrigger className={`w-full ${updatePaymentTermsMutation.isPending ? 'opacity-50' : ''}`}>
                           <SelectValue placeholder={metrics?.paymentTerms || 'Select payment terms'} />
                         </SelectTrigger>
                         <SelectContent>
@@ -835,7 +843,15 @@ export default function OdooCompanyDetail() {
                 <div className="flex items-start gap-3">
                   <Clock className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
-                    <p className="text-sm text-gray-500 mb-1">Pricing Tier</p>
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm text-gray-500">Pricing Tier</p>
+                      {updatePricingTierMutation.isPending && (
+                        <Loader2 className="w-3 h-3 animate-spin text-violet-500" />
+                      )}
+                      {updatePricingTierMutation.isSuccess && !updatePricingTierMutation.isPending && (
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                      )}
+                    </div>
                     <Select
                       value={company.pricingTier || ''}
                       onValueChange={(value) => {
@@ -843,7 +859,7 @@ export default function OdooCompanyDetail() {
                       }}
                       disabled={updatePricingTierMutation.isPending}
                     >
-                      <SelectTrigger className="w-full">
+                      <SelectTrigger className={`w-full ${updatePricingTierMutation.isPending ? 'opacity-50' : ''}`}>
                         <SelectValue placeholder={company.pricingTier || 'Select pricing tier'} />
                       </SelectTrigger>
                       <SelectContent>
