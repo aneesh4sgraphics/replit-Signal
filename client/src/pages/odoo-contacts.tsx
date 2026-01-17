@@ -1,6 +1,7 @@
 import { useState, useCallback, useRef, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
+import { PRICING_TIERS } from "@shared/schema";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -283,6 +284,13 @@ export default function OdooContacts() {
   const copyToClipboard = (text: string) => {
     navigator.clipboard.writeText(text);
     toast({ title: "Copied", description: text });
+  };
+
+  // Check if a contact has a valid pricing tier (case-insensitive match)
+  const hasPricingTier = (contact: Contact): boolean => {
+    if (!contact.pricingTier) return false;
+    const tier = contact.pricingTier.toUpperCase();
+    return PRICING_TIERS.some(pt => pt.toUpperCase() === tier);
   };
 
   // Active filters count
@@ -712,7 +720,7 @@ export default function OdooContacts() {
                 >
                   <Card 
                     className={`group hover:shadow-lg transition-all duration-200 cursor-pointer ${
-                      !contact.pricingTier 
+                      !hasPricingTier(contact)
                         ? 'bg-red-50 border-red-200 hover:border-red-300' 
                         : 'bg-white hover:border-violet-200'
                     }`}
@@ -768,13 +776,22 @@ export default function OdooContacts() {
                       </div>
                       
                       <div className="mt-3">
-                        {contact.pricingTier ? (
+                        {hasPricingTier(contact) ? (
                           <Badge variant="secondary" className="capitalize text-xs">
                             {contact.pricingTier}
                           </Badge>
+                        ) : contact.pricingTier ? (
+                          <div className="flex items-center gap-1">
+                            <Badge variant="outline" className="text-xs">
+                              {contact.pricingTier}
+                            </Badge>
+                            <Badge variant="destructive" className="text-xs">
+                              Need Pricing Tier
+                            </Badge>
+                          </div>
                         ) : (
                           <Badge variant="destructive" className="text-xs">
-                            No Tag
+                            No Pricing Tier
                           </Badge>
                         )}
                       </div>
