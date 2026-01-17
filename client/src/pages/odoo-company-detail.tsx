@@ -190,10 +190,10 @@ export default function OdooCompanyDetail() {
                       <span>{company.phone}</span>
                     </a>
                   )}
-                  {(company.city || company.province) && (
+                  {(company.address1 || company.city) && (
                     <span className="flex items-center gap-1">
                       <MapPin className="w-3.5 h-3.5" />
-                      <span>{[company.city, company.province].filter(Boolean).join(', ')}</span>
+                      <span>{[company.address1, company.city, company.province, company.zip, company.country].filter(Boolean).join(', ')}</span>
                     </span>
                   )}
                 </div>
