@@ -34,6 +34,35 @@ Preferred communication style: Simple, everyday language.
 - **Setup Wizard**: Guided step-by-step configuration flow for initial application setup, including machine types, categories, SKU mappings, timers, nudges, and scripts.
 - **SPOTLIGHT (Coaching Treadmill)**: Daily task management system presenting prioritized client actions for calls, follow-ups, outreach, data hygiene, and enablement. Features outcome buttons, auto-scheduling of follow-ups, and dual activity logging. Includes pricing feedback and smart hints for task processing.
 - **Do Not Merge Feature**: Allows users to explicitly mark customer pairs as separate entities to prevent future duplicate suggestions.
+- **Bulk Editing**: Odoo Contacts page supports bulk editing of Tags, Sales Rep, and Payment Terms for multiple selected contacts. Selection is preserved on failure for retry.
+
+### Email as Key Identifier
+Email is the primary identifier for connecting customers across all systems (Odoo, Shopify, Gmail, local CRM). The architecture ensures consistent matching and data integrity:
+
+**Email Normalization System** (`shared/email-normalizer.ts`):
+- Converts to lowercase, trims whitespace
+- Handles Gmail-specific rules (removes dots, ignores plus tags)
+- Removes surrounding angle brackets and quotes
+- Stored in `emailNormalized` and `email2Normalized` fields for fast lookup
+
+**Cross-System Email Matching**:
+- **Odoo Sync**: Customers linked via `odooPartnerId` field, matched by email during import
+- **Shopify Integration**: Green Shopify logo displayed on contacts whose email exists in Shopify customer mappings
+- **Gmail Intelligence**: Matches incoming/outgoing emails to customers using normalized email, aliases, and domain fallback
+- **Duplicate Detection**: `customerDoNotMerge` table prevents accidental merges of separate entities
+
+**Email Fields in Customers Table**:
+- `email` - Primary email address
+- `email2` - Secondary email for contacts with multiple emails
+- `emailNormalized` - Canonical normalized primary email
+- `email2Normalized` - Canonical normalized secondary email
+
+**Future Improvements Identified**:
+1. Email validation on entry (catch typos like "gmial.com")
+2. Duplicate detection dashboard for manual review
+3. Email source icons (Gmail/Odoo alongside Shopify)
+4. Secondary email display in Contacts section
+5. Email health score badge
 
 ### Database
 - **ORM**: Drizzle ORM with PostgreSQL dialect.
