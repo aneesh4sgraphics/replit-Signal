@@ -208,6 +208,7 @@ export interface IStorage {
   changeUserRole(userId: string, role: string): Promise<User | undefined>;
   updateUserRole(userId: string, role: string): Promise<User | undefined>;
   updateUserAllowedTiers(userId: string, allowedTiers: string[] | null): Promise<User | undefined>;
+  updateUserOdooMapping(userId: string, odooUserId: number | null, odooUserName: string | null): Promise<User | undefined>;
 
   
   // Product Categories
@@ -756,6 +757,15 @@ export class DatabaseStorage implements IStorage {
     const [user] = await db
       .update(users)
       .set({ allowedTiers, updatedAt: new Date() })
+      .where(eq(users.id, userId))
+      .returning();
+    return user;
+  }
+
+  async updateUserOdooMapping(userId: string, odooUserId: number | null, odooUserName: string | null): Promise<User | undefined> {
+    const [user] = await db
+      .update(users)
+      .set({ odooUserId, odooUserName, updatedAt: new Date() })
       .where(eq(users.id, userId))
       .returning();
     return user;

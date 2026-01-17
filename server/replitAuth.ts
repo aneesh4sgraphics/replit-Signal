@@ -6,6 +6,7 @@ import type { Express, RequestHandler, Request, Response, NextFunction } from "e
 import memoize from "memoizee";
 import connectPg from "connect-pg-simple";
 import { storage } from "./storage";
+import { odooClient, isOdooConfigured } from "./odoo";
 
 const ALLOWED_DOMAIN = "@4sgraphics.com";
 
@@ -151,6 +152,30 @@ async function upsertUserFromClaims(claims: any): Promise<void> {
     loginCount: (existingUser?.loginCount || 0) + 1,
     lastLoginDate: new Date().toISOString().split("T")[0],
   });
+
+  // Sync Odoo user mapping by email (non-blocking, background operation)
+  syncOdooUserMapping(claims["sub"], email).catch(err => {
+    console.error(`[Auth] Failed to sync Odoo user mapping for ${email}:`, err.message);
+  });
+}
+
+async function syncOdooUserMapping(userId: string, email: string): Promise<void> {
+  if (!isOdooConfigured()) {
+    console.log(`[Auth] Odoo not configured, skipping user mapping for ${email}`);
+    return;
+  }
+
+  try {
+    const odooUser = await odooClient.getUserByEmail(email);
+    if (odooUser) {
+      await storage.updateUserOdooMapping(userId, odooUser.id, odooUser.name);
+      console.log(`[Auth] Mapped user ${email} to Odoo user ${odooUser.name} (ID: ${odooUser.id})`);
+    } else {
+      console.log(`[Auth] No Odoo user found for ${email}`);
+    }
+  } catch (error: any) {
+    console.error(`[Auth] Odoo user lookup failed for ${email}:`, error.message);
+  }
 }
 
 function promisifiedLogin(req: Request, user: any): Promise<void> {

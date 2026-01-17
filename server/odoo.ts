@@ -506,6 +506,20 @@ class OdooClient {
     ], { limit: 200 });
   }
 
+  async getUserByEmail(email: string): Promise<{ id: number; name: string; email: string; login: string } | null> {
+    // Find Odoo user by email (case-insensitive matching via ilike)
+    const users = await this.searchRead('res.users', [
+      ['active', '=', true],
+      ['share', '=', false],
+      '|',
+      ['email', 'ilike', email],
+      ['login', 'ilike', email],
+    ], [
+      'id', 'name', 'email', 'login',
+    ], { limit: 1 });
+    return users.length > 0 ? users[0] : null;
+  }
+
   async getAllPartners(): Promise<OdooPartner[]> {
     // Fetch all partners using pagination
     const allPartners: OdooPartner[] = [];
@@ -1168,5 +1182,9 @@ ${plainTextBody}`;
 }
 
 export const odooClient = new OdooClient();
+
+export function isOdooConfigured(): boolean {
+  return !!(ODOO_URL && ODOO_DATABASE && ODOO_USERNAME && ODOO_API_KEY);
+}
 
 export type { OdooPartner, OdooProduct, OdooPricelist, OdooSaleOrder };

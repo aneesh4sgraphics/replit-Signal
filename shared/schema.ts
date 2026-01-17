@@ -155,6 +155,8 @@ export const users = pgTable("users", {
   efficiencyScore: integer("efficiency_score").default(0), // NOW MODE efficiency score (0-100)
   totalTasksCompleted: integer("total_tasks_completed").default(0), // Total NOW MODE tasks completed
   lastActivityAt: timestamp("last_activity_at"), // Last user activity for dormancy detection
+  odooUserId: integer("odoo_user_id"), // Link to Odoo res.users ID (matched by email)
+  odooUserName: varchar("odoo_user_name"), // Cached Odoo user display name
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
