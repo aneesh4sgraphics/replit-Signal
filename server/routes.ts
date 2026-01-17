@@ -11143,6 +11143,25 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get company contacts (people belonging to this company) from Odoo
+  app.get("/api/odoo/customer/:customerId/contacts", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      // Get customer to find their odooPartnerId
+      const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer.length || !customer[0].odooPartnerId) {
+        return res.json({ contacts: [] });
+      }
+      
+      const contacts = await odooClient.getCompanyContacts(customer[0].odooPartnerId);
+      res.json({ contacts });
+    } catch (error: any) {
+      console.error("Error fetching Odoo company contacts:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch company contacts from Odoo" });
+    }
+  });
+
   // Resync a customer's data from Odoo (updates address and other fields)
   app.post("/api/odoo/customer/:customerId/resync", requireApproval, async (req: any, res) => {
     try {

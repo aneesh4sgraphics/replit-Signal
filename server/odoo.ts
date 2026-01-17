@@ -741,6 +741,35 @@ ${plainTextBody}`;
     });
   }
 
+  // Get child contacts (people) for a company
+  async getCompanyContacts(companyPartnerId: number): Promise<Array<{
+    id: number;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    mobile: string | null;
+    function: string | null;
+  }>> {
+    try {
+      const contacts = await this.searchRead('res.partner', [
+        ['parent_id', '=', companyPartnerId],
+        ['is_company', '=', false]
+      ], ['id', 'name', 'email', 'phone', 'mobile', 'function'], { limit: 50 });
+
+      return contacts.map((c: any) => ({
+        id: c.id,
+        name: c.name || '',
+        email: c.email || null,
+        phone: c.phone || null,
+        mobile: c.mobile || null,
+        function: c.function || null,
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching company contacts for partner ${companyPartnerId}:`, error.message);
+      return [];
+    }
+  }
+
   // Get partner with extended business fields (payment terms, salesperson)
   async getPartnerBusinessDetails(partnerId: number): Promise<{
     salesPerson: string | null;

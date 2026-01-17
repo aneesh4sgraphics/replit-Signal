@@ -62,6 +62,15 @@ interface BusinessMetrics {
   connected: boolean;
 }
 
+interface OdooContact {
+  id: number;
+  name: string;
+  email: string | null;
+  phone: string | null;
+  mobile: string | null;
+  function: string | null;
+}
+
 export default function OdooCompanyDetail() {
   const [, params] = useRoute("/odoo-contacts/:id");
   const companyId = params?.id;
@@ -81,6 +90,17 @@ export default function OdooCompanyDetail() {
     queryFn: async () => {
       const res = await fetch(`/api/odoo/customer/${companyId}/business-metrics`);
       if (!res.ok) throw new Error('Failed to fetch metrics');
+      return res.json();
+    },
+    enabled: !!companyId,
+    staleTime: 60000,
+  });
+
+  const { data: contactsData, isLoading: contactsLoading } = useQuery<{ contacts: OdooContact[] }>({
+    queryKey: ['/api/odoo/customer', companyId, 'contacts'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/customer/${companyId}/contacts`);
+      if (!res.ok) throw new Error('Failed to fetch contacts');
       return res.json();
     },
     enabled: !!companyId,
@@ -157,7 +177,27 @@ export default function OdooCompanyDetail() {
               </div>
               <div>
                 <h1 className="text-2xl font-semibold text-gray-900 tracking-tight">{displayName}</h1>
-                <div className="flex items-center gap-3 mt-1">
+                <div className="flex items-center gap-4 mt-1 text-sm text-gray-600">
+                  {company.email && (
+                    <a href={`mailto:${company.email}`} className="flex items-center gap-1 hover:text-violet-600">
+                      <Mail className="w-3.5 h-3.5" />
+                      <span>{company.email}</span>
+                    </a>
+                  )}
+                  {company.phone && (
+                    <a href={`tel:${company.phone}`} className="flex items-center gap-1 hover:text-violet-600">
+                      <Phone className="w-3.5 h-3.5" />
+                      <span>{company.phone}</span>
+                    </a>
+                  )}
+                  {(company.city || company.province) && (
+                    <span className="flex items-center gap-1">
+                      <MapPin className="w-3.5 h-3.5" />
+                      <span>{[company.city, company.province].filter(Boolean).join(', ')}</span>
+                    </span>
+                  )}
+                </div>
+                <div className="flex items-center gap-3 mt-2">
                   {company.pricingTier && (
                     <Badge variant="secondary" className="capitalize bg-violet-100 text-violet-700">
                       {company.pricingTier}
@@ -364,57 +404,57 @@ export default function OdooCompanyDetail() {
 
             <Card>
               <CardHeader>
-                <CardTitle className="text-lg">Contact Information</CardTitle>
+                <CardTitle className="text-lg flex items-center gap-2">
+                  <User className="w-5 h-5 text-violet-500" />
+                  Contacts
+                </CardTitle>
               </CardHeader>
-              <CardContent className="space-y-4">
-                {company.email && (
-                  <div className="flex items-start gap-3">
-                    <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
-                    <div>
-                      <p className="text-sm text-gray-500">Email</p>
-                      <a
-                        href={`mailto:${company.email}`}
-                        className="font-medium text-violet-600 hover:text-violet-700"
-                      >
-                        {company.email}
-                      </a>
-                    </div>
+              <CardContent>
+                {contactsLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
                   </div>
-                )}
-
-                {company.phone && (
-                  <>
-                    <Separator />
-                    <div className="flex items-start gap-3">
-                      <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Phone</p>
-                        <a
-                          href={`tel:${company.phone}`}
-                          className="font-medium text-gray-900 hover:text-violet-600"
-                        >
-                          {company.phone}
-                        </a>
+                ) : contactsData?.contacts && contactsData.contacts.length > 0 ? (
+                  <div className="space-y-3">
+                    {contactsData.contacts.map((contact) => (
+                      <div
+                        key={contact.id}
+                        className="p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                      >
+                        <p className="font-medium text-gray-900 text-sm">{contact.name}</p>
+                        {contact.function && (
+                          <p className="text-xs text-gray-500 mt-0.5">{contact.function}</p>
+                        )}
+                        <div className="flex flex-wrap gap-3 mt-2 text-xs">
+                          {contact.email && (
+                            <a
+                              href={`mailto:${contact.email}`}
+                              className="flex items-center gap-1 text-violet-600 hover:text-violet-700"
+                            >
+                              <Mail className="w-3 h-3" />
+                              {contact.email}
+                            </a>
+                          )}
+                          {(contact.phone || contact.mobile) && (
+                            <a
+                              href={`tel:${contact.phone || contact.mobile}`}
+                              className="flex items-center gap-1 text-gray-600 hover:text-violet-600"
+                            >
+                              <Phone className="w-3 h-3" />
+                              {contact.phone || contact.mobile}
+                            </a>
+                          )}
+                        </div>
                       </div>
-                    </div>
-                  </>
-                )}
-
-                {(company.address1 || company.city) && (
-                  <>
-                    <Separator />
-                    <div className="flex items-start gap-3">
-                      <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
-                      <div>
-                        <p className="text-sm text-gray-500">Address</p>
-                        <p className="font-medium text-gray-900">
-                          {[company.address1, company.city, company.province, company.country]
-                            .filter(Boolean)
-                            .join(', ')}
-                        </p>
-                      </div>
-                    </div>
-                  </>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="text-center py-6 text-gray-500">
+                    <User className="w-10 h-10 mx-auto mb-2 text-gray-300" />
+                    <p className="text-sm">No contacts found</p>
+                  </div>
                 )}
               </CardContent>
             </Card>
