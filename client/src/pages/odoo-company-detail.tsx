@@ -103,6 +103,7 @@ export default function OdooCompanyDetail() {
   const [isEditOpen, setIsEditOpen] = useState(false);
   const [tagSaveSuccess, setTagSaveSuccess] = useState(false);
   const [paymentTermsSaveSuccess, setPaymentTermsSaveSuccess] = useState(false);
+  const [salesPersonSaveSuccess, setSalesPersonSaveSuccess] = useState(false);
   const [editForm, setEditForm] = useState({
     company: '',
     email: '',
@@ -173,6 +174,17 @@ export default function OdooCompanyDetail() {
     staleTime: 300000, // Cache for 5 minutes
   });
 
+  // Fetch available sales people from Odoo
+  const { data: salesPeopleOptions = [], isLoading: salesPeopleLoading } = useQuery<Array<{ id: number; name: string; email: string }>>({
+    queryKey: ['/api/odoo/sales-people'],
+    queryFn: async () => {
+      const res = await fetch('/api/odoo/sales-people');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 300000, // Cache for 5 minutes
+  });
+
   // Mutation to update payment terms (immediate Odoo update)
   const updatePaymentTermsMutation = useMutation({
     mutationFn: async ({ paymentTermId, paymentTermName }: { paymentTermId: number | null; paymentTermName: string }) => {
@@ -193,6 +205,38 @@ export default function OdooCompanyDetail() {
       toast({
         title: "Error",
         description: error.message || "Failed to update payment terms",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to update sales person (immediate Odoo update)
+  const updateSalesPersonMutation = useMutation({
+    mutationFn: async ({ salesPersonId, salesPersonName }: { salesPersonId: number | null; salesPersonName: string }) => {
+      const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/sales-person`, { salesPersonId, salesPersonName });
+      return res.json();
+    },
+    onSuccess: (data, variables) => {
+      toast({
+        title: "Sales Person Updated",
+        description: data.message || "Sales person updated in Odoo",
+      });
+      // Show success indicator for 3 seconds
+      setSalesPersonSaveSuccess(true);
+      setTimeout(() => setSalesPersonSaveSuccess(false), 3000);
+      // Update the local cache
+      queryClient.setQueryData<Contact>(['/api/customers', companyId], (oldData) => {
+        if (oldData) {
+          return { ...oldData, salesRepName: variables.salesPersonName };
+        }
+        return oldData;
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer', companyId, 'business-metrics'] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to update sales person",
         variant: "destructive",
       });
     },
@@ -815,10 +859,47 @@ export default function OdooCompanyDetail() {
               <CardContent className="space-y-4">
                 <div className="flex items-start gap-3">
                   <User className="w-5 h-5 text-gray-400 mt-0.5" />
-                  <div>
-                    <p className="text-sm text-gray-500">Sales Person</p>
-                    {metricsLoading ? (
-                      <Skeleton className="h-5 w-32 mt-1" />
+                  <div className="flex-1">
+                    <div className="flex items-center gap-2 mb-1">
+                      <p className="text-sm text-gray-500">Sales Person</p>
+                      {updateSalesPersonMutation.isPending && (
+                        <Loader2 className="w-3 h-3 animate-spin text-violet-500" />
+                      )}
+                      {salesPersonSaveSuccess && !updateSalesPersonMutation.isPending && (
+                        <CheckCircle2 className="w-3 h-3 text-green-500" />
+                      )}
+                    </div>
+                    {metricsLoading || salesPeopleLoading ? (
+                      <Skeleton className="h-9 w-full" />
+                    ) : salesPeopleOptions && salesPeopleOptions.length > 0 ? (
+                      <Select
+                        value={salesPeopleOptions.find(sp => sp.name === (metrics?.salesPerson || company.salesRepName))?.id.toString() || ''}
+                        onValueChange={(value) => {
+                          if (value === 'unassign') {
+                            updateSalesPersonMutation.mutate({ salesPersonId: null, salesPersonName: '' });
+                          } else {
+                            const person = salesPeopleOptions.find(sp => sp.id.toString() === value);
+                            if (person) {
+                              updateSalesPersonMutation.mutate({ salesPersonId: person.id, salesPersonName: person.name });
+                            }
+                          }
+                        }}
+                        disabled={updateSalesPersonMutation.isPending}
+                      >
+                        <SelectTrigger className={`w-full ${updateSalesPersonMutation.isPending ? 'opacity-50' : ''}`}>
+                          <SelectValue placeholder={metrics?.salesPerson || company.salesRepName || 'Select sales person'} />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="unassign" className="text-gray-400 italic">
+                            Unassign
+                          </SelectItem>
+                          {salesPeopleOptions.map((person) => (
+                            <SelectItem key={person.id} value={person.id.toString()}>
+                              {person.name}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
                     ) : (
                       <p className="font-medium text-gray-900">
                         {metrics?.salesPerson || company.salesRepName || 'Not Assigned'}

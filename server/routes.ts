@@ -10917,6 +10917,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get available sales people (internal users) from Odoo
+  app.get("/api/odoo/sales-people", requireApproval, async (req: any, res) => {
+    try {
+      const users = await odooClient.getUsers();
+      // Return sorted by name
+      const salesPeople = users
+        .map(u => ({ id: u.id, name: u.name, email: u.email }))
+        .sort((a, b) => a.name.localeCompare(b.name));
+      res.json(salesPeople);
+    } catch (error: any) {
+      console.error("Error fetching sales people:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch sales people from Odoo" });
+    }
+  });
+
+  // Update customer sales person (immediate Odoo update)
+  app.post("/api/odoo/customer/:customerId/sales-person", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { salesPersonId, salesPersonName } = req.body;
+      
+      // Get customer to find their odooPartnerId
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo" });
+      }
+      
+      // Update user_id (sales person) directly in Odoo
+      await odooClient.write('res.partner', customer.odooPartnerId, {
+        user_id: salesPersonId || false // false to unassign
+      });
+      
+      // Also update local salesRepName field
+      await db.update(customers).set({
+        salesRepName: salesPersonName || null,
+        updatedAt: new Date()
+      }).where(eq(customers.id, customerId));
+      
+      res.json({ 
+        success: true, 
+        message: salesPersonName ? `Sales person set to ${salesPersonName}` : "Sales person unassigned"
+      });
+    } catch (error: any) {
+      console.error("Error updating customer sales person:", error);
+      res.status(500).json({ error: error.message || "Failed to update sales person" });
+    }
+  });
+
   // Update customer category/tag (immediate Odoo update) - also propagates to child contacts
   app.post("/api/odoo/customer/:customerId/category", requireApproval, async (req: any, res) => {
     try {
