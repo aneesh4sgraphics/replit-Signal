@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -7,6 +7,12 @@ import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogFooter, DialogDescription } from "@/components/ui/dialog";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
+import { useToast } from "@/hooks/use-toast";
+import { apiRequest } from "@/lib/queryClient";
 import {
   ArrowLeft,
   Building2,
@@ -23,6 +29,12 @@ import {
   ExternalLink,
   ChevronRight,
   Tag,
+  Pencil,
+  RefreshCw,
+  Upload,
+  CheckCircle2,
+  XCircle,
+  Loader2,
 } from "lucide-react";
 
 interface Contact {
@@ -36,6 +48,7 @@ interface Contact {
   phone2: string | null;
   cell: string | null;
   address1: string | null;
+  address2: string | null;
   city: string | null;
   province: string | null;
   country: string | null;
@@ -49,6 +62,9 @@ interface Contact {
   note: string | null;
   isHotProspect: boolean;
   odooPartnerId: number | null;
+  odooSyncStatus: string | null;
+  odooPendingChanges: any | null;
+  odooLastSyncError: string | null;
   totalOrders: number;
   totalSpent: string;
   createdAt: string;
@@ -83,6 +99,22 @@ interface OdooContact {
 export default function OdooCompanyDetail() {
   const [, params] = useRoute("/odoo-contacts/:id");
   const companyId = params?.id;
+  const [isEditOpen, setIsEditOpen] = useState(false);
+  const [editForm, setEditForm] = useState({
+    company: '',
+    email: '',
+    phone: '',
+    address1: '',
+    address2: '',
+    city: '',
+    province: '',
+    zip: '',
+    country: '',
+    website: '',
+    note: '',
+  });
+  const { toast } = useToast();
+  const queryClient = useQueryClient();
 
   const { data: company, isLoading: companyLoading } = useQuery<Contact>({
     queryKey: ['/api/customers', companyId],
@@ -115,6 +147,83 @@ export default function OdooCompanyDetail() {
     enabled: !!companyId,
     staleTime: 60000,
   });
+
+  // Mutation to save customer edits (queues for Odoo sync)
+  const saveEditsMutation = useMutation({
+    mutationFn: async (changes: typeof editForm) => {
+      const res = await apiRequest('PATCH', `/api/odoo/customer/${companyId}/edit`, { changes });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Changes Saved",
+        description: data.message || `${data.queued} change(s) queued for Odoo sync`,
+      });
+      setIsEditOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/customers', companyId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save changes",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to push sync to Odoo immediately
+  const pushSyncMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/push-sync`);
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.conflict) {
+        toast({
+          title: "Sync Conflict",
+          description: "Data was changed in Odoo since last sync. Please refresh and review.",
+          variant: "destructive",
+        });
+      } else {
+        toast({
+          title: "Synced to Odoo",
+          description: data.message || `${data.synced} change(s) synced`,
+        });
+      }
+      queryClient.invalidateQueries({ queryKey: ['/api/customers', companyId] });
+    },
+    onError: (error: any) => {
+      toast({
+        title: "Sync Failed",
+        description: error.message || "Failed to sync to Odoo",
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Initialize edit form when company data is available and dialog opens
+  const openEditDialog = () => {
+    if (company) {
+      setEditForm({
+        company: company.company || '',
+        email: company.email || '',
+        phone: company.phone || '',
+        address1: company.address1 || '',
+        address2: company.address2 || '',
+        city: company.city || '',
+        province: company.province || '',
+        zip: company.zip || '',
+        country: company.country || '',
+        website: company.website || '',
+        note: company.note || '',
+      });
+      setIsEditOpen(true);
+    }
+  };
+
+  const handleSaveEdits = () => {
+    saveEditsMutation.mutate(editForm);
+  };
 
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-CA', {
@@ -220,11 +329,58 @@ export default function OdooCompanyDetail() {
                       Not linked to Odoo
                     </Badge>
                   )}
+                  {company.odooSyncStatus === 'pending' && (
+                    <Badge className="bg-amber-100 text-amber-700 flex items-center gap-1">
+                      <Clock className="w-3 h-3" />
+                      Pending Sync
+                    </Badge>
+                  )}
+                  {company.odooSyncStatus === 'error' && (
+                    <Badge className="bg-red-100 text-red-700 flex items-center gap-1">
+                      <XCircle className="w-3 h-3" />
+                      Sync Error
+                    </Badge>
+                  )}
+                  {company.odooSyncStatus === 'conflict' && (
+                    <Badge className="bg-orange-100 text-orange-700 flex items-center gap-1">
+                      <AlertCircle className="w-3 h-3" />
+                      Conflict
+                    </Badge>
+                  )}
                 </div>
               </div>
             </div>
 
             <div className="flex items-center gap-2">
+              {company.odooPartnerId && (
+                <>
+                  <Button 
+                    variant="outline" 
+                    size="sm" 
+                    onClick={openEditDialog}
+                    className="border-violet-200 text-violet-600 hover:bg-violet-50"
+                  >
+                    <Pencil className="w-4 h-4 mr-2" />
+                    Edit
+                  </Button>
+                  {company.odooSyncStatus === 'pending' && (
+                    <Button 
+                      variant="outline" 
+                      size="sm" 
+                      onClick={() => pushSyncMutation.mutate()}
+                      disabled={pushSyncMutation.isPending}
+                      className="border-green-200 text-green-600 hover:bg-green-50"
+                    >
+                      {pushSyncMutation.isPending ? (
+                        <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                      ) : (
+                        <Upload className="w-4 h-4 mr-2" />
+                      )}
+                      Push to Odoo
+                    </Button>
+                  )}
+                </>
+              )}
               <Link href={`/clients/${company.id}`}>
                 <Button variant="outline" size="sm">
                   <ExternalLink className="w-4 h-4 mr-2" />
@@ -241,6 +397,160 @@ export default function OdooCompanyDetail() {
           </div>
         </div>
       </div>
+
+      {/* Edit Customer Dialog */}
+      <Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
+        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Pencil className="w-5 h-5 text-violet-600" />
+              Edit Company Information
+            </DialogTitle>
+            <DialogDescription>
+              Changes will be saved locally and queued for Odoo sync. Use "Push to Odoo" to sync immediately, or wait for the nightly batch sync.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label htmlFor="company">Company Name</Label>
+              <Input
+                id="company"
+                value={editForm.company}
+                onChange={(e) => setEditForm({ ...editForm, company: e.target.value })}
+                placeholder="Company name"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="email">Email</Label>
+                <Input
+                  id="email"
+                  type="email"
+                  value={editForm.email}
+                  onChange={(e) => setEditForm({ ...editForm, email: e.target.value })}
+                  placeholder="email@company.com"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="phone">Phone</Label>
+                <Input
+                  id="phone"
+                  value={editForm.phone}
+                  onChange={(e) => setEditForm({ ...editForm, phone: e.target.value })}
+                  placeholder="+1 (555) 123-4567"
+                />
+              </div>
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="website">Website</Label>
+              <Input
+                id="website"
+                value={editForm.website}
+                onChange={(e) => setEditForm({ ...editForm, website: e.target.value })}
+                placeholder="https://www.company.com"
+              />
+            </div>
+
+            <Separator className="my-2" />
+
+            <div className="grid gap-2">
+              <Label htmlFor="address1">Street Address</Label>
+              <Input
+                id="address1"
+                value={editForm.address1}
+                onChange={(e) => setEditForm({ ...editForm, address1: e.target.value })}
+                placeholder="123 Main Street"
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="address2">Address Line 2</Label>
+              <Input
+                id="address2"
+                value={editForm.address2}
+                onChange={(e) => setEditForm({ ...editForm, address2: e.target.value })}
+                placeholder="Suite 100"
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="city">City</Label>
+                <Input
+                  id="city"
+                  value={editForm.city}
+                  onChange={(e) => setEditForm({ ...editForm, city: e.target.value })}
+                  placeholder="City"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="province">Province/State</Label>
+                <Input
+                  id="province"
+                  value={editForm.province}
+                  onChange={(e) => setEditForm({ ...editForm, province: e.target.value })}
+                  placeholder="Province or State"
+                />
+              </div>
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="grid gap-2">
+                <Label htmlFor="zip">Postal Code</Label>
+                <Input
+                  id="zip"
+                  value={editForm.zip}
+                  onChange={(e) => setEditForm({ ...editForm, zip: e.target.value })}
+                  placeholder="A1A 1A1"
+                />
+              </div>
+              <div className="grid gap-2">
+                <Label htmlFor="country">Country</Label>
+                <Input
+                  id="country"
+                  value={editForm.country}
+                  onChange={(e) => setEditForm({ ...editForm, country: e.target.value })}
+                  placeholder="Country"
+                />
+              </div>
+            </div>
+
+            <Separator className="my-2" />
+
+            <div className="grid gap-2">
+              <Label htmlFor="note">Notes</Label>
+              <Textarea
+                id="note"
+                value={editForm.note}
+                onChange={(e) => setEditForm({ ...editForm, note: e.target.value })}
+                placeholder="Add notes about this company..."
+                rows={3}
+              />
+            </div>
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsEditOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={handleSaveEdits}
+              disabled={saveEditsMutation.isPending}
+              className="bg-violet-600 hover:bg-violet-700"
+            >
+              {saveEditsMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <CheckCircle2 className="w-4 h-4 mr-2" />
+              )}
+              Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
       <div className="max-w-6xl mx-auto px-6 py-8">
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">

@@ -134,6 +134,7 @@ import {
   deletedCustomerExclusions,
   insertFollowUpTaskSchema,
   customerDoNotMerge,
+  customerSyncQueue,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -11169,6 +11170,286 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error fetching Odoo company contacts:", error);
       res.status(500).json({ error: error.message || "Failed to fetch company contacts from Odoo" });
+    }
+  });
+
+  // Get partner data for editing - fetches current Odoo data for the edit form
+  app.get("/api/odoo/customer/:customerId/edit-data", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo" });
+      }
+      
+      const partnerData = await odooClient.getPartnerForEdit(customer.odooPartnerId);
+      if (!partnerData) {
+        return res.status(404).json({ error: "Partner not found in Odoo" });
+      }
+      
+      res.json({ 
+        partnerData,
+        localData: {
+          company: customer.company,
+          email: customer.email,
+          phone: customer.phone,
+          address1: customer.address1,
+          address2: customer.address2,
+          city: customer.city,
+          province: customer.province,
+          zip: customer.zip,
+          country: customer.country,
+          website: customer.website,
+          note: customer.note,
+        },
+        syncStatus: customer.odooSyncStatus,
+        pendingChanges: customer.odooPendingChanges,
+        lastSyncError: customer.odooLastSyncError,
+      });
+    } catch (error: any) {
+      console.error("Error fetching customer edit data:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch edit data" });
+    }
+  });
+
+  // Save customer edits - queue for Odoo sync
+  app.patch("/api/odoo/customer/:customerId/edit", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { changes } = req.body; // { company, email, phone, address1, address2, city, province, zip, country, website, note }
+      const userEmail = req.user?.email || 'unknown';
+      
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo - cannot sync to Odoo" });
+      }
+      
+      // Build update object and queue entries for changes
+      const updateData: any = {
+        updatedAt: new Date(),
+        odooSyncStatus: 'pending',
+      };
+      
+      const queueEntries: any[] = [];
+      const fieldMappings: Record<string, string> = {
+        company: 'company',
+        email: 'email',
+        phone: 'phone',
+        address1: 'address1',
+        address2: 'address2',
+        city: 'city',
+        province: 'province',
+        zip: 'zip',
+        country: 'country',
+        website: 'website',
+        note: 'note',
+      };
+      
+      for (const [field, newValue] of Object.entries(changes)) {
+        if (fieldMappings[field]) {
+          const oldValue = (customer as any)[fieldMappings[field]];
+          if (oldValue !== newValue) {
+            updateData[fieldMappings[field]] = newValue;
+            queueEntries.push({
+              customerId,
+              odooPartnerId: customer.odooPartnerId,
+              fieldName: field,
+              oldValue: oldValue?.toString() || null,
+              newValue: (newValue as any)?.toString() || null,
+              status: 'pending',
+              changedBy: userEmail,
+            });
+          }
+        }
+      }
+      
+      if (queueEntries.length === 0) {
+        return res.json({ success: true, message: "No changes detected", queued: 0 });
+      }
+      
+      // Store pending changes JSON for quick reference
+      updateData.odooPendingChanges = changes;
+      
+      // Update local customer record
+      await db.update(customers).set(updateData).where(eq(customers.id, customerId));
+      
+      // Add to sync queue
+      await db.insert(customerSyncQueue).values(queueEntries);
+      
+      // Clear cache
+      setCachedData("customers", null);
+      
+      res.json({ 
+        success: true, 
+        message: `${queueEntries.length} change(s) queued for Odoo sync`,
+        queued: queueEntries.length,
+        syncStatus: 'pending',
+      });
+    } catch (error: any) {
+      console.error("Error saving customer edits:", error);
+      res.status(500).json({ error: error.message || "Failed to save edits" });
+    }
+  });
+
+  // Get sync queue status for a customer
+  app.get("/api/odoo/customer/:customerId/sync-queue", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const queue = await db.select()
+        .from(customerSyncQueue)
+        .where(eq(customerSyncQueue.customerId, customerId))
+        .orderBy(desc(customerSyncQueue.createdAt))
+        .limit(50);
+      
+      res.json({ queue });
+    } catch (error: any) {
+      console.error("Error fetching sync queue:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch sync queue" });
+    }
+  });
+
+  // Manual sync - push pending changes to Odoo immediately
+  app.post("/api/odoo/customer/:customerId/push-sync", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo" });
+      }
+      
+      // Get pending queue items for this customer
+      const pendingItems = await db.select()
+        .from(customerSyncQueue)
+        .where(and(
+          eq(customerSyncQueue.customerId, customerId),
+          eq(customerSyncQueue.status, 'pending')
+        ));
+      
+      if (pendingItems.length === 0) {
+        return res.json({ success: true, message: "No pending changes to sync", synced: 0 });
+      }
+      
+      // Group changes by field to get the latest value for each field
+      const latestChanges: Record<string, string | null> = {};
+      for (const item of pendingItems) {
+        latestChanges[item.fieldName] = item.newValue;
+      }
+      
+      // Push to Odoo with conflict check
+      const lastWriteDate = customer.odooWriteDate || undefined;
+      const result = await odooClient.updatePartnerWithConflictCheck(
+        customer.odooPartnerId,
+        latestChanges,
+        lastWriteDate
+      );
+      
+      if (result.conflict) {
+        // Mark items as conflict
+        await db.update(customerSyncQueue)
+          .set({ status: 'conflict', errorMessage: result.error, processedAt: new Date() })
+          .where(and(
+            eq(customerSyncQueue.customerId, customerId),
+            eq(customerSyncQueue.status, 'pending')
+          ));
+        
+        await db.update(customers)
+          .set({ odooSyncStatus: 'conflict', odooLastSyncError: result.error })
+          .where(eq(customers.id, customerId));
+        
+        return res.json({ 
+          success: false, 
+          conflict: true,
+          message: "Conflict detected - data was modified in Odoo since last sync",
+        });
+      }
+      
+      if (!result.success) {
+        // Mark items as error
+        await db.update(customerSyncQueue)
+          .set({ status: 'error', errorMessage: result.error, processedAt: new Date() })
+          .where(and(
+            eq(customerSyncQueue.customerId, customerId),
+            eq(customerSyncQueue.status, 'pending')
+          ));
+        
+        await db.update(customers)
+          .set({ odooSyncStatus: 'error', odooLastSyncError: result.error })
+          .where(eq(customers.id, customerId));
+        
+        return res.status(500).json({ 
+          success: false, 
+          error: result.error || "Failed to sync to Odoo",
+        });
+      }
+      
+      // Success - mark items as synced
+      await db.update(customerSyncQueue)
+        .set({ status: 'synced', processedAt: new Date() })
+        .where(and(
+          eq(customerSyncQueue.customerId, customerId),
+          eq(customerSyncQueue.status, 'pending')
+        ));
+      
+      // Update customer sync status
+      await db.update(customers)
+        .set({ 
+          odooSyncStatus: 'synced',
+          odooPendingChanges: null,
+          odooLastSyncError: null,
+          odooWriteDate: result.currentWriteDate || new Date(),
+          lastOdooSyncAt: new Date(),
+        })
+        .where(eq(customers.id, customerId));
+      
+      // Clear cache
+      setCachedData("customers", null);
+      
+      res.json({ 
+        success: true, 
+        message: `${pendingItems.length} change(s) synced to Odoo`,
+        synced: pendingItems.length,
+      });
+    } catch (error: any) {
+      console.error("Error pushing sync to Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to sync to Odoo" });
+    }
+  });
+
+  // Get pending sync count across all customers
+  app.get("/api/odoo/pending-sync-count", requireApproval, async (req: any, res) => {
+    try {
+      const [result] = await db.select({ count: sql<number>`count(*)::int` })
+        .from(customerSyncQueue)
+        .where(eq(customerSyncQueue.status, 'pending'));
+      
+      res.json({ pendingCount: result?.count || 0 });
+    } catch (error: any) {
+      console.error("Error fetching pending sync count:", error);
+      res.status(500).json({ error: error.message || "Failed to get pending sync count" });
+    }
+  });
+
+  // Admin route to run batch sync to Odoo immediately
+  app.post("/api/odoo/run-batch-sync", requireAdmin, async (req: any, res) => {
+    try {
+      const { runOdooSyncNow } = await import("./odoo-sync-worker");
+      const result = await runOdooSyncNow();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error running batch sync:", error);
+      res.status(500).json({ success: false, message: error.message || "Failed to run batch sync" });
     }
   });
 

@@ -212,6 +212,10 @@ export const customers = pgTable("customers", {
   pricingTierSetAt: timestamp("pricing_tier_set_at"), // When tier was first set (locks for non-admins)
   lastOdooSyncAt: timestamp("last_odoo_sync_at"), // When this customer was last synced from Odoo
   odooPartnerId: integer("odoo_partner_id"), // Linked Odoo res.partner ID
+  odooWriteDate: timestamp("odoo_write_date"), // Last write_date from Odoo for conflict detection
+  odooSyncStatus: varchar("odoo_sync_status", { length: 20 }).default("synced"), // 'synced', 'pending', 'conflict', 'error'
+  odooPendingChanges: jsonb("odoo_pending_changes"), // JSON of pending field changes to push to Odoo
+  odooLastSyncError: text("odoo_last_sync_error"), // Last sync error message if any
   odooParentId: integer("odoo_parent_id"), // Parent partner ID in Odoo (for tree structure)
   parentCustomerId: varchar("parent_customer_id"), // Local parent customer ID (resolved after import)
   contactType: varchar("contact_type", { length: 50 }), // 'company', 'contact', 'delivery', 'invoice', 'other'
@@ -261,6 +265,33 @@ export type PricingTierType = typeof PRICING_TIERS[number];
 // Customer schema types
 // export type Customer = typeof customers.$inferSelect;
 // export type InsertCustomer = typeof customers.$inferInsert;
+
+// Customer Sync Queue - tracks pending changes to push to Odoo
+export const customerSyncQueue = pgTable("customer_sync_queue", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: 'cascade' }),
+  odooPartnerId: integer("odoo_partner_id").notNull(), // Odoo partner ID to update
+  fieldName: varchar("field_name", { length: 100 }).notNull(), // Field that changed
+  oldValue: text("old_value"), // Previous value
+  newValue: text("new_value"), // New value to push to Odoo
+  status: varchar("status", { length: 20 }).notNull().default("pending"), // 'pending', 'processing', 'synced', 'conflict', 'error'
+  errorMessage: text("error_message"), // Error details if sync failed
+  retryCount: integer("retry_count").default(0), // Number of retry attempts
+  changedBy: varchar("changed_by", { length: 255 }), // User email who made the change
+  createdAt: timestamp("created_at").defaultNow(),
+  processedAt: timestamp("processed_at"), // When the change was synced/processed
+}, (table) => [
+  index("IDX_sync_queue_customer_id").on(table.customerId),
+  index("IDX_sync_queue_status").on(table.status),
+  index("IDX_sync_queue_created_at").on(table.createdAt),
+]);
+
+export type CustomerSyncQueue = typeof customerSyncQueue.$inferSelect;
+export type InsertCustomerSyncQueue = typeof customerSyncQueue.$inferInsert;
+export const insertCustomerSyncQueueSchema = createInsertSchema(customerSyncQueue).omit({
+  id: true,
+  createdAt: true,
+});
 
 // Do Not Merge - pairs of customers that should NOT be merged (they are separate entities)
 export const customerDoNotMerge = pgTable("customer_do_not_merge", {

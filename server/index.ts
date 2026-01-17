@@ -9,6 +9,7 @@ import { setupVite, serveStatic, log } from "./vite";
 import { startDripEmailWorker } from "./drip-email-worker";
 import { startQuoteFollowUpWorker } from "./quote-followup-worker";
 import { startDataRetentionWorker } from "./data-retention";
+import { startOdooSyncWorker } from "./odoo-sync-worker";
 import { ensureTaxonomySeeded } from "./taxonomy-seed";
 
 // Configure Puppeteer to use system Chromium for PDF generation
@@ -268,5 +269,6 @@ app.use((req, res, next) => {
     startDripEmailWorker().catch(err => console.error('[Drip Worker] Failed to start:', err.message));
     startQuoteFollowUpWorker().catch(err => console.error('[Quote Follow-up Worker] Failed to start:', err.message));
     startDataRetentionWorker().catch(err => console.error('[Data Retention] Failed to start:', err.message));
+    startOdooSyncWorker().catch(err => console.error('[Odoo Sync Worker] Failed to start:', err.message));
   });
 })();

@@ -993,6 +993,151 @@ ${plainTextBody}`;
       return null;
     }
   }
+
+  // Get partner write_date for conflict detection before updating
+  async getPartnerWriteDate(partnerId: number): Promise<Date | null> {
+    try {
+      const partners = await this.searchRead('res.partner', [['id', '=', partnerId]], ['write_date'], { limit: 1 });
+      if (partners && partners.length > 0 && partners[0].write_date) {
+        return new Date(partners[0].write_date);
+      }
+      return null;
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching write_date for partner ${partnerId}:`, error.message);
+      return null;
+    }
+  }
+
+  // Get full partner data for edit form
+  async getPartnerForEdit(partnerId: number): Promise<{
+    id: number;
+    name: string;
+    email: string | null;
+    phone: string | null;
+    street: string | null;
+    street2: string | null;
+    city: string | null;
+    stateId: [number, string] | null;
+    zip: string | null;
+    countryId: [number, string] | null;
+    website: string | null;
+    comment: string | null;
+    writeDate: Date | null;
+  } | null> {
+    try {
+      const partners = await this.searchRead('res.partner', [['id', '=', partnerId]], [
+        'id', 'name', 'email', 'phone', 'street', 'street2', 'city',
+        'state_id', 'zip', 'country_id', 'website', 'comment', 'write_date',
+      ], { limit: 1 });
+
+      if (!partners || partners.length === 0) return null;
+
+      const p = partners[0];
+      return {
+        id: p.id,
+        name: p.name || '',
+        email: p.email || null,
+        phone: p.phone || null,
+        street: p.street || null,
+        street2: p.street2 || null,
+        city: p.city || null,
+        stateId: p.state_id || null,
+        zip: p.zip || null,
+        countryId: p.country_id || null,
+        website: p.website || null,
+        comment: p.comment || null,
+        writeDate: p.write_date ? new Date(p.write_date) : null,
+      };
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching partner for edit ${partnerId}:`, error.message);
+      return null;
+    }
+  }
+
+  // Update partner with conflict detection - returns { success, conflict, error }
+  async updatePartnerWithConflictCheck(
+    partnerId: number,
+    values: Record<string, any>,
+    lastKnownWriteDate?: Date
+  ): Promise<{ success: boolean; conflict: boolean; error?: string; currentWriteDate?: Date }> {
+    try {
+      // Check current write_date if we have a previous one to compare
+      if (lastKnownWriteDate) {
+        const currentWriteDate = await this.getPartnerWriteDate(partnerId);
+        if (currentWriteDate && currentWriteDate > lastKnownWriteDate) {
+          return {
+            success: false,
+            conflict: true,
+            error: 'Partner was modified in Odoo since last sync',
+            currentWriteDate,
+          };
+        }
+      }
+
+      // Map CRM field names to Odoo field names
+      const odooValues: Record<string, any> = {};
+      const fieldMapping: Record<string, string> = {
+        company: 'name',
+        name: 'name',
+        email: 'email',
+        phone: 'phone',
+        address1: 'street',
+        address2: 'street2',
+        city: 'city',
+        zip: 'zip',
+        website: 'website',
+        note: 'comment',
+      };
+
+      for (const [crmField, value] of Object.entries(values)) {
+        const odooField = fieldMapping[crmField] || crmField;
+        odooValues[odooField] = value;
+      }
+
+      // Write to Odoo
+      const result = await this.write('res.partner', [partnerId], odooValues);
+      
+      if (result) {
+        const newWriteDate = await this.getPartnerWriteDate(partnerId);
+        return { success: true, conflict: false, currentWriteDate: newWriteDate || undefined };
+      } else {
+        return { success: false, conflict: false, error: 'Odoo write returned false' };
+      }
+    } catch (error: any) {
+      console.error(`[Odoo] Error updating partner ${partnerId}:`, error.message);
+      return { success: false, conflict: false, error: error.message };
+    }
+  }
+
+  // Get Odoo countries for dropdown
+  async getCountries(): Promise<Array<{ id: number; name: string; code: string }>> {
+    try {
+      const countries = await this.searchRead('res.country', [], ['id', 'name', 'code'], { limit: 300 });
+      return countries.map((c: any) => ({
+        id: c.id,
+        name: c.name,
+        code: c.code,
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching countries:`, error.message);
+      return [];
+    }
+  }
+
+  // Get Odoo states for a country
+  async getStates(countryId: number): Promise<Array<{ id: number; name: string; code: string }>> {
+    try {
+      const states = await this.searchRead('res.country.state', [['country_id', '=', countryId]], ['id', 'name', 'code'], { limit: 100 });
+      return states.map((s: any) => ({
+        id: s.id,
+        name: s.name,
+        code: s.code,
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching states for country ${countryId}:`, error.message);
+      return [];
+    }
+  }
 }
 
 export const odooClient = new OdooClient();

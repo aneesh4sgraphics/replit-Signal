@@ -6,6 +6,7 @@ const LOCK_IDS = {
   QUOTE_FOLLOWUP_WORKER: 1002,
   GMAIL_SYNC_WORKER: 1003,
   DATA_RETENTION_WORKER: 1004,
+  ODOO_SYNC_WORKER: 1005,
 } as const;
 
 export type LockName = keyof typeof LOCK_IDS;
