@@ -11583,6 +11583,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Partner not found in Odoo" });
       }
       
+      // Extract category/tag from Odoo for pricingTier field
+      let pricingTier: string | null = customer.pricingTier;
+      if (partner.category_id && Array.isArray(partner.category_id) && partner.category_id.length > 0) {
+        const firstCategory = partner.category_id[0];
+        if (Array.isArray(firstCategory) && firstCategory.length >= 2) {
+          pricingTier = firstCategory[1];
+        }
+      }
+      
       // Update customer with fresh Odoo data
       const updateData = {
         address1: partner.street || null,
@@ -11594,6 +11603,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         phone: partner.phone || partner.mobile || customer.phone,
         cell: partner.mobile || customer.cell,
         website: partner.website || customer.website,
+        pricingTier, // Category/tag from Odoo
         lastOdooSyncAt: new Date(),
       };
       
@@ -11811,6 +11821,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contactType = 'other';
           }
           
+          // Extract category/tag from Odoo for pricingTier field
+          // category_id can be: [[1, "Retail"], [2, "Wholesale"]] or [1, 2]
+          let pricingTier: string | null = null;
+          if (partner.category_id && Array.isArray(partner.category_id) && partner.category_id.length > 0) {
+            const firstCategory = partner.category_id[0];
+            if (Array.isArray(firstCategory) && firstCategory.length >= 2) {
+              // Tuple format: [[1, "Retail"]]
+              pricingTier = firstCategory[1];
+            }
+          }
+          
           // Create customer record - map Odoo address fields exactly
           const customerData = {
             id: crypto.randomUUID(),
@@ -11834,6 +11855,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             contactType,
             salesRepId,
             salesRepName,
+            pricingTier, // Category/tag from Odoo
             accountState: 'prospect' as const,
             lastOdooSyncAt: new Date(),
             createdAt: new Date(),
@@ -12033,6 +12055,108 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error: any) {
       console.error("Error syncing sales reps from Odoo:", error);
       res.status(500).json({ error: error.message || "Failed to sync sales reps from Odoo" });
+    }
+  });
+
+  // Sync tags/categories from Odoo for all customers
+  app.post("/api/odoo/sync-tags", requireAdmin, async (req: any, res) => {
+    try {
+      console.log("[Odoo Tag Sync] Starting tag sync from Odoo...");
+      
+      // Get all customers with Odoo partner IDs
+      const customersWithOdoo = await db.select({
+        id: customers.id,
+        odooPartnerId: customers.odooPartnerId,
+        company: customers.company,
+        pricingTier: customers.pricingTier,
+      }).from(customers)
+        .where(sql`${customers.odooPartnerId} IS NOT NULL`);
+      
+      console.log(`[Odoo Tag Sync] Found ${customersWithOdoo.length} customers with Odoo partner IDs`);
+      
+      if (customersWithOdoo.length === 0) {
+        return res.json({
+          success: true,
+          message: "No Odoo-linked customers found",
+          updated: 0,
+          checked: 0,
+        });
+      }
+      
+      // Fetch partner data in batches to get category_id
+      const batchSize = 50;
+      const partnerIds = customersWithOdoo.map(c => c.odooPartnerId!);
+      const partnerMap = new Map<number, string | null>();
+      
+      for (let i = 0; i < partnerIds.length; i += batchSize) {
+        const batchIds = partnerIds.slice(i, i + batchSize);
+        try {
+          const partners = await odooClient.searchRead('res.partner', [
+            ['id', 'in', batchIds]
+          ], ['id', 'category_id'], { limit: batchSize });
+          
+          for (const partner of partners) {
+            let tag: string | null = null;
+            if (partner.category_id && Array.isArray(partner.category_id) && partner.category_id.length > 0) {
+              const firstCategory = partner.category_id[0];
+              if (Array.isArray(firstCategory) && firstCategory.length >= 2) {
+                tag = firstCategory[1];
+              }
+            }
+            partnerMap.set(partner.id, tag);
+          }
+          console.log(`[Odoo Tag Sync] Fetched batch ${Math.floor(i/batchSize) + 1}: ${partners.length} partners`);
+        } catch (batchError: any) {
+          console.error(`[Odoo Tag Sync] Error fetching batch:`, batchError.message);
+        }
+      }
+      
+      console.log(`[Odoo Tag Sync] Retrieved tags for ${partnerMap.size} partners`);
+      
+      // Update customers with tags
+      let updated = 0;
+      let skipped = 0;
+      let alreadySet = 0;
+      
+      for (const customer of customersWithOdoo) {
+        if (!customer.odooPartnerId) continue;
+        
+        const tag = partnerMap.get(customer.odooPartnerId);
+        if (tag === undefined) {
+          skipped++;
+          continue;
+        }
+        
+        // Skip if customer already has this tag
+        if (customer.pricingTier === tag) {
+          alreadySet++;
+          continue;
+        }
+        
+        // Update the customer with tag
+        await db.update(customers)
+          .set({ pricingTier: tag })
+          .where(eq(customers.id, customer.id));
+        
+        updated++;
+      }
+      
+      console.log(`[Odoo Tag Sync] Complete: ${updated} updated, ${alreadySet} already had tag, ${skipped} skipped`);
+      
+      // Clear customer cache
+      setCachedData("customers", null);
+      
+      res.json({
+        success: true,
+        message: `Updated ${updated} customers with tags from Odoo`,
+        updated,
+        alreadySet,
+        skipped,
+        totalProcessed: customersWithOdoo.length,
+      });
+    } catch (error: any) {
+      console.error("Error syncing tags from Odoo:", error);
+      res.status(500).json({ error: error.message || "Failed to sync tags from Odoo" });
     }
   });
 
