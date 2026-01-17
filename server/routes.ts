@@ -11512,6 +11512,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get product categories from Odoo
+  app.get("/api/odoo/product-categories", requireApproval, async (req: any, res) => {
+    try {
+      const categories = await odooClient.getAllProductCategories();
+      res.json(categories);
+    } catch (error: any) {
+      console.error("Error fetching Odoo product categories:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch product categories from Odoo" });
+    }
+  });
+
   // Get product inventory from Odoo by SKU
   app.get("/api/odoo/inventory/:itemCode", requireApproval, async (req: any, res) => {
     try {

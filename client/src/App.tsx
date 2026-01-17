@@ -45,6 +45,7 @@ import TaskInbox from "@/pages/task-inbox";
 import HotLeads from "@/pages/hot-leads";
 import OdooContacts from "@/pages/odoo-contacts";
 import OdooCompanyDetail from "@/pages/odoo-company-detail";
+import OdooProducts from "@/pages/odoo-products";
 
 import NotFound from "@/pages/not-found";
 import logoPath from "@assets/4s logo Clean 150x_1753410902611.png";
@@ -111,6 +112,7 @@ const AppRoutes = () => (
     <Route path="/hot-leads" component={HotLeads} />
     <Route path="/odoo-contacts" component={OdooContacts} />
     <Route path="/odoo-contacts/:id" component={OdooCompanyDetail} />
+    <Route path="/odoo-products" component={OdooProducts} />
     <Route><Redirect to="/" /></Route>
   </Switch>
 );
