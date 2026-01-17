@@ -11523,6 +11523,93 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get detailed product information including pricing tiers, inventory, POs, and customer purchases
+  app.get("/api/odoo/products/:id/details", requireApproval, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+
+      // Fetch all data in parallel for efficiency
+      const [product, pricingTiers, inventory, purchaseOrders, customerPurchases] = await Promise.all([
+        odooClient.getProductById(productId),
+        odooClient.getPricelistItemsForProduct(productId),
+        odooClient.getProductInventoryByTemplate(productId),
+        odooClient.getProductPurchaseOrders(productId),
+        odooClient.getProductCustomerPurchases(productId),
+      ]);
+
+      if (!product) {
+        return res.status(404).json({ error: "Product not found" });
+      }
+
+      // Defensive defaults for all data
+      const safeInventory = inventory || { totalAvailable: 0, totalVirtual: 0, totalIncoming: 0, totalOutgoing: 0, variants: [] };
+      const safePricingTiers = pricingTiers || [];
+      const safePurchaseOrders = purchaseOrders || [];
+      const safeCustomerPurchases = customerPurchases || [];
+
+      // Calculate average cost from variants
+      const variants = safeInventory.variants || [];
+      let averageCost = product.standard_price || 0;
+      if (variants.length > 0) {
+        const variantCosts = await odooClient.getProductVariants(productId);
+        const validCosts = variantCosts.filter(v => v.standard_price > 0);
+        if (validCosts.length > 0) {
+          averageCost = validCosts.reduce((sum, v) => sum + v.standard_price, 0) / validCosts.length;
+        }
+      }
+
+      // Calculate total on PO
+      const totalOnPO = safePurchaseOrders.reduce((sum, po) => sum + (po.qty_remaining || 0), 0);
+
+      res.json({
+        product: {
+          id: product.id,
+          name: product.name,
+          sku: product.default_code || '',
+          listPrice: product.list_price,
+          averageCost,
+          category: product.categ_id ? product.categ_id[1] : null,
+          type: product.type,
+          description: product.description_sale || product.description || '',
+          uom: product.uom_id ? product.uom_id[1] : 'Unit',
+        },
+        pricingTiers: safePricingTiers.map(tier => ({
+          id: tier.id,
+          pricelistName: tier.pricelist_name,
+          pricelistId: tier.pricelist_id?.[0] || 0,
+          fixedPrice: tier.fixed_price || 0,
+          minQuantity: tier.min_quantity || 1,
+          computePrice: tier.compute_price || 'fixed',
+          percentPrice: tier.percent_price || 0,
+        })),
+        inventory: {
+          available: safeInventory.totalAvailable || 0,
+          virtual: safeInventory.totalVirtual || 0,
+          incoming: safeInventory.totalIncoming || 0,
+          outgoing: safeInventory.totalOutgoing || 0,
+          variants: safeInventory.variants || [],
+        },
+        purchaseOrders: {
+          totalOnOrder: totalOnPO,
+          orders: safePurchaseOrders.slice(0, 10), // Limit to 10 most recent
+        },
+        customerPurchases: safeCustomerPurchases.map(c => ({
+          partnerId: c.partner_id,
+          partnerName: c.partner_name,
+          totalQty: c.total_qty || 0,
+          totalRevenue: c.total_revenue || 0,
+          orderCount: c.order_count || 0,
+        })),
+      });
+    } catch (error: any) {
+      console.error("Error fetching product details:", error);
+      res.status(500).json({ error: error.message || "Failed to fetch product details from Odoo" });
+    }
+  });
+
   // Get product inventory from Odoo by SKU
   app.get("/api/odoo/inventory/:itemCode", requireApproval, async (req: any, res) => {
     try {

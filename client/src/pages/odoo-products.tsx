@@ -255,70 +255,71 @@ export default function OdooProducts() {
         ) : viewMode === "grid" ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             {filteredProducts.map((product) => (
-              <Card 
-                key={product.id} 
-                className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
-              >
-                <CardContent className="p-4">
-                  <div className="flex items-start justify-between mb-2">
-                    <div className="flex-1 min-w-0">
-                      <h3 className="font-medium text-gray-900 truncate group-hover:text-violet-600 transition-colors">
-                        {product.name}
-                      </h3>
-                      {product.default_code && (
-                        <p className="text-sm text-gray-500 font-mono">
-                          {product.default_code}
-                        </p>
+              <Link key={product.id} href={`/odoo-products/${product.id}`}>
+                <Card 
+                  className="overflow-hidden hover:shadow-lg transition-shadow cursor-pointer group"
+                >
+                  <CardContent className="p-4">
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1 min-w-0">
+                        <h3 className="font-medium text-gray-900 truncate group-hover:text-violet-600 transition-colors">
+                          {product.name}
+                        </h3>
+                        {product.default_code && (
+                          <p className="text-sm text-gray-500 font-mono">
+                            {product.default_code}
+                          </p>
+                        )}
+                      </div>
+                      <a
+                        href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </a>
+                    </div>
+
+                    <div className="flex flex-wrap gap-1.5 mb-3">
+                      <Badge variant="secondary" className={getProductTypeColor(product.type)}>
+                        <Box className="w-3 h-3 mr-1" />
+                        {getProductTypeLabel(product.type)}
+                      </Badge>
+                      {product.categ_id && (
+                        <Badge variant="outline" className="text-xs">
+                          <Layers className="w-3 h-3 mr-1" />
+                          {product.categ_id[1]}
+                        </Badge>
                       )}
                     </div>
-                    <a
-                      href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
-                      onClick={(e) => e.stopPropagation()}
-                    >
-                      <ExternalLink className="w-4 h-4" />
-                    </a>
-                  </div>
 
-                  <div className="flex flex-wrap gap-1.5 mb-3">
-                    <Badge variant="secondary" className={getProductTypeColor(product.type)}>
-                      <Box className="w-3 h-3 mr-1" />
-                      {getProductTypeLabel(product.type)}
-                    </Badge>
-                    {product.categ_id && (
-                      <Badge variant="outline" className="text-xs">
-                        <Layers className="w-3 h-3 mr-1" />
-                        {product.categ_id[1]}
-                      </Badge>
-                    )}
-                  </div>
-
-                  <div className="flex items-center justify-between pt-2 border-t border-gray-100">
-                    <div>
-                      <p className="text-xs text-gray-500">List Price</p>
-                      <p className="text-lg font-semibold text-gray-900">
-                        {formatPrice(product.list_price)}
-                      </p>
-                    </div>
-                    {product.standard_price !== undefined && product.standard_price > 0 && (
-                      <div className="text-right">
-                        <p className="text-xs text-gray-500">Cost</p>
-                        <p className="text-sm text-gray-600">
-                          {formatPrice(product.standard_price)}
+                    <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+                      <div>
+                        <p className="text-xs text-gray-500">List Price</p>
+                        <p className="text-lg font-semibold text-gray-900">
+                          {formatPrice(product.list_price)}
                         </p>
                       </div>
-                    )}
-                  </div>
+                      {product.standard_price !== undefined && product.standard_price > 0 && (
+                        <div className="text-right">
+                          <p className="text-xs text-gray-500">Cost</p>
+                          <p className="text-sm text-gray-600">
+                            {formatPrice(product.standard_price)}
+                          </p>
+                        </div>
+                      )}
+                    </div>
 
-                  {product.uom_id && (
-                    <p className="text-xs text-gray-400 mt-2">
-                      Unit: {product.uom_id[1]}
-                    </p>
-                  )}
-                </CardContent>
-              </Card>
+                    {product.uom_id && (
+                      <p className="text-xs text-gray-400 mt-2">
+                        Unit: {product.uom_id[1]}
+                      </p>
+                    )}
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         ) : (
@@ -333,50 +334,53 @@ export default function OdooProducts() {
               <div className="col-span-1"></div>
             </div>
             {filteredProducts.map((product) => (
-              <Card key={product.id} className="overflow-hidden hover:shadow-md transition-shadow">
-                <CardContent className="p-0">
-                  <div className="grid grid-cols-12 gap-4 px-4 py-3 items-center">
-                    <div className="col-span-4">
-                      <p className="font-medium text-gray-900 truncate">{product.name}</p>
+              <Link key={product.id} href={`/odoo-products/${product.id}`}>
+                <Card className="overflow-hidden hover:shadow-md transition-shadow cursor-pointer group">
+                  <CardContent className="p-0">
+                    <div className="grid grid-cols-12 gap-4 px-4 py-3 items-center">
+                      <div className="col-span-4">
+                        <p className="font-medium text-gray-900 truncate group-hover:text-violet-600 transition-colors">{product.name}</p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-600 font-mono">
+                          {product.default_code || '-'}
+                        </p>
+                      </div>
+                      <div className="col-span-2">
+                        <p className="text-sm text-gray-600 truncate">
+                          {product.categ_id ? product.categ_id[1] : '-'}
+                        </p>
+                      </div>
+                      <div className="col-span-1">
+                        <Badge variant="secondary" className={`text-xs ${getProductTypeColor(product.type)}`}>
+                          {getProductTypeLabel(product.type)}
+                        </Badge>
+                      </div>
+                      <div className="col-span-1 text-right">
+                        <p className="font-medium text-gray-900">
+                          {formatPrice(product.list_price)}
+                        </p>
+                      </div>
+                      <div className="col-span-1 text-right">
+                        <p className="text-sm text-gray-600">
+                          {product.standard_price ? formatPrice(product.standard_price) : '-'}
+                        </p>
+                      </div>
+                      <div className="col-span-1 text-right">
+                        <a
+                          href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="inline-flex items-center text-sm text-violet-600 hover:text-violet-700"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          <ExternalLink className="w-4 h-4" />
+                        </a>
+                      </div>
                     </div>
-                    <div className="col-span-2">
-                      <p className="text-sm text-gray-600 font-mono">
-                        {product.default_code || '-'}
-                      </p>
-                    </div>
-                    <div className="col-span-2">
-                      <p className="text-sm text-gray-600 truncate">
-                        {product.categ_id ? product.categ_id[1] : '-'}
-                      </p>
-                    </div>
-                    <div className="col-span-1">
-                      <Badge variant="secondary" className={`text-xs ${getProductTypeColor(product.type)}`}>
-                        {getProductTypeLabel(product.type)}
-                      </Badge>
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <p className="font-medium text-gray-900">
-                        {formatPrice(product.list_price)}
-                      </p>
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <p className="text-sm text-gray-600">
-                        {product.standard_price ? formatPrice(product.standard_price) : '-'}
-                      </p>
-                    </div>
-                    <div className="col-span-1 text-right">
-                      <a
-                        href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="inline-flex items-center text-sm text-violet-600 hover:text-violet-700"
-                      >
-                        <ExternalLink className="w-4 h-4" />
-                      </a>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
+                  </CardContent>
+                </Card>
+              </Link>
             ))}
           </div>
         )}

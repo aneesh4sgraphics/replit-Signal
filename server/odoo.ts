@@ -1203,6 +1203,282 @@ ${plainTextBody}`;
       return { success: false, error: error.message };
     }
   }
+
+  // Get single product template by ID with extended fields
+  async getProductById(productId: number): Promise<OdooProduct | null> {
+    try {
+      const products = await this.searchRead('product.template', [
+        ['id', '=', productId]
+      ], [
+        'id', 'name', 'default_code', 'list_price', 'standard_price',
+        'categ_id', 'type', 'description', 'description_sale',
+        'uom_id', 'active', 'product_variant_ids'
+      ], { limit: 1 });
+      
+      if (!products || products.length === 0) {
+        return null;
+      }
+      return products[0];
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching product ${productId}:`, error.message);
+      throw error;
+    }
+  }
+
+  // Get product variants for a template
+  async getProductVariants(templateId: number): Promise<Array<{
+    id: number;
+    name: string;
+    default_code: string;
+    qty_available: number;
+    virtual_available: number;
+    incoming_qty: number;
+    outgoing_qty: number;
+    standard_price: number;
+  }>> {
+    try {
+      const variants = await this.searchRead('product.product', [
+        ['product_tmpl_id', '=', templateId]
+      ], [
+        'id', 'name', 'default_code', 'qty_available', 'virtual_available',
+        'incoming_qty', 'outgoing_qty', 'standard_price'
+      ], { limit: 100 });
+      return variants;
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching variants for template ${templateId}:`, error.message);
+      return [];
+    }
+  }
+
+  // Get pricelist items for a product template (pricing tiers)
+  async getPricelistItemsForProduct(productTemplateId: number): Promise<Array<{
+    id: number;
+    pricelist_id: [number, string];
+    pricelist_name: string;
+    fixed_price: number;
+    min_quantity: number;
+    compute_price: string;
+    percent_price: number;
+  }>> {
+    try {
+      // Get all pricelist items that apply to this product template
+      const items = await this.searchRead('product.pricelist.item', [
+        '|',
+        ['product_tmpl_id', '=', productTemplateId],
+        ['applied_on', '=', '3_global'] // Include global rules too
+      ], [
+        'id', 'pricelist_id', 'fixed_price', 'min_quantity',
+        'compute_price', 'percent_price', 'applied_on', 'product_tmpl_id'
+      ], { limit: 200 });
+
+      // Filter to only include product-specific items or global items
+      const relevantItems = items.filter((item: any) => {
+        if (item.applied_on === '3_global') return true;
+        if (item.product_tmpl_id && item.product_tmpl_id[0] === productTemplateId) return true;
+        return false;
+      });
+
+      return relevantItems.map((item: any) => ({
+        id: item.id,
+        pricelist_id: item.pricelist_id,
+        pricelist_name: item.pricelist_id ? item.pricelist_id[1] : 'Unknown',
+        fixed_price: item.fixed_price || 0,
+        min_quantity: item.min_quantity || 1,
+        compute_price: item.compute_price || 'fixed',
+        percent_price: item.percent_price || 0,
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching pricelist items for product ${productTemplateId}:`, error.message);
+      return [];
+    }
+  }
+
+  // Get purchase order lines for a product (on order quantities)
+  async getProductPurchaseOrders(productTemplateId: number): Promise<Array<{
+    id: number;
+    order_id: [number, string];
+    order_name: string;
+    product_qty: number;
+    qty_received: number;
+    qty_remaining: number;
+    price_unit: number;
+    date_planned: string;
+    state: string;
+  }>> {
+    try {
+      // First get variant IDs for this template
+      const variants = await this.searchRead('product.product', [
+        ['product_tmpl_id', '=', productTemplateId]
+      ], ['id'], { limit: 100 });
+      
+      if (variants.length === 0) return [];
+      
+      const variantIds = variants.map((v: any) => v.id);
+
+      // Get purchase order lines for these variants (only pending/confirmed orders)
+      const poLines = await this.searchRead('purchase.order.line', [
+        ['product_id', 'in', variantIds],
+        ['state', 'in', ['purchase', 'done']]
+      ], [
+        'id', 'order_id', 'product_qty', 'qty_received', 'price_unit', 'date_planned', 'state'
+      ], { limit: 100, order: 'date_planned desc' });
+
+      return poLines.map((line: any) => ({
+        id: line.id,
+        order_id: line.order_id,
+        order_name: line.order_id ? line.order_id[1] : 'Unknown',
+        product_qty: line.product_qty || 0,
+        qty_received: line.qty_received || 0,
+        qty_remaining: (line.product_qty || 0) - (line.qty_received || 0),
+        price_unit: line.price_unit || 0,
+        date_planned: line.date_planned || '',
+        state: line.state || '',
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching PO lines for product ${productTemplateId}:`, error.message);
+      return [];
+    }
+  }
+
+  // Get customer purchase history for a product
+  async getProductCustomerPurchases(productTemplateId: number): Promise<Array<{
+    partner_id: number;
+    partner_name: string;
+    total_qty: number;
+    total_revenue: number;
+    order_count: number;
+    last_order_date: string;
+  }>> {
+    try {
+      // First get variant IDs for this template
+      const variants = await this.searchRead('product.product', [
+        ['product_tmpl_id', '=', productTemplateId]
+      ], ['id'], { limit: 100 });
+      
+      if (variants.length === 0) return [];
+      
+      const variantIds = variants.map((v: any) => v.id);
+
+      // Get sale order lines for confirmed/done orders
+      const saleLines = await this.searchRead('sale.order.line', [
+        ['product_id', 'in', variantIds],
+        ['state', 'in', ['sale', 'done']]
+      ], [
+        'id', 'order_id', 'product_uom_qty', 'price_subtotal', 'order_partner_id'
+      ], { limit: 1000 });
+
+      // Aggregate by partner
+      const customerMap = new Map<number, {
+        partner_id: number;
+        partner_name: string;
+        total_qty: number;
+        total_revenue: number;
+        order_ids: Set<number>;
+        last_order_date: string;
+      }>();
+
+      for (const line of saleLines) {
+        const partnerId = line.order_partner_id?.[0];
+        const partnerName = line.order_partner_id?.[1] || 'Unknown';
+        
+        if (!partnerId) continue;
+        
+        if (!customerMap.has(partnerId)) {
+          customerMap.set(partnerId, {
+            partner_id: partnerId,
+            partner_name: partnerName,
+            total_qty: 0,
+            total_revenue: 0,
+            order_ids: new Set(),
+            last_order_date: '',
+          });
+        }
+        
+        const customer = customerMap.get(partnerId)!;
+        customer.total_qty += line.product_uom_qty || 0;
+        customer.total_revenue += line.price_subtotal || 0;
+        if (line.order_id?.[0]) {
+          customer.order_ids.add(line.order_id[0]);
+        }
+      }
+
+      // Convert to array and sort by revenue
+      const results = Array.from(customerMap.values()).map(c => ({
+        partner_id: c.partner_id,
+        partner_name: c.partner_name,
+        total_qty: c.total_qty,
+        total_revenue: c.total_revenue,
+        order_count: c.order_ids.size,
+        last_order_date: c.last_order_date,
+      }));
+
+      // Sort by total revenue descending
+      results.sort((a, b) => b.total_revenue - a.total_revenue);
+      
+      return results.slice(0, 50); // Top 50 customers
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching customer purchases for product ${productTemplateId}:`, error.message);
+      return [];
+    }
+  }
+
+  // Get aggregated product inventory from all variants
+  async getProductInventoryByTemplate(productTemplateId: number): Promise<{
+    totalAvailable: number;
+    totalVirtual: number;
+    totalIncoming: number;
+    totalOutgoing: number;
+    variants: Array<{
+      id: number;
+      sku: string;
+      available: number;
+      virtual: number;
+      incoming: number;
+      outgoing: number;
+    }>;
+  }> {
+    try {
+      const variants = await this.getProductVariants(productTemplateId);
+      
+      let totalAvailable = 0;
+      let totalVirtual = 0;
+      let totalIncoming = 0;
+      let totalOutgoing = 0;
+      
+      const variantData = variants.map(v => {
+        totalAvailable += v.qty_available || 0;
+        totalVirtual += v.virtual_available || 0;
+        totalIncoming += v.incoming_qty || 0;
+        totalOutgoing += v.outgoing_qty || 0;
+        
+        return {
+          id: v.id,
+          sku: v.default_code || '',
+          available: v.qty_available || 0,
+          virtual: v.virtual_available || 0,
+          incoming: v.incoming_qty || 0,
+          outgoing: v.outgoing_qty || 0,
+        };
+      });
+      
+      return {
+        totalAvailable,
+        totalVirtual,
+        totalIncoming,
+        totalOutgoing,
+        variants: variantData,
+      };
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching inventory for template ${productTemplateId}:`, error.message);
+      return {
+        totalAvailable: 0,
+        totalVirtual: 0,
+        totalIncoming: 0,
+        totalOutgoing: 0,
+        variants: [],
+      };
+    }
+  }
 }
 
 export const odooClient = new OdooClient();
