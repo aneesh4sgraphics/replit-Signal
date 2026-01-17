@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -101,6 +101,8 @@ export default function OdooCompanyDetail() {
   const [, params] = useRoute("/odoo-contacts/:id");
   const companyId = params?.id;
   const [isEditOpen, setIsEditOpen] = useState(false);
+  const [tagSaveSuccess, setTagSaveSuccess] = useState(false);
+  const [paymentTermsSaveSuccess, setPaymentTermsSaveSuccess] = useState(false);
   const [editForm, setEditForm] = useState({
     company: '',
     email: '',
@@ -182,6 +184,9 @@ export default function OdooCompanyDetail() {
         title: "Payment Terms Updated",
         description: "Payment terms updated in Odoo",
       });
+      // Show success indicator for 3 seconds
+      setPaymentTermsSaveSuccess(true);
+      setTimeout(() => setPaymentTermsSaveSuccess(false), 3000);
       queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer', companyId, 'business-metrics'] });
     },
     onError: (error: any) => {
@@ -199,12 +204,32 @@ export default function OdooCompanyDetail() {
       const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/category`, { categoryId, categoryName });
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: (data, variables) => {
       toast({
-        title: "Category Updated",
-        description: data.message || "Category tag updated in Odoo",
+        title: "Tag Updated",
+        description: data.message || "Tag updated in Odoo",
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/customers', companyId] });
+      // Show success indicator for 3 seconds
+      setTagSaveSuccess(true);
+      setTimeout(() => setTagSaveSuccess(false), 3000);
+      // Update the local cache directly with the new tag value
+      queryClient.setQueryData<Contact>(['/api/customers', companyId], (oldData) => {
+        if (oldData) {
+          return { ...oldData, pricingTier: variables.categoryName };
+        }
+        return oldData;
+      });
+      // Update the customers list cache directly
+      queryClient.setQueryData<Contact[]>(['/api/customers'], (oldData) => {
+        if (oldData) {
+          return oldData.map(customer => 
+            customer.id === companyId 
+              ? { ...customer, pricingTier: variables.categoryName }
+              : customer
+          );
+        }
+        return oldData;
+      });
     },
     onError: (error: any) => {
       toast({
@@ -812,7 +837,7 @@ export default function OdooCompanyDetail() {
                       {updatePaymentTermsMutation.isPending && (
                         <Loader2 className="w-3 h-3 animate-spin text-violet-500" />
                       )}
-                      {updatePaymentTermsMutation.isSuccess && !updatePaymentTermsMutation.isPending && (
+                      {paymentTermsSaveSuccess && !updatePaymentTermsMutation.isPending && (
                         <CheckCircle2 className="w-3 h-3 text-green-500" />
                       )}
                     </div>
@@ -854,11 +879,11 @@ export default function OdooCompanyDetail() {
                   <Tag className="w-5 h-5 text-gray-400 mt-0.5" />
                   <div className="flex-1">
                     <div className="flex items-center gap-2 mb-1">
-                      <p className="text-sm text-gray-500">Category Tag</p>
+                      <p className="text-sm text-gray-500">Tags</p>
                       {updatePricingTierMutation.isPending && (
                         <Loader2 className="w-3 h-3 animate-spin text-violet-500" />
                       )}
-                      {updatePricingTierMutation.isSuccess && !updatePricingTierMutation.isPending && (
+                      {tagSaveSuccess && !updatePricingTierMutation.isPending && (
                         <CheckCircle2 className="w-3 h-3 text-green-500" />
                       )}
                     </div>
