@@ -1381,6 +1381,110 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Backfill: Propagate pricing tier and sales rep between companies and contacts
+  app.post('/api/admin/backfill-pricing-propagation', isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      console.log("[Backfill] Starting bidirectional pricing tier/sales rep propagation...");
+      
+      const results = {
+        companyToContact: 0,
+        contactToCompany: 0,
+        errors: 0,
+      };
+      
+      // Step 1: Propagate from companies to contacts
+      const companies = await db.select()
+        .from(customers)
+        .where(eq(customers.isCompany, true));
+      
+      console.log(`[Backfill] Found ${companies.length} companies to process`);
+      
+      for (const company of companies) {
+        if (!company.pricingTier && !company.salesRepName) continue;
+        
+        try {
+          const childContacts = await db.select()
+            .from(customers)
+            .where(eq(customers.parentCustomerId, company.id));
+          
+          for (const child of childContacts) {
+            const updates: Record<string, any> = {};
+            if (company.pricingTier && !child.pricingTier) {
+              updates.pricingTier = company.pricingTier;
+            }
+            if (company.salesRepName && !child.salesRepName) {
+              updates.salesRepName = company.salesRepName;
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(customers).set(updates).where(eq(customers.id, child.id));
+              results.companyToContact++;
+            }
+          }
+        } catch (err) {
+          console.error(`[Backfill] Error processing company ${company.id}:`, err);
+          results.errors++;
+        }
+      }
+      
+      // Step 2: Propagate from contacts to companies (fill missing company data)
+      const companiesWithoutData = await db.select()
+        .from(customers)
+        .where(and(
+          eq(customers.isCompany, true),
+          sql`(${customers.pricingTier} IS NULL OR ${customers.salesRepName} IS NULL)`
+        ));
+      
+      console.log(`[Backfill] Found ${companiesWithoutData.length} companies with missing data`);
+      
+      for (const company of companiesWithoutData) {
+        try {
+          // Find children with data
+          const enrichedChildren = await db.select()
+            .from(customers)
+            .where(and(
+              eq(customers.parentCustomerId, company.id),
+              sql`(${customers.pricingTier} IS NOT NULL OR ${customers.salesRepName} IS NOT NULL)`
+            ))
+            .orderBy(desc(customers.updatedAt))
+            .limit(1);
+          
+          if (enrichedChildren.length > 0) {
+            const child = enrichedChildren[0];
+            const updates: Record<string, any> = {};
+            if (!company.pricingTier && child.pricingTier) {
+              updates.pricingTier = child.pricingTier;
+            }
+            if (!company.salesRepName && child.salesRepName) {
+              updates.salesRepName = child.salesRepName;
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(customers).set(updates).where(eq(customers.id, company.id));
+              results.contactToCompany++;
+              console.log(`[Backfill] Company ${company.company} filled from contact: ${JSON.stringify(updates)}`);
+            }
+          }
+        } catch (err) {
+          console.error(`[Backfill] Error processing company ${company.id}:`, err);
+          results.errors++;
+        }
+      }
+      
+      // Clear cache
+      setCachedData("customers", null);
+      
+      console.log(`[Backfill] Complete: ${results.companyToContact} contacts updated, ${results.contactToCompany} companies updated, ${results.errors} errors`);
+      
+      res.json({
+        success: true,
+        message: `Propagation complete: ${results.companyToContact} contacts updated from companies, ${results.contactToCompany} companies updated from contacts`,
+        results
+      });
+    } catch (error: any) {
+      console.error("[Backfill] Error:", error);
+      res.status(500).json({ error: error.message || "Backfill failed" });
+    }
+  });
+
   // Auto-assign sales reps based on location rules
   app.post('/api/admin/auto-assign-sales-reps', isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
@@ -2096,6 +2200,61 @@ export async function registerRoutes(app: Express): Promise<Server> {
           } catch (shopifyError) {
             console.error(`[Pricing Tier Sync] Failed to sync to Shopify:`, shopifyError);
           }
+        }
+      }
+      
+      // BIDIRECTIONAL PROPAGATION: Sync pricing tier and sales rep between company and contacts
+      const updatedPricingTier = customer.pricingTier;
+      const updatedSalesRepName = customer.salesRepName;
+      
+      // If this is a COMPANY, propagate pricing tier and sales rep to child contacts that don't have their own
+      if (customer.isCompany && (updatedPricingTier || updatedSalesRepName)) {
+        try {
+          const childContacts = await db.select({ id: customers.id, pricingTier: customers.pricingTier, salesRepName: customers.salesRepName })
+            .from(customers)
+            .where(eq(customers.parentCustomerId, customerId));
+          
+          for (const child of childContacts) {
+            const updates: Record<string, any> = {};
+            if (updatedPricingTier && !child.pricingTier) {
+              updates.pricingTier = updatedPricingTier;
+            }
+            if (updatedSalesRepName && !child.salesRepName) {
+              updates.salesRepName = updatedSalesRepName;
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(customers).set(updates).where(eq(customers.id, child.id));
+              console.log(`[Propagation] Company ${customer.company} -> Contact ${child.id}: ${JSON.stringify(updates)}`);
+            }
+          }
+        } catch (propError) {
+          console.error('[Propagation] Error propagating to child contacts:', propError);
+        }
+      }
+      
+      // If this is a CONTACT with a parent company, propagate UP if company is missing data
+      if (customer.parentCustomerId && (updatedPricingTier || updatedSalesRepName)) {
+        try {
+          const [parentCompany] = await db.select()
+            .from(customers)
+            .where(eq(customers.id, customer.parentCustomerId))
+            .limit(1);
+          
+          if (parentCompany) {
+            const updates: Record<string, any> = {};
+            if (updatedPricingTier && !parentCompany.pricingTier) {
+              updates.pricingTier = updatedPricingTier;
+            }
+            if (updatedSalesRepName && !parentCompany.salesRepName) {
+              updates.salesRepName = updatedSalesRepName;
+            }
+            if (Object.keys(updates).length > 0) {
+              await db.update(customers).set(updates).where(eq(customers.id, parentCompany.id));
+              console.log(`[Propagation] Contact ${customer.id} -> Company ${parentCompany.company}: ${JSON.stringify(updates)}`);
+            }
+          }
+        } catch (propError) {
+          console.error('[Propagation] Error propagating to parent company:', propError);
         }
       }
       
