@@ -34,6 +34,7 @@ import {
   ClockIcon,
   RefreshIcon,
   LogoutIcon,
+  PackageIcon,
 } from '@/components/HandDrawnIcons';
 
 type IconComponent = React.FC<{ className?: string }>;
@@ -58,7 +59,8 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/', icon: DashboardIcon, label: 'Dashboard', keywords: ['home', 'main', 'overview'], iconBg: '#0C6E99', iconColor: '#FFFFFF' },
   { path: '/quick-quotes', icon: QuickQuotesIcon, label: 'QuickQuotes', keywords: ['quote', 'estimate', 'pricing'], iconBg: '#D9730B', iconColor: '#FFFFFF' },
   { path: '/odoo-contacts', icon: ClientsIcon, label: 'Clients', keywords: ['customers', 'contacts', 'database', 'odoo', 'partners'], iconBg: '#693FA5', iconColor: '#FFFFFF' },
-  { path: '/reports', icon: ReportsIcon, label: 'Reports', keywords: ['analytics', 'reports', 'dashboard', 'sales', 'metrics', 'insights'], iconBg: '#0E7B6C', iconColor: '#FFFFFF' },
+  { path: '/odoo-products', icon: PackageIcon, label: 'Products', keywords: ['products', 'inventory', 'catalog', 'items', 'odoo', 'sku'], iconBg: '#0E7B6C', iconColor: '#FFFFFF' },
+  { path: '/reports', icon: ReportsIcon, label: 'Reports', keywords: ['analytics', 'reports', 'dashboard', 'sales', 'metrics', 'insights'], iconBg: '#2D7D6A', iconColor: '#FFFFFF' },
   { path: '/calendar', icon: CalendarIcon, label: 'Calendar', keywords: ['calendar', 'tasks', 'events', 'schedule', 'google', 'meetings'], iconBg: '#E03D3E', iconColor: '#FFFFFF' },
   { path: '/price-list', icon: PriceListIcon, label: 'Price List', keywords: ['prices', 'costs', 'rates'], iconBg: '#DFAB00', iconColor: '#37352F' },
   { path: '/saved-quotes', icon: SavedQuotesIcon, label: 'Saved Quotes', keywords: ['history', 'saved', 'previous'], iconBg: '#AD1972', iconColor: '#FFFFFF' },

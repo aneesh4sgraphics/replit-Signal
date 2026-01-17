@@ -94,9 +94,11 @@ export default function OdooProducts() {
   });
 
   const filteredProducts = products.filter(product => {
+    const searchLower = debouncedSearch.toLowerCase();
+    const sku = product.default_code ? String(product.default_code).toLowerCase() : '';
     const matchesSearch = !debouncedSearch || 
-      product.name.toLowerCase().includes(debouncedSearch.toLowerCase()) ||
-      (product.default_code?.toLowerCase().includes(debouncedSearch.toLowerCase()));
+      product.name.toLowerCase().includes(searchLower) ||
+      sku.includes(searchLower);
     
     const matchesCategory = selectedCategory === "all" || 
       (product.categ_id && product.categ_id[0].toString() === selectedCategory);
@@ -271,15 +273,16 @@ export default function OdooProducts() {
                           </p>
                         )}
                       </div>
-                      <a
-                        href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
-                        target="_blank"
-                        rel="noopener noreferrer"
+                      <button
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          window.open(`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`, '_blank');
+                        }}
                         className="p-1.5 rounded-md hover:bg-gray-100 text-gray-400 hover:text-violet-600 transition-colors"
-                        onClick={(e) => e.stopPropagation()}
                       >
                         <ExternalLink className="w-4 h-4" />
-                      </a>
+                      </button>
                     </div>
 
                     <div className="flex flex-wrap gap-1.5 mb-3">
@@ -367,15 +370,16 @@ export default function OdooProducts() {
                         </p>
                       </div>
                       <div className="col-span-1 text-right">
-                        <a
-                          href={`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`}
-                          target="_blank"
-                          rel="noopener noreferrer"
+                        <button
+                          onClick={(e) => {
+                            e.preventDefault();
+                            e.stopPropagation();
+                            window.open(`https://4sgraphics.odoo.com/web#id=${product.id}&model=product.template&view_type=form`, '_blank');
+                          }}
                           className="inline-flex items-center text-sm text-violet-600 hover:text-violet-700"
-                          onClick={(e) => e.stopPropagation()}
                         >
                           <ExternalLink className="w-4 h-4" />
-                        </a>
+                        </button>
                       </div>
                     </div>
                   </CardContent>
