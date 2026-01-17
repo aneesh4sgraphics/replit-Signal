@@ -331,8 +331,8 @@ export const TUTORIALS: Tutorial[] = [
       {
         id: 'cc-select-customer',
         title: 'Open a Customer',
-        description: 'Click on any customer to see their Coach Panel with personalized recommendations.',
-        targetSelector: '[data-testid="tab-clients"]',
+        description: 'Click on any customer to see their details and personalized recommendations.',
+        targetSelector: '[data-testid="odoo-contacts"]',
         position: 'bottom',
         action: 'observe',
       },

@@ -697,12 +697,6 @@ export default function OdooContacts() {
                               <ExternalLink className="w-4 h-4 mr-2" />
                               View Details
                             </DropdownMenuItem>
-                            <DropdownMenuItem asChild>
-                              <Link href={`/clients/${contact.id}`}>
-                                <Edit3 className="w-4 h-4 mr-2" />
-                                Edit in CRM
-                              </Link>
-                            </DropdownMenuItem>
                             {contact.email && (
                               <DropdownMenuItem onClick={() => copyToClipboard(contact.email!)}>
                                 <Copy className="w-4 h-4 mr-2" />
@@ -961,7 +955,7 @@ export default function OdooContacts() {
 
                 {/* Actions */}
                 <div className="pt-4 border-t">
-                  <Link href={`/clients/${detailContact.id}`}>
+                  <Link href={`/odoo-contacts/${detailContact.id}`}>
                     <Button className="w-full bg-violet-600 hover:bg-violet-700">
                       <ExternalLink className="w-4 h-4 mr-2" />
                       Open Full Profile

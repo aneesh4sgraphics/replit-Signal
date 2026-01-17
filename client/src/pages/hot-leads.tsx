@@ -159,7 +159,7 @@ export default function HotLeadsPage() {
                             </div>
 
                             <div className="flex items-center gap-2">
-                              <Link href={`/clients/${customer.id}`}>
+                              <Link href={`/odoo-contacts/${customer.id}`}>
                                 <Button size="sm" variant="outline" className="gap-1.5">
                                   <ExternalLink className="h-3.5 w-3.5" />
                                   View Details
@@ -200,7 +200,7 @@ export default function HotLeadsPage() {
                   </div>
                   <p className="font-medium text-lg">No hot leads yet</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Mark clients as hot leads from SPOTLIGHT or client details
+                    Mark customers as hot leads from SPOTLIGHT or customer details
                   </p>
                   <Link href="/spotlight">
                     <Button className="mt-4 gap-2 bg-purple-600 hover:bg-purple-700">

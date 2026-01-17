@@ -517,12 +517,6 @@ export default function OdooCompanyDetail() {
                   )}
                 </>
               )}
-              <Link href={`/clients/${company.id}`}>
-                <Button variant="outline" size="sm">
-                  <ExternalLink className="w-4 h-4 mr-2" />
-                  View Full Profile
-                </Button>
-              </Link>
               <Link href="/odoo-contacts">
                 <Button variant="ghost" size="sm">
                   <ArrowLeft className="w-4 h-4 mr-2" />

@@ -396,7 +396,7 @@ Best regards`);
                         className="h-8 w-8 p-0"
                         onClick={(e) => e.stopPropagation()}
                       >
-                        <Link href={`/clients/${task.customerId}`}>
+                        <Link href={`/odoo-contacts/${task.customerId}`}>
                           <Building2 className="h-4 w-4 text-muted-foreground" />
                         </Link>
                       </Button>
@@ -553,15 +553,9 @@ Best regards`);
             {selectedTask?.customerId && (
               <div className="flex flex-col gap-2">
                 <Button variant="ghost" size="sm" className="w-full" asChild>
-                  <Link href={`/clients/${selectedTask.customerId}`}>
+                  <Link href={`/odoo-contacts/${selectedTask.customerId}`}>
                     <ExternalLink className="h-4 w-4 mr-2" />
                     View Customer Profile
-                  </Link>
-                </Button>
-                <Button variant="ghost" size="sm" className="w-full" asChild>
-                  <Link href={`/clients/${selectedTask.customerId}?tab=emails`}>
-                    <Mail className="h-4 w-4 mr-2" />
-                    View Sent Emails
                   </Link>
                 </Button>
               </div>

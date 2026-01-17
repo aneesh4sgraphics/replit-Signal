@@ -1310,7 +1310,7 @@ export default function GmailInsightsPage() {
                 asChild
                 className="ml-auto"
               >
-                <a href={`/clients/${insight.customer.id}`}>
+                <a href={`/odoo-contacts/${insight.customer.id}`}>
                   <ExternalLink className="h-4 w-4 mr-1" />
                   View Customer
                 </a>

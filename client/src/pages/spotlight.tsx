@@ -1034,7 +1034,7 @@ export default function Spotlight() {
                         Hot
                       </span>
                     )}
-                    <Link href={`/clients/${customer.id}`}>
+                    <Link href={`/odoo-contacts/${customer.id}`}>
                       <Button variant="ghost" size="icon" className="h-6 w-6 text-[#999999] hover:text-[#111111]">
                         <ExternalLink className="w-4 h-4" />
                       </Button>

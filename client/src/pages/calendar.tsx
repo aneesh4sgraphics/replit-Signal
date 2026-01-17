@@ -401,7 +401,7 @@ export default function CalendarPage() {
                                 <div className="text-sm text-gray-600 mt-1">{task.description}</div>
                               )}
                               {task.customerName && (
-                                <Link href={`/clients/${task.customerId}`}>
+                                <Link href={`/odoo-contacts/${task.customerId}`}>
                                   <div className="text-sm text-purple-600 mt-1 flex items-center gap-1 hover:underline cursor-pointer">
                                     <User className="h-3 w-3" />
                                     {task.customerName}

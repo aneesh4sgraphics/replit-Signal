@@ -371,7 +371,7 @@ export default function TaskInboxPage() {
               </div>
               
               <div className="flex gap-2 pt-4 border-t">
-                <Link href={`/clients/${selectedTask.customerId}`}>
+                <Link href={`/odoo-contacts/${selectedTask.customerId}`}>
                   <Button variant="outline" className="gap-2">
                     <ExternalLink className="h-4 w-4" />
                     View Customer

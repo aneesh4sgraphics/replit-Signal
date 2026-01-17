@@ -244,7 +244,7 @@ export function QuoteFollowUpNotifications() {
                     {quote.quoteNumber}
                   </p>
                   {quote.customerId ? (
-                    <Link href={`/clients/${quote.customerId}`}>
+                    <Link href={`/odoo-contacts/${quote.customerId}`}>
                       <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
                         {quote.customerName}
                         <ExternalLink className="h-3 w-3" />
@@ -321,7 +321,7 @@ export function QuoteFollowUpReminders() {
                     {quote.quoteNumber}
                   </p>
                   {quote.customerId ? (
-                    <Link href={`/clients/${quote.customerId}`}>
+                    <Link href={`/odoo-contacts/${quote.customerId}`}>
                       <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
                         {quote.customerName}
                         <ExternalLink className="h-3 w-3" />
@@ -365,7 +365,7 @@ export function QuoteFollowUpReminders() {
                     {quote.quoteNumber}
                   </p>
                   {quote.customerId ? (
-                    <Link href={`/clients/${quote.customerId}`}>
+                    <Link href={`/odoo-contacts/${quote.customerId}`}>
                       <span className="text-xs text-[#875A7B] hover:underline cursor-pointer flex items-center gap-1">
                         {quote.customerName}
                         <ExternalLink className="h-3 w-3" />
