@@ -37,6 +37,17 @@ import {
   XCircle,
   Loader2,
 } from "lucide-react";
+import { SiShopify } from "react-icons/si";
+
+interface ShopifyCustomerMapping {
+  id: number;
+  shopifyEmail: string | null;
+  shopifyCompanyName: string | null;
+  shopifyCustomerId: string | null;
+  crmCustomerId: string;
+  crmCustomerName: string | null;
+  isActive: boolean;
+}
 
 interface Contact {
   id: string;
@@ -184,6 +195,25 @@ export default function OdooCompanyDetail() {
     },
     staleTime: 300000, // Cache for 5 minutes
   });
+
+  // Fetch Shopify customer mappings to show Shopify indicator on contact emails
+  const { data: shopifyMappings = [] } = useQuery<ShopifyCustomerMapping[]>({
+    queryKey: ['/api/shopify/customer-mappings'],
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Create a Set of lowercase Shopify emails for quick lookup
+  const shopifyEmails = new Set(
+    shopifyMappings
+      .filter(m => m.shopifyEmail)
+      .map(m => m.shopifyEmail!.toLowerCase())
+  );
+
+  // Helper to check if an email exists in Shopify
+  const isShopifyEmail = (email: string | null): boolean => {
+    if (!email) return false;
+    return shopifyEmails.has(email.toLowerCase());
+  };
 
   // Mutation to update payment terms (immediate Odoo update)
   const updatePaymentTermsMutation = useMutation({
@@ -1023,13 +1053,21 @@ export default function OdooCompanyDetail() {
                         )}
                         <div className="flex flex-wrap gap-3 mt-2 text-xs">
                           {contact.email && (
-                            <a
-                              href={`mailto:${contact.email}`}
-                              className="flex items-center gap-1 text-violet-600 hover:text-violet-700"
-                            >
-                              <Mail className="w-3 h-3" />
-                              {contact.email}
-                            </a>
+                            <div className="flex items-center gap-1">
+                              <a
+                                href={`mailto:${contact.email}`}
+                                className="flex items-center gap-1 text-violet-600 hover:text-violet-700"
+                              >
+                                <Mail className="w-3 h-3" />
+                                {contact.email}
+                              </a>
+                              {isShopifyEmail(contact.email) && (
+                                <SiShopify 
+                                  className="w-3.5 h-3.5 text-green-600" 
+                                  title={`Shopify customer: ${contact.email}`} 
+                                />
+                              )}
+                            </div>
                           )}
                           {contact.phone && (
                             <a
