@@ -67,6 +67,7 @@ import {
   Copy,
   ArrowLeft,
 } from "lucide-react";
+import { SiShopify } from "react-icons/si";
 
 interface Contact {
   id: string;
@@ -96,6 +97,16 @@ interface Contact {
   totalSpent: string;
   createdAt: string;
   updatedAt: string;
+}
+
+interface ShopifyCustomerMapping {
+  id: number;
+  shopifyEmail: string | null;
+  shopifyCompanyName: string | null;
+  shopifyCustomerId: string | null;
+  crmCustomerId: string;
+  crmCustomerName: string | null;
+  isActive: boolean;
 }
 
 type ViewMode = 'table' | 'cards';
@@ -166,6 +177,25 @@ export default function OdooContacts() {
     enabled: !!filters.pricingTier,
     staleTime: 60000, // Cache for 1 minute
   });
+
+  // Fetch Shopify customer mappings to show Shopify indicator on contacts
+  const { data: shopifyMappings = [] } = useQuery<ShopifyCustomerMapping[]>({
+    queryKey: ['/api/shopify/customer-mappings'],
+    staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Create a Set of lowercase Shopify emails for quick lookup
+  const shopifyEmails = new Set(
+    shopifyMappings
+      .filter(m => m.shopifyEmail)
+      .map(m => m.shopifyEmail!.toLowerCase())
+  );
+
+  // Helper to check if contact email exists in Shopify
+  const isShopifyCustomer = (contact: Contact): boolean => {
+    if (!contact.email) return false;
+    return shopifyEmails.has(contact.email.toLowerCase());
+  };
 
   // Filter and sort contacts
   const filteredContacts = contacts
@@ -621,6 +651,9 @@ export default function OdooContacts() {
                           <div>
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-gray-900">{getDisplayName(contact)}</span>
+                              {isShopifyCustomer(contact) && (
+                                <SiShopify className="w-4 h-4 text-green-600" title={`Shopify customer: ${contact.email}`} />
+                              )}
                               {contact.isHotProspect && <Flame className="w-4 h-4 text-orange-500" />}
                             </div>
                             {contact.isCompany && contact.firstName && (
@@ -746,6 +779,14 @@ export default function OdooContacts() {
                           {contact.isCompany ? <Building2 className="w-6 h-6" /> : getInitials(contact)}
                         </div>
                         <div className="flex items-center gap-1">
+                          {isShopifyCustomer(contact) && (
+                            <div 
+                              className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center" 
+                              title={`Shopify customer: ${contact.email}`}
+                            >
+                              <SiShopify className="w-4 h-4 text-green-600" />
+                            </div>
+                          )}
                           {contact.isHotProspect && (
                             <div className="w-7 h-7 rounded-lg bg-orange-100 flex items-center justify-center">
                               <Flame className="w-4 h-4 text-orange-500" />
@@ -831,6 +872,9 @@ export default function OdooContacts() {
                   <div className="flex-1">
                     <SheetTitle className="text-xl flex items-center gap-2">
                       {getDisplayName(detailContact)}
+                      {isShopifyCustomer(detailContact) && (
+                        <SiShopify className="w-5 h-5 text-green-600" title={`Shopify customer: ${detailContact.email}`} />
+                      )}
                       {detailContact.isHotProspect && <Flame className="w-5 h-5 text-orange-500" />}
                     </SheetTitle>
                     <div className="flex items-center gap-2 mt-1">
