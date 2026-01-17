@@ -821,6 +821,25 @@ ${plainTextBody}`;
     }
   }
 
+  // Get product costs from Odoo (standard_price field)
+  async getProductCosts(productIds: number[]): Promise<Map<number, number>> {
+    const costMap = new Map<number, number>();
+    if (productIds.length === 0) return costMap;
+
+    try {
+      const products = await this.searchRead('product.product', [
+        ['id', 'in', productIds]
+      ], ['id', 'standard_price'], { limit: productIds.length });
+
+      for (const product of products) {
+        costMap.set(product.id, product.standard_price || 0);
+      }
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching product costs:`, error.message);
+    }
+    return costMap;
+  }
+
   // Get comprehensive business metrics for a partner
   async getPartnerBusinessMetrics(partnerId: number): Promise<{
     salesPerson: string | null;
@@ -861,16 +880,33 @@ ${plainTextBody}`;
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 10);
 
-      // Calculate average margin (placeholder - would need cost data for real calculation)
-      // For now, estimate based on typical wholesale margin of 25-35%
-      const estimatedMargin = lifetimeSales > 0 ? 30 : 0;
+      // Calculate actual average margin using product costs from Odoo
+      let averageMargin = 0;
+      if (orderLines.length > 0) {
+        // Get unique product IDs from order lines
+        const productIds = Array.from(new Set(orderLines.map(line => line.productId)));
+        const productCosts = await this.getProductCosts(productIds);
+
+        // Calculate margin: (revenue - cost) / revenue * 100
+        let totalRevenue = 0;
+        let totalCost = 0;
+        for (const line of orderLines) {
+          const unitCost = productCosts.get(line.productId) || 0;
+          totalRevenue += line.priceTotal;
+          totalCost += unitCost * line.quantity;
+        }
+
+        if (totalRevenue > 0) {
+          averageMargin = Math.round(((totalRevenue - totalCost) / totalRevenue) * 100);
+        }
+      }
 
       return {
         salesPerson: partnerDetails.salesPerson,
         paymentTerms: partnerDetails.paymentTerms,
         totalOutstanding,
         lifetimeSales,
-        averageMargin: estimatedMargin,
+        averageMargin,
         topProducts,
       };
     } catch (error: any) {
