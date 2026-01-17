@@ -101,8 +101,6 @@ type ViewMode = 'table' | 'cards';
 type SortField = 'company' | 'email' | 'updatedAt' | 'createdAt' | 'totalSpent';
 type SortOrder = 'asc' | 'desc';
 
-const PRICING_TIERS = ['retail', 'wholesale', 'distributor', 'vip'];
-
 export default function OdooContacts() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -142,6 +140,17 @@ export default function OdooContacts() {
   const { data: contacts = [], isLoading, refetch } = useQuery<Contact[]>({
     queryKey: ['/api/customers'],
     staleTime: 30000,
+  });
+
+  // Fetch available partner categories (tags) from Odoo for filter dropdown
+  const { data: partnerCategories = [] } = useQuery<Array<{ id: number; name: string }>>({
+    queryKey: ['/api/odoo/partner-categories'],
+    queryFn: async () => {
+      const res = await fetch('/api/odoo/partner-categories');
+      if (!res.ok) return [];
+      return res.json();
+    },
+    staleTime: 300000, // Cache for 5 minutes
   });
 
   // Filter and sort contacts
@@ -456,18 +465,18 @@ export default function OdooContacts() {
                     </SelectContent>
                   </Select>
 
-                  {/* Pricing Tier */}
+                  {/* Tags Filter */}
                   <Select
                     value={filters.pricingTier || 'all'}
                     onValueChange={(v) => setFilters(f => ({ ...f, pricingTier: v === 'all' ? null : v }))}
                   >
-                    <SelectTrigger className="w-[140px] bg-white">
-                      <SelectValue placeholder="Tier" />
+                    <SelectTrigger className="w-[160px] bg-white">
+                      <SelectValue placeholder="Tags" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Tiers</SelectItem>
-                      {PRICING_TIERS.map(tier => (
-                        <SelectItem key={tier} value={tier} className="capitalize">{tier}</SelectItem>
+                      <SelectItem value="all">All Tags</SelectItem>
+                      {partnerCategories.map(category => (
+                        <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
