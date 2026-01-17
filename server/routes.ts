@@ -11570,6 +11570,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Calculate total on PO
       const totalOnPO = safePurchaseOrders.reduce((sum, po) => sum + (po.qty_remaining || 0), 0);
 
+      // Fetch local pricing from productPricingMaster by SKU
+      const sku = product.default_code || '';
+      let localPricing: any = null;
+      if (sku) {
+        const [localProduct] = await db.select().from(productPricingMaster)
+          .where(eq(productPricingMaster.itemCode, sku))
+          .limit(1);
+        
+        if (localProduct) {
+          // Build pricing tiers array in QuickQuotes format
+          const tierData = [
+            { key: 'landedPrice', label: 'LANDED PRICE', pricePerSqm: parseFloat(localProduct.landedPrice || '0') },
+            { key: 'exportPrice', label: 'EXPORT ONLY', pricePerSqm: parseFloat(localProduct.exportPrice || '0') },
+            { key: 'masterDistributorPrice', label: 'DISTRIBUTOR', pricePerSqm: parseFloat(localProduct.masterDistributorPrice || '0') },
+            { key: 'dealerPrice', label: 'DEALER-VIP', pricePerSqm: parseFloat(localProduct.dealerPrice || '0') },
+            { key: 'dealer2Price', label: 'DEALER', pricePerSqm: parseFloat(localProduct.dealer2Price || '0') },
+            { key: 'approvalNeededPrice', label: 'SHOPIFY LOWEST', pricePerSqm: parseFloat(localProduct.approvalNeededPrice || '0') },
+            { key: 'tierStage25Price', label: 'SHOPIFY3', pricePerSqm: parseFloat(localProduct.tierStage25Price || '0') },
+            { key: 'tierStage2Price', label: 'SHOPIFY2', pricePerSqm: parseFloat(localProduct.tierStage2Price || '0') },
+            { key: 'tierStage15Price', label: 'SHOPIFY1', pricePerSqm: parseFloat(localProduct.tierStage15Price || '0') },
+            { key: 'tierStage1Price', label: 'SHOPIFY-ACCOUNT', pricePerSqm: parseFloat(localProduct.tierStage1Price || '0') },
+            { key: 'retailPrice', label: 'RETAIL', pricePerSqm: parseFloat(localProduct.retailPrice || '0') },
+          ];
+          
+          const totalSqm = parseFloat(localProduct.totalSqm || '0');
+          const minQuantity = localProduct.minQuantity || 1;
+          
+          localPricing = {
+            productName: localProduct.productName,
+            productType: localProduct.productType,
+            size: localProduct.size,
+            totalSqm,
+            minQuantity,
+            rollSheet: localProduct.rollSheet,
+            unitOfMeasure: localProduct.unitOfMeasure,
+            tiers: tierData.map(tier => ({
+              ...tier,
+              pricePerSheet: tier.pricePerSqm * totalSqm / minQuantity,
+              minOrderQtyPrice: (tier.pricePerSqm * totalSqm / minQuantity) * minQuantity,
+            })),
+          };
+        }
+      }
+
       res.json({
         product: {
           id: product.id,
@@ -11591,6 +11635,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           computePrice: tier.compute_price || 'fixed',
           percentPrice: tier.percent_price || 0,
         })),
+        localPricing,
         inventory: {
           available: safeInventory.totalAvailable || 0,
           virtual: safeInventory.totalVirtual || 0,
