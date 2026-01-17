@@ -869,6 +869,41 @@ ${plainTextBody}`;
     return costMap;
   }
 
+  // Get product categories for given product IDs
+  async getProductCategories(productIds: number[]): Promise<Map<number, { categoryId: number; categoryName: string }>> {
+    const categoryMap = new Map<number, { categoryId: number; categoryName: string }>();
+    if (productIds.length === 0) return categoryMap;
+
+    try {
+      const products = await this.searchRead('product.product', [
+        ['id', 'in', productIds]
+      ], ['id', 'categ_id'], { limit: productIds.length });
+
+      for (const product of products) {
+        if (product.categ_id) {
+          categoryMap.set(product.id, {
+            categoryId: product.categ_id[0],
+            categoryName: product.categ_id[1],
+          });
+        }
+      }
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching product categories:`, error.message);
+    }
+    return categoryMap;
+  }
+
+  // Get all product categories from Odoo
+  async getAllProductCategories(): Promise<Array<{ id: number; name: string }>> {
+    try {
+      const categories = await this.searchRead('product.category', [], ['id', 'name'], { limit: 500 });
+      return categories.map((c: any) => ({ id: c.id, name: c.name }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching all product categories:`, error.message);
+      return [];
+    }
+  }
+
   // Get comprehensive business metrics for a partner
   async getPartnerBusinessMetrics(partnerId: number): Promise<{
     salesPerson: string | null;
@@ -877,12 +912,14 @@ ${plainTextBody}`;
     lifetimeSales: number;
     averageMargin: number;
     topProducts: Array<{ name: string; quantity: number; totalSpent: number }>;
+    purchasedCategories: Array<{ id: number; name: string }>;
   } | null> {
     try {
       // Fetch data in parallel for speed
-      const [partnerDetails, orderLines] = await Promise.all([
+      const [partnerDetails, orderLines, allCategories] = await Promise.all([
         this.getPartnerBusinessDetails(partnerId),
         this.getSaleOrderLinesForPartner(partnerId),
+        this.getAllProductCategories(),
       ]);
 
       if (!partnerDetails) {
@@ -909,12 +946,18 @@ ${plainTextBody}`;
         .sort((a, b) => b.totalSpent - a.totalSpent)
         .slice(0, 10);
 
+      // Get unique product IDs from order lines
+      const productIds = Array.from(new Set(orderLines.map(line => line.productId)));
+      
       // Calculate actual average margin using product costs from Odoo
       let averageMargin = 0;
-      if (orderLines.length > 0) {
-        // Get unique product IDs from order lines
-        const productIds = Array.from(new Set(orderLines.map(line => line.productId)));
-        const productCosts = await this.getProductCosts(productIds);
+      let purchasedCategoryIds = new Set<number>();
+      
+      if (productIds.length > 0) {
+        const [productCosts, productCategoryMap] = await Promise.all([
+          this.getProductCosts(productIds),
+          this.getProductCategories(productIds),
+        ]);
 
         // Calculate margin: (revenue - cost) / revenue * 100
         let totalRevenue = 0;
@@ -928,7 +971,15 @@ ${plainTextBody}`;
         if (totalRevenue > 0) {
           averageMargin = Math.round(((totalRevenue - totalCost) / totalRevenue) * 100);
         }
+
+        // Collect purchased category IDs
+        productCategoryMap.forEach((catInfo) => {
+          purchasedCategoryIds.add(catInfo.categoryId);
+        });
       }
+
+      // Filter categories that have been purchased
+      const purchasedCategories = allCategories.filter(c => purchasedCategoryIds.has(c.id));
 
       return {
         salesPerson: partnerDetails.salesPerson,
@@ -937,6 +988,7 @@ ${plainTextBody}`;
         lifetimeSales,
         averageMargin,
         topProducts,
+        purchasedCategories,
       };
     } catch (error: any) {
       console.error(`[Odoo] Error fetching business metrics for partner ${partnerId}:`, error.message);

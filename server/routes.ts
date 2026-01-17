@@ -11101,7 +11101,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // Get comprehensive business metrics for a customer from Odoo
-  // Returns: salesPerson, paymentTerms, totalOutstanding, lifetimeSales, averageMargin, topProducts
+  // Returns: salesPerson, paymentTerms, totalOutstanding, lifetimeSales, averageMargin, topProducts, purchasedCategories, allCategories
   app.get("/api/odoo/customer/:customerId/business-metrics", requireApproval, async (req: any, res) => {
     try {
       const { customerId } = req.params;
@@ -11109,6 +11109,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get customer to find their odooPartnerId
       const customer = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
       if (!customer.length || !customer[0].odooPartnerId) {
+        const allCategories = await odooClient.getAllProductCategories();
         return res.json({
           salesPerson: null,
           paymentTerms: null,
@@ -11116,11 +11117,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lifetimeSales: 0,
           averageMargin: 0,
           topProducts: [],
+          purchasedCategories: [],
+          allCategories,
           connected: false,
         });
       }
       
-      const metrics = await odooClient.getPartnerBusinessMetrics(customer[0].odooPartnerId);
+      const [metrics, allCategories] = await Promise.all([
+        odooClient.getPartnerBusinessMetrics(customer[0].odooPartnerId),
+        odooClient.getAllProductCategories(),
+      ]);
+      
       if (!metrics) {
         return res.json({
           salesPerson: null,
@@ -11129,12 +11136,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           lifetimeSales: 0,
           averageMargin: 0,
           topProducts: [],
+          purchasedCategories: [],
+          allCategories,
           connected: false,
         });
       }
       
       res.json({
         ...metrics,
+        allCategories,
         connected: true,
       });
     } catch (error: any) {

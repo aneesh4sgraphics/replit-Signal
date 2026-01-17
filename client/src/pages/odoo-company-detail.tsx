@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useQuery } from "@tanstack/react-query";
 import { Link, useRoute } from "wouter";
 import { Button } from "@/components/ui/button";
@@ -5,6 +6,7 @@ import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import { Skeleton } from "@/components/ui/skeleton";
+import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import {
   ArrowLeft,
   Building2,
@@ -20,6 +22,7 @@ import {
   AlertCircle,
   ExternalLink,
   ChevronRight,
+  Tag,
 } from "lucide-react";
 
 interface Contact {
@@ -52,6 +55,11 @@ interface Contact {
   updatedAt: string;
 }
 
+interface ProductCategory {
+  id: number;
+  name: string;
+}
+
 interface BusinessMetrics {
   salesPerson: string | null;
   paymentTerms: string | null;
@@ -59,6 +67,8 @@ interface BusinessMetrics {
   lifetimeSales: number;
   averageMargin: number;
   topProducts: Array<{ name: string; quantity: number; totalSpent: number }>;
+  purchasedCategories: ProductCategory[];
+  allCategories: ProductCategory[];
   connected: boolean;
 }
 
@@ -303,51 +313,95 @@ export default function OdooCompanyDetail() {
             </div>
 
             <Card>
-              <CardHeader>
+              <CardHeader className="pb-2">
                 <CardTitle className="flex items-center gap-2 text-lg">
                   <Package className="w-5 h-5 text-violet-500" />
-                  Products Most Purchased
+                  Product Analysis
                 </CardTitle>
               </CardHeader>
               <CardContent>
-                {metricsLoading ? (
-                  <div className="space-y-3">
-                    {[1, 2, 3, 4, 5].map((i) => (
-                      <Skeleton key={i} className="h-12 w-full" />
-                    ))}
-                  </div>
-                ) : metrics?.topProducts && metrics.topProducts.length > 0 ? (
-                  <div className="space-y-3">
-                    {metrics.topProducts.map((product, index) => (
-                      <div
-                        key={product.name}
-                        className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
-                      >
-                        <div className="flex items-center gap-3">
-                          <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-semibold text-sm">
-                            {index + 1}
+                <Tabs defaultValue="purchased" className="w-full">
+                  <TabsList className="grid w-full grid-cols-2 mb-4">
+                    <TabsTrigger value="purchased">Products Purchased</TabsTrigger>
+                    <TabsTrigger value="not-purchased">Categories Not Purchased</TabsTrigger>
+                  </TabsList>
+                  
+                  <TabsContent value="purchased">
+                    {metricsLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Skeleton key={i} className="h-12 w-full" />
+                        ))}
+                      </div>
+                    ) : metrics?.topProducts && metrics.topProducts.length > 0 ? (
+                      <div className="space-y-3">
+                        {metrics.topProducts.map((product, index) => (
+                          <div
+                            key={product.name}
+                            className="flex items-center justify-between p-3 bg-gray-50 rounded-lg hover:bg-gray-100 transition-colors"
+                          >
+                            <div className="flex items-center gap-3">
+                              <div className="w-8 h-8 rounded-full bg-violet-100 flex items-center justify-center text-violet-600 font-semibold text-sm">
+                                {index + 1}
+                              </div>
+                              <div>
+                                <p className="font-medium text-gray-900 text-sm">{product.name}</p>
+                                <p className="text-xs text-gray-500">
+                                  Qty: {formatNumber(product.quantity)}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="text-right">
+                              <p className="font-semibold text-gray-900">
+                                {formatCurrency(product.totalSpent)}
+                              </p>
+                            </div>
                           </div>
-                          <div>
-                            <p className="font-medium text-gray-900 text-sm">{product.name}</p>
-                            <p className="text-xs text-gray-500">
-                              Qty: {formatNumber(product.quantity)}
-                            </p>
-                          </div>
-                        </div>
-                        <div className="text-right">
-                          <p className="font-semibold text-gray-900">
-                            {formatCurrency(product.totalSpent)}
+                        ))}
+                      </div>
+                    ) : (
+                      <div className="text-center py-8 text-gray-500">
+                        <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                        <p>No purchase history available</p>
+                      </div>
+                    )}
+                  </TabsContent>
+                  
+                  <TabsContent value="not-purchased">
+                    {metricsLoading ? (
+                      <div className="space-y-3">
+                        {[1, 2, 3, 4, 5].map((i) => (
+                          <Skeleton key={i} className="h-10 w-full" />
+                        ))}
+                      </div>
+                    ) : (() => {
+                      const purchasedCategoryIds = new Set(metrics?.purchasedCategories?.map(c => c.id) || []);
+                      const notPurchasedCategories = (metrics?.allCategories || []).filter(c => !purchasedCategoryIds.has(c.id));
+                      
+                      return notPurchasedCategories.length > 0 ? (
+                        <div className="space-y-2">
+                          {notPurchasedCategories.map((category) => (
+                            <div
+                              key={category.id}
+                              className="flex items-center gap-3 p-3 bg-amber-50 rounded-lg border border-amber-100"
+                            >
+                              <Tag className="w-4 h-4 text-amber-600" />
+                              <p className="font-medium text-gray-900 text-sm">{category.name}</p>
+                            </div>
+                          ))}
+                          <p className="text-xs text-gray-500 mt-4 text-center">
+                            These are product categories this customer hasn't purchased yet - potential upsell opportunities
                           </p>
                         </div>
-                      </div>
-                    ))}
-                  </div>
-                ) : (
-                  <div className="text-center py-8 text-gray-500">
-                    <Package className="w-12 h-12 mx-auto mb-3 text-gray-300" />
-                    <p>No purchase history available</p>
-                  </div>
-                )}
+                      ) : (
+                        <div className="text-center py-8 text-gray-500">
+                          <Tag className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                          <p>Customer has purchased from all categories!</p>
+                        </div>
+                      );
+                    })()}
+                  </TabsContent>
+                </Tabs>
               </CardContent>
             </Card>
           </div>
