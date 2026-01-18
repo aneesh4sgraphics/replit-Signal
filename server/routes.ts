@@ -11753,22 +11753,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? (sortedPrices[medianIndex - 1] + sortedPrices[medianIndex]) / 2
         : sortedPrices[medianIndex];
 
-      // 25th and 75th percentiles
-      const p25Index = Math.floor(sortedPrices.length * 0.25);
-      const p75Index = Math.floor(sortedPrices.length * 0.75);
-      const percentile25 = sortedPrices[p25Index] || minPrice;
-      const percentile75 = sortedPrices[p75Index] || maxPrice;
+      // 25th and 75th percentiles with proper bounds checking for small samples
+      const p25Index = Math.min(Math.floor(sortedPrices.length * 0.25), sortedPrices.length - 1);
+      const p75Index = Math.min(Math.floor(sortedPrices.length * 0.75), sortedPrices.length - 1);
+      // For very small samples, ensure P75 >= P25
+      const percentile25 = sortedPrices[p25Index] ?? minPrice;
+      const percentile75 = sortedPrices.length > 1 
+        ? (sortedPrices[Math.max(p75Index, p25Index + 1)] ?? maxPrice)
+        : maxPrice;
 
       // Best price recommendation: Max of weighted average and 25th percentile
       // This gives a competitive but profitable price
       const recommendedPrice = Math.max(weightedAverage, percentile25);
 
-      // Find most recent and most frequent prices
+      // Find most recent price with proper guards
       const sortedByDate = [...priceData].sort((a, b) => 
         new Date(b.date).getTime() - new Date(a.date).getTime()
       );
-      const mostRecentPrice = sortedByDate[0]?.price || 0;
-      const mostRecentDate = sortedByDate[0]?.date || '';
+      const mostRecentEntry = sortedByDate[0];
+      const mostRecentPrice = (mostRecentEntry?.price && isFinite(mostRecentEntry.price)) ? mostRecentEntry.price : null;
+      const mostRecentDate = mostRecentEntry?.date || null;
 
       // Simple average (unweighted)
       const simpleAverage = sortedPrices.reduce((a, b) => a + b, 0) / sortedPrices.length;
@@ -11790,10 +11794,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           totalQuantitySold: Math.round(totalQuantity),
           distinctCustomers: new Set(priceData.map(d => d.partner)).size,
         },
-        recentActivity: {
+        recentActivity: mostRecentPrice !== null && mostRecentDate ? {
           mostRecentPrice: Math.round(mostRecentPrice * 100) / 100,
           mostRecentDate,
-        },
+        } : undefined,
         productInfo: {
           id: product.id,
           name: product.name,

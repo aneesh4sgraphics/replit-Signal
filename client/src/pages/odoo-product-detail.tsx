@@ -3,7 +3,7 @@ import { useRoute, Link } from "wouter";
 import { 
   ArrowLeft, Package, DollarSign, Users, Warehouse, 
   ShoppingCart, ExternalLink, TrendingUp, Box, Layers,
-  AlertCircle, Loader2
+  AlertCircle, Loader2, Target, TrendingDown, TrendingUp as TrendUp
 } from "lucide-react";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -35,6 +35,30 @@ interface LocalPricing {
   rollSheet: string | null;
   unitOfMeasure: string | null;
   tiers: PricingTier[];
+}
+
+interface BestPriceData {
+  hasData: boolean;
+  message?: string;
+  recommendedPrice?: number;
+  statistics?: {
+    weightedAverage: number;
+    simpleAverage: number;
+    median: number;
+    minPrice: number;
+    maxPrice: number;
+    percentile25: number;
+    percentile75: number;
+  };
+  volume?: {
+    totalInvoices: number;
+    totalQuantitySold: number;
+    distinctCustomers: number;
+  };
+  recentActivity?: {
+    mostRecentPrice: number;
+    mostRecentDate: string;
+  };
 }
 
 interface ProductDetails {
@@ -138,6 +162,18 @@ export default function OdooProductDetail() {
       const res = await fetch(`/api/odoo/products/${productId}/details`);
       if (!res.ok) {
         throw new Error('Failed to fetch product details');
+      }
+      return res.json();
+    },
+    enabled: !!productId,
+  });
+
+  const { data: bestPriceData, isLoading: bestPriceLoading } = useQuery<BestPriceData>({
+    queryKey: ['/api/odoo/products', productId, 'best-price'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/products/${productId}/best-price`);
+      if (!res.ok) {
+        throw new Error('Failed to fetch best price data');
       }
       return res.json();
     },
@@ -306,6 +342,89 @@ export default function OdooProductDetail() {
           </CardContent>
         </Card>
       </div>
+
+      <Card className="border-2 border-green-200 bg-gradient-to-r from-green-50 to-emerald-50">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-green-800">
+            <Target className="w-5 h-5" />
+            Best Price to Offer
+          </CardTitle>
+          <CardDescription>
+            Based on invoice history from the last 12 months
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {bestPriceLoading ? (
+            <div className="flex items-center gap-2 py-4">
+              <Loader2 className="w-5 h-5 animate-spin text-green-600" />
+              <span className="text-gray-500">Analyzing invoice history...</span>
+            </div>
+          ) : bestPriceData?.hasData ? (
+            <div className="space-y-4">
+              <div className="flex items-center gap-6">
+                <div>
+                  <div className="text-4xl font-bold text-green-700">
+                    {formatPrice(bestPriceData.recommendedPrice || 0)}
+                  </div>
+                  <p className="text-sm text-green-600 mt-1">Recommended selling price per unit</p>
+                </div>
+                <div className="flex-1 grid grid-cols-2 md:grid-cols-4 gap-4">
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Avg (Weighted)</div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {formatPrice(bestPriceData.statistics?.weightedAverage || 0)}
+                    </div>
+                  </div>
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide">Median</div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {formatPrice(bestPriceData.statistics?.median || 0)}
+                    </div>
+                  </div>
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <TrendingDown className="w-3 h-3" /> Min
+                    </div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {formatPrice(bestPriceData.statistics?.minPrice || 0)}
+                    </div>
+                  </div>
+                  <div className="bg-white/60 rounded-lg p-3">
+                    <div className="text-xs text-gray-500 uppercase tracking-wide flex items-center gap-1">
+                      <TrendUp className="w-3 h-3" /> Max
+                    </div>
+                    <div className="text-lg font-semibold text-gray-800">
+                      {formatPrice(bestPriceData.statistics?.maxPrice || 0)}
+                    </div>
+                  </div>
+                </div>
+              </div>
+              <div className="flex items-center gap-4 text-sm text-gray-600 border-t border-green-200 pt-3">
+                <span className="bg-white/80 px-2 py-1 rounded">
+                  <strong>{bestPriceData.volume?.totalInvoices || 0}</strong> invoices
+                </span>
+                <span className="bg-white/80 px-2 py-1 rounded">
+                  <strong>{formatNumber(bestPriceData.volume?.totalQuantitySold || 0)}</strong> units sold
+                </span>
+                <span className="bg-white/80 px-2 py-1 rounded">
+                  <strong>{bestPriceData.volume?.distinctCustomers || 0}</strong> customers
+                </span>
+                {bestPriceData.recentActivity?.mostRecentDate && bestPriceData.recentActivity?.mostRecentPrice != null && (
+                  <span className="text-gray-500 ml-auto">
+                    Last sale: {bestPriceData.recentActivity.mostRecentDate} @ {formatPrice(bestPriceData.recentActivity.mostRecentPrice)}
+                  </span>
+                )}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-6 text-gray-500">
+              <Target className="w-8 h-8 mx-auto mb-2 opacity-50" />
+              <p>{bestPriceData?.message || 'No invoice data available'}</p>
+              <p className="text-sm mt-1">Pricing recommendations require sales history</p>
+            </div>
+          )}
+        </CardContent>
+      </Card>
 
       <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
         <Card>
