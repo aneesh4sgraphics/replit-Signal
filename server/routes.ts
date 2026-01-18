@@ -15705,7 +15705,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const crmCustomer = existingCustomer[0];
             
             // Sync tags from Shopify (merge with existing)
-            let tagsUpdate: { tags?: string } = {};
+            let tagsUpdate: { tags?: string; pricingTier?: string } = {};
             if (customer.tags) {
               const existingTags = crmCustomer.tags ? crmCustomer.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
               const shopifyTags = customer.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
@@ -15714,9 +15714,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
               if (newTagsString !== crmCustomer.tags) {
                 tagsUpdate.tags = newTagsString;
               }
+              
+              // Extract pricing tier from tags if customer doesn't have one (e.g., "Tier: SHOPIFY2" -> "SHOPIFY2")
+              if (!crmCustomer.pricingTier) {
+                for (const tag of shopifyTags) {
+                  const tierMatch = tag.match(/tier:\s*(\S+)/i);
+                  if (tierMatch) {
+                    tagsUpdate.pricingTier = tierMatch[1].toUpperCase();
+                    break;
+                  }
+                }
+              }
             }
             
-            // Update customer if tags changed
+            // Update customer if tags or pricing tier changed
             if (Object.keys(tagsUpdate).length > 0) {
               await db.update(customers)
                 .set({ ...tagsUpdate, updatedAt: new Date() })
@@ -16079,7 +16090,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
           
           // Merge Shopify tags with existing tags (preserve existing, add new from Shopify)
-          let tagsUpdate: { tags?: string } = {};
+          let tagsUpdate: { tags?: string; pricingTier?: string } = {};
           if (shopifyCustomer.tags) {
             const existingTags = existingCustomer.tags ? existingCustomer.tags.split(',').map((t: string) => t.trim()).filter(Boolean) : [];
             const shopifyTags = shopifyCustomer.tags.split(',').map((t: string) => t.trim()).filter(Boolean);
@@ -16087,6 +16098,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const newTagsString = mergedTags.join(', ');
             if (newTagsString !== existingCustomer.tags) {
               tagsUpdate.tags = newTagsString;
+            }
+            
+            // Extract pricing tier from tags if customer doesn't have one (e.g., "Tier: SHOPIFY2" -> "SHOPIFY2")
+            if (!existingCustomer.pricingTier) {
+              for (const tag of shopifyTags) {
+                const tierMatch = tag.match(/tier:\s*(\S+)/i);
+                if (tierMatch) {
+                  tagsUpdate.pricingTier = tierMatch[1].toUpperCase();
+                  break;
+                }
+              }
             }
           }
           
@@ -16207,6 +16229,19 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .where(eq(customers.id, newId))
             .limit(1);
           
+          // Extract pricing tier from Shopify tags (e.g., "Tier: SHOPIFY2" -> "SHOPIFY2")
+          let extractedPricingTier: string | null = null;
+          if (shopifyCustomer.tags) {
+            const tagsList = shopifyCustomer.tags.split(',').map((t: string) => t.trim());
+            for (const tag of tagsList) {
+              const tierMatch = tag.match(/tier:\s*(\S+)/i);
+              if (tierMatch) {
+                extractedPricingTier = tierMatch[1].toUpperCase();
+                break;
+              }
+            }
+          }
+          
           const customerData = {
             firstName: shopifyCustomer.first_name || null,
             lastName: shopifyCustomer.last_name || null,
@@ -16225,6 +16260,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             totalOrders: shopifyCustomer.orders_count || 0,
             note: shopifyCustomer.note || null,
             tags: shopifyCustomer.tags || null,
+            pricingTier: extractedPricingTier,
             taxExempt: shopifyCustomer.tax_exempt === true,
             isCompany: hasCompany === true,
             contactType: hasCompany ? 'company' : 'contact',
