@@ -1496,6 +1496,68 @@ ${plainTextBody}`;
       };
     }
   }
+
+  // Get invoice lines for a product to calculate best selling price
+  async getProductInvoiceLines(productVariantId: number, templateId?: number): Promise<Array<{
+    id: number;
+    invoice_id: [number, string];
+    product_id: [number, string];
+    quantity: number;
+    price_unit: number;
+    discount: number;
+    price_subtotal: number;
+    invoice_date: string;
+    partner_id: [number, string];
+    currency_id: [number, string];
+  }>> {
+    try {
+      // Get variant IDs - either just the one variant or all variants for the template
+      let variantIds: number[] = [productVariantId];
+      
+      if (templateId) {
+        const variants = await this.searchRead('product.product', [
+          ['product_tmpl_id', '=', templateId]
+        ], ['id'], { limit: 100 });
+        if (variants.length > 0) {
+          variantIds = variants.map((v: any) => v.id);
+        }
+      }
+
+      // Calculate date 12 months ago
+      const oneYearAgo = new Date();
+      oneYearAgo.setFullYear(oneYearAgo.getFullYear() - 1);
+      const dateFilter = oneYearAgo.toISOString().split('T')[0];
+
+      // Fetch invoice lines from account.move.line
+      // Filter: product matches, invoice is customer invoice (out_invoice), posted state, within date range
+      const invoiceLines = await this.searchRead('account.move.line', [
+        ['product_id', 'in', variantIds],
+        ['parent_state', '=', 'posted'],
+        ['move_type', '=', 'out_invoice'],
+        ['date', '>=', dateFilter],
+        ['quantity', '>', 0]
+      ], [
+        'id', 'move_id', 'product_id', 'quantity', 'price_unit', 
+        'discount', 'price_subtotal', 'date', 'partner_id', 'currency_id'
+      ], { limit: 500 });
+
+      return invoiceLines.map((line: any) => ({
+        id: line.id,
+        invoice_id: line.move_id || [0, 'Unknown'],
+        product_id: line.product_id || [0, 'Unknown'],
+        quantity: line.quantity || 0,
+        price_unit: line.price_unit || 0,
+        discount: line.discount || 0,
+        price_subtotal: line.price_subtotal || 0,
+        invoice_date: line.date || '',
+        partner_id: line.partner_id || [0, 'Unknown'],
+        currency_id: line.currency_id || [0, 'USD'],
+      }));
+    } catch (error: any) {
+      console.error(`[Odoo] Error fetching invoice lines for product ${productVariantId}:`, error.message);
+      return [];
+    }
+  }
 }
 
 export const odooClient = new OdooClient();
