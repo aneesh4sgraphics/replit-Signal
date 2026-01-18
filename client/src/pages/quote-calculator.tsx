@@ -977,6 +977,43 @@ export default function QuoteCalculator() {
       // No contact emails available - just proceed without email
     }
     
+    // Try to extract pricing tier from tags if pricingTier field is empty
+    if (!enrichedCustomer.pricingTier && enrichedCustomer.tags) {
+      const customerTags = enrichedCustomer.tags.toLowerCase().split(',').map((t: string) => t.trim());
+      
+      // Check for "Tier: XXXX" format in tags
+      for (const tag of customerTags) {
+        const tierMatch = tag.match(/tier:\s*(\S+)/i);
+        if (tierMatch) {
+          const tierValue = tierMatch[1].toUpperCase();
+          // Find matching tier from allPricingTiers
+          const matchingTier = allPricingTiers.find(t => 
+            t.label.toUpperCase() === tierValue || 
+            t.key.toUpperCase().includes(tierValue.replace('-', ''))
+          );
+          if (matchingTier) {
+            enrichedCustomer.pricingTier = matchingTier.label;
+            break;
+          }
+        }
+      }
+      
+      // Also check for direct tier name matches in tags
+      if (!enrichedCustomer.pricingTier) {
+        for (const tier of allPricingTiers) {
+          const tierLabel = tier.label.toLowerCase();
+          if (customerTags.some((tag: string) => 
+            tag === tierLabel || 
+            tag.includes(tierLabel) ||
+            tierLabel.includes(tag)
+          )) {
+            enrichedCustomer.pricingTier = tier.label;
+            break;
+          }
+        }
+      }
+    }
+    
     // Check for missing pricing tier or sales rep - show gate dialog if needed
     const missingTier = !enrichedCustomer.pricingTier;
     const missingRep = !enrichedCustomer.salesRepName;
