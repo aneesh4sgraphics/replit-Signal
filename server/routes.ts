@@ -694,6 +694,250 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Reports 2026 - Invoice totals for 2026 only
+  app.get("/api/reports/invoices-2026", isAuthenticated, async (req: any, res) => {
+    try {
+      const year = 2026;
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      // Get invoices from Odoo for 2026
+      const invoices = await odooClient.searchRead('account.move', [
+        ['move_type', 'in', ['out_invoice']],
+        ['state', '=', 'posted'],
+        ['invoice_date', '>=', startDate],
+        ['invoice_date', '<=', endDate],
+      ], ['id', 'invoice_date', 'amount_total', 'amount_untaxed', 'state'], { limit: 10000 });
+      
+      // Group by month
+      const monthlyData = new Map<number, { total: number; untaxed: number; count: number }>();
+      for (let m = 1; m <= 12; m++) {
+        monthlyData.set(m, { total: 0, untaxed: 0, count: 0 });
+      }
+      
+      let grandTotal = 0;
+      let grandUntaxed = 0;
+      
+      for (const inv of invoices) {
+        if (inv.invoice_date) {
+          const month = parseInt(inv.invoice_date.split('-')[1]);
+          const current = monthlyData.get(month) || { total: 0, untaxed: 0, count: 0 };
+          current.total += inv.amount_total || 0;
+          current.untaxed += inv.amount_untaxed || 0;
+          current.count += 1;
+          monthlyData.set(month, current);
+          grandTotal += inv.amount_total || 0;
+          grandUntaxed += inv.amount_untaxed || 0;
+        }
+      }
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const chartData = months.map((name, idx) => {
+        const data = monthlyData.get(idx + 1) || { total: 0, untaxed: 0, count: 0 };
+        return {
+          month: name,
+          total: data.total,
+          untaxed: data.untaxed,
+          count: data.count,
+        };
+      });
+      
+      res.json({
+        success: true,
+        year,
+        grandTotal,
+        grandUntaxed,
+        invoiceCount: invoices.length,
+        chartData,
+      });
+    } catch (error) {
+      console.error("Invoices 2026 report error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch invoice data", details: errorMessage });
+    }
+  });
+
+  // Reports 2026 - Quotations vs Confirmed Sales Orders
+  app.get("/api/reports/quotes-vs-orders-2026", isAuthenticated, async (req: any, res) => {
+    try {
+      const year = 2026;
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      // Get all sale.order records from Odoo for 2026
+      const saleOrders = await odooClient.searchRead('sale.order', [
+        ['date_order', '>=', `${startDate} 00:00:00`],
+        ['date_order', '<=', `${endDate} 23:59:59`],
+      ], ['id', 'name', 'state', 'date_order', 'amount_total', 'amount_untaxed'], { limit: 10000 });
+      
+      // Group by month and state
+      const monthlyQuotes = new Map<number, { amount: number; count: number }>();
+      const monthlyConfirmed = new Map<number, { amount: number; count: number }>();
+      
+      for (let m = 1; m <= 12; m++) {
+        monthlyQuotes.set(m, { amount: 0, count: 0 });
+        monthlyConfirmed.set(m, { amount: 0, count: 0 });
+      }
+      
+      let totalQuotesAmount = 0;
+      let totalConfirmedAmount = 0;
+      let quotesCount = 0;
+      let confirmedCount = 0;
+      
+      for (const order of saleOrders) {
+        if (order.date_order) {
+          const dateStr = order.date_order.split(' ')[0];
+          const month = parseInt(dateStr.split('-')[1]);
+          
+          if (['draft', 'sent'].includes(order.state)) {
+            // Quotations
+            const current = monthlyQuotes.get(month) || { amount: 0, count: 0 };
+            current.amount += order.amount_total || 0;
+            current.count += 1;
+            monthlyQuotes.set(month, current);
+            totalQuotesAmount += order.amount_total || 0;
+            quotesCount += 1;
+          } else if (['sale', 'done'].includes(order.state)) {
+            // Confirmed orders
+            const current = monthlyConfirmed.get(month) || { amount: 0, count: 0 };
+            current.amount += order.amount_total || 0;
+            current.count += 1;
+            monthlyConfirmed.set(month, current);
+            totalConfirmedAmount += order.amount_total || 0;
+            confirmedCount += 1;
+          }
+        }
+      }
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const chartData = months.map((name, idx) => {
+        const quotes = monthlyQuotes.get(idx + 1) || { amount: 0, count: 0 };
+        const confirmed = monthlyConfirmed.get(idx + 1) || { amount: 0, count: 0 };
+        return {
+          month: name,
+          quotesAmount: quotes.amount,
+          quotesCount: quotes.count,
+          confirmedAmount: confirmed.amount,
+          confirmedCount: confirmed.count,
+        };
+      });
+      
+      res.json({
+        success: true,
+        year,
+        totals: {
+          quotesAmount: totalQuotesAmount,
+          quotesCount,
+          confirmedAmount: totalConfirmedAmount,
+          confirmedCount,
+        },
+        chartData,
+      });
+    } catch (error) {
+      console.error("Quotes vs Orders 2026 report error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch quotes/orders data", details: errorMessage });
+    }
+  });
+
+  // Reports 2026 - Gross Profit (COGS vs Sales)
+  app.get("/api/reports/gross-profit-2026", isAuthenticated, async (req: any, res) => {
+    try {
+      const year = 2026;
+      const startDate = `${year}-01-01`;
+      const endDate = `${year}-12-31`;
+      
+      // Get posted invoices for 2026
+      const invoices = await odooClient.searchRead('account.move', [
+        ['move_type', 'in', ['out_invoice']],
+        ['state', '=', 'posted'],
+        ['invoice_date', '>=', startDate],
+        ['invoice_date', '<=', endDate],
+      ], ['id', 'invoice_date', 'amount_total', 'amount_untaxed', 'invoice_line_ids'], { limit: 10000 });
+      
+      // Get invoice lines with product costs
+      const invoiceIds = invoices.map(inv => inv.id);
+      let totalCogs = 0;
+      let totalRevenue = 0;
+      
+      // Group by month
+      const monthlyData = new Map<number, { revenue: number; cogs: number }>();
+      for (let m = 1; m <= 12; m++) {
+        monthlyData.set(m, { revenue: 0, cogs: 0 });
+      }
+      
+      if (invoiceIds.length > 0) {
+        // Get invoice lines - filter only product lines (display_type is false for regular lines)
+        const invoiceLines = await odooClient.searchRead('account.move.line', [
+          ['move_id', 'in', invoiceIds],
+          ['product_id', '!=', false],
+        ], ['id', 'move_id', 'product_id', 'quantity', 'price_subtotal', 'display_type'], { limit: 50000 });
+        
+        // Get product costs
+        const productIds = [...new Set(invoiceLines.map(line => line.product_id?.[0]).filter(Boolean))];
+        const productCosts = await odooClient.getProductCosts(productIds as number[]);
+        
+        // Calculate for each line - skip section headers (display_type = 'line_section' or 'line_note')
+        const invoiceDateMap = new Map(invoices.map(inv => [inv.id, inv.invoice_date]));
+        
+        for (const line of invoiceLines) {
+          // Skip non-product lines (section headers, notes, etc.)
+          if (line.display_type && line.display_type !== 'product') continue;
+          
+          const productId = line.product_id?.[0];
+          const invoiceDate = invoiceDateMap.get(line.move_id?.[0] || line.move_id);
+          if (productId && invoiceDate) {
+            const month = parseInt(invoiceDate.split('-')[1]);
+            const unitCost = productCosts.get(productId) || 0;
+            const lineCost = unitCost * (line.quantity || 0);
+            const lineRevenue = line.price_subtotal || 0;
+            
+            const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
+            current.revenue += lineRevenue;
+            current.cogs += lineCost;
+            monthlyData.set(month, current);
+            
+            totalRevenue += lineRevenue;
+            totalCogs += lineCost;
+          }
+        }
+      }
+      
+      const grossProfit = totalRevenue - totalCogs;
+      const grossMarginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+      
+      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+      const chartData = months.map((name, idx) => {
+        const data = monthlyData.get(idx + 1) || { revenue: 0, cogs: 0 };
+        const profit = data.revenue - data.cogs;
+        const margin = data.revenue > 0 ? ((profit / data.revenue) * 100) : 0;
+        return {
+          month: name,
+          revenue: data.revenue,
+          cogs: data.cogs,
+          profit,
+          margin: Math.round(margin * 10) / 10,
+        };
+      });
+      
+      res.json({
+        success: true,
+        year,
+        totals: {
+          revenue: totalRevenue,
+          cogs: totalCogs,
+          grossProfit,
+          grossMarginPercent: Math.round(grossMarginPercent * 10) / 10,
+        },
+        chartData,
+      });
+    } catch (error) {
+      console.error("Gross Profit 2026 report error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch gross profit data", details: errorMessage });
+    }
+  });
+
   // Get all approved users (for sales rep selection)
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
