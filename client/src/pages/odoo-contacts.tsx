@@ -1203,6 +1203,23 @@ export default function OdooContacts() {
                         )}
                       </div>
                       
+                      {/* Customer Tags from Shopify/Odoo */}
+                      {contact.tags && (
+                        <div className="mt-2 flex flex-wrap gap-1">
+                          {contact.tags.split(',').slice(0, 3).map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-violet-100 text-violet-700"
+                            >
+                              {tag.trim()}
+                            </span>
+                          ))}
+                          {contact.tags.split(',').length > 3 && (
+                            <span className="text-[10px] text-gray-400">+{contact.tags.split(',').length - 3}</span>
+                          )}
+                        </div>
+                      )}
+
                       <div className="mt-3">
                         {hasPricingTier(contact) ? (
                           <Badge variant="secondary" className="capitalize text-xs">
