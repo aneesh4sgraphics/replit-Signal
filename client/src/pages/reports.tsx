@@ -42,6 +42,10 @@ interface InvoiceData {
     untaxed: number;
     count: number;
   }>;
+  waitingToInvoice?: {
+    count: number;
+    amount: number;
+  };
 }
 
 interface QuotesOrdersData {
@@ -267,7 +271,7 @@ export default function ReportsPage() {
                 </div>
               ) : invoiceData ? (
                 <div className="space-y-4">
-                  <div className="grid grid-cols-2 gap-4 mb-4">
+                  <div className="grid grid-cols-3 gap-4 mb-4">
                     <div className="p-3 bg-blue-50 dark:bg-blue-950 rounded-lg">
                       <p className="text-xs text-blue-600 dark:text-blue-400 font-medium">Invoices</p>
                       <p className="text-xl font-bold text-blue-700 dark:text-blue-300">
@@ -280,6 +284,17 @@ export default function ReportsPage() {
                         {formatCurrency(invoiceData.grandUntaxed)}
                       </p>
                     </div>
+                    {invoiceData.waitingToInvoice && invoiceData.waitingToInvoice.count > 0 && (
+                      <div className="p-3 bg-amber-50 dark:bg-amber-950 rounded-lg">
+                        <p className="text-xs text-amber-600 dark:text-amber-400 font-medium">Waiting to Invoice</p>
+                        <p className="text-xl font-bold text-amber-700 dark:text-amber-300">
+                          {formatNumber(invoiceData.waitingToInvoice.count)}
+                        </p>
+                        <p className="text-xs text-amber-600 dark:text-amber-400">
+                          {formatCurrency(invoiceData.waitingToInvoice.amount)}
+                        </p>
+                      </div>
+                    )}
                   </div>
                   <div className="h-64">
                     <ResponsiveContainer width="100%" height="100%">

@@ -743,6 +743,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
+      // Get sale orders ready to invoice (state 'sale' with invoice_status 'to invoice')
+      const ordersToInvoice = await odooClient.searchRead('sale.order', [
+        ['state', '=', 'sale'],
+        ['invoice_status', '=', 'to invoice'],
+      ], ['id', 'amount_total'], { limit: 10000 });
+      
+      const waitingToInvoiceCount = ordersToInvoice.length;
+      const waitingToInvoiceAmount = ordersToInvoice.reduce((sum: number, o: any) => sum + (o.amount_total || 0), 0);
+      
       res.json({
         success: true,
         year,
@@ -750,6 +759,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         grandUntaxed,
         invoiceCount: invoices.length,
         chartData,
+        waitingToInvoice: {
+          count: waitingToInvoiceCount,
+          amount: waitingToInvoiceAmount,
+        },
       });
     } catch (error) {
       console.error("Invoices 2026 report error:", error);
