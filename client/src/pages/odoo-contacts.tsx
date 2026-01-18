@@ -1009,7 +1009,9 @@ export default function OdooContacts() {
                             <div className="flex items-center gap-2">
                               <span className="font-medium text-gray-900">{getDisplayName(contact)}</span>
                               <div className="flex items-center gap-1">
-                                <SiOdoo className="w-4 h-4 text-purple-600" title="Odoo customer" />
+                                {contact.odooPartnerId && (
+                                  <SiOdoo className="w-4 h-4 text-purple-600" title="Odoo customer" />
+                                )}
                                 {isShopifyCustomer(contact) && (
                                   <SiShopify className="w-4 h-4 text-green-600" title={`Shopify customer: ${contact.email}`} />
                                 )}
@@ -1166,12 +1168,14 @@ export default function OdooContacts() {
                           }
                         })()}
                         <div className="flex items-center gap-1">
-                          <div 
-                            className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center" 
-                            title="Odoo customer"
-                          >
-                            <SiOdoo className="w-4 h-4 text-purple-600" />
-                          </div>
+                          {contact.odooPartnerId && (
+                            <div 
+                              className="w-7 h-7 rounded-lg bg-purple-100 flex items-center justify-center" 
+                              title="Odoo customer"
+                            >
+                              <SiOdoo className="w-4 h-4 text-purple-600" />
+                            </div>
+                          )}
                           {isShopifyCustomer(contact) && (
                             <div 
                               className="w-7 h-7 rounded-lg bg-green-100 flex items-center justify-center" 
@@ -1283,7 +1287,9 @@ export default function OdooContacts() {
                     <SheetTitle className="text-xl flex items-center gap-2">
                       {getDisplayName(detailContact)}
                       <div className="flex items-center gap-1">
-                        <SiOdoo className="w-5 h-5 text-purple-600" title="Odoo customer" />
+                        {detailContact.odooPartnerId && (
+                          <SiOdoo className="w-5 h-5 text-purple-600" title="Odoo customer" />
+                        )}
                         {isShopifyCustomer(detailContact) && (
                           <SiShopify className="w-5 h-5 text-green-600" title={`Shopify customer: ${detailContact.email}`} />
                         )}
