@@ -4,6 +4,7 @@ import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/com
 import { Button } from "@/components/ui/button";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
+import { Skeleton } from "@/components/ui/skeleton";
 import { 
   TrendingUp, 
   TrendingDown, 
@@ -12,59 +13,109 @@ import {
   RefreshCw,
   BarChart3,
   ArrowLeft,
-  Download
+  Download,
+  Percent,
+  ArrowRightLeft
 } from "lucide-react";
 import { Link } from "wouter";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
-import { 
-  LineChart, 
-  Line, 
-  XAxis, 
-  YAxis, 
-  CartesianGrid, 
-  Tooltip, 
-  Legend, 
-  ResponsiveContainer,
-  Area,
-  ComposedChart
-} from "recharts";
-import { format, parseISO } from "date-fns";
 
-interface DailyData {
-  date: string;
-  quotedAmount: number;
-  invoicedAmount: number;
-  quoteCount: number;
-}
-
-interface SalesTrendData {
+interface ProfitLossData {
   success: boolean;
-  days: number;
+  period: string;
+  year: number;
+  month: number | null;
+  quarter: number | null;
   startDate: string;
   endDate: string;
-  dailyData: DailyData[];
-  totals: {
-    quoted: number;
-    invoiced: number;
-    quoteCount: number;
-  };
+  income: number;
+  costOfSales: number;
+  grossProfit: number;
+  grossMarginPercent: number;
+}
+
+interface QuotesSentData {
+  success: boolean;
+  period: string;
+  periodLabel: string;
+  year: number;
+  month: number | null;
+  quarter: number | null;
+  startDate: string;
+  endDate: string;
+  quoteCount: number;
+  totalAmount: number;
+}
+
+interface ConversionRateData {
+  success: boolean;
+  period: string;
+  periodLabel: string;
+  year: number;
+  month: number | null;
+  quarter: number | null;
+  startDate: string;
+  endDate: string;
+  quotesSent: number;
+  quotesSentAmount: number;
+  ordersConfirmed: number;
+  ordersConfirmedAmount: number;
+  conversionRate: number;
 }
 
 export default function SalesAnalyticsPage() {
-  const [dateRange, setDateRange] = useState<string>("30");
+  const [periodType, setPeriodType] = useState<string>("year");
+  const [selectedYear, setSelectedYear] = useState<string>("2026");
+  const [selectedMonth, setSelectedMonth] = useState<string>("1");
+  const [selectedQuarter, setSelectedQuarter] = useState<string>("1");
   const { toast } = useToast();
 
-  const { data, isLoading, refetch, isFetching } = useQuery<SalesTrendData>({
-    queryKey: ['/api/analytics/sales-trend', dateRange],
+  const buildQueryParams = () => {
+    const params = new URLSearchParams();
+    params.set('period', periodType);
+    params.set('year', selectedYear);
+    if (periodType === 'month') params.set('month', selectedMonth);
+    if (periodType === 'quarter') params.set('quarter', selectedQuarter);
+    return params.toString();
+  };
+
+  const queryParams = buildQueryParams();
+
+  const { data: plData, isLoading: plLoading, refetch: refetchPL } = useQuery<ProfitLossData>({
+    queryKey: ['/api/analytics/profit-loss', periodType, selectedYear, selectedMonth, selectedQuarter],
     queryFn: async () => {
-      const res = await fetch(`/api/analytics/sales-trend?days=${dateRange}`, {
+      const res = await fetch(`/api/analytics/profit-loss?${queryParams}`, {
         credentials: 'include',
       });
-      if (!res.ok) throw new Error('Failed to fetch analytics');
+      if (!res.ok) throw new Error('Failed to fetch P&L data');
       return res.json();
     },
   });
+
+  const { data: quotesData, isLoading: quotesLoading, refetch: refetchQuotes } = useQuery<QuotesSentData>({
+    queryKey: ['/api/analytics/quotes-sent', periodType, selectedYear, selectedMonth, selectedQuarter],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/quotes-sent?${queryParams}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch quotes data');
+      return res.json();
+    },
+  });
+
+  const { data: conversionData, isLoading: conversionLoading, refetch: refetchConversion } = useQuery<ConversionRateData>({
+    queryKey: ['/api/analytics/conversion-rate', periodType, selectedYear, selectedMonth, selectedQuarter],
+    queryFn: async () => {
+      const res = await fetch(`/api/analytics/conversion-rate?${queryParams}`, {
+        credentials: 'include',
+      });
+      if (!res.ok) throw new Error('Failed to fetch conversion data');
+      return res.json();
+    },
+  });
+
+  const isLoading = plLoading || quotesLoading || conversionLoading;
 
   const syncSalesMutation = useMutation({
     mutationFn: async () => {
@@ -80,8 +131,7 @@ export default function SalesAnalyticsPage() {
         title: "Sales Synced",
         description: data.message || `Imported ${data.imported} orders from Odoo`,
       });
-      queryClient.invalidateQueries({ queryKey: ['/api/analytics/sales-trend'] });
-      refetch();
+      handleRefreshAll();
     },
     onError: (error: any) => {
       toast({
@@ -92,49 +142,49 @@ export default function SalesAnalyticsPage() {
     },
   });
 
+  const handleRefreshAll = () => {
+    refetchPL();
+    refetchQuotes();
+    refetchConversion();
+  };
+
   const formatCurrency = (value: number) => {
-    return new Intl.NumberFormat('en-US', {
+    return new Intl.NumberFormat('en-CA', {
       style: 'currency',
-      currency: 'USD',
+      currency: 'CAD',
       minimumFractionDigits: 0,
       maximumFractionDigits: 0,
     }).format(value);
   };
 
-  const formatDate = (dateStr: string) => {
-    try {
-      return format(parseISO(dateStr), 'MMM d');
-    } catch {
-      return dateStr;
-    }
+  const formatNumber = (value: number) => {
+    return new Intl.NumberFormat('en-CA').format(value);
   };
 
-  const CustomTooltip = ({ active, payload, label }: any) => {
-    if (active && payload && payload.length) {
-      return (
-        <div className="bg-white dark:bg-gray-800 border rounded-lg shadow-lg p-3">
-          <p className="font-medium mb-2">{format(parseISO(label), 'MMMM d, yyyy')}</p>
-          {payload.map((entry: any, index: number) => (
-            <div key={index} className="flex items-center gap-2 text-sm">
-              <div 
-                className="w-3 h-3 rounded-full" 
-                style={{ backgroundColor: entry.color }}
-              />
-              <span className="text-muted-foreground">{entry.name}:</span>
-              <span className="font-medium">{formatCurrency(entry.value)}</span>
-            </div>
-          ))}
-        </div>
-      );
-    }
-    return null;
-  };
+  const months = [
+    { value: "1", label: "January" },
+    { value: "2", label: "February" },
+    { value: "3", label: "March" },
+    { value: "4", label: "April" },
+    { value: "5", label: "May" },
+    { value: "6", label: "June" },
+    { value: "7", label: "July" },
+    { value: "8", label: "August" },
+    { value: "9", label: "September" },
+    { value: "10", label: "October" },
+    { value: "11", label: "November" },
+    { value: "12", label: "December" },
+  ];
 
-  const conversionRate = data?.totals 
-    ? data.totals.invoiced > 0 && data.totals.quoted > 0
-      ? ((data.totals.invoiced / data.totals.quoted) * 100).toFixed(1)
-      : '0'
-    : '0';
+  const getPeriodLabel = () => {
+    if (periodType === 'month') {
+      const monthName = months.find(m => m.value === selectedMonth)?.label || '';
+      return `${monthName} ${selectedYear}`;
+    } else if (periodType === 'quarter') {
+      return `Q${selectedQuarter} ${selectedYear}`;
+    }
+    return selectedYear;
+  };
 
   return (
     <div className="min-h-screen bg-gray-50 dark:bg-gray-900">
@@ -153,31 +203,67 @@ export default function SalesAnalyticsPage() {
                 Sales Analytics
               </h1>
               <p className="text-sm text-muted-foreground">
-                Track sales trends with invoiced amounts and projected quotes
+                Financial metrics from Profit & Loss Report
               </p>
             </div>
           </div>
           <div className="flex items-center gap-3">
-            <Select value={dateRange} onValueChange={setDateRange}>
-              <SelectTrigger className="w-[140px]" data-testid="select-date-range">
+            <Select value={periodType} onValueChange={setPeriodType}>
+              <SelectTrigger className="w-[120px]">
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="7">Last 7 days</SelectItem>
-                <SelectItem value="14">Last 14 days</SelectItem>
-                <SelectItem value="30">Last 30 days</SelectItem>
-                <SelectItem value="60">Last 60 days</SelectItem>
-                <SelectItem value="90">Last 90 days</SelectItem>
+                <SelectItem value="month">Month</SelectItem>
+                <SelectItem value="quarter">Quarter</SelectItem>
+                <SelectItem value="year">Year</SelectItem>
               </SelectContent>
             </Select>
+
+            {periodType === 'month' && (
+              <Select value={selectedMonth} onValueChange={setSelectedMonth}>
+                <SelectTrigger className="w-[130px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {months.map(m => (
+                    <SelectItem key={m.value} value={m.value}>{m.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            )}
+
+            {periodType === 'quarter' && (
+              <Select value={selectedQuarter} onValueChange={setSelectedQuarter}>
+                <SelectTrigger className="w-[100px]">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="1">Q1</SelectItem>
+                  <SelectItem value="2">Q2</SelectItem>
+                  <SelectItem value="3">Q3</SelectItem>
+                  <SelectItem value="4">Q4</SelectItem>
+                </SelectContent>
+              </Select>
+            )}
+
+            <Select value={selectedYear} onValueChange={setSelectedYear}>
+              <SelectTrigger className="w-[100px]">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="2024">2024</SelectItem>
+                <SelectItem value="2025">2025</SelectItem>
+                <SelectItem value="2026">2026</SelectItem>
+              </SelectContent>
+            </Select>
+
             <Button 
               variant="outline" 
               size="sm" 
-              onClick={() => refetch()}
-              disabled={isFetching}
-              data-testid="btn-refresh-analytics"
+              onClick={handleRefreshAll}
+              disabled={isLoading}
             >
-              <RefreshCw className={`h-4 w-4 mr-2 ${isFetching ? 'animate-spin' : ''}`} />
+              <RefreshCw className={`h-4 w-4 mr-2 ${isLoading ? 'animate-spin' : ''}`} />
               Refresh
             </Button>
             <Button 
@@ -186,7 +272,6 @@ export default function SalesAnalyticsPage() {
               onClick={() => syncSalesMutation.mutate()}
               disabled={syncSalesMutation.isPending}
               className="bg-purple-600 hover:bg-purple-700"
-              data-testid="btn-sync-sales"
             >
               <Download className={`h-4 w-4 mr-2 ${syncSalesMutation.isPending ? 'animate-spin' : ''}`} />
               {syncSalesMutation.isPending ? 'Syncing...' : 'Sync from Odoo'}
@@ -194,168 +279,289 @@ export default function SalesAnalyticsPage() {
           </div>
         </div>
 
-        <div className="grid grid-cols-1 md:grid-cols-4 gap-4 mb-6">
+        <div className="mb-4">
+          <Badge variant="outline" className="text-lg px-4 py-2">
+            {getPeriodLabel()}
+          </Badge>
+        </div>
+
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          {/* Total Invoiced (Income from P&L) */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Invoiced</p>
-                  <p className="text-2xl font-bold text-green-600">
-                    {isLoading ? '...' : formatCurrency(data?.totals.invoiced || 0)}
+              {plLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-32" />
+                </div>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Total Invoiced</p>
+                      <p className="text-2xl font-bold text-green-600">
+                        {formatCurrency(plData?.income || 0)}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
+                      <DollarSign className="h-6 w-6 text-green-600" />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground mt-2">
+                    Income from Profit & Loss Report
                   </p>
-                </div>
-                <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center">
-                  <DollarSign className="h-6 w-6 text-green-600" />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Actual sales from Odoo</p>
+                </>
+              )}
             </CardContent>
           </Card>
 
+          {/* Gross Margin (from P&L) */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Total Quoted</p>
-                  <p className="text-2xl font-bold text-blue-600">
-                    {isLoading ? '...' : formatCurrency(data?.totals.quoted || 0)}
-                  </p>
+              {plLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-32" />
                 </div>
-                <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
-                  <FileText className="h-6 w-6 text-blue-600" />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Projected pipeline value</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Gross Margin</p>
+                      <p className="text-2xl font-bold text-blue-600">
+                        {plData?.grossMarginPercent || 0}%
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-blue-100 dark:bg-blue-900 flex items-center justify-center">
+                      <Percent className="h-6 w-6 text-blue-600" />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                    <div className="flex justify-between">
+                      <span>Gross Profit:</span>
+                      <span className="font-medium">{formatCurrency(plData?.grossProfit || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Cost of Sales:</span>
+                      <span className="font-medium">{formatCurrency(plData?.costOfSales || 0)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
+          {/* Quotes Sent */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Quotes Sent</p>
-                  <p className="text-2xl font-bold text-purple-600">
-                    {isLoading ? '...' : data?.totals.quoteCount || 0}
-                  </p>
+              {quotesLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-32" />
                 </div>
-                <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
-                  <TrendingUp className="h-6 w-6 text-purple-600" />
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">In selected period</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Quotes Sent</p>
+                      <p className="text-2xl font-bold text-purple-600">
+                        {formatNumber(quotesData?.quoteCount || 0)}
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-purple-100 dark:bg-purple-900 flex items-center justify-center">
+                      <FileText className="h-6 w-6 text-purple-600" />
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground">
+                    <div className="flex justify-between">
+                      <span>Total Value:</span>
+                      <span className="font-medium">{formatCurrency(quotesData?.totalAmount || 0)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
 
+          {/* Conversion Rate */}
           <Card>
             <CardContent className="pt-6">
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="text-sm text-muted-foreground">Conversion Rate</p>
-                  <p className="text-2xl font-bold text-amber-600">
-                    {isLoading ? '...' : `${conversionRate}%`}
-                  </p>
+              {conversionLoading ? (
+                <div className="space-y-2">
+                  <Skeleton className="h-4 w-24" />
+                  <Skeleton className="h-8 w-32" />
                 </div>
-                <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
-                  {parseFloat(conversionRate) >= 50 ? (
-                    <TrendingUp className="h-6 w-6 text-amber-600" />
-                  ) : (
-                    <TrendingDown className="h-6 w-6 text-amber-600" />
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground mt-2">Invoiced ÷ Quoted</p>
+              ) : (
+                <>
+                  <div className="flex items-center justify-between">
+                    <div>
+                      <p className="text-sm text-muted-foreground">Conversion Rate</p>
+                      <p className="text-2xl font-bold text-amber-600">
+                        {conversionData?.conversionRate || 0}%
+                      </p>
+                    </div>
+                    <div className="h-12 w-12 rounded-full bg-amber-100 dark:bg-amber-900 flex items-center justify-center">
+                      {(conversionData?.conversionRate || 0) >= 50 ? (
+                        <TrendingUp className="h-6 w-6 text-amber-600" />
+                      ) : (
+                        <TrendingDown className="h-6 w-6 text-amber-600" />
+                      )}
+                    </div>
+                  </div>
+                  <div className="mt-2 text-xs text-muted-foreground space-y-1">
+                    <div className="flex justify-between">
+                      <span>Quotes:</span>
+                      <span className="font-medium">{formatNumber(conversionData?.quotesSent || 0)}</span>
+                    </div>
+                    <div className="flex justify-between">
+                      <span>Confirmed:</span>
+                      <span className="font-medium">{formatNumber(conversionData?.ordersConfirmed || 0)}</span>
+                    </div>
+                  </div>
+                </>
+              )}
             </CardContent>
           </Card>
         </div>
 
-        <Card className="mb-6">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <TrendingUp className="h-5 w-5 text-purple-600" />
-              Daily Sales Trendline
-            </CardTitle>
-            <CardDescription>
-              Compare invoiced amounts (actual sales) with quoted amounts (projected sales)
-            </CardDescription>
-          </CardHeader>
-          <CardContent>
-            {isLoading ? (
-              <div className="flex items-center justify-center h-[400px]">
-                <RefreshCw className="h-8 w-8 animate-spin text-muted-foreground" />
-              </div>
-            ) : data?.dailyData && data.dailyData.length > 0 ? (
-              <div className="h-[400px]">
-                <ResponsiveContainer width="100%" height="100%">
-                  <ComposedChart
-                    data={data.dailyData}
-                    margin={{ top: 20, right: 30, left: 20, bottom: 20 }}
-                  >
-                    <defs>
-                      <linearGradient id="colorInvoiced" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#10b981" stopOpacity={0}/>
-                      </linearGradient>
-                      <linearGradient id="colorQuoted" x1="0" y1="0" x2="0" y2="1">
-                        <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                        <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                      </linearGradient>
-                    </defs>
-                    <CartesianGrid strokeDasharray="3 3" className="stroke-muted" />
-                    <XAxis 
-                      dataKey="date" 
-                      tickFormatter={formatDate}
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <YAxis 
-                      tickFormatter={(value) => `$${(value / 1000).toFixed(0)}k`}
-                      tick={{ fontSize: 12 }}
-                      tickLine={false}
-                      axisLine={false}
-                    />
-                    <Tooltip content={<CustomTooltip />} />
-                    <Legend />
-                    <Area
-                      type="monotone"
-                      dataKey="invoicedAmount"
-                      name="Invoiced (Actual)"
-                      stroke="#10b981"
-                      strokeWidth={2}
-                      fillOpacity={1}
-                      fill="url(#colorInvoiced)"
-                    />
-                    <Line
-                      type="monotone"
-                      dataKey="quotedAmount"
-                      name="Quoted (Projected)"
-                      stroke="#3b82f6"
-                      strokeWidth={2}
-                      strokeDasharray="5 5"
-                      dot={false}
-                    />
-                  </ComposedChart>
-                </ResponsiveContainer>
-              </div>
-            ) : (
-              <div className="flex flex-col items-center justify-center h-[400px] text-muted-foreground">
-                <BarChart3 className="h-12 w-12 mb-4 opacity-50" />
-                <p>No data available for the selected period</p>
-                <p className="text-sm">Try selecting a different date range</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+        {/* Detailed Breakdown Cards */}
+        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+          {/* Income vs Cost of Sales */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <DollarSign className="h-5 w-5 text-green-600" />
+                Profit & Loss Summary
+              </CardTitle>
+              <CardDescription>
+                Income and Cost of Sales from Odoo P&L Report
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {plLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="p-4 bg-green-50 dark:bg-green-950 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-green-700 dark:text-green-300">Income</span>
+                      <span className="text-2xl font-bold text-green-700 dark:text-green-300">
+                        {formatCurrency(plData?.income || 0)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-green-200 dark:bg-green-800 rounded-full h-2">
+                      <div className="bg-green-600 h-2 rounded-full" style={{ width: '100%' }} />
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-red-50 dark:bg-red-950 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-red-700 dark:text-red-300">Cost of Sales</span>
+                      <span className="text-2xl font-bold text-red-700 dark:text-red-300">
+                        {formatCurrency(plData?.costOfSales || 0)}
+                      </span>
+                    </div>
+                    <div className="w-full bg-red-200 dark:bg-red-800 rounded-full h-2">
+                      <div 
+                        className="bg-red-600 h-2 rounded-full" 
+                        style={{ 
+                          width: plData?.income ? `${Math.min((plData.costOfSales / plData.income) * 100, 100)}%` : '0%' 
+                        }} 
+                      />
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-blue-50 dark:bg-blue-950 rounded-lg border-2 border-blue-200 dark:border-blue-800">
+                    <div className="flex items-center justify-between">
+                      <span className="text-sm font-medium text-blue-700 dark:text-blue-300">Gross Profit</span>
+                      <div className="text-right">
+                        <span className="text-2xl font-bold text-blue-700 dark:text-blue-300">
+                          {formatCurrency(plData?.grossProfit || 0)}
+                        </span>
+                        <Badge 
+                          className="ml-2"
+                          variant={(plData?.grossMarginPercent || 0) >= 30 ? "default" : "secondary"}
+                        >
+                          {plData?.grossMarginPercent || 0}% margin
+                        </Badge>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
 
-        <div className="flex items-center justify-center gap-4 text-sm text-muted-foreground">
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-1 bg-green-500 rounded" />
-            <span>Invoiced = Actual sales from Odoo invoices</span>
-          </div>
-          <div className="flex items-center gap-2">
-            <div className="w-4 h-1 bg-blue-500 rounded border-dashed border border-blue-500" style={{ borderStyle: 'dashed' }} />
-            <span>Quoted = Projected sales from QuickQuotes</span>
-          </div>
+          {/* Quotes to Orders Conversion */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <ArrowRightLeft className="h-5 w-5 text-amber-600" />
+                Quotes to Orders Conversion
+              </CardTitle>
+              <CardDescription>
+                How many quotes became confirmed sales orders
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              {conversionLoading ? (
+                <div className="space-y-4">
+                  <Skeleton className="h-20 w-full" />
+                  <Skeleton className="h-20 w-full" />
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="p-4 bg-amber-50 dark:bg-amber-950 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-amber-700 dark:text-amber-300">
+                        {formatNumber(conversionData?.quotesSent || 0)}
+                      </p>
+                      <p className="text-sm text-amber-600 dark:text-amber-400">Quotes Sent</p>
+                      <p className="text-xs text-amber-500 mt-1">
+                        {formatCurrency(conversionData?.quotesSentAmount || 0)}
+                      </p>
+                    </div>
+                    <div className="p-4 bg-emerald-50 dark:bg-emerald-950 rounded-lg text-center">
+                      <p className="text-3xl font-bold text-emerald-700 dark:text-emerald-300">
+                        {formatNumber(conversionData?.ordersConfirmed || 0)}
+                      </p>
+                      <p className="text-sm text-emerald-600 dark:text-emerald-400">Orders Confirmed</p>
+                      <p className="text-xs text-emerald-500 mt-1">
+                        {formatCurrency(conversionData?.ordersConfirmedAmount || 0)}
+                      </p>
+                    </div>
+                  </div>
+                  
+                  <div className="p-4 bg-purple-50 dark:bg-purple-950 rounded-lg">
+                    <div className="flex items-center justify-between mb-3">
+                      <span className="text-sm font-medium text-purple-700 dark:text-purple-300">
+                        Conversion Rate
+                      </span>
+                      <span className="text-2xl font-bold text-purple-700 dark:text-purple-300">
+                        {conversionData?.conversionRate || 0}%
+                      </span>
+                    </div>
+                    <div className="w-full bg-purple-200 dark:bg-purple-800 rounded-full h-3">
+                      <div 
+                        className="bg-purple-600 h-3 rounded-full transition-all duration-500" 
+                        style={{ width: `${Math.min(conversionData?.conversionRate || 0, 100)}%` }} 
+                      />
+                    </div>
+                    <p className="text-xs text-purple-500 mt-2 text-center">
+                      {conversionData?.ordersConfirmed || 0} of {(conversionData?.quotesSent || 0) + (conversionData?.ordersConfirmed || 0)} total converted
+                    </p>
+                  </div>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </div>
+
+        <div className="mt-6 text-center text-sm text-muted-foreground">
+          <p>Data sourced from Odoo Profit & Loss Report and Sale Orders</p>
         </div>
       </div>
     </div>
