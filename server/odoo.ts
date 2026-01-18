@@ -1017,39 +1017,60 @@ ${plainTextBody}`;
       let purchasedCategoryIds = new Set<number>();
       
       try {
-        // Fetch confirmed sale orders with margin_percent field
+        // Fetch confirmed sale orders with margin fields
+        // Include amount_total so we can calculate margin_percent if needed
         const saleOrders = await this.searchRead('sale.order', [
           ['partner_id', '=', partnerId],
           ['state', 'in', ['sale', 'done']],
-        ], ['id', 'name', 'margin_percent', 'margin'], { limit: 500 });
+        ], ['id', 'name', 'margin_percent', 'margin', 'amount_total'], { limit: 500 });
         
         console.log(`[Odoo] Partner ${partnerId}: Found ${saleOrders.length} confirmed sale orders`);
         
-        // Calculate arithmetic mean of margin_percent values
-        // Filter out null/undefined but KEEP 0 values (0% margin is valid)
-        const validMargins = saleOrders
-          .map((order: any) => order.margin_percent)
-          .filter((margin: any) => typeof margin === 'number' && !isNaN(margin));
+        // Log a sample order to see what data is returned
+        if (saleOrders.length > 0) {
+          const sample = saleOrders[0];
+          console.log(`[Odoo] Partner ${partnerId}: Sample order ${sample.name}: margin_percent=${sample.margin_percent} (type: ${typeof sample.margin_percent}), margin=$${sample.margin}, amount_total=$${sample.amount_total}`);
+        }
         
-        console.log(`[Odoo] Partner ${partnerId}: ${validMargins.length} orders have margin_percent data. Values: ${validMargins.slice(0, 5).join(', ')}${validMargins.length > 5 ? '...' : ''}`);
+        // Try to get margin_percent directly first
+        // NOTE: Odoo's margin_percent is a FRACTION (0.76 = 76%), not a percentage!
+        // We need to multiply by 100 to convert to actual percentage
+        let validMargins = saleOrders
+          .map((order: any) => order.margin_percent)
+          .filter((margin: any) => typeof margin === 'number' && !isNaN(margin) && margin !== 0)
+          .map((fraction: number) => fraction * 100);  // Convert fraction to percentage
+        
+        // If margin_percent is all zeros or unavailable, calculate from margin/amount_total
+        if (validMargins.length === 0) {
+          console.log(`[Odoo] Partner ${partnerId}: margin_percent field unavailable or all zeros, calculating from margin/amount_total...`);
+          
+          validMargins = saleOrders
+            .filter((order: any) => {
+              const margin = parseFloat(order.margin) || 0;
+              const total = parseFloat(order.amount_total) || 0;
+              return total > 0 && margin !== 0;  // Only include orders with non-zero margin and valid total
+            })
+            .map((order: any) => {
+              const margin = parseFloat(order.margin) || 0;
+              const total = parseFloat(order.amount_total) || 0;
+              return (margin / total) * 100;
+            });
+          
+          console.log(`[Odoo] Partner ${partnerId}: Calculated ${validMargins.length} margin percentages from dollar amounts`);
+        }
+        
+        console.log(`[Odoo] Partner ${partnerId}: ${validMargins.length} orders have valid margin data. Values: ${validMargins.slice(0, 5).map(v => v.toFixed(1) + '%').join(', ')}${validMargins.length > 5 ? '...' : ''}`);
         
         if (validMargins.length > 0) {
           const sum = validMargins.reduce((acc: number, val: number) => acc + val, 0);
           averageMargin = Math.round(sum / validMargins.length);
           console.log(`[Odoo] Partner ${partnerId}: Calculated average margin = ${averageMargin}%`);
         } else {
-          // No valid margin data - check if orders exist but lack margin data
-          const ordersWithMarginField = saleOrders.filter((o: any) => o.margin !== null && o.margin !== undefined);
-          if (ordersWithMarginField.length > 0) {
-            // Orders have margin $ but not margin_percent - this is unusual
-            console.log(`[Odoo] Partner ${partnerId}: Orders have margin ($) but not margin_percent - sale_margin module may need configuration`);
-          } else {
-            console.log(`[Odoo] Partner ${partnerId}: No margin data available (products may not have costs defined)`);
-          }
+          console.log(`[Odoo] Partner ${partnerId}: No margin data available (products may not have costs defined or all orders have $0 margin)`);
           averageMargin = null;  // Indicate no data available
         }
       } catch (marginError: any) {
-        console.error(`[Odoo] Error fetching margin_percent from sale orders:`, marginError.message);
+        console.error(`[Odoo] Error fetching margin from sale orders:`, marginError.message);
         averageMargin = null;  // Error - no data available
       }
       
