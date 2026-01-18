@@ -1071,6 +1071,29 @@ export default function OdooCompanyDetail() {
                     )}
                   </div>
                 </div>
+
+                {/* Display actual customer tags from Shopify/Odoo */}
+                {company.tags && (
+                  <>
+                    <Separator />
+                    <div className="flex items-start gap-3">
+                      <Tag className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div className="flex-1">
+                        <p className="text-sm text-gray-500 mb-2">Customer Tags</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {company.tags.split(',').map((tag, idx) => (
+                            <span
+                              key={idx}
+                              className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-violet-100 text-violet-800"
+                            >
+                              {tag.trim()}
+                            </span>
+                          ))}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
               </CardContent>
             </Card>
 
