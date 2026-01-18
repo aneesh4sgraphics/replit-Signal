@@ -104,5 +104,5 @@ Email is the primary identifier for connecting customers across all systems (Odo
 - **Validation**: Zod.
 - **File Handling**: Multer.
 - **PDF Generation**: puppeteer.
-- **AI/NLP**: OpenAI.
+- **AI/NLP**: OpenAI (cost-optimized with gpt-4o-mini for all AI features).
 - **Other**: axios, csv-parse, pdf-lib, pug, zod-validation-error.

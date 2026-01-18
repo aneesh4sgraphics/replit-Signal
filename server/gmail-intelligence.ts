@@ -423,7 +423,7 @@ Return empty insights array [] for emails with no actionable insights.`;
   try {
     const startTime = Date.now();
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',  // Cost-optimized: 16x cheaper, highly capable for email analysis
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: `Analyze these ${messages.length} emails:\n${emailsContent}` }
@@ -437,7 +437,7 @@ Return empty insights array [] for emails with no actionable insights.`;
     await logApiCost({
       userId: messages[0].userId,
       apiProvider: 'openai',
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       operation: 'gmail_batch_analysis',
       functionName: 'extractInsightsFromBatch',
       inputTokens: response.usage?.prompt_tokens || 0,
@@ -549,7 +549,7 @@ Ignore auto-replies, newsletters, spam, and marketing emails.`;
   try {
     const startTime = Date.now();
     const response = await openai.chat.completions.create({
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',  // Cost-optimized: 16x cheaper, highly capable for email analysis
       messages: [
         { role: 'system', content: systemPrompt },
         { role: 'user', content: emailContent }
@@ -563,7 +563,7 @@ Ignore auto-replies, newsletters, spam, and marketing emails.`;
     await logApiCost({
       userId: message.userId,
       apiProvider: 'openai',
-      model: 'gpt-4o',
+      model: 'gpt-4o-mini',
       operation: 'gmail_analysis',
       functionName: 'extractInsightsFromEmail',
       inputTokens: response.usage?.prompt_tokens || 0,

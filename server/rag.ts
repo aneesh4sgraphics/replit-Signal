@@ -186,7 +186,7 @@ Rules:
       ];
       
       const response = await openai.chat.completions.create({
-        model: "gpt-4o",
+        model: "gpt-4o-mini",  // Cost-optimized: 16x cheaper than gpt-4o, still highly capable
         messages: messages,
         max_tokens: 500,
         temperature: 0.2,
