@@ -5,8 +5,9 @@ import {
   ArrowLeft, Package, DollarSign, Users, Warehouse, 
   ShoppingCart, ExternalLink, TrendingUp, Box, Layers,
   AlertCircle, Loader2, Target, TrendingDown, TrendingUp as TrendUp,
-  Eye, EyeOff
+  Eye, EyeOff, ChevronLeft, ChevronRight
 } from "lucide-react";
+import { useLocation } from "wouter";
 import { useAuth } from "@/hooks/useAuth";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
@@ -159,9 +160,20 @@ export default function OdooProductDetail() {
   const [, params] = useRoute("/odoo-products/:id");
   const productId = params?.id;
   const { user } = useAuth();
+  const [, setLocation] = useLocation();
   const [landedPriceRevealed, setLandedPriceRevealed] = useState(false);
   
   const isAdmin = (user as any)?.role === 'admin';
+
+  const { data: navData } = useQuery<{ prevId: number | null; nextId: number | null }>({
+    queryKey: ['/api/odoo/products', productId, 'navigation'],
+    queryFn: async () => {
+      const res = await fetch(`/api/odoo/products/${productId}/navigation`);
+      if (!res.ok) return { prevId: null, nextId: null };
+      return res.json();
+    },
+    enabled: !!productId,
+  });
 
   const { data, isLoading, error } = useQuery<ProductDetails>({
     queryKey: ['/api/odoo/products', productId, 'details'],
@@ -250,6 +262,29 @@ export default function OdooProductDetail() {
               <ArrowLeft className="w-5 h-5" />
             </Button>
           </Link>
+          
+          {/* Previous/Next Navigation */}
+          <div className="flex items-center gap-1">
+            <Button 
+              variant="outline" 
+              size="icon"
+              disabled={!navData?.prevId}
+              onClick={() => navData?.prevId && setLocation(`/odoo-products/${navData.prevId}`)}
+              title="Previous Product"
+            >
+              <ChevronLeft className="w-4 h-4" />
+            </Button>
+            <Button 
+              variant="outline" 
+              size="icon"
+              disabled={!navData?.nextId}
+              onClick={() => navData?.nextId && setLocation(`/odoo-products/${navData.nextId}`)}
+              title="Next Product"
+            >
+              <ChevronRight className="w-4 h-4" />
+            </Button>
+          </div>
+          
           <div>
             <h1 className="text-2xl font-bold text-gray-900">{product.name}</h1>
             <div className="flex items-center gap-2 mt-1">

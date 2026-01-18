@@ -11551,6 +11551,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get previous/next product IDs for navigation
+  app.get("/api/odoo/products/:id/navigation", requireApproval, async (req: any, res) => {
+    try {
+      const productId = parseInt(req.params.id);
+      if (isNaN(productId)) {
+        return res.status(400).json({ error: "Invalid product ID" });
+      }
+
+      // Get a window of products around the current one
+      const products = await odooClient.searchProductVariants({ 
+        limit: 1000, 
+        offset: 0, 
+        domain: [['default_code', '!=', false]]
+      });
+      
+      // Find current product index
+      const currentIndex = products.findIndex((p: any) => p.id === productId);
+      
+      const prevId = currentIndex > 0 ? products[currentIndex - 1].id : null;
+      const nextId = currentIndex >= 0 && currentIndex < products.length - 1 
+        ? products[currentIndex + 1].id 
+        : null;
+      
+      res.json({ prevId, nextId });
+    } catch (error: any) {
+      console.error("Error fetching product navigation:", error);
+      res.json({ prevId: null, nextId: null });
+    }
+  });
+
   // Get detailed product information including pricing tiers, inventory, POs, and customer purchases
   app.get("/api/odoo/products/:id/details", requireApproval, async (req: any, res) => {
     try {
