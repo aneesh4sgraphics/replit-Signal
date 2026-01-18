@@ -861,18 +861,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const startDate = `${year}-01-01`;
       const endDate = `${year}-12-31`;
       
-      // Get posted invoices for 2026
-      const invoices = await odooClient.searchRead('account.move', [
-        ['move_type', 'in', ['out_invoice']],
-        ['state', '=', 'posted'],
-        ['invoice_date', '>=', startDate],
-        ['invoice_date', '<=', endDate],
-      ], ['id', 'invoice_date', 'amount_total', 'amount_untaxed', 'invoice_line_ids'], { limit: 10000 });
+      // Get Revenue from Income accounts (income, income_other account types)
+      const incomeLines = await odooClient.searchRead('account.move.line', [
+        ['account_id.account_type', 'in', ['income', 'income_other']],
+        ['date', '>=', startDate],
+        ['date', '<=', endDate],
+        ['parent_state', '=', 'posted'],
+      ], ['credit', 'debit', 'date'], { limit: 50000 });
       
-      // Get invoice lines with product costs
-      const invoiceIds = invoices.map(inv => inv.id);
-      let totalCogs = 0;
-      let totalRevenue = 0;
+      // Get COGS from Cost of Sales accounts (expense_direct_cost account type)
+      const cosLines = await odooClient.searchRead('account.move.line', [
+        ['account_id.account_type', '=', 'expense_direct_cost'],
+        ['date', '>=', startDate],
+        ['date', '<=', endDate],
+        ['parent_state', '=', 'posted'],
+      ], ['credit', 'debit', 'date'], { limit: 50000 });
       
       // Group by month
       const monthlyData = new Map<number, { revenue: number; cogs: number }>();
@@ -880,40 +883,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
         monthlyData.set(m, { revenue: 0, cogs: 0 });
       }
       
-      if (invoiceIds.length > 0) {
-        // Get invoice lines - filter only product lines (display_type is false for regular lines)
-        const invoiceLines = await odooClient.searchRead('account.move.line', [
-          ['move_id', 'in', invoiceIds],
-          ['product_id', '!=', false],
-        ], ['id', 'move_id', 'product_id', 'quantity', 'price_subtotal', 'display_type'], { limit: 50000 });
+      // Revenue: credit increases, debit decreases
+      let totalRevenue = 0;
+      for (const line of incomeLines) {
+        const lineRevenue = (line.credit || 0) - (line.debit || 0);
+        totalRevenue += lineRevenue;
         
-        // Get product costs
-        const productIds = [...new Set(invoiceLines.map(line => line.product_id?.[0]).filter(Boolean))];
-        const productCosts = await odooClient.getProductCosts(productIds as number[]);
+        if (line.date) {
+          const month = parseInt(line.date.split('-')[1]);
+          const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
+          current.revenue += lineRevenue;
+          monthlyData.set(month, current);
+        }
+      }
+      
+      // COGS: debit increases, credit decreases
+      let totalCogs = 0;
+      for (const line of cosLines) {
+        const lineCogs = (line.debit || 0) - (line.credit || 0);
+        totalCogs += lineCogs;
         
-        // Calculate for each line - skip section headers (display_type = 'line_section' or 'line_note')
-        const invoiceDateMap = new Map(invoices.map(inv => [inv.id, inv.invoice_date]));
-        
-        for (const line of invoiceLines) {
-          // Skip non-product lines (section headers, notes, etc.)
-          if (line.display_type && line.display_type !== 'product') continue;
-          
-          const productId = line.product_id?.[0];
-          const invoiceDate = invoiceDateMap.get(line.move_id?.[0] || line.move_id);
-          if (productId && invoiceDate) {
-            const month = parseInt(invoiceDate.split('-')[1]);
-            const unitCost = productCosts.get(productId) || 0;
-            const lineCost = unitCost * (line.quantity || 0);
-            const lineRevenue = line.price_subtotal || 0;
-            
-            const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
-            current.revenue += lineRevenue;
-            current.cogs += lineCost;
-            monthlyData.set(month, current);
-            
-            totalRevenue += lineRevenue;
-            totalCogs += lineCost;
-          }
+        if (line.date) {
+          const month = parseInt(line.date.split('-')[1]);
+          const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
+          current.cogs += lineCogs;
+          monthlyData.set(month, current);
         }
       }
       
