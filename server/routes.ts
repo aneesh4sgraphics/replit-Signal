@@ -938,6 +938,211 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sales Analytics - Profit & Loss (Income and Cost of Sales from Odoo)
+  app.get("/api/analytics/profit-loss", isAuthenticated, async (req: any, res) => {
+    try {
+      const { period = 'month', year = '2026', month, quarter } = req.query;
+      const yearNum = parseInt(year);
+      
+      let startDate: string, endDate: string;
+      
+      if (period === 'month' && month) {
+        const monthNum = parseInt(month);
+        startDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, monthNum, 0).getDate();
+        endDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-${lastDay}`;
+      } else if (period === 'quarter' && quarter) {
+        const q = parseInt(quarter);
+        const startMonth = (q - 1) * 3 + 1;
+        const endMonth = q * 3;
+        startDate = `${yearNum}-${String(startMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, endMonth, 0).getDate();
+        endDate = `${yearNum}-${String(endMonth).padStart(2, '0')}-${lastDay}`;
+      } else {
+        // Full year
+        startDate = `${yearNum}-01-01`;
+        endDate = `${yearNum}-12-31`;
+      }
+      
+      // Get Income (Revenue) from account.move.line with income account types
+      const incomeLines = await odooClient.searchRead('account.move.line', [
+        ['account_id.account_type', 'in', ['income', 'income_other']],
+        ['date', '>=', startDate],
+        ['date', '<=', endDate],
+        ['parent_state', '=', 'posted'],
+      ], ['credit', 'debit', 'balance', 'date', 'account_id'], { limit: 50000 });
+      
+      // Get Cost of Sales from account.move.line with expense_direct_cost account type
+      const cosLines = await odooClient.searchRead('account.move.line', [
+        ['account_id.account_type', '=', 'expense_direct_cost'],
+        ['date', '>=', startDate],
+        ['date', '<=', endDate],
+        ['parent_state', '=', 'posted'],
+      ], ['credit', 'debit', 'balance', 'date', 'account_id'], { limit: 50000 });
+      
+      // Calculate totals - Income is credit minus debit, Cost is debit minus credit
+      const totalIncome = incomeLines.reduce((sum: number, line: any) => 
+        sum + ((line.credit || 0) - (line.debit || 0)), 0);
+      const totalCostOfSales = cosLines.reduce((sum: number, line: any) => 
+        sum + ((line.debit || 0) - (line.credit || 0)), 0);
+      
+      const grossProfit = totalIncome - totalCostOfSales;
+      const grossMarginPercent = totalIncome > 0 ? ((grossProfit / totalIncome) * 100) : 0;
+      
+      res.json({
+        success: true,
+        period,
+        year: yearNum,
+        month: month ? parseInt(month) : null,
+        quarter: quarter ? parseInt(quarter) : null,
+        startDate,
+        endDate,
+        income: Math.round(totalIncome * 100) / 100,
+        costOfSales: Math.round(totalCostOfSales * 100) / 100,
+        grossProfit: Math.round(grossProfit * 100) / 100,
+        grossMarginPercent: Math.round(grossMarginPercent * 10) / 10,
+      });
+    } catch (error) {
+      console.error("Profit & Loss analytics error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch P&L data", details: errorMessage });
+    }
+  });
+
+  // Sales Analytics - Quotes Sent (count and total from Odoo)
+  app.get("/api/analytics/quotes-sent", isAuthenticated, async (req: any, res) => {
+    try {
+      const { period = 'month', year = '2026', month, quarter } = req.query;
+      const yearNum = parseInt(year);
+      
+      let startDate: string, endDate: string;
+      let periodLabel: string;
+      
+      if (period === 'month' && month) {
+        const monthNum = parseInt(month);
+        startDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, monthNum, 0).getDate();
+        endDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-${lastDay}`;
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        periodLabel = `${monthNames[monthNum - 1]} ${yearNum}`;
+      } else if (period === 'quarter' && quarter) {
+        const q = parseInt(quarter);
+        const startMonth = (q - 1) * 3 + 1;
+        const endMonth = q * 3;
+        startDate = `${yearNum}-${String(startMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, endMonth, 0).getDate();
+        endDate = `${yearNum}-${String(endMonth).padStart(2, '0')}-${lastDay}`;
+        periodLabel = `Q${q} ${yearNum}`;
+      } else {
+        startDate = `${yearNum}-01-01`;
+        endDate = `${yearNum}-12-31`;
+        periodLabel = `${yearNum}`;
+      }
+      
+      // Get quotes (draft and sent sale orders) from Odoo
+      const quotes = await odooClient.searchRead('sale.order', [
+        ['state', 'in', ['draft', 'sent']],
+        ['date_order', '>=', startDate],
+        ['date_order', '<=', endDate],
+      ], ['id', 'name', 'amount_total', 'date_order', 'state'], { limit: 10000 });
+      
+      const quoteCount = quotes.length;
+      const totalAmount = quotes.reduce((sum: number, q: any) => sum + (q.amount_total || 0), 0);
+      
+      res.json({
+        success: true,
+        period,
+        periodLabel,
+        year: yearNum,
+        month: month ? parseInt(month) : null,
+        quarter: quarter ? parseInt(quarter) : null,
+        startDate,
+        endDate,
+        quoteCount,
+        totalAmount: Math.round(totalAmount * 100) / 100,
+      });
+    } catch (error) {
+      console.error("Quotes sent analytics error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch quotes data", details: errorMessage });
+    }
+  });
+
+  // Sales Analytics - Conversion Rate (Quotes to Sales Orders)
+  app.get("/api/analytics/conversion-rate", isAuthenticated, async (req: any, res) => {
+    try {
+      const { period = 'month', year = '2026', month, quarter } = req.query;
+      const yearNum = parseInt(year);
+      
+      let startDate: string, endDate: string;
+      let periodLabel: string;
+      
+      if (period === 'month' && month) {
+        const monthNum = parseInt(month);
+        startDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, monthNum, 0).getDate();
+        endDate = `${yearNum}-${String(monthNum).padStart(2, '0')}-${lastDay}`;
+        const monthNames = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+        periodLabel = `${monthNames[monthNum - 1]} ${yearNum}`;
+      } else if (period === 'quarter' && quarter) {
+        const q = parseInt(quarter);
+        const startMonth = (q - 1) * 3 + 1;
+        const endMonth = q * 3;
+        startDate = `${yearNum}-${String(startMonth).padStart(2, '0')}-01`;
+        const lastDay = new Date(yearNum, endMonth, 0).getDate();
+        endDate = `${yearNum}-${String(endMonth).padStart(2, '0')}-${lastDay}`;
+        periodLabel = `Q${q} ${yearNum}`;
+      } else {
+        startDate = `${yearNum}-01-01`;
+        endDate = `${yearNum}-12-31`;
+        periodLabel = `${yearNum}`;
+      }
+      
+      // Get all sale orders created in the period (quotes sent = draft + sent)
+      const allQuotes = await odooClient.searchRead('sale.order', [
+        ['date_order', '>=', startDate],
+        ['date_order', '<=', endDate],
+      ], ['id', 'name', 'amount_total', 'state', 'date_order'], { limit: 10000 });
+      
+      // Count quotes sent (draft or sent state means it's still a quote)
+      // But for conversion, we need quotes that were created in period
+      // and then confirmed. Let's get confirmed orders too.
+      const quotesSent = allQuotes.filter((o: any) => ['draft', 'sent'].includes(o.state));
+      const ordersConfirmed = allQuotes.filter((o: any) => ['sale', 'done'].includes(o.state));
+      
+      const quotesSentCount = quotesSent.length;
+      const quotesSentAmount = quotesSent.reduce((sum: number, q: any) => sum + (q.amount_total || 0), 0);
+      const ordersConfirmedCount = ordersConfirmed.length;
+      const ordersConfirmedAmount = ordersConfirmed.reduce((sum: number, o: any) => sum + (o.amount_total || 0), 0);
+      
+      // Conversion rate = confirmed / (quotes + confirmed) since confirmed ones were once quotes
+      const totalCreated = quotesSentCount + ordersConfirmedCount;
+      const conversionRate = totalCreated > 0 
+        ? ((ordersConfirmedCount / totalCreated) * 100) 
+        : 0;
+      
+      res.json({
+        success: true,
+        period,
+        periodLabel,
+        year: yearNum,
+        month: month ? parseInt(month) : null,
+        quarter: quarter ? parseInt(quarter) : null,
+        startDate,
+        endDate,
+        quotesSent: quotesSentCount,
+        quotesSentAmount: Math.round(quotesSentAmount * 100) / 100,
+        ordersConfirmed: ordersConfirmedCount,
+        ordersConfirmedAmount: Math.round(ordersConfirmedAmount * 100) / 100,
+        conversionRate: Math.round(conversionRate * 10) / 10,
+      });
+    } catch (error) {
+      console.error("Conversion rate analytics error:", error);
+      const errorMessage = error instanceof Error ? error.message : "Unknown error";
+      res.status(500).json({ error: "Failed to fetch conversion data", details: errorMessage });
+    }
+  });
+
   // Get all approved users (for sales rep selection)
   app.get("/api/users", isAuthenticated, async (req: any, res) => {
     try {
