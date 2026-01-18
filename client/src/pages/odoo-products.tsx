@@ -73,10 +73,17 @@ export default function OdooProducts() {
   };
 
   const { data: products = [], isLoading: productsLoading } = useQuery<OdooProduct[]>({
-    queryKey: ['/api/odoo/products', currentPage, pageSize],
+    queryKey: ['/api/odoo/products', currentPage, pageSize, debouncedSearch],
     queryFn: async () => {
       const offset = (currentPage - 1) * pageSize;
-      const res = await fetch(`/api/odoo/products?limit=${pageSize}&offset=${offset}`);
+      const params = new URLSearchParams({
+        limit: pageSize.toString(),
+        offset: offset.toString(),
+      });
+      if (debouncedSearch) {
+        params.set('search', debouncedSearch);
+      }
+      const res = await fetch(`/api/odoo/products?${params.toString()}`);
       if (!res.ok) throw new Error('Failed to fetch products');
       return res.json();
     },
@@ -93,17 +100,12 @@ export default function OdooProducts() {
     staleTime: 300000,
   });
 
+  // Search is now done server-side, so only filter by category client-side
   const filteredProducts = products.filter(product => {
-    const searchLower = debouncedSearch.toLowerCase();
-    const sku = product.default_code ? String(product.default_code).toLowerCase() : '';
-    const matchesSearch = !debouncedSearch || 
-      product.name.toLowerCase().includes(searchLower) ||
-      sku.includes(searchLower);
-    
     const matchesCategory = selectedCategory === "all" || 
       (product.categ_id && product.categ_id[0].toString() === selectedCategory);
     
-    return matchesSearch && matchesCategory;
+    return matchesCategory;
   });
 
   const formatPrice = (price: number) => {

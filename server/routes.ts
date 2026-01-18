@@ -11504,6 +11504,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const limit = parseInt(req.query.limit as string) || 100;
       const offset = parseInt(req.query.offset as string) || 0;
       const includeNoSku = req.query.includeNoSku === 'true';
+      const search = (req.query.search as string || '').trim();
       
       // Use product.product (variants) instead of product.template
       // This matches the Odoo Product Variants page which shows ~597 items
@@ -11516,6 +11517,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
           ['active', '=', true],
           ['default_code', '!=', false],
           ['default_code', '!=', '']
+        ];
+      }
+      
+      // Add search filter if provided - search in SKU or name using ilike (case-insensitive contains)
+      if (search) {
+        // Odoo uses 'ilike' for case-insensitive partial match
+        // Add OR condition: name contains search OR default_code contains search
+        domain = [
+          ...domain,
+          '|',
+          ['name', 'ilike', `%${search}%`],
+          ['default_code', 'ilike', `%${search}%`]
         ];
       }
       
