@@ -285,16 +285,41 @@ export default function OdooProductDetail() {
           <CardHeader className="pb-2">
             <CardTitle className="text-sm font-medium text-gray-500 flex items-center gap-2">
               <DollarSign className="w-4 h-4" />
-              Average Cost
+              {isAdmin ? 'Average Cost' : 'List Price'}
             </CardTitle>
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold text-gray-900">
-              {formatPrice(product.averageCost)}
-            </div>
-            <p className="text-xs text-gray-500 mt-1">
-              List: {formatPrice(product.listPrice)} • {margin.toFixed(1)}% margin
-            </p>
+            {isAdmin && landedPriceRevealed ? (
+              <>
+                <div className="text-2xl font-bold text-gray-900">
+                  {formatPrice(product.averageCost)}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  List: {formatPrice(product.listPrice)} • {margin.toFixed(1)}% margin
+                </p>
+              </>
+            ) : isAdmin ? (
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setLandedPriceRevealed(true)}
+                  className="text-gray-500 hover:text-gray-700"
+                >
+                  <Eye className="w-4 h-4 mr-2" />
+                  Show Cost
+                </Button>
+              </div>
+            ) : (
+              <>
+                <div className="text-2xl font-bold text-gray-900">
+                  {formatPrice(product.listPrice)}
+                </div>
+                <p className="text-xs text-gray-500 mt-1">
+                  {product.uom}
+                </p>
+              </>
+            )}
           </CardContent>
         </Card>
 
