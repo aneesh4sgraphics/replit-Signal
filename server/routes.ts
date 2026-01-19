@@ -357,37 +357,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Temporary endpoint to fix admin user approval status
-  app.get("/api/fix-admin-user", async (req: any, res) => {
-    try {
-      const allUsers = await storage.getAllUsers();
-      const aneeshUser = allUsers.find(u => u.email === 'aneesh@4sgraphics.com');
-      
-      if (!aneeshUser) {
-        return res.json({ message: "User not found in database", allEmails: allUsers.map(u => u.email) });
-      }
-
-      // Update to approved admin status
-      const updated = await storage.approveUser(aneeshUser.id, 'system');
-      
-      if (updated) {
-        // Also ensure role is admin
-        await storage.changeUserRole(aneeshUser.id, 'admin');
-      }
-
-      const finalUser = await storage.getUser(aneeshUser.id);
-      
-      res.json({
-        message: "User status updated",
-        before: { status: aneeshUser.status, role: aneeshUser.role },
-        after: { status: finalUser?.status, role: finalUser?.role }
-      });
-    } catch (error) {
-      console.error("Error fixing user:", error);
-      const errorMessage = error instanceof Error ? error.message : "Unknown error";
-      res.status(500).json({ error: errorMessage });
-    }
-  });
+  // REMOVED: /api/fix-admin-user - security hole, was exposing unauthenticated admin escalation
+  // Use /admin page to manage user roles instead
 
   // Integration connection status check - for connection popup
   app.get("/api/integrations/status", async (req: any, res) => {
@@ -605,6 +576,13 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.status(500).json({ error: "Failed to fetch CRM statistics", details: errorMessage });
     }
   });
+
+  // ============================================================
+  // CRITICAL: Setup authentication middleware BEFORE protected routes
+  // All routes above this point are PUBLIC (no auth required)
+  // All routes below this point use isAuthenticated/requireAdmin
+  // ============================================================
+  await setupAuth(app);
 
   // Sales Analytics - daily sales trendline data
   app.get("/api/analytics/sales-trend", isAuthenticated, async (req: any, res) => {
@@ -2448,10 +2426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Setup authentication middleware AFTER the public routes
-  await setupAuth(app);
-
-  // Auth routes
+  // Auth routes (setupAuth already called earlier in this function)
   app.get('/api/auth/user', async (req: any, res) => {
     try {
       // Development bypass for testing using config
