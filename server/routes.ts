@@ -12328,6 +12328,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   const { odooClient } = await import('./odoo');
 
+  // Odoo health check - public endpoint for debugging production issues
+  app.get("/api/odoo/health", async (req: any, res) => {
+    try {
+      const configured = !!(process.env.ODOO_URL && process.env.ODOO_DATABASE && process.env.ODOO_USERNAME && (process.env.ODOO_PASSWORD || process.env.ODOO_API_KEY));
+      
+      let canAuth = false;
+      let lastError: string | null = null;
+      
+      if (configured) {
+        try {
+          const testResult = await odooClient.testConnection();
+          canAuth = testResult.success === true;
+          if (!canAuth && testResult.message) {
+            lastError = testResult.message;
+          }
+        } catch (e: any) {
+          lastError = e.message || 'Unknown error during auth test';
+        }
+      } else {
+        lastError = 'Missing required Odoo environment variables';
+      }
+      
+      res.json({
+        configured,
+        canAuth,
+        lastError,
+        envStatus: {
+          ODOO_URL: !!process.env.ODOO_URL,
+          ODOO_DATABASE: !!process.env.ODOO_DATABASE,
+          ODOO_USERNAME: !!process.env.ODOO_USERNAME,
+          ODOO_API_KEY: !!process.env.ODOO_API_KEY,
+        },
+        timestamp: new Date().toISOString()
+      });
+    } catch (error: any) {
+      res.status(500).json({
+        configured: false,
+        canAuth: false,
+        lastError: error.message || 'Health check failed',
+        timestamp: new Date().toISOString()
+      });
+    }
+  });
+
   // Test Odoo connection
   app.get("/api/odoo/test-connection", requireAdmin, async (req: any, res) => {
     try {
@@ -19948,9 +19992,18 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         allDone,
         hints,
       });
-    } catch (error) {
+    } catch (error: any) {
       console.error("[Spotlight] Error getting current task:", error);
-      res.status(500).json({ error: "Failed to get current task" });
+      
+      // Generate a request ID for debugging
+      const requestId = `SP-${Date.now().toString(36)}`;
+      
+      res.status(500).json({ 
+        error: "Spotlight engine error",
+        requestId,
+        details: error.message || "Unknown error occurred",
+        retryable: true
+      });
     }
   });
 

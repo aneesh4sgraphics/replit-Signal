@@ -4,6 +4,18 @@ import { toast } from "@/hooks/use-toast";
 let sessionExpiredToastShown = false;
 let lastSessionExpiredTime = 0;
 const appLoadTime = Date.now();
+let globalAuthFailed = false;
+
+// Export function to check if auth has globally failed (for components to stop polling)
+export function isAuthFailed(): boolean {
+  return globalAuthFailed;
+}
+
+// Reset auth failed state (called after successful login)
+export function resetAuthFailed(): void {
+  globalAuthFailed = false;
+  sessionExpiredToastShown = false;
+}
 
 function checkLoginGracePeriod(): boolean {
   // Grace period after login
@@ -154,6 +166,14 @@ export const getQueryFn: <T>(options: {
           });
         }
         
+        // On 401, trigger global auth failure to stop all polling
+        if (res.status === 401 && !globalAuthFailed) {
+          globalAuthFailed = true;
+          console.log('[Auth] Global auth failure - stopping retries');
+          // Note: queryClient operations deferred since we're in query execution
+          // The queryClient will be cleared on next page load/login
+        }
+        
         const message = res.status === 401 
           ? "Session expired. Please log in again."
           : "You don't have permission to access this resource.";
@@ -201,7 +221,13 @@ export const queryClient = new QueryClient({
       refetchOnWindowFocus: false,
       staleTime: 5 * 60 * 1000, // 5 minutes - data stays fresh
       gcTime: 10 * 60 * 1000, // 10 minutes - keep in cache
-      retry: 1,
+      retry: (failureCount, error) => {
+        // Don't retry if auth has globally failed
+        if (globalAuthFailed) return false;
+        // Don't retry auth errors
+        if (error instanceof ApiError && error.isAuthError) return false;
+        return failureCount < 1;
+      },
       retryDelay: 1000,
     },
     mutations: {
@@ -209,3 +235,11 @@ export const queryClient = new QueryClient({
     },
   },
 });
+
+// Safe function to clear query client (called after queryClient is initialized)
+export function clearQueryClientOnAuthFailure(): void {
+  if (globalAuthFailed) {
+    queryClient.cancelQueries();
+    queryClient.clear();
+  }
+}

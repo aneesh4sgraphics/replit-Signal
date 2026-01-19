@@ -110,6 +110,7 @@ function createSessionMiddleware(): ReturnType<typeof session> {
     resave: false,
     saveUninitialized: false,
     rolling: true,
+    proxy: true, // Trust first proxy - required for secure cookies behind load balancer
     cookie: cookieConfig,
   });
 }
