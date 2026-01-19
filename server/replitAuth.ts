@@ -458,7 +458,7 @@ export async function setupAuth(app: Express) {
           shopifyEmbedded: isShopifyEmbedded,
           trustProxy: true,
           cookieSecure: isProduction,
-          cookieSameSite: 'lax',
+          cookieSameSite: isProduction ? 'none' : 'lax',
           currentHostname,
           configuredDomains,
           isDomainConfigured,
