@@ -1571,6 +1571,103 @@ export default function OdooCompanyDetail() {
                     </div>
                   </>
                 )}
+
+                {/* Contact Information Section */}
+                <Separator />
+                <div className="space-y-3">
+                  <p className="text-sm font-medium text-gray-700">Contact Information</p>
+                  
+                  {/* Email addresses */}
+                  {(company.email || company.email2) && (
+                    <div className="flex items-start gap-3">
+                      <Mail className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        {company.email && (
+                          <a 
+                            href={`mailto:${company.email}`}
+                            className="flex items-center gap-1 text-violet-600 hover:text-violet-800 hover:underline font-medium"
+                          >
+                            {company.email}
+                            {isShopifyEmail(company.email) && (
+                              <img 
+                                src="https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-shopping-bag-512.svg" 
+                                className="w-4 h-4 ml-1" 
+                                alt="Shopify customer"
+                                title="Shopify customer"
+                              />
+                            )}
+                          </a>
+                        )}
+                        {company.email2 && (
+                          <a 
+                            href={`mailto:${company.email2}`}
+                            className="flex items-center gap-1 text-violet-600 hover:text-violet-800 hover:underline text-sm"
+                          >
+                            {company.email2}
+                            <span className="text-gray-400 text-xs">(secondary)</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Phone numbers */}
+                  {(company.phone || company.phone2 || company.cell) && (
+                    <div className="flex items-start gap-3">
+                      <Phone className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div className="flex-1 space-y-1">
+                        {company.phone && (
+                          <a 
+                            href={`tel:${company.phone}`}
+                            className="flex items-center gap-2 text-violet-600 hover:text-violet-800 hover:underline font-medium"
+                          >
+                            {company.phone}
+                            <span className="text-gray-400 text-xs">(main)</span>
+                          </a>
+                        )}
+                        {company.phone2 && (
+                          <a 
+                            href={`tel:${company.phone2}`}
+                            className="flex items-center gap-2 text-violet-600 hover:text-violet-800 hover:underline text-sm"
+                          >
+                            {company.phone2}
+                            <span className="text-gray-400 text-xs">(secondary)</span>
+                          </a>
+                        )}
+                        {company.cell && (
+                          <a 
+                            href={`tel:${company.cell}`}
+                            className="flex items-center gap-2 text-violet-600 hover:text-violet-800 hover:underline text-sm"
+                          >
+                            {company.cell}
+                            <span className="text-gray-400 text-xs">(mobile)</span>
+                          </a>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                  
+                  {/* Address */}
+                  {(company.address1 || company.city) && (
+                    <div className="flex items-start gap-3">
+                      <MapPin className="w-5 h-5 text-gray-400 mt-0.5" />
+                      <div className="flex-1">
+                        {company.address1 && (
+                          <p className="font-medium text-gray-900">{company.address1}</p>
+                        )}
+                        {company.address2 && (
+                          <p className="text-gray-700">{company.address2}</p>
+                        )}
+                        <p className="text-gray-700">
+                          {[company.city, company.province, company.zip].filter(Boolean).join(', ')}
+                        </p>
+                        {company.country && (
+                          <p className="text-gray-600">{company.country}</p>
+                        )}
+                      </div>
+                    </div>
+                  )}
+                </div>
               </CardContent>
             </Card>
 
