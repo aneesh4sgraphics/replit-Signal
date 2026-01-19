@@ -3727,6 +3727,53 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Lightweight navigation endpoint - returns only prev/next company IDs
+  app.get("/api/customers/:id/navigation", async (req, res) => {
+    try {
+      const currentId = req.params.id;
+      
+      // Get current company to find its name for sorting context
+      const currentCompany = await storage.getCustomer(currentId);
+      if (!currentCompany || !currentCompany.isCompany) {
+        return res.json({ prevId: null, nextId: null });
+      }
+      
+      const currentName = (currentCompany.company || '').toLowerCase();
+      
+      // Find prev company (largest name that's smaller than current)
+      const prevResult = await db
+        .select({ id: customers.id, company: customers.company })
+        .from(customers)
+        .where(and(
+          eq(customers.isCompany, true),
+          sql`LOWER(COALESCE(${customers.company}, '')) < ${currentName}`
+        ))
+        .orderBy(desc(sql`LOWER(COALESCE(${customers.company}, ''))`))
+        .limit(1);
+      
+      // Find next company (smallest name that's larger than current)
+      const nextResult = await db
+        .select({ id: customers.id, company: customers.company })
+        .from(customers)
+        .where(and(
+          eq(customers.isCompany, true),
+          sql`LOWER(COALESCE(${customers.company}, '')) > ${currentName}`
+        ))
+        .orderBy(asc(sql`LOWER(COALESCE(${customers.company}, ''))`))
+        .limit(1);
+      
+      res.json({
+        prevId: prevResult[0]?.id || null,
+        prevName: prevResult[0]?.company || null,
+        nextId: nextResult[0]?.id || null,
+        nextName: nextResult[0]?.company || null,
+      });
+    } catch (error) {
+      console.error("Error fetching customer navigation:", error);
+      res.status(500).json({ error: "Failed to fetch navigation" });
+    }
+  });
+
   // Customer overview endpoint - bundled data for first paint (reduces API chattiness)
   app.get("/api/customers/:id/overview", isAuthenticated, async (req, res) => {
     try {

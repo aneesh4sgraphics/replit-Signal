@@ -295,26 +295,23 @@ export default function OdooCompanyDetail() {
     return shopifyEmails.has(email.toLowerCase());
   };
 
-  // Fetch all companies for prev/next navigation
-  const { data: allCompanies = [] } = useQuery<Contact[]>({
-    queryKey: ['/api/customers'],
+  // Lightweight navigation - only fetches prev/next IDs, not all 3600+ customers
+  const { data: navigation } = useQuery<{
+    prevId: string | null;
+    prevName: string | null;
+    nextId: string | null;
+    nextName: string | null;
+  }>({
+    queryKey: [`/api/customers/${companyId}/navigation`],
     staleTime: 60000,
+    enabled: !!companyId,
   });
 
-  // Calculate prev/next navigation - filter to companies only, sorted by company name
-  const companiesList = allCompanies
-    .filter(c => c.isCompany)
-    .sort((a, b) => (a.company || '').localeCompare(b.company || ''));
-  
-  const currentIndex = companiesList.findIndex(c => c.id === companyId);
-  const prevCompany = currentIndex > 0 ? companiesList[currentIndex - 1] : null;
-  const nextCompany = currentIndex < companiesList.length - 1 ? companiesList[currentIndex + 1] : null;
-
   const navigateToPrev = () => {
-    if (prevCompany) setLocation(`/odoo-contacts/${prevCompany.id}`);
+    if (navigation?.prevId) setLocation(`/odoo-contacts/${navigation.prevId}`);
   };
   const navigateToNext = () => {
-    if (nextCompany) setLocation(`/odoo-contacts/${nextCompany.id}`);
+    if (navigation?.nextId) setLocation(`/odoo-contacts/${navigation.nextId}`);
   };
 
   // Mutation to update payment terms (immediate Odoo update)
@@ -762,9 +759,9 @@ export default function OdooCompanyDetail() {
                   variant="outline" 
                   size="sm" 
                   onClick={navigateToPrev}
-                  disabled={!prevCompany}
+                  disabled={!navigation?.prevId}
                   className="px-2"
-                  title={prevCompany ? `Previous: ${prevCompany.company}` : 'No previous company'}
+                  title={navigation?.prevName ? `Previous: ${navigation.prevName}` : 'No previous company'}
                 >
                   <ChevronLeft className="w-4 h-4" />
                 </Button>
@@ -772,9 +769,9 @@ export default function OdooCompanyDetail() {
                   variant="outline" 
                   size="sm" 
                   onClick={navigateToNext}
-                  disabled={!nextCompany}
+                  disabled={!navigation?.nextId}
                   className="px-2"
-                  title={nextCompany ? `Next: ${nextCompany.company}` : 'No next company'}
+                  title={navigation?.nextName ? `Next: ${navigation.nextName}` : 'No next company'}
                 >
                   <ChevronRight className="w-4 h-4" />
                 </Button>
