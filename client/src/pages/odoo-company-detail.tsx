@@ -37,6 +37,7 @@ import {
   CheckCircle2,
   XCircle,
   Loader2,
+  Printer,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 
@@ -126,6 +127,11 @@ export default function OdooCompanyDetail() {
   const [salesPersonSaveSuccess, setSalesPersonSaveSuccess] = useState(false);
   const [isCreateOdooDialogOpen, setIsCreateOdooDialogOpen] = useState(false);
   const [duplicatePartners, setDuplicatePartners] = useState<Array<{ id: number; name: string; email: string; isCompany: boolean }>>([]);
+  const [isPrintLabelOpen, setIsPrintLabelOpen] = useState(false);
+  const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'other'>('swatch_book');
+  const [labelOtherDescription, setLabelOtherDescription] = useState('');
+  const [labelQuantity, setLabelQuantity] = useState(1);
+  const [labelNotes, setLabelNotes] = useState('');
   const [editForm, setEditForm] = useState({
     company: '',
     email: '',
@@ -217,6 +223,63 @@ export default function OdooCompanyDetail() {
   const { data: shopifyMappings = [] } = useQuery<ShopifyCustomerMapping[]>({
     queryKey: ['/api/shopify/customer-mappings'],
     staleTime: 60000, // Cache for 1 minute
+  });
+
+  // Fetch label print stats for this customer
+  interface LabelStats {
+    stats: Array<{ labelType: string; label: string; count: number; totalQuantity: number; lastPrintedAt: string | null }>;
+    recentPrints: Array<{ id: number; labelType: string; quantity: number; createdAt: string; printedByUserName: string | null }>;
+    total: number;
+  }
+  const { data: labelStats } = useQuery<LabelStats>({
+    queryKey: ['/api/customers', companyId, 'label-stats'],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${companyId}/label-stats`);
+      if (!res.ok) throw new Error('Failed to fetch label stats');
+      return res.json();
+    },
+    enabled: !!companyId,
+    staleTime: 30000,
+  });
+
+  // Print label mutation
+  const printLabelMutation = useMutation({
+    mutationFn: async (data: { labelType: string; otherDescription?: string; quantity: number; notes?: string }) => {
+      const res = await apiRequest('POST', '/api/labels/print', {
+        customerId: companyId,
+        ...data,
+      });
+      return res.json();
+    },
+    onSuccess: (data) => {
+      // Download the PDF
+      const byteCharacters = atob(data.pdf);
+      const byteNumbers = new Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) {
+        byteNumbers[i] = byteCharacters.charCodeAt(i);
+      }
+      const byteArray = new Uint8Array(byteNumbers);
+      const blob = new Blob([byteArray], { type: 'application/pdf' });
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `label-${company?.company || 'customer'}-${Date.now()}.pdf`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      window.URL.revokeObjectURL(url);
+
+      toast({ title: 'Label printed successfully', description: data.message });
+      setIsPrintLabelOpen(false);
+      setLabelType('swatch_book');
+      setLabelOtherDescription('');
+      setLabelQuantity(1);
+      setLabelNotes('');
+      queryClient.invalidateQueries({ queryKey: ['/api/customers', companyId, 'label-stats'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to print label', description: error.message, variant: 'destructive' });
+    },
   });
 
   // Create a Set of lowercase Shopify emails for quick lookup
@@ -683,6 +746,17 @@ export default function OdooCompanyDetail() {
                 </>
               )}
               
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsPrintLabelOpen(true)}
+                className="border-blue-200 text-blue-600 hover:bg-blue-50"
+                title="Print shipping label"
+              >
+                <Printer className="w-4 h-4 mr-2" />
+                Print Label
+              </Button>
+              
               <div className="flex items-center gap-1 border-l pl-2 ml-1">
                 <Button 
                   variant="outline" 
@@ -866,6 +940,123 @@ export default function OdooCompanyDetail() {
                 <CheckCircle2 className="w-4 h-4 mr-2" />
               )}
               Save Changes
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Print Label Dialog */}
+      <Dialog open={isPrintLabelOpen} onOpenChange={setIsPrintLabelOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Printer className="w-5 h-5 text-blue-600" />
+              Print Address Label
+            </DialogTitle>
+            <DialogDescription>
+              Generate a 4"x3" thermal label for shipping marketing materials.
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="grid gap-4 py-4">
+            <div className="grid gap-2">
+              <Label>What are you sending?</Label>
+              <Select value={labelType} onValueChange={(v: 'swatch_book' | 'press_test_kit' | 'mailer' | 'other') => setLabelType(v)}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select label type" />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="swatch_book">Swatch Book</SelectItem>
+                  <SelectItem value="press_test_kit">Press Test Kit</SelectItem>
+                  <SelectItem value="mailer">Mailer</SelectItem>
+                  <SelectItem value="other">Something Else</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            {labelType === 'other' && (
+              <div className="grid gap-2">
+                <Label htmlFor="otherDescription">Description</Label>
+                <Input
+                  id="otherDescription"
+                  value={labelOtherDescription}
+                  onChange={(e) => setLabelOtherDescription(e.target.value)}
+                  placeholder="What are you sending?"
+                />
+              </div>
+            )}
+
+            <div className="grid gap-2">
+              <Label htmlFor="quantity">Quantity</Label>
+              <Input
+                id="quantity"
+                type="number"
+                min={1}
+                value={labelQuantity}
+                onChange={(e) => setLabelQuantity(parseInt(e.target.value) || 1)}
+              />
+            </div>
+
+            <div className="grid gap-2">
+              <Label htmlFor="notes">Notes (optional)</Label>
+              <Textarea
+                id="notes"
+                value={labelNotes}
+                onChange={(e) => setLabelNotes(e.target.value)}
+                placeholder="Any special instructions..."
+                rows={2}
+              />
+            </div>
+
+            {/* Address Preview */}
+            <div className="bg-gray-50 rounded-lg p-4 border">
+              <p className="text-xs text-gray-500 mb-2">Shipping To:</p>
+              <p className="font-semibold">{company?.company || `${company?.firstName} ${company?.lastName}`.trim()}</p>
+              {company?.address1 && <p className="text-sm text-gray-700">{company.address1}</p>}
+              {company?.address2 && <p className="text-sm text-gray-700">{company.address2}</p>}
+              <p className="text-sm text-gray-700">
+                {[company?.city, company?.province, company?.zip].filter(Boolean).join(', ')}
+              </p>
+              {company?.country && !['US', 'USA', 'CA', 'CAN'].includes(company.country) && (
+                <p className="text-sm text-gray-700">{company.country}</p>
+              )}
+            </div>
+
+            {/* Label Stats */}
+            {labelStats && labelStats.total > 0 && (
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <p className="text-xs text-blue-600 mb-2 font-medium">Previously Sent:</p>
+                <div className="flex flex-wrap gap-2">
+                  {labelStats.stats.map(stat => (
+                    <Badge key={stat.labelType} variant="secondary" className="bg-blue-100 text-blue-700">
+                      {stat.label}: {stat.count}
+                    </Badge>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          <DialogFooter className="gap-2">
+            <Button variant="outline" onClick={() => setIsPrintLabelOpen(false)}>
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => printLabelMutation.mutate({
+                labelType,
+                otherDescription: labelType === 'other' ? labelOtherDescription : undefined,
+                quantity: labelQuantity,
+                notes: labelNotes || undefined,
+              })}
+              disabled={printLabelMutation.isPending || (labelType === 'other' && !labelOtherDescription.trim())}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {printLabelMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Printer className="w-4 h-4 mr-2" />
+              )}
+              Print Label
             </Button>
           </DialogFooter>
         </DialogContent>
