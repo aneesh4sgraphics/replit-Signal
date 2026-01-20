@@ -3459,13 +3459,20 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // BIDIRECTIONAL PROPAGATION: Sync pricing tier and sales rep between company and contacts
+      // IMPORTANT: Propagate both salesRepId (for SPOTLIGHT filtering) AND salesRepName (for display)
       const updatedPricingTier = customer.pricingTier;
+      const updatedSalesRepId = customer.salesRepId;
       const updatedSalesRepName = customer.salesRepName;
       
       // If this is a COMPANY, propagate pricing tier and sales rep to child contacts that don't have their own
-      if (customer.isCompany && (updatedPricingTier || updatedSalesRepName)) {
+      if (customer.isCompany && (updatedPricingTier || updatedSalesRepId || updatedSalesRepName)) {
         try {
-          const childContacts = await db.select({ id: customers.id, pricingTier: customers.pricingTier, salesRepName: customers.salesRepName })
+          const childContacts = await db.select({ 
+            id: customers.id, 
+            pricingTier: customers.pricingTier, 
+            salesRepId: customers.salesRepId,
+            salesRepName: customers.salesRepName 
+          })
             .from(customers)
             .where(eq(customers.parentCustomerId, customerId));
           
@@ -3473,6 +3480,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const updates: Record<string, any> = {};
             if (updatedPricingTier && !child.pricingTier) {
               updates.pricingTier = updatedPricingTier;
+            }
+            // Propagate both salesRepId AND salesRepName for SPOTLIGHT task assignment
+            if (updatedSalesRepId && !child.salesRepId) {
+              updates.salesRepId = updatedSalesRepId;
             }
             if (updatedSalesRepName && !child.salesRepName) {
               updates.salesRepName = updatedSalesRepName;
@@ -3488,7 +3499,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // If this is a CONTACT with a parent company, propagate UP if company is missing data
-      if (customer.parentCustomerId && (updatedPricingTier || updatedSalesRepName)) {
+      if (customer.parentCustomerId && (updatedPricingTier || updatedSalesRepId || updatedSalesRepName)) {
         try {
           const [parentCompany] = await db.select()
             .from(customers)
@@ -3499,6 +3510,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
             const updates: Record<string, any> = {};
             if (updatedPricingTier && !parentCompany.pricingTier) {
               updates.pricingTier = updatedPricingTier;
+            }
+            // Propagate both salesRepId AND salesRepName for SPOTLIGHT task assignment
+            if (updatedSalesRepId && !parentCompany.salesRepId) {
+              updates.salesRepId = updatedSalesRepId;
             }
             if (updatedSalesRepName && !parentCompany.salesRepName) {
               updates.salesRepName = updatedSalesRepName;
@@ -3935,6 +3950,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
             newSalesRepName: salesRepName 
           },
         });
+      }
+      
+      // BIDIRECTIONAL PROPAGATION: When a company is assigned a rep, propagate to child contacts
+      // When a contact is assigned a rep, propagate UP to parent company if missing
+      if (existingCustomer.isCompany) {
+        // Propagate DOWN to child contacts that don't have a sales rep
+        try {
+          const childContacts = await db.select({ 
+            id: customers.id, 
+            salesRepId: customers.salesRepId,
+            salesRepName: customers.salesRepName 
+          })
+            .from(customers)
+            .where(eq(customers.parentCustomerId, customerId));
+          
+          for (const child of childContacts) {
+            if (!child.salesRepId) {
+              await db.update(customers).set({
+                salesRepId,
+                salesRepName,
+                updatedAt: new Date()
+              }).where(eq(customers.id, child.id));
+              console.log(`[Sales Rep Propagation] Company ${existingCustomer.company} -> Contact ${child.id}: assigned to ${salesRepName}`);
+            }
+          }
+        } catch (propError) {
+          console.error('[Sales Rep Propagation] Error propagating to child contacts:', propError);
+        }
+      } else if (existingCustomer.parentCustomerId) {
+        // Propagate UP to parent company if it doesn't have a sales rep
+        try {
+          const [parentCompany] = await db.select({
+            id: customers.id,
+            company: customers.company,
+            salesRepId: customers.salesRepId
+          })
+            .from(customers)
+            .where(eq(customers.id, existingCustomer.parentCustomerId))
+            .limit(1);
+          
+          if (parentCompany && !parentCompany.salesRepId) {
+            await db.update(customers).set({
+              salesRepId,
+              salesRepName,
+              updatedAt: new Date()
+            }).where(eq(customers.id, parentCompany.id));
+            console.log(`[Sales Rep Propagation] Contact ${customerId} -> Company ${parentCompany.company}: assigned to ${salesRepName}`);
+          }
+        } catch (propError) {
+          console.error('[Sales Rep Propagation] Error propagating to parent company:', propError);
+        }
       }
       
       res.json(updatedCustomer);
