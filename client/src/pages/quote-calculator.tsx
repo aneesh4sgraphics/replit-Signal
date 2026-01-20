@@ -2484,12 +2484,32 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                           </div>
                         </div>
                         <div className="text-right">
-                          <p className="text-2xl font-bold text-green-700">
-                            ${bestPriceData.recommendedPrice.toFixed(2)}
-                            <span className="text-sm font-normal text-green-600 ml-1">
-                              /{bestPriceData.unitType === 'roll' ? 'roll' : bestPriceData.unitType === 'sheet' ? 'sheet' : 'unit'}
-                            </span>
-                          </p>
+                          {/* Show breakdown: Tier Price - Discount = Best Price */}
+                          {bestPriceData.tierComparison && bestPriceData.tierComparison.savings > 0 ? (
+                            <>
+                              <div className="flex items-center justify-end gap-2 text-sm">
+                                <span className="text-gray-500 line-through">
+                                  ${bestPriceData.tierComparison.tierPrice.toFixed(2)}
+                                </span>
+                                <span className="text-green-600 font-medium">
+                                  -{bestPriceData.tierComparison.savingsPercent}%
+                                </span>
+                              </div>
+                              <p className="text-2xl font-bold text-green-700">
+                                ${bestPriceData.recommendedPrice.toFixed(2)}
+                                <span className="text-sm font-normal text-green-600 ml-1">
+                                  /{bestPriceData.unitType === 'roll' ? 'roll' : bestPriceData.unitType === 'sheet' ? 'sheet' : 'unit'}
+                                </span>
+                              </p>
+                            </>
+                          ) : (
+                            <p className="text-2xl font-bold text-green-700">
+                              ${bestPriceData.recommendedPrice.toFixed(2)}
+                              <span className="text-sm font-normal text-green-600 ml-1">
+                                /{bestPriceData.unitType === 'roll' ? 'roll' : bestPriceData.unitType === 'sheet' ? 'sheet' : 'unit'}
+                              </span>
+                            </p>
+                          )}
                           <p className="text-xs text-green-600">
                             Range: ${bestPriceData.priceRange.floor.toFixed(2)} - ${bestPriceData.priceRange.ceiling.toFixed(2)}
                           </p>
