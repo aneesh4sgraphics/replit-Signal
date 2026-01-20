@@ -3150,6 +3150,31 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Calculate best price to offer for a product + customer combination
+  app.post("/api/best-price", isAuthenticated, async (req: any, res) => {
+    try {
+      const { productId, itemCode, customerId, quantity } = req.body;
+      
+      if (!productId && !itemCode) {
+        return res.status(400).json({ error: "Either productId or itemCode is required" });
+      }
+      
+      const { bestPriceEngine } = await import("./best-price-engine");
+      
+      const result = await bestPriceEngine.calculateBestPrice({
+        productId: productId ? parseInt(productId) : undefined,
+        itemCode,
+        customerId,
+        quantity: quantity ? parseInt(quantity) : undefined,
+      });
+      
+      res.json(result);
+    } catch (error: any) {
+      console.error("[Best Price] Error calculating:", error);
+      res.status(500).json({ error: error.message || "Failed to calculate best price" });
+    }
+  });
+
   // Get all product pricing - maps from pricing_data table to expected format
   app.get("/api/product-pricing", async (req, res) => {
     try {
