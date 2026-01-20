@@ -8,7 +8,7 @@ import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectTrigger, SelectValue, SelectItem } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { Badge } from "@/components/ui/badge";
-import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck, Send, Loader2, RefreshCw, Package, ExternalLink, ChevronsUpDown, Info } from "lucide-react";
+import { Trash2, Plus, Download, Mail, Calculator, Building, Phone, MapPin, User, FileText, Film, Palette, Layers, Paintbrush, Image, Printer, Frame, Monitor, Zap, ArrowUpDown, Check, AlertTriangle, Tag, ShoppingCart, Database, Eye, EyeOff, Sparkles, ChevronDown, ChevronRight, History, DollarSign, Truck, Send, Loader2, RefreshCw, Package, ExternalLink, ChevronsUpDown, Info, HelpCircle } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog";
 import { Collapsible, CollapsibleContent, CollapsibleTrigger } from "@/components/ui/collapsible";
@@ -151,6 +151,7 @@ export default function QuoteCalculator() {
   const [gatePricingTier, setGatePricingTier] = useState("");
   const [gateSalesRep, setGateSalesRep] = useState("");
   const [gateCustomer, setGateCustomer] = useState<Customer | null>(null);
+  const [showBestPriceHelpDialog, setShowBestPriceHelpDialog] = useState(false);
   
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -2553,6 +2554,21 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                           </div>
                         </div>
                       )}
+                      
+                      {/* Help icon for Aneesh only */}
+                      {user?.email?.toLowerCase() === 'aneesh@4sgraphics.com' && (
+                        <div className="flex justify-end mt-2">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-6 w-6 p-0 text-green-600 hover:text-green-800 hover:bg-green-100"
+                            onClick={() => setShowBestPriceHelpDialog(true)}
+                            title="How Best Price is Calculated"
+                          >
+                            <HelpCircle className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      )}
                     </div>
                   )
                 )}
@@ -3347,6 +3363,105 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
               disabled={!gatePricingTier || !gateSalesRep}
             >
               Save & Continue
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+      
+      {/* Best Price Calculation Help Dialog - Aneesh only */}
+      <Dialog open={showBestPriceHelpDialog} onOpenChange={setShowBestPriceHelpDialog}>
+        <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Calculator className="h-5 w-5 text-green-600" />
+              How Best Price is Calculated
+            </DialogTitle>
+            <DialogDescription>
+              Internal documentation for pricing strategy
+            </DialogDescription>
+          </DialogHeader>
+          
+          <div className="space-y-4 text-sm">
+            <div className="p-3 bg-green-50 rounded-lg border border-green-200">
+              <h4 className="font-semibold text-green-800 mb-2">Overview</h4>
+              <p className="text-green-700">
+                The Best Price Engine calculates an optimal price recommendation that balances profit margins, 
+                customer loyalty, inventory levels, and competitive positioning.
+              </p>
+            </div>
+            
+            <div className="space-y-3">
+              <h4 className="font-semibold text-gray-800">The 5 Pricing Strategies</h4>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-700">1. Base Tier + Margin Floor</h5>
+                <ul className="mt-1 text-gray-600 list-disc list-inside space-y-1">
+                  <li>Starts with the customer's assigned pricing tier (Dealer, Distributor, Retail, etc.)</li>
+                  <li>Never goes below 15% profit margin above cost</li>
+                  <li>If Odoo cost isn't available, estimates from tier prices</li>
+                </ul>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-700">2. Loyalty Accelerator</h5>
+                <ul className="mt-1 text-gray-600 list-disc list-inside space-y-1">
+                  <li><strong>Bronze</strong> (3+ orders): No discount</li>
+                  <li><strong>Silver</strong> (10+ orders): 3% off</li>
+                  <li><strong>Gold</strong> (25+ orders): 5% off</li>
+                  <li><strong>Platinum</strong> (50+ orders): 8% off</li>
+                </ul>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-700">3. Inventory Velocity</h5>
+                <ul className="mt-1 text-gray-600 list-disc list-inside space-y-1">
+                  <li><strong>Overstock</strong> (200+ units): 5% discount to move inventory</li>
+                  <li><strong>Healthy</strong> (50-200): No adjustment</li>
+                  <li><strong>Low stock</strong> (under 20): 3% premium</li>
+                  <li><strong>Critical</strong> (under 5): 5% premium</li>
+                </ul>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-700">4. Volume Discount</h5>
+                <ul className="mt-1 text-gray-600 list-disc list-inside space-y-1">
+                  <li>2% discount per 100 units ordered</li>
+                  <li>Maximum 10% discount for large orders</li>
+                </ul>
+              </div>
+              
+              <div className="p-3 bg-gray-50 rounded-lg">
+                <h5 className="font-medium text-gray-700">5. Competitor Intelligence</h5>
+                <ul className="mt-1 text-gray-600 list-disc list-inside space-y-1">
+                  <li>Compares price against linked competitor pricing data</li>
+                  <li>Adjusts if significantly above market average</li>
+                  <li>Never drops below margin floor</li>
+                </ul>
+              </div>
+            </div>
+            
+            <div className="p-3 bg-blue-50 rounded-lg border border-blue-200">
+              <h4 className="font-semibold text-blue-800 mb-2">Confidence Levels</h4>
+              <ul className="text-blue-700 list-disc list-inside space-y-1">
+                <li><strong>High:</strong> Cost data from Odoo + tier prices + customer history</li>
+                <li><strong>Medium:</strong> Estimated cost or missing some data</li>
+                <li><strong>Low:</strong> Limited data, use tier prices as fallback</li>
+              </ul>
+            </div>
+            
+            <div className="p-3 bg-amber-50 rounded-lg border border-amber-200">
+              <h4 className="font-semibold text-amber-800 mb-2">Special Products</h4>
+              <p className="text-amber-700">
+                Products like <strong>Graffiti BLENDED POLY</strong> may have different min order quantities 
+                and pricing structures. The engine shows warnings when quantity is below minimum and 
+                distinguishes between sheet and roll pricing.
+              </p>
+            </div>
+          </div>
+          
+          <DialogFooter>
+            <Button onClick={() => setShowBestPriceHelpDialog(false)}>
+              Close
             </Button>
           </DialogFooter>
         </DialogContent>
