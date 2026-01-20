@@ -121,7 +121,7 @@ export default function CompetitorPricing() {
       await apiRequest("DELETE", `/api/competitor-pricing/${id}`);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing-with-mappings"] });
       toast({
         title: "Success",
         description: "Entry deleted successfully",
@@ -155,7 +155,7 @@ export default function CompetitorPricing() {
       return response.json();
     },
     onSuccess: (data) => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing-with-mappings"] });
       setUploadFile(null);
       toast({
         title: "Success",
@@ -179,7 +179,7 @@ export default function CompetitorPricing() {
       }
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing-with-mappings"] });
       setSelectedIds(new Set());
       toast({
         title: "Success",
@@ -201,7 +201,7 @@ export default function CompetitorPricing() {
       await apiRequest("PATCH", "/api/competitor-pricing/bulk-update", data);
     },
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/competitor-pricing-with-mappings"] });
       setSelectedIds(new Set());
       setShowBulkEditModal(false);
       setBulkEditFields({

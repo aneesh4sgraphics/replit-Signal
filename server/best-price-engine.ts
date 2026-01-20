@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { customers, productPricingMaster } from "@shared/schema";
-import { eq } from "drizzle-orm";
+import { customers, productPricingMaster, productCompetitorMappings, competitorPricing } from "@shared/schema";
+import { eq, and } from "drizzle-orm";
 import { odooClient } from "./odoo";
 
 export interface BestPriceInput {
@@ -41,6 +41,20 @@ interface ProductMetrics {
   tierPrices: Record<string, number>;
   inventoryLevel: number;
   salesVelocity: number;
+}
+
+interface CompetitorMetrics {
+  hasData: boolean;
+  prices: {
+    source: string;
+    pricePerSheet: number;
+    dimensions: string;
+    productKind: string;
+  }[];
+  lowestPrice: number;
+  averagePrice: number;
+  highestPrice: number;
+  priceCount: number;
 }
 
 const PRICING_TIER_ORDER = [
@@ -92,6 +106,7 @@ export class BestPriceEngine {
       : null;
 
     const productMetrics = await this.getProductMetrics(product);
+    const competitorMetrics = await this.getCompetitorMetrics(product.id);
     
     const marginFloor = productMetrics.cost * (1 + this.minMarginPercent / 100);
     
@@ -155,6 +170,24 @@ export class BestPriceEngine {
       });
     }
 
+    // Competitor pricing intelligence
+    if (competitorMetrics.hasData) {
+      const competitorAdjustment = this.calculateCompetitorAdjustment(
+        workingPrice + totalAdjustment,
+        competitorMetrics,
+        marginFloor
+      );
+      if (competitorAdjustment.adjustment !== 0) {
+        totalAdjustment += competitorAdjustment.adjustmentAmount;
+      }
+      factors.push({
+        name: 'Competitor Intel',
+        impact: competitorAdjustment.impact,
+        adjustment: competitorAdjustment.adjustment,
+        description: competitorAdjustment.description
+      });
+    }
+
     let recommendedPrice = workingPrice + totalAdjustment;
     
     if (recommendedPrice < marginFloor) {
@@ -168,7 +201,7 @@ export class BestPriceEngine {
       });
     }
 
-    const confidence = this.calculateConfidence(productMetrics, customer);
+    const confidence = this.calculateConfidence(productMetrics, customer, competitorMetrics);
     const rationale = this.generateRationale(factors, recommendedPrice, tierCeiling);
 
     return {
@@ -318,13 +351,153 @@ export class BestPriceEngine {
     return { adjustment: 0, description: 'Healthy inventory levels' };
   }
 
-  private calculateConfidence(metrics: ProductMetrics, customer: CustomerMetrics | null): 'high' | 'medium' | 'low' {
+  private async getCompetitorMetrics(productId: number): Promise<CompetitorMetrics> {
+    try {
+      // Get all competitor pricing entries mapped to this product
+      const mappings = await db
+        .select({
+          mapping: productCompetitorMappings,
+          competitor: competitorPricing,
+        })
+        .from(productCompetitorMappings)
+        .innerJoin(competitorPricing, eq(productCompetitorMappings.competitorPricingId, competitorPricing.id))
+        .where(
+          and(
+            eq(productCompetitorMappings.productId, productId),
+            eq(productCompetitorMappings.status, 'active')
+          )
+        );
+
+      if (mappings.length === 0) {
+        return {
+          hasData: false,
+          prices: [],
+          lowestPrice: 0,
+          averagePrice: 0,
+          highestPrice: 0,
+          priceCount: 0,
+        };
+      }
+
+      const prices = mappings.map(m => {
+        // Calculate price per sheet from competitor data
+        const inputPrice = parseFloat(String(m.competitor.inputPrice || 0));
+        const packQty = parseInt(String(m.competitor.packQty || 1)) || 1;
+        const pricePerSheet = m.competitor.pricePerSheet 
+          ? parseFloat(String(m.competitor.pricePerSheet))
+          : inputPrice / packQty;
+
+        return {
+          source: m.competitor.source || 'Unknown',
+          pricePerSheet,
+          dimensions: m.competitor.dimensions || '',
+          productKind: m.competitor.productKind || '',
+        };
+      }).filter(p => p.pricePerSheet > 0);
+
+      if (prices.length === 0) {
+        return {
+          hasData: false,
+          prices: [],
+          lowestPrice: 0,
+          averagePrice: 0,
+          highestPrice: 0,
+          priceCount: 0,
+        };
+      }
+
+      const priceValues = prices.map(p => p.pricePerSheet);
+      const lowestPrice = Math.min(...priceValues);
+      const highestPrice = Math.max(...priceValues);
+      const averagePrice = priceValues.reduce((a, b) => a + b, 0) / priceValues.length;
+
+      return {
+        hasData: true,
+        prices,
+        lowestPrice,
+        averagePrice,
+        highestPrice,
+        priceCount: prices.length,
+      };
+    } catch (error) {
+      console.error('[BestPrice] Error fetching competitor metrics:', error);
+      return {
+        hasData: false,
+        prices: [],
+        lowestPrice: 0,
+        averagePrice: 0,
+        highestPrice: 0,
+        priceCount: 0,
+      };
+    }
+  }
+
+  private calculateCompetitorAdjustment(
+    currentPrice: number,
+    competitors: CompetitorMetrics,
+    marginFloor: number
+  ): { adjustment: number; adjustmentAmount: number; impact: 'positive' | 'negative' | 'neutral'; description: string } {
+    const avgCompetitorPrice = competitors.averagePrice;
+    const lowestCompetitorPrice = competitors.lowestPrice;
+    
+    // Calculate how our price compares to competitors
+    const priceDiffPercent = ((currentPrice - avgCompetitorPrice) / avgCompetitorPrice) * 100;
+    
+    // Strategy: Position slightly below average for competitiveness, but never below margin floor
+    // If our price is 10%+ above average → suggest 5% discount
+    // If our price is within ±5% of average → stay competitive
+    // If our price is 10%+ below average → we're already competitive, no adjustment
+    
+    if (priceDiffPercent >= 15) {
+      // We're significantly more expensive - recommend matching closer to average
+      const targetPrice = avgCompetitorPrice * 0.98; // Slightly below average
+      const adjustment = Math.max(targetPrice, marginFloor) - currentPrice;
+      const adjustmentPercent = (adjustment / currentPrice) * 100;
+      
+      return {
+        adjustment: Math.round(adjustmentPercent),
+        adjustmentAmount: adjustment,
+        impact: 'positive',
+        description: `${competitors.priceCount} competitors avg $${avgCompetitorPrice.toFixed(2)} → Match market`
+      };
+    } else if (priceDiffPercent >= 5) {
+      // We're moderately above average
+      const adjustmentPercent = -3; // Small 3% adjustment
+      const adjustmentAmount = currentPrice * (adjustmentPercent / 100);
+      
+      return {
+        adjustment: adjustmentPercent,
+        adjustmentAmount,
+        impact: 'positive',
+        description: `Competitors avg $${avgCompetitorPrice.toFixed(2)} (${competitors.priceCount} sources) → Minor alignment`
+      };
+    } else if (priceDiffPercent <= -10) {
+      // We're significantly cheaper than competitors
+      return {
+        adjustment: 0,
+        adjustmentAmount: 0,
+        impact: 'positive',
+        description: `Price advantage: ${Math.abs(priceDiffPercent).toFixed(0)}% below competitor avg ($${avgCompetitorPrice.toFixed(2)})`
+      };
+    }
+    
+    // We're close to market average - neutral position
+    return {
+      adjustment: 0,
+      adjustmentAmount: 0,
+      impact: 'neutral',
+      description: `Market-aligned: ${competitors.priceCount} competitors at $${lowestCompetitorPrice.toFixed(2)}-$${competitors.highestPrice.toFixed(2)}`
+    };
+  }
+
+  private calculateConfidence(metrics: ProductMetrics, customer: CustomerMetrics | null, competitors?: CompetitorMetrics): 'high' | 'medium' | 'low' {
     let score = 0;
     
-    if (metrics.cost > 0) score += 30;
-    if (Object.keys(metrics.tierPrices).length >= 3) score += 20;
-    if (customer?.pricingTier) score += 25;
-    if (customer && customer.totalOrders > 0) score += 25;
+    if (metrics.cost > 0) score += 25;
+    if (Object.keys(metrics.tierPrices).length >= 3) score += 15;
+    if (customer?.pricingTier) score += 20;
+    if (customer && customer.totalOrders > 0) score += 20;
+    if (competitors?.hasData) score += 20; // Boost confidence with competitor data
     
     if (score >= 80) return 'high';
     if (score >= 50) return 'medium';
