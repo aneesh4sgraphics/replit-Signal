@@ -6687,6 +6687,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all products from product pricing master table
+  app.get("/api/product-pricing-master", requireApproval, async (req, res) => {
+    try {
+      const products = await storage.getAllProductPricingMaster();
+      res.json(products);
+    } catch (error) {
+      console.error("Error fetching product pricing master:", error);
+      res.status(500).json({ error: "Failed to fetch products" });
+    }
+  });
+
   // Get competitor pricing with mappings enriched with product info
   app.get("/api/competitor-pricing-with-mappings", requireApproval, async (req, res) => {
     try {
