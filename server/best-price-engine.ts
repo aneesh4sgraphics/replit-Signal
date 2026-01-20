@@ -248,10 +248,6 @@ export class BestPriceEngine {
       console.error('[BestPrice] Error fetching Odoo metrics:', error);
     }
 
-    if (cost === 0 && product.landedPrice) {
-      cost = parseFloat(String(product.landedPrice)) * 0.6;
-    }
-
     const tierPrices: Record<string, number> = {};
     if (product.landedPrice) tierPrices['LANDED PRICE'] = parseFloat(String(product.landedPrice));
     if (product.exportPrice) tierPrices['EXPORT ONLY'] = parseFloat(String(product.exportPrice));
@@ -259,6 +255,21 @@ export class BestPriceEngine {
     if (product.dealerPrice) tierPrices['DEALER-VIP'] = parseFloat(String(product.dealerPrice));
     if (product.dealer2Price) tierPrices['DEALER'] = parseFloat(String(product.dealer2Price));
     if (product.retailPrice) tierPrices['RETAIL'] = parseFloat(String(product.retailPrice));
+
+    if (cost === 0) {
+      if (product.landedPrice) {
+        cost = parseFloat(String(product.landedPrice)) * 0.6;
+      } else if (tierPrices['EXPORT ONLY']) {
+        cost = tierPrices['EXPORT ONLY'] * 0.5;
+      } else if (tierPrices['DISTRIBUTOR']) {
+        cost = tierPrices['DISTRIBUTOR'] * 0.4;
+      } else {
+        const anyPrice = Object.values(tierPrices).find(p => p > 0);
+        if (anyPrice) {
+          cost = anyPrice * 0.35;
+        }
+      }
+    }
 
     return {
       cost,

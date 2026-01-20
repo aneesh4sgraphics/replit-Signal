@@ -539,6 +539,35 @@ export default function QuoteCalculator() {
     refetchOnWindowFocus: false,
   });
 
+  // Fetch Best Price recommendation when customer and product are selected
+  const { data: bestPriceData, isLoading: bestPriceLoading } = useQuery<{
+    recommendedPrice: number;
+    priceRange: { floor: number; ceiling: number };
+    factors: Array<{ name: string; impact: string; adjustment: number; description: string }>;
+    confidence: 'high' | 'medium' | 'low';
+    rationale: string;
+  }>({
+    queryKey: ['/api/best-price', selectedProduct?.id, selectedCustomer?.id, quantity],
+    queryFn: async () => {
+      if (!selectedProduct?.id) return null;
+      const response = await fetch('/api/best-price', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({
+          productId: selectedProduct.id,
+          customerId: selectedCustomer?.id,
+          quantity,
+        }),
+      });
+      if (!response.ok) return null;
+      return response.json();
+    },
+    enabled: !!selectedProduct?.id && !isCustomSize,
+    staleTime: 30000,
+    refetchOnWindowFocus: false,
+  });
+
   // Utility function for retail pricing rounding (99-cent rounding)
   const applyRetailRounding = (price: number, isRetail: boolean): number => {
     if (!isRetail) return price;
@@ -2400,6 +2429,78 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
                     </div>
                   )}
                 </div>
+
+                {/* Best Price Recommendation */}
+                {selectedCustomer && selectedProduct && (
+                  bestPriceLoading ? (
+                    <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin text-gray-400" />
+                        <span className="text-sm text-gray-500">Calculating best price...</span>
+                      </div>
+                    </div>
+                  ) : !bestPriceData ? (
+                    <div className="mt-6 p-4 bg-gray-50 border border-gray-200 rounded-lg">
+                      <div className="flex items-center gap-3">
+                        <div className="flex items-center justify-center w-8 h-8 bg-gray-300 rounded-full">
+                          <DollarSign className="h-4 w-4 text-gray-500" />
+                        </div>
+                        <div>
+                          <p className="text-sm text-gray-600 font-medium">Best Price unavailable</p>
+                          <p className="text-xs text-gray-500">Pricing data is incomplete for this product. Use the tier prices below.</p>
+                        </div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="mt-6 p-4 bg-gradient-to-r from-green-50 to-emerald-50 border border-green-200 rounded-lg">
+                      <div className="flex items-center justify-between">
+                        <div className="flex items-center gap-3">
+                          <div className="flex items-center justify-center w-10 h-10 bg-green-500 rounded-full">
+                            <DollarSign className="h-5 w-5 text-white" />
+                          </div>
+                          <div>
+                            <div className="flex items-center gap-2">
+                              <h4 className="text-base font-semibold text-green-800">Best Price to Offer</h4>
+                              <Badge variant={bestPriceData.confidence === 'high' ? 'default' : bestPriceData.confidence === 'medium' ? 'secondary' : 'outline'} className="text-xs">
+                                {bestPriceData.confidence} confidence
+                              </Badge>
+                            </div>
+                            <p className="text-sm text-green-700 mt-1">{bestPriceData.rationale}</p>
+                          </div>
+                        </div>
+                        <div className="text-right">
+                          <p className="text-2xl font-bold text-green-700">${bestPriceData.recommendedPrice.toFixed(2)}</p>
+                          <p className="text-xs text-green-600">
+                            Range: ${bestPriceData.priceRange.floor.toFixed(2)} - ${bestPriceData.priceRange.ceiling.toFixed(2)}
+                          </p>
+                        </div>
+                      </div>
+                      {bestPriceData.factors.length > 0 && (
+                        <div className="mt-3 pt-3 border-t border-green-200">
+                          <p className="text-xs text-green-700 font-medium mb-2">Pricing factors:</p>
+                          <div className="flex flex-wrap gap-2">
+                            {bestPriceData.factors.map((factor, idx) => (
+                              <span key={idx} className={`inline-flex items-center gap-1 px-2 py-1 text-xs rounded-full ${
+                                factor.impact === 'positive' ? 'bg-green-100 text-green-700' :
+                                factor.impact === 'negative' ? 'bg-red-100 text-red-700' :
+                                'bg-gray-100 text-gray-700'
+                              }`}>
+                                {factor.impact === 'positive' && <Check className="h-3 w-3" />}
+                                {factor.impact === 'negative' && <AlertTriangle className="h-3 w-3" />}
+                                {factor.name}
+                                {factor.adjustment !== 0 && (
+                                  <span className="font-medium">
+                                    {factor.adjustment > 0 ? '+' : ''}{factor.adjustment}%
+                                  </span>
+                                )}
+                              </span>
+                            ))}
+                          </div>
+                        </div>
+                      )}
+                    </div>
+                  )
+                )}
 
                 {/* Pricing Table */}
                 <div className="mt-6">

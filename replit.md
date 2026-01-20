@@ -86,6 +86,19 @@ Email is the primary identifier for connecting customers across all systems (Odo
 - Updates save to local `pricingTier` field via `PUT /api/customers/:id`
 - QuickQuotes uses this field for price calculations regardless of Odoo link status
 
+**Best Price Engine** (Added Jan 2026):
+- **Location**: `server/best-price-engine.ts`
+- **Purpose**: Calculates optimal price recommendations for sales staff, combining margin protection with customer loyalty rewards
+- **Four Pricing Strategies**:
+  1. **Margin Floor + Tier Ceiling**: Ensures minimum 15% margin above cost while respecting customer's assigned pricing tier
+  2. **Loyalty Accelerator**: Applies discounts based on customer order history (Bronze/Silver/Gold/Platinum tiers: 0%/3%/5%/8%)
+  3. **Inventory Velocity**: Adjusts pricing based on stock levels (-5% for overstock, +3-5% for low/critical stock)
+  4. **Volume Discount**: Applies 2% discount per 100 units ordered (max 10%)
+- **Cost Fallback Chain**: When Odoo cost unavailable, estimates from landedPrice (60%), exportPrice (50%), distributorPrice (40%), or any available tier (35%)
+- **Confidence Scoring**: High/Medium/Low based on data availability (cost, tier prices, customer history)
+- **API Endpoint**: `POST /api/best-price` with productId/itemCode, customerId, quantity → returns recommendedPrice, priceRange, factors[], rationale
+- **UI Integration**: Quote Calculator displays "Best Price to Offer" card with confidence badge, price factors, and loading state
+
 ### Database
 - **ORM**: Drizzle ORM with PostgreSQL dialect.
 - **Migration**: Drizzle Kit.

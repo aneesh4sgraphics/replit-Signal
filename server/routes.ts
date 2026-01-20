@@ -3156,7 +3156,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { productId, itemCode, customerId, quantity } = req.body;
       
       if (!productId && !itemCode) {
-        return res.status(400).json({ error: "Either productId or itemCode is required" });
+        return res.status(400).json({ error: "Either productId or itemCode is required", code: "MISSING_PRODUCT" });
       }
       
       const { bestPriceEngine } = await import("./best-price-engine");
@@ -3171,7 +3171,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       res.json(result);
     } catch (error: any) {
       console.error("[Best Price] Error calculating:", error);
-      res.status(500).json({ error: error.message || "Failed to calculate best price" });
+      if (error.message === 'Product not found') {
+        return res.status(404).json({ error: "Product not found", code: "PRODUCT_NOT_FOUND" });
+      }
+      res.status(422).json({ error: error.message || "Failed to calculate best price", code: "CALCULATION_ERROR" });
     }
   });
 
