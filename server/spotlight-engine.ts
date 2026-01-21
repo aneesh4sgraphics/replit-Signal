@@ -1876,14 +1876,39 @@ class SpotlightEngine {
     const now = new Date();
     const markedDnc = selectedOutcome?.nextAction?.type === 'mark_dnc';
     
+    // Map bucket/subtype to a specific event type for better tracking
+    const getActivityEventType = () => {
+      if (bucket === 'calls') return 'call';
+      if (bucket === 'outreach') return 'outreach';
+      if (bucket === 'follow_ups') return 'follow_up_completed';
+      if (bucket === 'data_hygiene') return 'data_update';
+      if (bucket === 'enablement') return 'enablement';
+      return 'spotlight_action';
+    };
+
+    // Build detailed description including contact method and outcome
+    const buildDescription = () => {
+      const parts: string[] = [];
+      parts.push(`Method: ${bucketInfo(bucket)}`);
+      parts.push(`Outcome: ${selectedOutcome?.label || outcomeId}`);
+      if (notes) parts.push(`Notes: ${notes}`);
+      if (field && value) parts.push(`Updated ${field}: ${value}`);
+      if (nextFollowUp) {
+        parts.push(`Follow-up scheduled: ${nextFollowUp.date.toLocaleDateString()}`);
+      }
+      if (markedDnc) parts.push('Marked as Do Not Contact');
+      return parts.join(' | ');
+    };
+    
     try {
       await db.insert(customerActivityEvents).values({
         customerId,
-        eventType: 'spotlight_action',
-        title: `Spotlight: ${selectedOutcome?.label || outcomeId}`,
-        description: notes || `${bucketInfo(bucket)} task: ${subtype}`,
+        eventType: getActivityEventType(),
+        title: `${bucketInfo(bucket)}: ${selectedOutcome?.label || outcomeId}`,
+        description: buildDescription(),
         sourceType: 'auto',
         sourceTable: 'spotlight',
+        sourceId: taskId,
         createdAt: now,
         updatedAt: now,
         userId,

@@ -39,6 +39,12 @@ import {
   XCircle,
   Loader2,
   Printer,
+  MessageSquare,
+  PhoneCall,
+  FileText,
+  Activity,
+  Calendar,
+  UserCheck,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 
@@ -236,6 +242,29 @@ export default function OdooCompanyDetail() {
     queryFn: async () => {
       const res = await fetch(`/api/customers/${companyId}/label-stats`);
       if (!res.ok) throw new Error('Failed to fetch label stats');
+      return res.json();
+    },
+    enabled: !!companyId,
+    staleTime: 30000,
+  });
+
+  // Fetch activity history for this customer
+  interface ActivityEvent {
+    id: number;
+    customerId: string;
+    eventType: string;
+    title: string;
+    description: string | null;
+    sourceType: string | null;
+    sourceTable: string | null;
+    createdAt: string;
+    userId: string | null;
+  }
+  const { data: activityEvents = [], isLoading: activityLoading } = useQuery<ActivityEvent[]>({
+    queryKey: ['/api/customer-activity/events', companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/customer-activity/events?customerId=${companyId}`);
+      if (!res.ok) return [];
       return res.json();
     },
     enabled: !!companyId,
@@ -1220,6 +1249,106 @@ export default function OdooCompanyDetail() {
                     })()}
                   </TabsContent>
                 </Tabs>
+              </CardContent>
+            </Card>
+
+            {/* Activity History Card */}
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Activity className="w-5 h-5 text-blue-500" />
+                  Activity History
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                {activityLoading ? (
+                  <div className="space-y-3">
+                    {[1, 2, 3].map((i) => (
+                      <Skeleton key={i} className="h-16 w-full" />
+                    ))}
+                  </div>
+                ) : activityEvents.length > 0 ? (
+                  <div className="space-y-3 max-h-96 overflow-y-auto">
+                    {activityEvents.slice(0, 20).map((event) => {
+                      const getEventIcon = (type: string) => {
+                        switch (type) {
+                          case 'call': return <PhoneCall className="w-4 h-4 text-green-500" />;
+                          case 'email': return <Mail className="w-4 h-4 text-blue-500" />;
+                          case 'quote': return <FileText className="w-4 h-4 text-purple-500" />;
+                          case 'spotlight_action': return <UserCheck className="w-4 h-4 text-orange-500" />;
+                          case 'follow_up_completed': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
+                          case 'press_kit_shipped': return <Package className="w-4 h-4 text-indigo-500" />;
+                          case 'outreach': return <MessageSquare className="w-4 h-4 text-cyan-500" />;
+                          case 'data_update': return <Pencil className="w-4 h-4 text-amber-500" />;
+                          case 'enablement': return <FileText className="w-4 h-4 text-teal-500" />;
+                          default: return <MessageSquare className="w-4 h-4 text-gray-500" />;
+                        }
+                      };
+
+                      const getEventBadgeColor = (type: string) => {
+                        switch (type) {
+                          case 'call': return 'bg-green-100 text-green-700';
+                          case 'email': return 'bg-blue-100 text-blue-700';
+                          case 'quote': return 'bg-purple-100 text-purple-700';
+                          case 'spotlight_action': return 'bg-orange-100 text-orange-700';
+                          case 'follow_up_completed': return 'bg-green-100 text-green-700';
+                          case 'press_kit_shipped': return 'bg-indigo-100 text-indigo-700';
+                          case 'outreach': return 'bg-cyan-100 text-cyan-700';
+                          case 'data_update': return 'bg-amber-100 text-amber-700';
+                          case 'enablement': return 'bg-teal-100 text-teal-700';
+                          default: return 'bg-gray-100 text-gray-700';
+                        }
+                      };
+
+                      const formatEventType = (type: string) => {
+                        return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                      };
+
+                      return (
+                        <div
+                          key={event.id}
+                          className="flex items-start gap-3 p-3 bg-gray-50 rounded-lg border border-gray-100"
+                        >
+                          <div className="mt-1">
+                            {getEventIcon(event.eventType)}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <div className="flex items-center gap-2 mb-1">
+                              <p className="font-medium text-gray-900 text-sm">{event.title}</p>
+                              <Badge variant="secondary" className={`text-xs ${getEventBadgeColor(event.eventType)}`}>
+                                {formatEventType(event.eventType)}
+                              </Badge>
+                            </div>
+                            {event.description && (
+                              <p className="text-xs text-gray-600 line-clamp-2">{event.description}</p>
+                            )}
+                            <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
+                              <Calendar className="w-3 h-3" />
+                              {new Date(event.createdAt).toLocaleDateString('en-US', {
+                                month: 'short',
+                                day: 'numeric',
+                                year: 'numeric',
+                                hour: 'numeric',
+                                minute: '2-digit'
+                              })}
+                            </div>
+                          </div>
+                        </div>
+                      );
+                    })}
+                    {activityEvents.length > 20 && (
+                      <p className="text-xs text-gray-500 text-center pt-2">
+                        Showing 20 of {activityEvents.length} activities
+                      </p>
+                    )}
+                  </div>
+                ) : (
+                  <div className="text-center py-8 text-gray-500">
+                    <Activity className="w-12 h-12 mx-auto mb-3 text-gray-300" />
+                    <p>No activity recorded yet</p>
+                    <p className="text-xs mt-1">Interactions from SPOTLIGHT will appear here</p>
+                  </div>
+                )}
               </CardContent>
             </Card>
           </div>
