@@ -1,7 +1,21 @@
 import { useState, useEffect } from "react";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from "@/components/ui/dialog";
+import {
+  Table,
+  TableBody,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import { 
   Settings,
   AlertCircle,
@@ -12,6 +26,7 @@ import {
   Building2,
   Flame,
   Package,
+  ExternalLink,
 } from "lucide-react";
 import { primaryApps, filterAppsByUser } from "@/lib/nav-links";
 import { useAuth } from "@/hooks/useAuth";
@@ -143,6 +158,27 @@ export default function Dashboard() {
     retry: 1,
     staleTime: 60000,
   });
+
+  interface OutboundKit {
+    id: number;
+    labelType: string;
+    labelTypeDisplay: string;
+    otherDescription: string | null;
+    quantity: number;
+    customerId: string;
+    customerName: string;
+    customerEmail: string;
+    location: string;
+    printedBy: string;
+    createdAt: string;
+  }
+  const [showOutboundKitsDialog, setShowOutboundKitsDialog] = useState(false);
+  const { data: outboundKitsData, isLoading: isLoadingKits } = useQuery<{ kits: OutboundKit[] }>({
+    queryKey: ['/api/dashboard/outbound-kits'],
+    enabled: showOutboundKitsDialog,
+    staleTime: 60000,
+  });
+  const [, navigate] = useLocation();
 
   const openObjections = objections.filter(o => o.status === 'open').length;
 
@@ -517,12 +553,27 @@ export default function Dashboard() {
 
           {/* Outbound Marketing Kits */}
           <div style={{ marginBottom: '24px' }}>
-            <div style={{
-              background: '#FFFFFF',
-              borderRadius: '12px',
-              border: '1px solid #EAEAEA',
-              padding: '20px 24px',
-            }}>
+            <div 
+              onClick={() => labelDashboardStats && labelDashboardStats.grandTotal > 0 && setShowOutboundKitsDialog(true)}
+              style={{
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #EAEAEA',
+                padding: '20px 24px',
+                cursor: labelDashboardStats && labelDashboardStats.grandTotal > 0 ? 'pointer' : 'default',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                if (labelDashboardStats && labelDashboardStats.grandTotal > 0) {
+                  e.currentTarget.style.borderColor = '#6366F1';
+                  e.currentTarget.style.boxShadow = '0 2px 8px rgba(99, 102, 241, 0.15)';
+                }
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#EAEAEA';
+                e.currentTarget.style.boxShadow = 'none';
+              }}
+            >
               <div style={{ display: 'flex', alignItems: 'center', gap: '12px', marginBottom: labelDashboardStats && labelDashboardStats.grandTotal > 0 ? '16px' : '0' }}>
                 <div style={{
                   width: '36px',
@@ -539,12 +590,17 @@ export default function Dashboard() {
                   <div style={{ fontSize: '15px', fontWeight: 600, color: '#111111' }}>Outbound Marketing Kits</div>
                   <div style={{ fontSize: '12px', color: '#666666' }}>
                     {labelDashboardStats && labelDashboardStats.grandTotal > 0 
-                      ? 'Tracking sent materials' 
+                      ? 'Click to view all sent materials' 
                       : 'Print labels from contact pages to start tracking'}
                   </div>
                 </div>
-                <div style={{ marginLeft: 'auto', fontSize: '24px', fontWeight: 700, color: '#6366F1' }}>
-                  {labelDashboardStats?.grandTotal ?? 0}
+                <div style={{ marginLeft: 'auto', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                  <span style={{ fontSize: '24px', fontWeight: 700, color: '#6366F1' }}>
+                    {labelDashboardStats?.grandTotal ?? 0}
+                  </span>
+                  {labelDashboardStats && labelDashboardStats.grandTotal > 0 && (
+                    <ChevronRight size={20} style={{ color: '#999999' }} />
+                  )}
                 </div>
               </div>
               {labelDashboardStats && labelDashboardStats.grandTotal > 0 && (
@@ -565,6 +621,90 @@ export default function Dashboard() {
               )}
             </div>
           </div>
+
+          {/* Outbound Kits Dialog */}
+          <Dialog open={showOutboundKitsDialog} onOpenChange={setShowOutboundKitsDialog}>
+            <DialogContent className="max-w-4xl max-h-[80vh] overflow-hidden flex flex-col">
+              <DialogHeader>
+                <DialogTitle className="flex items-center gap-2">
+                  <Package size={20} className="text-violet-600" />
+                  Outbound Marketing Kits
+                </DialogTitle>
+              </DialogHeader>
+              <div className="flex-1 overflow-auto">
+                {isLoadingKits ? (
+                  <div className="flex items-center justify-center py-8">
+                    <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-violet-600"></div>
+                  </div>
+                ) : (
+                  <Table>
+                    <TableHeader>
+                      <TableRow>
+                        <TableHead>Date Sent</TableHead>
+                        <TableHead>Customer</TableHead>
+                        <TableHead>Type</TableHead>
+                        <TableHead className="text-center">Qty</TableHead>
+                        <TableHead>Location</TableHead>
+                        <TableHead>Sent By</TableHead>
+                        <TableHead></TableHead>
+                      </TableRow>
+                    </TableHeader>
+                    <TableBody>
+                      {outboundKitsData?.kits.map(kit => (
+                        <TableRow key={kit.id}>
+                          <TableCell className="text-sm text-gray-600">
+                            {new Date(kit.createdAt).toLocaleDateString('en-US', { 
+                              month: 'short', 
+                              day: 'numeric',
+                              year: 'numeric'
+                            })}
+                          </TableCell>
+                          <TableCell>
+                            <div className="font-medium text-gray-900">{kit.customerName}</div>
+                            {kit.customerEmail && (
+                              <div className="text-xs text-gray-500">{kit.customerEmail}</div>
+                            )}
+                          </TableCell>
+                          <TableCell>
+                            <span className="inline-flex items-center px-2 py-1 rounded-md text-xs font-medium bg-violet-100 text-violet-700">
+                              {kit.labelTypeDisplay}
+                            </span>
+                            {kit.otherDescription && (
+                              <div className="text-xs text-gray-500 mt-1">{kit.otherDescription}</div>
+                            )}
+                          </TableCell>
+                          <TableCell className="text-center font-medium">{kit.quantity}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{kit.location}</TableCell>
+                          <TableCell className="text-sm text-gray-600">{kit.printedBy}</TableCell>
+                          <TableCell>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              onClick={() => {
+                                setShowOutboundKitsDialog(false);
+                                navigate(`/odoo-contacts/${kit.customerId}`);
+                              }}
+                              className="text-violet-600 hover:text-violet-800"
+                            >
+                              <ExternalLink size={14} className="mr-1" />
+                              View
+                            </Button>
+                          </TableCell>
+                        </TableRow>
+                      ))}
+                      {(!outboundKitsData?.kits || outboundKitsData.kits.length === 0) && (
+                        <TableRow>
+                          <TableCell colSpan={7} className="text-center py-8 text-gray-500">
+                            No outbound kits have been sent yet.
+                          </TableCell>
+                        </TableRow>
+                      )}
+                    </TableBody>
+                  </Table>
+                )}
+              </div>
+            </DialogContent>
+          </Dialog>
 
           {/* Objection Alert */}
           {openObjections > 0 && (

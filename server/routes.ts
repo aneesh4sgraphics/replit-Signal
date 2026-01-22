@@ -2326,6 +2326,50 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get all outbound marketing kits with customer details for table display
+  app.get("/api/dashboard/outbound-kits", isAuthenticated, async (req: any, res) => {
+    try {
+      // Get all label prints with customer name joined
+      const kits = await db.select({
+        id: labelPrints.id,
+        labelType: labelPrints.labelType,
+        otherDescription: labelPrints.otherDescription,
+        quantity: labelPrints.quantity,
+        customerId: labelPrints.customerId,
+        customerFirstName: customers.firstName,
+        customerLastName: customers.lastName,
+        customerEmail: customers.email,
+        city: labelPrints.city,
+        province: labelPrints.province,
+        country: labelPrints.country,
+        printedByUserName: labelPrints.printedByUserName,
+        createdAt: labelPrints.createdAt,
+      })
+      .from(labelPrints)
+      .leftJoin(customers, eq(labelPrints.customerId, customers.id))
+      .orderBy(desc(labelPrints.createdAt));
+
+      res.json({
+        kits: kits.map(k => ({
+          id: k.id,
+          labelType: k.labelType,
+          labelTypeDisplay: LABEL_TYPE_LABELS[k.labelType as keyof typeof LABEL_TYPE_LABELS] || k.labelType,
+          otherDescription: k.otherDescription,
+          quantity: k.quantity,
+          customerId: k.customerId,
+          customerName: [k.customerFirstName, k.customerLastName].filter(Boolean).join(' ') || 'Unknown',
+          customerEmail: k.customerEmail || '',
+          location: [k.city, k.province, k.country].filter(Boolean).join(', ') || 'N/A',
+          printedBy: k.printedByUserName || 'Unknown',
+          createdAt: k.createdAt,
+        }))
+      });
+    } catch (error) {
+      console.error("Outbound kits error:", error);
+      res.status(500).json({ error: "Failed to fetch outbound kits" });
+    }
+  });
+
   // Get today's label stats for current user (for Spotlight daily goal)
   app.get("/api/labels/today", isAuthenticated, async (req: any, res) => {
     try {
