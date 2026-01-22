@@ -3403,31 +3403,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         );
       }
       
-      // Sync pricing tier to Odoo/Shopify if tier changed
-      if (newPricingTier && newPricingTier !== oldPricingTier && customer.sources) {
-        const sources = customer.sources || [];
+      // Queue pricing tier change for Odoo sync if tier changed
+      if (newPricingTier && newPricingTier !== oldPricingTier && customer.odooPartnerId) {
         const tierTag = `Tier: ${newPricingTier}`;
         
-        // Sync to Odoo if customer is from Odoo
-        if (sources.includes('odoo') && customer.odooPartnerId) {
-          try {
-            // Update the comment field with pricing tier info or use category_id
-            // Using comment field to store tier info in a visible way
-            const existingComment = customer.note || '';
-            const tierRegex = /Tier:\s*[^\n]*/gi;
-            const cleanedComment = existingComment.replace(tierRegex, '').trim();
-            const newComment = cleanedComment ? `${cleanedComment}\n${tierTag}` : tierTag;
-            
-            await odooClient.updatePartner(customer.odooPartnerId, {
-              comment: newComment
-            });
-            console.log(`[Pricing Tier Sync] Updated Odoo partner ${customer.odooPartnerId} with tier: ${newPricingTier}`);
-          } catch (odooError) {
-            console.error(`[Pricing Tier Sync] Failed to sync to Odoo:`, odooError);
-          }
+        try {
+          await db.insert(customerSyncQueue).values({
+            customerId,
+            odooPartnerId: customer.odooPartnerId,
+            fieldName: 'comment',
+            oldValue: oldPricingTier ? `Tier: ${oldPricingTier}` : null,
+            newValue: tierTag,
+            status: 'pending',
+            changedBy: (req as any).user?.email || 'system',
+          });
+          console.log(`[Customer Update] Queued pricing tier change for Odoo sync: ${customer.odooPartnerId} -> ${newPricingTier}`);
+        } catch (queueError) {
+          console.error(`[Customer Update] Failed to queue Odoo sync:`, queueError);
+          // Don't fail the request - local save succeeded
         }
         
-        // Sync to Shopify if customer is from Shopify
+        // Sync to Shopify immediately (while Odoo changes are queued for weekly sync)
+        const sources = customer.sources || [];
         if (sources.includes('shopify')) {
           try {
             const SHOPIFY_ACCESS_TOKEN = process.env.SHOPIFY_ACCESS_TOKEN;

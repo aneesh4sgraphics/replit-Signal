@@ -1311,23 +1311,20 @@ export default function Spotlight() {
 
               {/* Data Hygiene: Pricing Tier */}
               {task.taskSubtype === 'hygiene_pricing_tier' && (
-                <div className="grid grid-cols-2 gap-2">
-                  {task.outcomes.filter(o => o.id !== 'skip').map((outcome) => (
-                    <Button
-                      key={outcome.id}
-                      variant="outline"
-                      className="border-[#EAEAEA] text-[#111111] hover:bg-[#F2F2F2] h-11 capitalize"
-                      onClick={() => handleOutcome(outcome.id, 'pricingTier', outcome.id)}
-                    >
-                      {outcome.icon && OUTCOME_ICONS[outcome.icon] && (
-                        (() => {
-                          const Icon = OUTCOME_ICONS[outcome.icon];
-                          return <Icon className="w-4 h-4 mr-2" />;
-                        })()
-                      )}
-                      {outcome.label}
-                    </Button>
-                  ))}
+                <div className="space-y-3">
+                  <Label className="text-sm text-[#666666]">Assign pricing tier:</Label>
+                  <Select onValueChange={(value) => handleOutcome('assigned', 'pricingTier', value)}>
+                    <SelectTrigger className="border-[#EAEAEA]">
+                      <SelectValue placeholder="Select pricing tier..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {PRICING_TIERS.map((tier) => (
+                        <SelectItem key={tier} value={tier}>
+                          {tier}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               )}
 

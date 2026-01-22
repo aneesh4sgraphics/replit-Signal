@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue } from "@shared/schema";
 import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { analyzeForHints, SpotlightHint, getCustomerMachineProfiles, getProductSuggestionsForMachines, getMachineLabel, checkMissingMachineProfile } from "./spotlight-heuristics";
@@ -154,9 +154,7 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'skip', label: 'Not My Territory', icon: 'x', nextAction: { type: 'no_action' } },
   ],
   hygiene_pricing_tier: [
-    { id: 'retail', label: 'Retail', icon: 'tag', nextAction: { type: 'mark_complete' } },
-    { id: 'wholesale', label: 'Wholesale', icon: 'building', nextAction: { type: 'mark_complete' } },
-    { id: 'distributor', label: 'Distributor', icon: 'truck', nextAction: { type: 'mark_complete' } },
+    { id: 'assigned', label: 'Pricing Tier Assigned', icon: 'tag', nextAction: { type: 'mark_complete' } },
     { id: 'skip', label: 'Need More Info', icon: 'help-circle', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'research' } },
   ],
   hygiene_email: [
@@ -1789,25 +1787,91 @@ class SpotlightEngine {
 
       const allowedFields = subtypeAllowedFields[subtype] || [];
       if (allowedFields.includes(field)) {
-        const updateData: Record<string, any> = {
-          updatedAt: new Date(),
-          [field]: value,
-        };
+        // Get the customer first to check for Odoo partner ID and get old value
+        const [existingCustomer] = await db.select({
+          id: customers.id,
+          odooPartnerId: customers.odooPartnerId,
+          pricingTier: customers.pricingTier,
+          salesRepId: customers.salesRepId,
+          salesRepName: customers.salesRepName,
+          email: customers.email,
+          phone: customers.phone,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+        })
+          .from(customers)
+          .where(eq(customers.id, customerId))
+          .limit(1);
+        
+        if (!existingCustomer) {
+          console.error(`[Spotlight] Data hygiene update FAILED: customer ${customerId} not found`);
+        } else {
+          const updateData: Record<string, any> = {
+            updatedAt: new Date(),
+            [field]: value,
+          };
 
-        if (field === 'salesRepId') {
-          const [rep] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email })
-            .from(users)
-            .where(eq(users.id, value));
-          if (rep) {
-            updateData.salesRepName = rep.firstName && rep.lastName 
-              ? `${rep.firstName} ${rep.lastName}` 
-              : rep.email;
+          let salesRepName: string | null = null;
+          if (field === 'salesRepId') {
+            const [rep] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email })
+              .from(users)
+              .where(eq(users.id, value));
+            if (rep) {
+              salesRepName = rep.firstName && rep.lastName 
+                ? `${rep.firstName} ${rep.lastName}` 
+                : rep.email;
+              updateData.salesRepName = salesRepName;
+            }
+          }
+
+          console.log(`[Spotlight] Data hygiene update: customer=${customerId} field=${field} value=${value}`);
+          
+          const result = await db.update(customers)
+            .set(updateData)
+            .where(eq(customers.id, customerId))
+            .returning({ id: customers.id });
+          
+          if (result.length === 0) {
+            console.error(`[Spotlight] Data hygiene update FAILED: customer ${customerId} not found in database`);
+          } else {
+            console.log(`[Spotlight] Data hygiene update SUCCESS: customer ${customerId} ${field}=${value}`);
+            
+            // Queue for Odoo sync if customer has Odoo partner ID
+            if (existingCustomer.odooPartnerId) {
+              try {
+                // Map local field names to Odoo field names
+                const odooFieldMap: Record<string, string> = {
+                  'pricingTier': 'comment', // Store tier in comment for now
+                  'email': 'email',
+                  'phone': 'phone',
+                  'company': 'name',
+                };
+                
+                const odooField = odooFieldMap[field];
+                if (odooField) {
+                  const oldValue = (existingCustomer as any)[field];
+                  const queueValue = field === 'pricingTier' ? `Tier: ${value}` : value;
+                  
+                  await db.insert(customerSyncQueue).values({
+                    customerId,
+                    odooPartnerId: existingCustomer.odooPartnerId,
+                    fieldName: odooField,
+                    oldValue: oldValue?.toString() || null,
+                    newValue: queueValue,
+                    status: 'pending',
+                    changedBy: userId,
+                  });
+                  
+                  console.log(`[Spotlight] Queued ${field}=${value} for Odoo sync (partner ${existingCustomer.odooPartnerId})`);
+                }
+              } catch (syncError) {
+                console.error(`[Spotlight] Failed to queue Odoo sync:`, syncError);
+                // Don't fail the whole operation - local save succeeded
+              }
+            }
           }
         }
-
-        await db.update(customers)
-          .set(updateData)
-          .where(eq(customers.id, customerId));
       }
     }
 
