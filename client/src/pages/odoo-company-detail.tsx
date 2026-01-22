@@ -1716,10 +1716,8 @@ export default function OdooCompanyDetail() {
                           >
                             {company.email}
                             {isShopifyEmail(company.email) && (
-                              <img 
-                                src="https://cdn.shopify.com/shopifycloud/brochure/assets/brand-assets/shopify-logo-shopping-bag-512.svg" 
-                                className="w-4 h-4 ml-1" 
-                                alt="Shopify customer"
+                              <SiShopify 
+                                className="w-4 h-4 ml-1 text-green-600" 
                                 title="Shopify customer"
                               />
                             )}
