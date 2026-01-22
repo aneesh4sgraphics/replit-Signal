@@ -8714,7 +8714,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Get task creation counts
       const [tasksFromEvents] = await db.select({ count: sql<number>`count(*)::int` })
         .from(followUpTasks)
-        .where(sql`${followUpTasks.source} = 'email_event'`);
+        .where(eq(followUpTasks.sourceType, 'email_event'));
       
       res.json({
         ...status,
@@ -9009,7 +9009,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { eventType, customerId, limit: limitParam } = req.query;
       const limit = parseInt(limitParam as string) || 50;
       
-      let query = db.select({
+      const conditions = [eq(emailSalesEvents.userId, userId)];
+      if (eventType && eventType !== 'all') {
+        conditions.push(eq(emailSalesEvents.eventType, eventType as string));
+      }
+      if (customerId) {
+        conditions.push(eq(emailSalesEvents.customerId, customerId as string));
+      }
+      
+      const events = await db.select({
         id: emailSalesEvents.id,
         eventType: emailSalesEvents.eventType,
         confidence: emailSalesEvents.confidence,
@@ -9022,12 +9030,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
       })
         .from(emailSalesEvents)
         .leftJoin(customers, eq(emailSalesEvents.customerId, customers.id))
-        .where(eq(emailSalesEvents.userId, userId))
+        .where(and(...conditions))
         .orderBy(desc(emailSalesEvents.occurredAt))
         .limit(limit);
       
-      const events = await query;
-      res.json(events);
+      // Get total count for pagination info
+      const totalResult = await db.select({ count: sql<number>`count(*)` })
+        .from(emailSalesEvents)
+        .where(and(...conditions));
+      
+      res.json({ events, total: Number(totalResult[0]?.count || 0) });
     } catch (error: any) {
       console.error("Error fetching sales events:", error);
       res.status(500).json({ error: "Failed to fetch sales events" });

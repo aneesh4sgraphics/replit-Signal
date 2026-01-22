@@ -121,6 +121,38 @@ const EVENT_TO_TASK_CONFIG: Record<string, {
     dueDaysFromNow: 2,
     minConfidence: 0.70,
   },
+  sales_win: {
+    taskType: 'celebrate_win',
+    titleTemplate: 'SALES WIN: {customer}',
+    descriptionTemplate: 'Customer confirmed the order! Celebrate this win and ensure smooth fulfillment. Trigger: {trigger}',
+    priority: 'high',
+    dueDaysFromNow: 0,
+    minConfidence: 0.80,
+  },
+  press_test_success: {
+    taskType: 'press_test_follow_up',
+    titleTemplate: 'Press Test Success: {customer}',
+    descriptionTemplate: 'Customer reported positive press test results! Follow up to move toward production order. Trigger: {trigger}',
+    priority: 'high',
+    dueDaysFromNow: 1,
+    minConfidence: 0.75,
+  },
+  swatch_received: {
+    taskType: 'swatch_follow_up',
+    titleTemplate: 'Swatch Received by {customer}',
+    descriptionTemplate: 'Customer confirmed they received the swatch book. Follow up on their interest. Trigger: {trigger}',
+    priority: 'normal',
+    dueDaysFromNow: 2,
+    minConfidence: 0.80,
+  },
+  lead: {
+    taskType: 'qualify_lead',
+    titleTemplate: 'New Lead: {customer}',
+    descriptionTemplate: 'New potential customer inquiry detected. Qualify this lead and respond promptly. Trigger: {trigger}',
+    priority: 'high',
+    dueDaysFromNow: 0,
+    minConfidence: 0.70,
+  },
 };
 
 interface EventRule {
@@ -289,6 +321,95 @@ const EVENT_RULES: EventRule[] = [
       /appreciate.*(help|support|service)/i,
     ],
     baseConfidence: 0.70,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'sales_win',
+    keywords: [
+      'order confirmed', 'deal closed', 'won the business', 'contract signed',
+      'thank you for the order', 'thanks for your order', 'order has been placed',
+      'we have decided to go with', 'selected you', 'chose your company',
+      'finalized the order', 'closed the deal', 'awarded', 'won the bid',
+      'congratulations on winning', 'accepted your proposal', 'signed the agreement',
+      'placed the order', 'confirmed our order', 'moving forward with you'
+    ],
+    regexPatterns: [
+      /thank.*(you|s).*(for|placing).*(order|business)/i,
+      /order.*(confirmed|placed|finalized)/i,
+      /deal.*(closed|done|finalized)/i,
+      /(selected|chose|awarded|going with).*(you|your|4s)/i,
+      /contract.*(signed|executed|finalized)/i,
+      /won.*(bid|business|contract)/i,
+      /moving forward with.*(you|your|order)/i,
+      /decided to.*(go with|use|work with|order from)/i,
+    ],
+    baseConfidence: 0.85,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'press_test_success',
+    keywords: [
+      'press test worked', 'test print looks great', 'print test successful',
+      'ran on press', 'ran perfectly', 'printed beautifully', 'looks perfect',
+      'test was successful', 'press test results', 'print test results',
+      'colors matched', 'color match', 'registration is good', 'ran smoothly',
+      'no issues on press', 'great results', 'excellent print quality',
+      'press approved', 'ready for production', 'approval to proceed'
+    ],
+    regexPatterns: [
+      /press.?test.*(success|worked|perfect|great|excellent)/i,
+      /test.?print.*(success|worked|perfect|great|excellent)/i,
+      /(ran|printed).*(perfect|beautiful|smooth|great|well)/i,
+      /colors?.*(match|perfect|spot.?on|accurate)/i,
+      /(print|press).*(quality|results).*(great|excellent|perfect)/i,
+      /ready.*(for|to).*(production|run|proceed)/i,
+      /approval.*(press|print|proceed|production)/i,
+      /no.*(issues|problems).*(on|with|during).*(press|print)/i,
+    ],
+    baseConfidence: 0.80,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'swatch_received',
+    keywords: [
+      'received the swatch', 'got the swatch', 'swatch book arrived',
+      'swatches arrived', 'samples arrived', 'received the samples',
+      'received your samples', 'got your samples', 'swatchbook received',
+      'material samples received', 'substrate samples', 'received materials',
+      'samples look great', 'love the samples', 'samples received'
+    ],
+    regexPatterns: [
+      /(received|got|arrived).*(swatch|samples?|materials?)/i,
+      /swatch.?book.*(received|arrived|got)/i,
+      /(samples?|swatch).*(arrived|received|got|here)/i,
+      /(love|like|great).*(samples?|swatch)/i,
+      /thank.*(you|s).*(for|sending).*(swatch|samples?)/i,
+      /(reviewing|looking at|checked).*(swatch|samples?)/i,
+    ],
+    baseConfidence: 0.85,
+    direction: 'inbound',
+  },
+  {
+    eventType: 'lead',
+    keywords: [
+      'first time', 'new customer', 'just starting', 'looking for a new vendor',
+      'searching for a supplier', 'need a quote', 'requesting information',
+      'inquiry', 'interested in your products', 'found you online',
+      'referred by', 'recommended by', 'heard about you', 'new inquiry',
+      'first order', 'potential customer', 'would like to explore',
+      'initial order', 'trial order', 'test order', 'getting started'
+    ],
+    regexPatterns: [
+      /first.?(time|order|inquiry|contact)/i,
+      /(new|potential).*(customer|client|vendor|supplier)/i,
+      /(looking|searching).*(for|to find).*(vendor|supplier|source)/i,
+      /referred.?by|recommended.?by|heard.?about/i,
+      /found.*(you|your|company).*(online|google|search)/i,
+      /(interested|exploring).*(your|products|services|solutions)/i,
+      /would like to.*(explore|discuss|learn|know)/i,
+      /(initial|trial|test).*(order|purchase)/i,
+    ],
+    baseConfidence: 0.75,
     direction: 'inbound',
   },
 ];
@@ -579,6 +700,10 @@ const AI_COACHING_TEMPLATES: Record<string, string> = {
   commitment: "Customer has made a commitment. Document it and set reminders for follow-up. Prepare for the next step and ensure you deliver on time to build trust.",
   action: "Customer needs action from you. Prioritize this request and respond clearly. Confirm what you're doing and when they can expect completion.",
   feedback: "Customer provided feedback. Thank them regardless of sentiment. For positive feedback, ask for testimonial/referral. For concerns, address promptly and document for improvement.",
+  sales_win: "Congratulations on the win! Process the order quickly, send a thank-you note, and document what led to this success. Consider asking for a referral or testimonial while the positive momentum is high.",
+  press_test_success: "Press test succeeded! The customer is impressed. This is the perfect moment to discuss production quantities and timelines. Strike while the iron is hot - they're ready to move forward.",
+  swatch_received: "Customer received and is reviewing samples. Follow up in 2-3 days to discuss their favorites, answer questions, and guide them toward an order. Ask what applications they have in mind.",
+  lead: "New lead detected! Respond within 1 hour if possible - speed matters for new inquiries. Ask qualifying questions about their application, volume, and timeline. Send a swatchbook to make a great first impression.",
 };
 
 export async function generateAICoachingSummary(eventId: number): Promise<string | null> {

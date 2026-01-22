@@ -140,6 +140,18 @@ interface UnmatchedEmail {
   status: string;
 }
 
+interface EmailSalesEvent {
+  id: number;
+  eventType: string;
+  confidence: string;
+  triggerText: string | null;
+  occurredAt: string;
+  isProcessed: boolean;
+  coachingTip: string | null;
+  customerId: string | null;
+  customerName: string | null;
+}
+
 interface CustomerSearchResult {
   id: string;
   company: string | null;
@@ -191,6 +203,21 @@ const priorityConfig: Record<string, { color: string; label: string }> = {
   high: { color: "bg-orange-500 text-white", label: "High" },
   medium: { color: "bg-yellow-500 text-black", label: "Medium" },
   low: { color: "bg-gray-400 text-white", label: "Low" },
+};
+
+const salesEventTypeConfig: Record<string, { icon: any; label: string; color: string; description: string }> = {
+  po: { icon: DollarSign, label: "Purchase Order", color: "bg-green-100 text-green-800", description: "Customer placing or confirming an order" },
+  approval: { icon: CheckCircle2, label: "Approval", color: "bg-emerald-100 text-emerald-800", description: "Pricing or quote approval received" },
+  samples: { icon: FileText, label: "Sample Request", color: "bg-blue-100 text-blue-800", description: "Customer requesting samples or swatches" },
+  urgent: { icon: Zap, label: "Urgent Request", color: "bg-red-100 text-red-800", description: "Time-sensitive customer request" },
+  opportunity: { icon: Target, label: "Opportunity", color: "bg-purple-100 text-purple-800", description: "New project or business interest" },
+  commitment: { icon: Handshake, label: "Commitment", color: "bg-indigo-100 text-indigo-800", description: "Customer commitment or scheduled event" },
+  action: { icon: ListTodo, label: "Action Needed", color: "bg-orange-100 text-orange-800", description: "Specific action requested by customer" },
+  feedback: { icon: MessageSquare, label: "Feedback", color: "bg-pink-100 text-pink-800", description: "Customer feedback or review" },
+  sales_win: { icon: PartyPopper, label: "Sales Win", color: "bg-yellow-100 text-yellow-800", description: "Order confirmed, deal closed!" },
+  press_test_success: { icon: CheckCircle2, label: "Press Test Success", color: "bg-teal-100 text-teal-800", description: "Successful press test feedback" },
+  swatch_received: { icon: Mail, label: "Swatch Received", color: "bg-cyan-100 text-cyan-800", description: "Customer confirmed receiving samples" },
+  lead: { icon: UserPlus, label: "New Lead", color: "bg-violet-100 text-violet-800", description: "New potential customer inquiry" },
 };
 
 interface DailyPerformance {
@@ -818,6 +845,22 @@ export default function GmailInsightsPage() {
       return res.json();
     },
     enabled: customerSearchQuery.length >= 2,
+  });
+
+  // Email Sales Events
+  const [salesEventTypeFilter, setSalesEventTypeFilter] = useState<string>("all");
+  const { data: salesEvents, isLoading: salesEventsLoading, refetch: refetchSalesEvents } = useQuery<{ events: EmailSalesEvent[]; total: number }>({
+    queryKey: ["/api/email-intelligence/events", salesEventTypeFilter],
+    queryFn: async () => {
+      const params = new URLSearchParams();
+      if (salesEventTypeFilter !== "all") {
+        params.append("eventType", salesEventTypeFilter);
+      }
+      params.append("limit", "100");
+      const res = await fetch(`/api/email-intelligence/events?${params.toString()}`);
+      if (!res.ok) return { events: [], total: 0 };
+      return res.json();
+    },
   });
 
   const categoryToTypes: Record<string, string[]> = {
@@ -1608,6 +1651,15 @@ export default function GmailInsightsPage() {
             <Activity className="h-4 w-4" />
             Sync Debug
           </TabsTrigger>
+          <TabsTrigger value="sales_events" className="gap-1 text-green-600">
+            <DollarSign className="h-4 w-4" />
+            Sales Events
+            {emailSyncStatus?.counts?.events && emailSyncStatus.counts.events > 0 && (
+              <Badge variant="secondary" className="ml-1 bg-green-100 text-green-800">
+                {emailSyncStatus.counts.events}
+              </Badge>
+            )}
+          </TabsTrigger>
         </TabsList>
 
         {/* Unmatched Emails Tab */}
@@ -1928,6 +1980,140 @@ export default function GmailInsightsPage() {
                   <AlertTriangle className="h-12 w-12 mx-auto text-amber-500 mb-4" />
                   <h3 className="text-lg font-medium mb-2">No sync data available</h3>
                   <p className="text-muted-foreground mb-4">Run a sync to see debug information</p>
+                  <Button onClick={() => manualSyncMutation.mutate()} disabled={manualSyncMutation.isPending}>
+                    <Play className="h-4 w-4 mr-2" />
+                    Run Full Sync
+                  </Button>
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        {/* Sales Events Tab */}
+        <TabsContent value="sales_events" className="mt-4">
+          <Card>
+            <CardHeader className="pb-2">
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <DollarSign className="h-5 w-5 text-green-500" />
+                    Sales Events Detected
+                  </CardTitle>
+                  <CardDescription>
+                    Automated detection of sales signals from your emails - orders, approvals, leads, and more.
+                  </CardDescription>
+                </div>
+                <div className="flex gap-2">
+                  <Select value={salesEventTypeFilter} onValueChange={setSalesEventTypeFilter}>
+                    <SelectTrigger className="w-[180px]">
+                      <SelectValue placeholder="Filter by type" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Types</SelectItem>
+                      <SelectItem value="po">Purchase Orders</SelectItem>
+                      <SelectItem value="approval">Approvals</SelectItem>
+                      <SelectItem value="sales_win">Sales Wins</SelectItem>
+                      <SelectItem value="press_test_success">Press Test Success</SelectItem>
+                      <SelectItem value="swatch_received">Swatch Received</SelectItem>
+                      <SelectItem value="lead">New Leads</SelectItem>
+                      <SelectItem value="samples">Sample Requests</SelectItem>
+                      <SelectItem value="urgent">Urgent Requests</SelectItem>
+                      <SelectItem value="opportunity">Opportunities</SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    onClick={() => refetchSalesEvents()}
+                    disabled={salesEventsLoading}
+                  >
+                    <RefreshCw className={`h-4 w-4 mr-2 ${salesEventsLoading ? 'animate-spin' : ''}`} />
+                    Refresh
+                  </Button>
+                </div>
+              </div>
+            </CardHeader>
+            <CardContent>
+              {salesEventsLoading ? (
+                <div className="space-y-3">
+                  {[1, 2, 3].map(i => (
+                    <Skeleton key={i} className="h-20 w-full" />
+                  ))}
+                </div>
+              ) : salesEvents?.events && salesEvents.events.length > 0 ? (
+                <div className="space-y-3">
+                  <div className="flex items-center justify-between text-sm text-muted-foreground mb-4">
+                    <span>Showing {salesEvents.events.length} of {salesEvents.total} events</span>
+                    {emailSyncStatus?.tasksCreatedFromEvents && emailSyncStatus.tasksCreatedFromEvents > 0 && (
+                      <Badge variant="outline" className="bg-green-50 text-green-700">
+                        <CheckCircle2 className="h-3 w-3 mr-1" />
+                        {emailSyncStatus.tasksCreatedFromEvents} tasks auto-created
+                      </Badge>
+                    )}
+                  </div>
+                  {salesEvents.events.map((event) => {
+                    const config = salesEventTypeConfig[event.eventType] || { icon: Zap, label: event.eventType, color: "bg-gray-100 text-gray-800", description: "" };
+                    const IconComponent = config.icon;
+                    return (
+                      <Card key={event.id} className={`border-l-4 ${event.isProcessed ? 'border-l-green-500' : 'border-l-amber-500'}`}>
+                        <CardContent className="p-4">
+                          <div className="flex items-start justify-between gap-4">
+                            <div className="flex items-start gap-3">
+                              <div className={`p-2 rounded-lg ${config.color}`}>
+                                <IconComponent className="h-4 w-4" />
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2 mb-1">
+                                  <span className="font-medium">{config.label}</span>
+                                  <Badge variant={event.confidence === 'high' ? 'default' : 'secondary'} className="text-xs">
+                                    {event.confidence} confidence
+                                  </Badge>
+                                  {event.isProcessed && (
+                                    <Badge variant="outline" className="text-xs bg-green-50 text-green-700">
+                                      <CheckCircle2 className="h-3 w-3 mr-1" />
+                                      Task Created
+                                    </Badge>
+                                  )}
+                                </div>
+                                {event.customerName && (
+                                  <div className="flex items-center gap-1 text-sm text-muted-foreground mb-1">
+                                    <Building2 className="h-3 w-3" />
+                                    <span>{event.customerName}</span>
+                                  </div>
+                                )}
+                                {event.triggerText && (
+                                  <p className="text-sm text-muted-foreground bg-muted/50 p-2 rounded-md mt-2 italic">
+                                    "{event.triggerText.substring(0, 200)}{event.triggerText.length > 200 ? '...' : ''}"
+                                  </p>
+                                )}
+                                {event.coachingTip && (
+                                  <div className="mt-2 p-2 bg-purple-50 dark:bg-purple-950 rounded-md border border-purple-200 dark:border-purple-800">
+                                    <div className="flex items-center gap-1 text-xs text-purple-700 dark:text-purple-300 font-medium mb-1">
+                                      <Target className="h-3 w-3" />
+                                      Next Best Move
+                                    </div>
+                                    <p className="text-sm text-purple-800 dark:text-purple-200">{event.coachingTip}</p>
+                                  </div>
+                                )}
+                              </div>
+                            </div>
+                            <div className="text-right text-xs text-muted-foreground whitespace-nowrap">
+                              {format(new Date(event.occurredAt), "MMM d, h:mm a")}
+                            </div>
+                          </div>
+                        </CardContent>
+                      </Card>
+                    );
+                  })}
+                </div>
+              ) : (
+                <div className="py-12 text-center">
+                  <DollarSign className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-medium mb-2">No sales events found</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Run an email sync to detect purchase orders, approvals, and other sales signals.
+                  </p>
                   <Button onClick={() => manualSyncMutation.mutate()} disabled={manualSyncMutation.isPending}>
                     <Play className="h-4 w-4 mr-2" />
                     Run Full Sync

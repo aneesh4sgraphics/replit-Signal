@@ -555,14 +555,14 @@ export async function getSyncStatus(userId: string): Promise<any> {
     .from(gmailMessages)
     .where(and(
       eq(gmailMessages.userId, userId),
-      eq(gmailMessages.analyzed, false)
+      eq(gmailMessages.analysisStatus, 'pending')
     ));
   
   const [processedAnalysis] = await db.select({ count: sql<number>`count(*)::int` })
     .from(gmailMessages)
     .where(and(
       eq(gmailMessages.userId, userId),
-      eq(gmailMessages.analyzed, true)
+      eq(gmailMessages.analysisStatus, 'completed')
     ));
   
   const [eventsCount] = await db.select({ count: sql<number>`count(*)::int` })

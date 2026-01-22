@@ -5,6 +5,7 @@ import { getMessages, getMessage } from "./gmail-client";
 import { getImapMessages, getImapMessage, hasAnyImapCredentials } from "./imap-client";
 import { getUserGmailConnection, getUserGmailMessages, getUserGmailMessage } from "./user-gmail-oauth";
 import { syncGmailMessages } from "./gmail-sync-worker";
+import { processUnanalyzedMessages, createFollowUpTasksFromEvents } from "./email-event-extractor";
 import OpenAI from "openai";
 import { logApiCost } from "./cost-tracker";
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock";
@@ -956,11 +957,24 @@ export async function syncAllConnectedUsers(): Promise<{ synced: number; failed:
         const result = await syncUserGmailMessagesDelta(connection.userId, 50);
         console.log(`[Gmail Sync] User ${connection.userId}: ${result.newMessages} new emails (${result.syncType})`);
         
-        // Run AI analysis on pending messages (limit to 20 per cycle to reduce costs)
+        // Process emails for sales events (PO, approval, samples, opportunities, etc.)
+        // This uses fast keyword/regex matching - no API costs
+        const eventsExtracted = await processUnanalyzedMessages(connection.userId, 100);
+        if (eventsExtracted > 0) {
+          console.log(`[Gmail Sync] User ${connection.userId}: ${eventsExtracted} sales events detected`);
+          
+          // Create follow-up tasks from the detected events
+          const tasksCreated = await createFollowUpTasksFromEvents(connection.userId, 50);
+          if (tasksCreated > 0) {
+            console.log(`[Gmail Sync] User ${connection.userId}: ${tasksCreated} follow-up tasks created`);
+          }
+        }
+        
+        // Run AI insight extraction on select messages (limit to 20 per cycle to reduce costs)
         if (result.newMessages > 0) {
-          const analysisResult = await analyzeMessages(connection.userId, 20);
+          const analysisResult = await analyzeMessagesForInsights(connection.userId, 20);
           if (analysisResult.insights > 0) {
-            console.log(`[Gmail Sync] User ${connection.userId}: ${analysisResult.insights} insights extracted`);
+            console.log(`[Gmail Sync] User ${connection.userId}: ${analysisResult.insights} AI insights extracted`);
           }
         }
         

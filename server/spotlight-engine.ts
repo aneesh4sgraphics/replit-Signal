@@ -89,6 +89,7 @@ export interface SpotlightTask {
     machineLabels?: string[];
     suggestedProducts?: string[];
     machineContext?: string;
+    sourceType?: string;
   };
 }
 
@@ -1360,6 +1361,7 @@ class SpotlightEngine {
         title: followUpTasks.title,
         taskType: followUpTasks.taskType,
         dueDate: followUpTasks.dueDate,
+        sourceType: followUpTasks.sourceType,
         customer: {
           id: customers.id,
           company: customers.company,
@@ -1391,13 +1393,22 @@ class SpotlightEngine {
       const task = result[0];
       const subtype = task.taskType === 'quote_follow_up' ? 'sales_quote_follow_up' : 'sales_follow_up';
       const baseTask = this.buildTask(task.customer, 'follow_ups', subtype);
+      
+      // Add email source badge for tasks created from email intelligence
+      let whyNowPrefix = '';
+      if (task.sourceType === 'email_event') {
+        whyNowPrefix = '📧 Email Intelligence: ';
+      }
+      
       return {
         ...baseTask,
         id: `follow_ups::${task.taskId}::${task.customer.id}::${subtype}`,
+        whyNow: whyNowPrefix + (task.title || baseTask.whyNow),
         context: {
           followUpId: task.taskId,
           followUpTitle: task.title || undefined,
           followUpDueDate: task.dueDate?.toISOString(),
+          sourceType: task.sourceType || undefined,
         },
       };
     }

@@ -127,6 +127,7 @@ interface SpotlightTask {
     machineLabels?: string[];
     suggestedProducts?: string[];
     machineContext?: string;
+    sourceType?: string;
   };
 }
 
@@ -1105,7 +1106,15 @@ export default function Spotlight() {
           >
             <BucketIcon className="w-5 h-5 mt-0.5" style={{ color: bucketInfo.color }} />
             <div>
-              <p className="font-medium text-[#111111] text-sm">{bucketInfo.label}</p>
+              <div className="flex items-center gap-2">
+                <p className="font-medium text-[#111111] text-sm">{bucketInfo.label}</p>
+                {task.context?.sourceType === 'email_event' && (
+                  <Badge className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 flex items-center gap-1">
+                    <Mail className="w-3 h-3" />
+                    Email Intelligence
+                  </Badge>
+                )}
+              </div>
               <p className="text-[#666666] text-sm mt-0.5">{task.whyNow}</p>
               {/* Machine Context - shown for calls and outreach tasks when machine profile exists */}
               {task.context?.machineContext && (
