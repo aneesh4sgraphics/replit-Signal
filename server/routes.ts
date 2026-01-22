@@ -140,6 +140,7 @@ import {
   insertFollowUpTaskSchema,
   customerDoNotMerge,
   customerSyncQueue,
+  emailIntelligenceBlacklist,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -9002,12 +9003,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Get extracted sales events
+  // Get extracted sales events with sender info and category filtering
   app.get("/api/email-intelligence/events", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
-      const { eventType, customerId, limit: limitParam } = req.query;
-      const limit = parseInt(limitParam as string) || 50;
+      const { eventType, customerId, limit: limitParam, category } = req.query;
+      const limit = parseInt(limitParam as string) || 100;
       
       const conditions = [eq(emailSalesEvents.userId, userId)];
       if (eventType && eventType !== 'all') {
@@ -9015,6 +9016,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       if (customerId) {
         conditions.push(eq(emailSalesEvents.customerId, customerId as string));
+      }
+      
+      // Category filtering - group event types into categories
+      if (category && category !== 'all') {
+        const categoryMap: Record<string, string[]> = {
+          urgent: ['urgent', 'po', 'approval'],
+          opportunities: ['opportunity', 'lead', 'samples'],
+          commitments: ['commitment', 'sales_win', 'press_test_success', 'swatch_received'],
+          actions: ['action', 'quote_sent', 'price_sent', 'pricelist_sent'],
+          feedback: ['feedback'],
+        };
+        const types = categoryMap[category as string] || [];
+        if (types.length > 0) {
+          conditions.push(sql`${emailSalesEvents.eventType} = ANY(${types})`);
+        }
       }
       
       const events = await db.select({
@@ -9027,9 +9043,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerName: customers.company,
         isProcessed: emailSalesEvents.isProcessed,
         coachingTip: emailSalesEvents.coachingTip,
+        followUpTaskId: emailSalesEvents.followUpTaskId,
+        senderName: gmailMessages.fromName,
+        senderEmail: gmailMessages.fromEmail,
+        subject: gmailMessages.subject,
+        direction: gmailMessages.direction,
       })
         .from(emailSalesEvents)
         .leftJoin(customers, eq(emailSalesEvents.customerId, customers.id))
+        .leftJoin(gmailMessages, eq(emailSalesEvents.gmailMessageId, gmailMessages.id))
         .where(and(...conditions))
         .orderBy(desc(emailSalesEvents.occurredAt))
         .limit(limit);
@@ -9039,10 +9061,115 @@ export async function registerRoutes(app: Express): Promise<Server> {
         .from(emailSalesEvents)
         .where(and(...conditions));
       
-      res.json({ events, total: Number(totalResult[0]?.count || 0) });
+      // Get counts by category for tabs
+      const categoryCounts = await db.execute(sql`
+        SELECT 
+          CASE 
+            WHEN event_type IN ('urgent', 'po', 'approval') THEN 'urgent'
+            WHEN event_type IN ('opportunity', 'lead', 'samples') THEN 'opportunities'
+            WHEN event_type IN ('commitment', 'sales_win', 'press_test_success', 'swatch_received') THEN 'commitments'
+            WHEN event_type IN ('action', 'quote_sent', 'price_sent', 'pricelist_sent') THEN 'actions'
+            WHEN event_type = 'feedback' THEN 'feedback'
+            ELSE 'other'
+          END as category,
+          COUNT(*) as count
+        FROM email_sales_events
+        WHERE user_id = ${userId}
+        GROUP BY category
+      `);
+      
+      res.json({ 
+        events, 
+        total: Number(totalResult[0]?.count || 0),
+        categoryCounts: (categoryCounts as any).rows || []
+      });
     } catch (error: any) {
       console.error("Error fetching sales events:", error);
       res.status(500).json({ error: "Failed to fetch sales events" });
+    }
+  });
+
+  // Update event type (correct wrongly identified events)
+  app.patch("/api/email-intelligence/events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const eventId = parseInt(req.params.id);
+      const { eventType } = req.body;
+      
+      const validTypes = ['po', 'approval', 'samples', 'urgent', 'opportunity', 'commitment', 'action', 'feedback', 'sales_win', 'press_test_success', 'swatch_received', 'lead', 'price_sent', 'pricelist_sent', 'quote_sent', 'dismissed'];
+      if (!validTypes.includes(eventType)) {
+        return res.status(400).json({ error: "Invalid event type" });
+      }
+      
+      await db.update(emailSalesEvents)
+        .set({ eventType })
+        .where(and(eq(emailSalesEvents.id, eventId), eq(emailSalesEvents.userId, userId)));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error updating event type:", error);
+      res.status(500).json({ error: "Failed to update event" });
+    }
+  });
+
+  // Delete event (dismiss false positive)
+  app.delete("/api/email-intelligence/events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const eventId = parseInt(req.params.id);
+      
+      await db.delete(emailSalesEvents)
+        .where(and(eq(emailSalesEvents.id, eventId), eq(emailSalesEvents.userId, userId)));
+      
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error deleting event:", error);
+      res.status(500).json({ error: "Failed to delete event" });
+    }
+  });
+
+  // Email intelligence blacklist management
+  app.get("/api/email-intelligence/blacklist", isAuthenticated, async (req: any, res) => {
+    try {
+      const blacklist = await db.select().from(emailIntelligenceBlacklist).orderBy(desc(emailIntelligenceBlacklist.createdAt));
+      res.json(blacklist);
+    } catch (error: any) {
+      console.error("Error fetching blacklist:", error);
+      res.status(500).json({ error: "Failed to fetch blacklist" });
+    }
+  });
+
+  app.post("/api/email-intelligence/blacklist", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const { pattern, patternType, reason } = req.body;
+      
+      if (!pattern) {
+        return res.status(400).json({ error: "Pattern is required" });
+      }
+      
+      const [entry] = await db.insert(emailIntelligenceBlacklist).values({
+        pattern: pattern.toLowerCase().trim(),
+        patternType: patternType || 'email',
+        reason,
+        addedBy: userId,
+      }).returning();
+      
+      res.json(entry);
+    } catch (error: any) {
+      console.error("Error adding to blacklist:", error);
+      res.status(500).json({ error: "Failed to add to blacklist" });
+    }
+  });
+
+  app.delete("/api/email-intelligence/blacklist/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await db.delete(emailIntelligenceBlacklist).where(eq(emailIntelligenceBlacklist.id, id));
+      res.json({ success: true });
+    } catch (error: any) {
+      console.error("Error removing from blacklist:", error);
+      res.status(500).json({ error: "Failed to remove from blacklist" });
     }
   });
 

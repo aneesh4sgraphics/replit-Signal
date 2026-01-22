@@ -2709,6 +2709,25 @@ export const insertEmailSalesEventSchema = createInsertSchema(emailSalesEvents).
 export type EmailSalesEvent = typeof emailSalesEvents.$inferSelect;
 export type InsertEmailSalesEvent = z.infer<typeof insertEmailSalesEventSchema>;
 
+// Email Intelligence Blacklist - emails/domains to exclude from event detection
+export const emailIntelligenceBlacklist = pgTable("email_intelligence_blacklist", {
+  id: serial("id").primaryKey(),
+  pattern: varchar("pattern", { length: 255 }).notNull(), // email or domain pattern
+  patternType: varchar("pattern_type", { length: 20 }).notNull().default("email"), // 'email' or 'domain'
+  reason: text("reason"), // Why this was blacklisted
+  addedBy: varchar("added_by").references(() => users.id, { onDelete: "set null" }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => ({
+  patternIdx: index("email_blacklist_pattern_idx").on(table.pattern),
+}));
+
+export const insertEmailIntelligenceBlacklistSchema = createInsertSchema(emailIntelligenceBlacklist).omit({
+  id: true,
+  createdAt: true,
+});
+export type EmailIntelligenceBlacklist = typeof emailIntelligenceBlacklist.$inferSelect;
+export type InsertEmailIntelligenceBlacklist = z.infer<typeof insertEmailIntelligenceBlacklistSchema>;
+
 // Daily User Performance - track achievements and wins per day
 export const dailyUserPerformance = pgTable("daily_user_performance", {
   id: serial("id").primaryKey(),
