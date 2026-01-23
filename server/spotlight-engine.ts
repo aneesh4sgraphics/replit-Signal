@@ -1299,6 +1299,8 @@ class SpotlightEngine {
         isNull(customers.salesRepId),
         eq(customers.salesRepId, userId)
       ),
+      // Exclude internal 4sgraphics contacts from SPOTLIGHT
+      sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
     if (skippedIds.length > 0) {
@@ -1385,7 +1387,11 @@ class SpotlightEngine {
       })
       .from(followUpTasks)
       .leftJoin(customers, eq(followUpTasks.customerId, customers.id))
-      .where(and(...conditions))
+      .where(and(
+        ...conditions,
+        // Exclude internal 4sgraphics contacts from SPOTLIGHT
+        or(isNull(customers.email), sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`)
+      ))
       .orderBy(asc(followUpTasks.dueDate))
       .limit(1);
 
@@ -1431,6 +1437,8 @@ class SpotlightEngine {
         isNull(customers.updatedAt),
         lt(customers.updatedAt, thirtyDaysAgo)
       ),
+      // Exclude internal 4sgraphics contacts from SPOTLIGHT
+      sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
     if (skippedIds.length > 0) {
@@ -1488,6 +1496,8 @@ class SpotlightEngine {
       let whereConditions = [
         condition,
         eq(customers.doNotContact, false),
+        // Exclude internal 4sgraphics contacts from SPOTLIGHT (allow null emails for hygiene_email subtype)
+        or(isNull(customers.email), sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`),
       ];
       
       if (skippedIds.length > 0) {
@@ -1592,6 +1602,8 @@ class SpotlightEngine {
         isNull(customers.salesRepId),
         eq(customers.salesRepId, userId)
       ),
+      // Exclude internal 4sgraphics contacts from SPOTLIGHT
+      sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
     if (skippedIds.length > 0) {
