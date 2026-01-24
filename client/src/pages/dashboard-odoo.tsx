@@ -20,8 +20,6 @@ import {
   Settings,
   AlertCircle,
   ChevronRight,
-  Mail,
-  Calendar,
   Zap,
   Building2,
   Flame,
@@ -31,8 +29,6 @@ import {
 import { primaryApps, filterAppsByUser } from "@/lib/nav-links";
 import { useAuth } from "@/hooks/useAuth";
 import { ScrollArea, ScrollBar } from "@/components/ui/scroll-area";
-import StartYourDayDashboard from "@/components/StartYourDayDashboard";
-import ShipmentFollowUpWidget from "@/components/ShipmentFollowUpWidget";
 import { ConnectionPrompt } from "@/components/ConnectionPrompt";
 import { DailyProgressHero } from "@/components/DailyProgressHero";
 import { useQuery } from "@tanstack/react-query";
@@ -81,12 +77,6 @@ interface UsageStats {
     dbMaxSizeBytes: number;
   };
   timestamp: string;
-}
-
-interface ConnectionStatus {
-  odoo: { connected: boolean; error: string | null };
-  gmail: { connected: boolean; error: string | null };
-  calendar: { connected: boolean; error: string | null };
 }
 
 interface ApiCostStats {
@@ -138,13 +128,6 @@ export default function Dashboard() {
 
   const { data: objections = [] } = useQuery<{ id: number; status: string }[]>({
     queryKey: ["/api/crm/objections"],
-    retry: 1,
-  });
-
-  const { data: connectionStatus } = useQuery<ConnectionStatus>({
-    queryKey: ['/api/integrations/status'],
-    refetchOnWindowFocus: false,
-    staleTime: 5 * 60 * 1000,
     retry: 1,
   });
 
@@ -417,14 +400,100 @@ export default function Dashboard() {
             </div>
           </Link>
 
-          {/* Start Your Day Dashboard */}
-          <div style={{ marginBottom: '32px' }}>
-            <StartYourDayDashboard />
-          </div>
+          {/* Quick Action Cards - Two Column Grid */}
+          <div style={{ 
+            display: 'grid', 
+            gridTemplateColumns: 'repeat(auto-fit, minmax(280px, 1fr))', 
+            gap: '16px',
+            marginBottom: '24px'
+          }}>
+            {/* Hot Leads Card */}
+            <Link href="/hot-leads" style={{ textDecoration: 'none' }}>
+              <div style={{
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #EAEAEA',
+                padding: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#E03D3E';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(224, 61, 62, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#EAEAEA';
+                e.currentTarget.style.boxShadow = 'none';
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #FF6B6B 0%, #E03D3E 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Flame size={20} style={{ color: '#FFFFFF' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#111111' }}>Hot Leads</div>
+                      <div style={{ fontSize: '12px', color: '#666666' }}>Ready to close</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: 700, color: '#E03D3E' }}>{stats?.hotLeads || 0}</span>
+                    <ChevronRight size={18} style={{ color: '#999999' }} />
+                  </div>
+                </div>
+              </div>
+            </Link>
 
-          {/* Shipment Follow-up Tasks */}
-          <div style={{ marginBottom: '32px' }}>
-            <ShipmentFollowUpWidget />
+            {/* Contacts Card */}
+            <Link href="/odoo-contacts" style={{ textDecoration: 'none' }}>
+              <div style={{
+                background: '#FFFFFF',
+                borderRadius: '12px',
+                border: '1px solid #EAEAEA',
+                padding: '20px',
+                cursor: 'pointer',
+                transition: 'all 0.15s ease',
+              }}
+              onMouseEnter={(e) => {
+                e.currentTarget.style.borderColor = '#8B7EC8';
+                e.currentTarget.style.boxShadow = '0 2px 8px rgba(139, 126, 200, 0.15)';
+              }}
+              onMouseLeave={(e) => {
+                e.currentTarget.style.borderColor = '#EAEAEA';
+                e.currentTarget.style.boxShadow = 'none';
+              }}>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                    <div style={{
+                      width: '40px',
+                      height: '40px',
+                      borderRadius: '10px',
+                      background: 'linear-gradient(135deg, #8B7EC8 0%, #6B5B95 100%)',
+                      display: 'flex',
+                      alignItems: 'center',
+                      justifyContent: 'center',
+                    }}>
+                      <Building2 size={20} style={{ color: '#FFFFFF' }} />
+                    </div>
+                    <div>
+                      <div style={{ fontSize: '14px', fontWeight: 600, color: '#111111' }}>Contacts</div>
+                      <div style={{ fontSize: '12px', color: '#666666' }}>Manage customers</div>
+                    </div>
+                  </div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '8px' }}>
+                    <span style={{ fontSize: '28px', fontWeight: 700, color: '#8B7EC8' }}>{stats?.totalCustomers || 0}</span>
+                    <ChevronRight size={18} style={{ color: '#999999' }} />
+                  </div>
+                </div>
+              </div>
+            </Link>
           </div>
 
           {/* Outbound Marketing Kits */}
