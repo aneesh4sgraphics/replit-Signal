@@ -364,6 +364,10 @@ export default function CostDashboard() {
                 <CheckCircle className="h-4 w-4" />
                 Marketing/notification emails excluded from analysis
               </li>
+              <li className="flex items-center gap-2">
+                <CheckCircle className="h-4 w-4" />
+                No API calls during off-hours (6 PM - 8 AM)
+              </li>
             </ul>
           </CardContent>
         </Card>

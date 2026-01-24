@@ -1111,8 +1111,23 @@ export async function rematchUnmatchedMessages(): Promise<{ matched: number; tot
   return { matched, total: unmatchedMessages.length };
 }
 
+// Check if current time is within business hours (8 AM - 6 PM local time)
+function isWithinBusinessHours(): boolean {
+  const now = new Date();
+  const hour = now.getHours();
+  // Business hours: 8:00 AM (8) to 6:00 PM (18)
+  return hour >= 8 && hour < 18;
+}
+
 // Automatic sync for all connected Gmail users with guardrails
 export async function syncAllConnectedUsers(): Promise<{ synced: number; failed: number; skipped: number }> {
+  // Skip sync during off-hours (6 PM to 8 AM) to reduce costs
+  if (!isWithinBusinessHours()) {
+    const now = new Date();
+    console.log(`[Gmail Sync] Outside business hours (${now.getHours()}:${now.getMinutes().toString().padStart(2, '0')}), skipping sync`);
+    return { synced: 0, failed: 0, skipped: 0 };
+  }
+  
   // Prevent concurrent syncs
   if (isSyncing) {
     console.log('[Gmail Sync] Sync already in progress, skipping');
