@@ -21681,6 +21681,95 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // ============= ADMIN SETTINGS API (Cost Optimization) =============
+  const { getAllAdminSettings, setAdminSetting, ADMIN_SETTING_KEYS } = await import("./admin-settings");
+  
+  // Get all admin settings
+  app.get("/api/admin/settings", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const settings = await getAllAdminSettings();
+      res.json({ settings, keys: ADMIN_SETTING_KEYS });
+    } catch (error) {
+      console.error("Error fetching admin settings:", error);
+      res.status(500).json({ error: "Failed to fetch settings" });
+    }
+  });
+  
+  // Update an admin setting
+  app.put("/api/admin/settings/:key", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { key } = req.params;
+      const { value, description } = req.body;
+      
+      if (!Object.values(ADMIN_SETTING_KEYS).includes(key)) {
+        return res.status(400).json({ error: `Invalid setting key: ${key}` });
+      }
+      
+      await setAdminSetting(key, value, req.user?.id, description);
+      
+      const settings = await getAllAdminSettings();
+      res.json({ success: true, settings });
+    } catch (error) {
+      console.error("Error updating admin setting:", error);
+      res.status(500).json({ error: "Failed to update setting" });
+    }
+  });
+  
+  // Get cost summary for dashboard widget
+  app.get("/api/admin/cost-summary", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const { days = '7' } = req.query;
+      const daysNum = parseInt(days as string) || 7;
+      const startDate = new Date();
+      startDate.setDate(startDate.getDate() - daysNum);
+      
+      // Get total cost summary
+      const summary = await db.execute(sql`
+        SELECT 
+          COALESCE(SUM(estimated_cost::numeric), 0) as total_cost,
+          COALESCE(SUM(input_tokens), 0) as total_input_tokens,
+          COALESCE(SUM(output_tokens), 0) as total_output_tokens,
+          COALESCE(COUNT(*), 0) as total_calls
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate}
+      `);
+      
+      // Get breakdown by service
+      const byService = await db.execute(sql`
+        SELECT 
+          operation,
+          COALESCE(COUNT(*), 0) as call_count,
+          COALESCE(SUM(estimated_cost::numeric), 0) as cost
+        FROM api_cost_logs
+        WHERE created_at >= ${startDate}
+        GROUP BY operation
+        ORDER BY cost DESC
+        LIMIT 10
+      `);
+      
+      // Get sync status
+      const settings = await getAllAdminSettings();
+      
+      res.json({
+        summary: summary.rows[0] || { total_cost: 0, total_input_tokens: 0, total_output_tokens: 0, total_calls: 0 },
+        byService: byService.rows,
+        settings,
+        syncIntervals: {
+          gmail: parseInt(settings[ADMIN_SETTING_KEYS.GMAIL_SYNC_INTERVAL_MINUTES]?.value || '30'),
+          odoo: 1440, // 24 hours in minutes
+          dripEmail: 10,
+        },
+        aiFeatures: {
+          emailAnalysis: settings[ADMIN_SETTING_KEYS.AI_EMAIL_ANALYSIS_ENABLED]?.value === 'true',
+          ragChatbot: settings[ADMIN_SETTING_KEYS.RAG_CHATBOT_ENABLED]?.value === 'true',
+        }
+      });
+    } catch (error) {
+      console.error("Error fetching cost summary:", error);
+      res.status(500).json({ error: "Failed to fetch cost summary" });
+    }
+  });
+
   // Catch-all for unmatched API routes - return JSON 404 instead of HTML
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.path}` });

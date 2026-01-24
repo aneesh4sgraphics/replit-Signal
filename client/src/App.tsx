@@ -37,6 +37,7 @@ import IntegrationsSettingsPage from "@/pages/integrations-settings";
 import ProductMappingPage from "@/pages/product-mapping";
 import SalesAnalyticsPage from "@/pages/sales-analytics";
 import ReportsPage from "@/pages/reports";
+import CostDashboard from "@/pages/cost-dashboard";
 import GmailInsightsPage from "@/pages/gmail-insights";
 import EmailSyncDebug from "@/pages/email-sync-debug";
 import Spotlight from "@/pages/spotlight";
@@ -107,6 +108,7 @@ const AppRoutes = () => (
     <Route path="/product-mapping" component={ProductMappingPage} />
     <Route path="/sales-analytics" component={SalesAnalyticsPage} />
     <Route path="/reports" component={ReportsPage} />
+    <Route path="/admin/costs" component={CostDashboard} />
     <Route path="/spotlight" component={Spotlight} />
     <Route path="/calendar" component={CalendarPage} />
     <Route path="/tasks" component={TaskInbox} />

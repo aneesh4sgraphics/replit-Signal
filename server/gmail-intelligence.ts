@@ -9,6 +9,7 @@ import { processUnanalyzedMessages, createFollowUpTasksFromEvents } from "./emai
 import OpenAI from "openai";
 import { logApiCost } from "./cost-tracker";
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock";
+import { isAIEmailAnalysisEnabled } from "./admin-settings";
 
 const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
 
@@ -1165,11 +1166,15 @@ export async function syncAllConnectedUsers(): Promise<{ synced: number; failed:
         }
         
         // Run AI insight extraction on select messages (limit to 20 per cycle to reduce costs)
-        if (result.newMessages > 0) {
+        // Check admin setting to see if AI analysis is enabled (cost optimization toggle)
+        const aiAnalysisEnabled = await isAIEmailAnalysisEnabled();
+        if (result.newMessages > 0 && aiAnalysisEnabled) {
           const analysisResult = await analyzeMessagesForInsights(connection.userId, 20);
           if (analysisResult.insights > 0) {
             console.log(`[Gmail Sync] User ${connection.userId}: ${analysisResult.insights} AI insights extracted`);
           }
+        } else if (result.newMessages > 0 && !aiAnalysisEnabled) {
+          console.log(`[Gmail Sync] User ${connection.userId}: Skipping AI analysis (disabled in admin settings)`);
         }
         
         recordSuccess(connection.userId);
