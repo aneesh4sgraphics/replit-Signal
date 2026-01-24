@@ -1224,8 +1224,8 @@ async function syncUserGmailMessagesDelta(userId: string, maxMessages: number): 
   return { newMessages: result.messagesStored, syncType: 'full' };
 }
 
-// Gmail sync configuration
-const SYNC_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
+// Gmail sync configuration - optimized for cost (30 minutes instead of 15)
+const SYNC_INTERVAL_MS = 30 * 60 * 1000; // 30 minutes (cost-optimized)
 const MAX_BACKOFF_MS = 60 * 60 * 1000; // 1 hour max backoff
 const BASE_BACKOFF_MS = 60 * 1000; // 1 minute base backoff
 

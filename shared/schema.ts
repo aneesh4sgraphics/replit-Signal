@@ -3136,6 +3136,23 @@ export const insertLabelPrintSchema = createInsertSchema(labelPrints).omit({
 export type LabelPrint = typeof labelPrints.$inferSelect;
 export type InsertLabelPrint = z.infer<typeof insertLabelPrintSchema>;
 
+// Admin settings - configurable system-wide settings for cost optimization
+export const adminSettings = pgTable("admin_settings", {
+  id: serial("id").primaryKey(),
+  key: varchar("key", { length: 100 }).notNull().unique(),
+  value: text("value").notNull(),
+  description: text("description"),
+  updatedAt: timestamp("updated_at").defaultNow(),
+  updatedByUserId: varchar("updated_by_user_id").references(() => users.id),
+});
+
+export const insertAdminSettingSchema = createInsertSchema(adminSettings).omit({
+  id: true,
+  updatedAt: true,
+});
+export type AdminSetting = typeof adminSettings.$inferSelect;
+export type InsertAdminSetting = z.infer<typeof insertAdminSettingSchema>;
+
 // Task difficulty/energy cost configuration
 export const TASK_ENERGY_COSTS: Record<string, { energyCost: number; difficulty: 'easy' | 'medium' | 'hard' }> = {
   'sales_call': { energyCost: 25, difficulty: 'hard' },
