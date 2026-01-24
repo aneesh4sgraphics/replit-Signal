@@ -335,6 +335,7 @@ export default function Spotlight() {
   // V0 Redesign: Coaching tray states
   const [callScriptOpen, setCallScriptOpen] = useState(true);
   const [emailIdeasOpen, setEmailIdeasOpen] = useState(false);
+  const [showAddMachine, setShowAddMachine] = useState(false);
   
   // Coaching content based on task type
   const callScriptIdeas = [
@@ -460,6 +461,28 @@ export default function Spotlight() {
     },
     enabled: !!customerId,
     staleTime: 60 * 1000,
+  });
+
+  // Fetch available machine types for inline add
+  const { data: machineTypes = [] } = useQuery<{ id: number; code: string; label: string }[]>({
+    queryKey: ['/api/crm/machine-types'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Add machine mutation
+  const addMachineMutation = useMutation({
+    mutationFn: async (machineFamily: string) => {
+      if (!customerId) throw new Error('No customer selected');
+      return apiRequest('POST', '/api/crm/machine-profiles', { customerId, machineFamily, status: 'confirmed', source: 'spotlight' });
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/crm/machine-profiles', customerId] });
+      setShowAddMachine(false);
+      toast({ title: 'Machine added', description: 'Customer machine profile updated' });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to add machine', variant: 'destructive' });
+    },
   });
 
   // Fetch activity events for current customer
@@ -1336,11 +1359,33 @@ export default function Spotlight() {
                     ) : (
                       <span className="text-xs text-slate-400">No machines on file</span>
                     )}
-                    <Link href={`/odoo-contacts/${customer.id}`}>
-                      <Badge variant="outline" className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100">
+                    {showAddMachine ? (
+                      <Select
+                        onValueChange={(value) => {
+                          addMachineMutation.mutate(value);
+                        }}
+                        disabled={addMachineMutation.isPending}
+                      >
+                        <SelectTrigger className="h-6 w-32 text-xs">
+                          <SelectValue placeholder="Select..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {machineTypes.map((mt) => (
+                            <SelectItem key={mt.code} value={mt.code} className="text-xs">
+                              {mt.label}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    ) : (
+                      <Badge 
+                        variant="outline" 
+                        className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100"
+                        onClick={() => setShowAddMachine(true)}
+                      >
                         + Add
                       </Badge>
-                    </Link>
+                    )}
                   </div>
                 </div>
               </div>
