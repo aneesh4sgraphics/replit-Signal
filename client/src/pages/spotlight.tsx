@@ -448,6 +448,33 @@ export default function Spotlight() {
     staleTime: 5 * 60 * 1000,
   });
 
+  // Fetch machine profiles for current customer
+  const customerId = currentTask?.task?.customer?.id;
+  const { data: customerMachines = [] } = useQuery<{ id: number; machineFamily: string; confirmed: boolean }[]>({
+    queryKey: ['/api/crm/machine-profiles', customerId],
+    queryFn: async () => {
+      if (!customerId) return [];
+      const res = await fetch(`/api/crm/machine-profiles/${customerId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!customerId,
+    staleTime: 60 * 1000,
+  });
+
+  // Fetch activity events for current customer
+  const { data: customerNotes = [] } = useQuery<{ id: number; eventType: string; summary: string; occurredAt: string; metadata?: any }[]>({
+    queryKey: ['/api/customer-activity/events', customerId],
+    queryFn: async () => {
+      if (!customerId) return [];
+      const res = await fetch(`/api/customer-activity/events?customerId=${customerId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!customerId,
+    staleTime: 60 * 1000,
+  });
+
   // Helper to get display name from sales rep
   const getSalesRepDisplayName = (rep: { email: string; firstName?: string; lastName?: string }) => {
     // Special handling for info@4sgraphics.com
@@ -1026,11 +1053,11 @@ export default function Spotlight() {
 
   return (
     <div className="spotlight-container min-h-screen p-6">
-      {/* Three-Column Layout */}
-      <div className="flex gap-6 max-w-7xl mx-auto">
+      {/* Three-Column Layout - Responsive */}
+      <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto">
         
         {/* Left Sidebar - Progress & Stats */}
-        <div className="w-72 flex-shrink-0">
+        <div className="w-full lg:w-72 flex-shrink-0 order-2 lg:order-1">
           <div className="spotlight-sidebar p-6 sticky top-6">
             {/* Progress Card - V0 Style */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
@@ -1109,7 +1136,7 @@ export default function Spotlight() {
         </div>
         
         {/* Center - Main Task Card */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 order-1 lg:order-2">
           {/* Success Overlay */}
           {showSuccess && (
             <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">
@@ -1137,19 +1164,6 @@ export default function Spotlight() {
               )}
             </div>
             
-            {/* Coach Tip */}
-            {currentTask?.coachTip && (
-              <div className="spotlight-card p-4 mb-4 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200">
-                <div className="flex items-start gap-3">
-                  <Lightbulb className="w-5 h-5 text-indigo-600 mt-0.5 flex-shrink-0" />
-                  <div>
-                    <p className="text-sm font-medium text-indigo-700">Pro Tip</p>
-                    <p className="text-sm text-indigo-600">{currentTask.coachTip.content}</p>
-                  </div>
-                </div>
-              </div>
-            )}
-
             {/* Smart Hints */}
             {currentTask.hints && currentTask.hints.length > 0 && (
               <div className="space-y-2 mb-4">
@@ -1232,41 +1246,22 @@ export default function Spotlight() {
               </div>
             )}
 
-            {/* Main Customer Card */}
+            {/* Main Customer Card - V0 Style */}
             <div className="spotlight-card p-6 mb-4">
-              {/* Customer Header */}
-              <div className="flex items-start justify-between mb-4">
+              {/* Customer Header with Hot Badge */}
+              <div className="flex items-start justify-between mb-2">
                 <div className="flex-1">
-                  <div className="flex items-center gap-2">
-                    <h2 className="text-xl font-semibold text-slate-800">{customerName}</h2>
-                    {customer.isHotProspect && (
-                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-orange-100 text-orange-600 text-xs font-medium">
-                        <Flame className="w-3 h-3" />
-                        Hot
-                      </span>
-                    )}
-                    <Link href={`/odoo-contacts/${customer.id}`}>
-                      <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-600">
-                        <ExternalLink className="w-4 h-4" />
-                      </Button>
-                    </Link>
-                  </div>
-                  <div className="flex items-center gap-4 mt-2 text-sm text-slate-600">
-                    {customer.email && (
-                      <a href={`mailto:${customer.email}`} className="flex items-center gap-1 hover:text-blue-600 hover:underline">
-                        <Mail className="w-3.5 h-3.5" />
-                        {customer.email}
-                      </a>
-                    )}
-                    {customer.phone && (
-                      <span className="flex items-center gap-1">
-                        <Phone className="w-3.5 h-3.5" />
-                        {customer.phone}
-                      </span>
-                    )}
-                  </div>
+                  <h2 className="text-2xl font-semibold text-slate-800">{customer.company || customerName}</h2>
+                  {customer.firstName && customer.company && (
+                    <p className="text-sm text-slate-600 mt-0.5">{customer.firstName} {customer.lastName || ''}</p>
+                  )}
                 </div>
-                {!customer.isHotProspect && (
+                {customer.isHotProspect ? (
+                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-50 text-red-500 text-sm font-medium border border-red-200">
+                    <Flame className="w-4 h-4" />
+                    Hot
+                  </span>
+                ) : (
                   <Button
                     variant="outline"
                     size="sm"
@@ -1285,28 +1280,82 @@ export default function Spotlight() {
                   </Button>
                 )}
               </div>
-              
-              {/* Customer Details Grid */}
-              <div className="grid grid-cols-2 gap-3 text-sm mb-4 p-3 bg-slate-50 rounded-xl">
-                <div>
-                  <span className="text-slate-500 text-xs">Sales Rep</span>
-                  <p className="font-medium text-slate-800">{customer.salesRepName || '—'}</p>
-                </div>
-                <div>
-                  <span className="text-slate-500 text-xs">Pricing Tier</span>
-                  <p className="font-medium text-slate-800 capitalize">{customer.pricingTier || '—'}</p>
-                </div>
-                {customer.address1 && (
-                  <div className="col-span-2">
-                    <div className="flex items-center justify-between">
-                      <span className="text-slate-500 text-xs">Address</span>
-                      <PrintLabelButton customer={customer} variant="icon" />
-                    </div>
-                    <p className="font-medium text-slate-800">
-                      {customer.address1}{customer.city ? `, ${customer.city}` : ''}{customer.province ? `, ${customer.province}` : ''} {customer.zip || ''}
-                    </p>
-                  </div>
+
+              {/* Email & Phone Row */}
+              <div className="flex items-center gap-6 mb-4 text-sm">
+                {customer.email && (
+                  <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">
+                    {customer.email}
+                  </a>
                 )}
+                {customer.phone && (
+                  <a href={`tel:${customer.phone}`} className="text-blue-600 hover:underline">
+                    {customer.phone}
+                  </a>
+                )}
+              </div>
+
+              {/* Tip & Machines Row - V0 Style */}
+              <div className="grid grid-cols-2 gap-3 mb-4">
+                {/* Yellow Tip Box */}
+                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                  <div className="flex items-center gap-2 mb-1">
+                    <Lightbulb className="w-4 h-4 text-amber-600" />
+                    <span className="text-sm font-semibold text-amber-800">Tip</span>
+                  </div>
+                  <p className="text-sm text-amber-700">
+                    {currentTask?.coachTip?.content || task.whyNow || "Lead with value - ask about their current needs."}
+                  </p>
+                </div>
+
+                {/* Machines Box */}
+                <div className="bg-white border border-slate-200 rounded-xl p-3">
+                  <p className="text-sm font-semibold text-slate-700 mb-2">Machines</p>
+                  <div className="flex flex-wrap gap-1.5">
+                    {customerMachines.length > 0 ? (
+                      customerMachines.map((m) => (
+                        <Badge key={m.id} variant="outline" className="text-xs bg-slate-50">
+                          {m.machineFamily}
+                        </Badge>
+                      ))
+                    ) : (
+                      <span className="text-xs text-slate-400">No machines on file</span>
+                    )}
+                    <Link href={`/odoo-contacts/${customer.id}`}>
+                      <Badge variant="outline" className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100">
+                        + Add
+                      </Badge>
+                    </Link>
+                  </div>
+                </div>
+              </div>
+
+              {/* View Map, Tier Badge, Rep Row */}
+              <div className="flex items-center gap-4 mb-4 text-sm">
+                {customer.address1 && (
+                  <a 
+                    href={`https://maps.google.com/?q=${encodeURIComponent(`${customer.address1}, ${customer.city || ''} ${customer.province || ''} ${customer.zip || ''}`)}`}
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="flex items-center gap-1 text-slate-600 hover:text-blue-600"
+                  >
+                    <MapPin className="w-4 h-4" />
+                    View Map
+                  </a>
+                )}
+                {customer.pricingTier && (
+                  <Badge className="bg-emerald-100 text-emerald-700 border-emerald-200 capitalize">
+                    {customer.pricingTier}
+                  </Badge>
+                )}
+                <span className="text-slate-600">
+                  Rep: <span className="font-medium">{customer.salesRepName || 'You'}</span>
+                </span>
+                <Link href={`/odoo-contacts/${customer.id}`}>
+                  <Button variant="ghost" size="icon" className="h-6 w-6 text-slate-400 hover:text-slate-600">
+                    <ExternalLink className="w-4 h-4" />
+                  </Button>
+                </Link>
               </div>
 
               {/* Follow-up context */}
@@ -1320,6 +1369,28 @@ export default function Spotlight() {
                   )}
                 </div>
               )}
+
+              {/* Customer Notes Section - V0 Style */}
+              <div className="border-t border-slate-100 pt-4">
+                <div className="flex items-center gap-2 mb-3">
+                  <FileText className="w-4 h-4 text-slate-500" />
+                  <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Customer Notes</span>
+                </div>
+                <div className="space-y-3">
+                  {customerNotes.length > 0 ? (
+                    customerNotes.slice(0, 5).map((note) => (
+                      <div key={note.id} className="bg-slate-50 rounded-xl p-3">
+                        <p className="text-xs text-blue-600 mb-1">
+                          {new Date(note.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                        </p>
+                        <p className="text-sm text-slate-700">{note.summary}</p>
+                      </div>
+                    ))
+                  ) : (
+                    <p className="text-sm text-slate-400 italic">No notes yet for this customer.</p>
+                  )}
+                </div>
+              </div>
 
               {/* Data Hygiene: Sales Rep Assignment */}
               {task.taskSubtype === 'hygiene_sales_rep' && (
@@ -1585,7 +1656,7 @@ export default function Spotlight() {
         </div>
         
         {/* Right Sidebar - Coaching Trays */}
-        <div className="w-64 flex-shrink-0 flex flex-col gap-3">
+        <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-3 order-3">
           {/* Calling Script Ideas Tray */}
           <div className="spotlight-tray">
             <button

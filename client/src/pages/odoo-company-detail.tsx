@@ -271,6 +271,54 @@ export default function OdooCompanyDetail() {
     staleTime: 30000,
   });
 
+  // Machine profiles for this customer
+  interface MachineProfile {
+    id: number;
+    machineFamily: string;
+    confirmed: boolean;
+    otherDetails?: string;
+  }
+  const { data: machineProfiles = [], refetch: refetchMachines } = useQuery<MachineProfile[]>({
+    queryKey: ['/api/crm/machine-profiles', companyId],
+    queryFn: async () => {
+      const res = await fetch(`/api/crm/machine-profiles/${companyId}`, { credentials: 'include' });
+      if (!res.ok) return [];
+      return res.json();
+    },
+    enabled: !!companyId,
+  });
+
+  // Machine types from admin taxonomy
+  interface MachineType {
+    id: number;
+    code: string;
+    label: string;
+    icon: string;
+  }
+  const { data: machineTypes = [] } = useQuery<MachineType[]>({
+    queryKey: ['/api/crm/machine-types'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Toggle machine profile mutation
+  const toggleMachineMutation = useMutation({
+    mutationFn: async ({ machineFamily, currentlyEnabled }: { machineFamily: string; currentlyEnabled: boolean }) => {
+      const res = await apiRequest('POST', '/api/crm/machine-profiles', {
+        customerId: companyId,
+        machineFamily,
+        enabled: !currentlyEnabled,
+      });
+      return res.json();
+    },
+    onSuccess: () => {
+      refetchMachines();
+      toast({ title: "Machine profile updated" });
+    },
+    onError: () => {
+      toast({ title: "Failed to update machine", variant: "destructive" });
+    },
+  });
+
   // Print label mutation
   const printLabelMutation = useMutation({
     mutationFn: async (data: { labelType: string; otherDescription?: string; quantity: number; notes?: string }) => {
@@ -1792,6 +1840,60 @@ export default function OdooCompanyDetail() {
                           <p className="text-gray-600">{company.country}</p>
                         )}
                       </div>
+                    </div>
+                  )}
+                </div>
+
+                {/* Machines Section */}
+                <Separator />
+                <div className="space-y-4">
+                  <p className="text-sm font-medium text-gray-700">Machines Owned</p>
+                  <div className="flex flex-wrap gap-2">
+                    {machineTypes.length > 0 ? (
+                      machineTypes.map((mt) => {
+                        const isEnabled = machineProfiles.some(p => p.machineFamily === mt.code);
+                        return (
+                          <Button
+                            key={mt.code}
+                            variant={isEnabled ? "default" : "outline"}
+                            size="sm"
+                            className={`rounded-full ${isEnabled ? 'bg-violet-600 hover:bg-violet-700' : 'hover:bg-violet-50'}`}
+                            onClick={() => toggleMachineMutation.mutate({ machineFamily: mt.code, currentlyEnabled: isEnabled })}
+                            disabled={toggleMachineMutation.isPending}
+                          >
+                            {mt.label}
+                          </Button>
+                        );
+                      })
+                    ) : (
+                      <>
+                        {['Offset', 'Digital Toner', 'Digital Inkjet', 'Wide Format', 'Screen Printing', 'Distributor'].map((label) => {
+                          const code = label.toLowerCase().replace(/ /g, '_');
+                          const isEnabled = machineProfiles.some(p => p.machineFamily === code);
+                          return (
+                            <Button
+                              key={code}
+                              variant={isEnabled ? "default" : "outline"}
+                              size="sm"
+                              className={`rounded-full ${isEnabled ? 'bg-violet-600 hover:bg-violet-700' : 'hover:bg-violet-50'}`}
+                              onClick={() => toggleMachineMutation.mutate({ machineFamily: code, currentlyEnabled: isEnabled })}
+                              disabled={toggleMachineMutation.isPending}
+                            >
+                              {label}
+                            </Button>
+                          );
+                        })}
+                      </>
+                    )}
+                  </div>
+                  {machineProfiles.length > 0 && (
+                    <div className="flex flex-wrap gap-1.5 mt-2">
+                      {machineProfiles.map((mp) => (
+                        <Badge key={mp.id} variant="secondary" className="bg-violet-100 text-violet-700">
+                          {mp.machineFamily.replace(/_/g, ' ')}
+                          {mp.otherDetails && <span className="ml-1 text-violet-500">({mp.otherDetails})</span>}
+                        </Badge>
+                      ))}
                     </div>
                   )}
                 </div>
