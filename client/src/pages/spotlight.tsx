@@ -1101,7 +1101,7 @@ export default function Spotlight() {
                 const bucketProgress = bucket.target > 0 ? (bucket.completed / bucket.target) * 100 : 0;
                 const isActive = bucket.bucket === task.bucket;
                 return (
-                  <div key={bucket.bucket} className={`${isActive ? 'ring-2 ring-offset-2 rounded-lg' : ''}`} style={{ ringColor: info.color }}>
+                  <div key={bucket.bucket} className={`${isActive ? 'ring-2 ring-offset-2 rounded-lg ring-blue-500' : ''}`}>
                     <div className="flex items-center justify-between mb-1">
                       <div className="flex items-center gap-2">
                         <BIcon className="w-4 h-4" style={{ color: info.color }} />
@@ -1147,32 +1147,19 @@ export default function Spotlight() {
           {/* Task Card Container with Animation */}
           <div className={`transition-all duration-300 ease-out ${isTransitioning ? 'opacity-0 scale-95 translate-y-4' : 'opacity-100 scale-100 translate-y-0'}`}>
             
-            {/* Why Now Banner */}
-            <div 
-              className="spotlight-card p-4 mb-4 flex items-start gap-3"
-              style={{ borderLeft: `4px solid ${bucketInfo.color}` }}
-            >
-              <BucketIcon className="w-5 h-5 mt-0.5" style={{ color: bucketInfo.color }} />
+            {/* Why Now Banner - Blue Gradient Style from V0 */}
+            <div className="bg-gradient-to-r from-blue-500 to-blue-600 rounded-2xl px-5 py-3 mb-4 flex items-center gap-3 shadow-sm">
+              <div className="w-2 h-2 rounded-full bg-white opacity-75" />
               <div>
-                <div className="flex items-center gap-2">
-                  <p className="font-semibold text-slate-800 text-sm">{bucketInfo.label}</p>
-                  {task.context?.sourceType === 'email_event' && (
-                    <Badge className="bg-purple-100 text-purple-700 text-xs px-2 py-0.5 flex items-center gap-1">
-                      <Mail className="w-3 h-3" />
-                      Email Intelligence
-                    </Badge>
-                  )}
-                </div>
-                <p className="text-slate-600 text-sm mt-0.5">{task.whyNow}</p>
-                {task.context?.machineContext && (
-                  <div className="mt-2 px-3 py-2 rounded-lg bg-blue-50 border border-blue-200">
-                    <p className="text-sm text-blue-700 font-medium flex items-center gap-2">
-                      <Settings className="w-4 h-4" />
-                      {task.context.machineContext}
-                    </p>
-                  </div>
-                )}
+                <p className="text-white text-sm font-semibold">Why Now: {bucketInfo.label}</p>
+                <p className="text-blue-100 text-xs">{task.whyNow}</p>
               </div>
+              {task.context?.sourceType === 'email_event' && (
+                <Badge className="ml-auto bg-white/20 text-white text-xs px-2 py-0.5 flex items-center gap-1">
+                  <Mail className="w-3 h-3" />
+                  Email Intelligence
+                </Badge>
+              )}
             </div>
             
             {/* Coach Tip */}
