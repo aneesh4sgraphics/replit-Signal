@@ -21,7 +21,7 @@ Preferred communication style: Simple, everyday language.
     - Robust authentication with role-based access control.
     - Comprehensive CSV upload/synchronization.
     - AI Chatbot: Hybrid RAG system using OpenAI GPT-4o with local BM25 fallback.
-    - CRM: Comprehensive customer journey tracking, reorder intelligence, and "Next Best Move" coaching.
+    - CRM: Comprehensive customer journey tracking, reorder intelligence, "Next Best Move" coaching, and customer machine profile management (tracks which machine types each customer owns at `/odoo-contacts/:id`).
     - Email Studio & Drip Campaigns: Automated multi-step email sequences with engagement tracking.
     - Odoo V19 Enterprise Integration: JSON-RPC API client for bidirectional data access (customers, products, pricelists, sale orders, users) and a guided product creation wizard. The `/odoo-contacts` page is the primary customer management interface, defaulting to company card view. `/odoo-products` displays products from Odoo with detailed pricing and inventory. App users are mapped to Odoo counterparts via email.
     - Shopify Integration: Embedded Shopify Admin app with OAuth, webhook registration, and order/customer sync.
