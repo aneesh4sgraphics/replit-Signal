@@ -1295,17 +1295,32 @@ export default function Spotlight() {
                 )}
               </div>
 
-              {/* Tip & Machines Row - V0 Style */}
+              {/* Pro Tip & Machines Row - V0 Style */}
               <div className="grid grid-cols-2 gap-3 mb-4">
-                {/* Yellow Tip Box */}
+                {/* Pro Tip Box - Shows product focus from taxonomy */}
                 <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
                   <div className="flex items-center gap-2 mb-1">
                     <Lightbulb className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-semibold text-amber-800">Tip</span>
+                    <span className="text-sm font-semibold text-amber-800">Pro Tip</span>
                   </div>
-                  <p className="text-sm text-amber-700">
-                    {currentTask?.coachTip?.content || task.whyNow || "Lead with value - ask about their current needs."}
-                  </p>
+                  {task.context?.suggestedProducts && task.context.suggestedProducts.length > 0 ? (
+                    <div>
+                      <p className="text-sm text-amber-700 mb-2">
+                        {task.context.machineContext || `Focus on these products for this customer:`}
+                      </p>
+                      <div className="flex flex-wrap gap-1">
+                        {task.context.suggestedProducts.map((product, idx) => (
+                          <Badge key={idx} className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                            {product}
+                          </Badge>
+                        ))}
+                      </div>
+                    </div>
+                  ) : (
+                    <p className="text-sm text-amber-700">
+                      {currentTask?.coachTip?.content || task.whyNow || "Lead with value - ask about their current needs."}
+                    </p>
+                  )}
                 </div>
 
                 {/* Machines Box */}
