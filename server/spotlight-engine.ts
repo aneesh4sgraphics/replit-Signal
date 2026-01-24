@@ -175,6 +175,10 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'found', label: 'Phone Added', icon: 'phone', nextAction: { type: 'mark_complete' } },
     { id: 'skip', label: 'Research Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
   ],
+  hygiene_machines: [
+    { id: 'confirmed', label: 'Machines Confirmed', icon: 'settings', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Ask Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'research' } },
+  ],
   sales_call: [
     { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
     { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'call' } },
@@ -240,6 +244,7 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   hygiene_name: 'Add the contact name for personalized outreach.',
   hygiene_company: 'Company name is missing - add it for better organization.',
   hygiene_phone: 'No phone number on file - add it for call outreach.',
+  hygiene_machines: 'Find out what machines they use - helps recommend the right products!',
   sales_call: 'Time for a call - build the relationship!',
   sales_follow_up: 'Follow-up is due - keep the momentum going.',
   sales_quote_follow_up: 'Quote sent but no response - time to check in.',
@@ -1488,10 +1493,61 @@ class SpotlightEngine {
       { subtype: 'hygiene_name', condition: and(isNull(customers.firstName), isNull(customers.lastName)) },
       { subtype: 'hygiene_company', condition: isNull(customers.company) },
       { subtype: 'hygiene_phone', condition: isNull(customers.phone) },
+      // Machine profiles - checked async after core data is complete
+      { subtype: 'hygiene_machines', condition: null },
     ];
 
     for (let i = 0; i < priorityOrder.length; i++) {
       const { subtype, condition } = priorityOrder[i];
+      
+      // Special handling for machine hygiene - requires async check
+      if (subtype === 'hygiene_machines') {
+        // Find customers with complete core data but missing machine profiles
+        let machineConditions = [
+          eq(customers.doNotContact, false),
+          isNotNull(customers.email),
+          isNotNull(customers.phone),
+          isNotNull(customers.pricingTier),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+          sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
+        ];
+        if (skippedIds.length > 0) {
+          machineConditions.push(notInArray(customers.id, skippedIds));
+        }
+        
+        const machineProfileCandidates = await db.select({
+          id: customers.id,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          email: customers.email,
+          phone: customers.phone,
+          address1: customers.address1,
+          address2: customers.address2,
+          city: customers.city,
+          province: customers.province,
+          zip: customers.zip,
+          country: customers.country,
+          website: customers.website,
+          salesRepId: customers.salesRepId,
+          salesRepName: customers.salesRepName,
+          pricingTier: customers.pricingTier,
+          updatedAt: customers.updatedAt,
+          isHotProspect: customers.isHotProspect,
+        })
+        .from(customers)
+        .where(and(...machineConditions))
+        .orderBy(asc(customers.updatedAt))
+        .limit(5);
+        
+        for (const customer of machineProfileCandidates) {
+          const needsMachine = await checkMissingMachineProfile(customer.id, customer);
+          if (needsMachine) {
+            return this.buildTask(customer, 'data_hygiene', 'hygiene_machines', i + 1);
+          }
+        }
+        continue;
+      }
       
       let whereConditions = [
         condition,
@@ -1808,6 +1864,7 @@ class SpotlightEngine {
         'hygiene_name': ['firstName', 'lastName'],
         'hygiene_company': ['company'],
         'hygiene_phone': ['phone'],
+        'hygiene_machines': [], // Machine profiles managed via separate API
       };
 
       const allowedFields = subtypeAllowedFields[subtype] || [];
