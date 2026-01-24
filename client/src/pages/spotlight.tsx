@@ -337,6 +337,13 @@ export default function Spotlight() {
   const [emailIdeasOpen, setEmailIdeasOpen] = useState(false);
   const [showAddMachine, setShowAddMachine] = useState(false);
   
+  // Email composer state
+  const [showEmailComposer, setShowEmailComposer] = useState(false);
+  const [emailTo, setEmailTo] = useState('');
+  const [emailSubject, setEmailSubject] = useState('');
+  const [emailBody, setEmailBody] = useState('');
+  const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
+  
   // Coaching content based on task type
   const callScriptIdeas = [
     "Open with a question about their recent order or last conversation",
@@ -482,6 +489,33 @@ export default function Spotlight() {
     },
     onError: () => {
       toast({ title: 'Error', description: 'Failed to add machine', variant: 'destructive' });
+    },
+  });
+
+  // Fetch email templates
+  const { data: emailTemplates = [] } = useQuery<{ id: number; name: string; subject: string; body: string; category?: string }[]>({
+    queryKey: ['/api/email/templates'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  // Send email mutation
+  const sendEmailMutation = useMutation({
+    mutationFn: async (data: { to: string; subject: string; body: string; customerId?: string }) => {
+      return apiRequest('POST', '/api/email/send', {
+        ...data,
+        htmlBody: data.body.replace(/\n/g, '<br>'),
+      });
+    },
+    onSuccess: () => {
+      setShowEmailComposer(false);
+      setEmailTo('');
+      setEmailSubject('');
+      setEmailBody('');
+      setSelectedTemplateId(null);
+      toast({ title: 'Email sent!', description: 'Your email was sent successfully via Gmail' });
+    },
+    onError: (error: any) => {
+      toast({ title: 'Failed to send', description: error?.message || 'Could not send email', variant: 'destructive' });
     },
   });
 
@@ -924,6 +958,59 @@ export default function Spotlight() {
     skipMutation.mutate({ taskId: currentTask.task.id, reason: 'not_now' });
   };
 
+  // Open email composer with customer's email prefilled
+  const handleOpenEmailComposer = () => {
+    const customer = currentTask?.task?.customer;
+    if (customer?.email) {
+      setEmailTo(customer.email);
+    }
+    // Pre-fill subject with customer/company name if available
+    const customerName = customer?.company || [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || '';
+    if (customerName) {
+      setEmailSubject(`Following up - ${customerName}`);
+    }
+    setShowEmailComposer(true);
+  };
+
+  // Handle template selection - fill in subject and body
+  const handleTemplateSelect = (templateId: string) => {
+    const id = parseInt(templateId);
+    setSelectedTemplateId(id);
+    const template = emailTemplates.find(t => t.id === id);
+    if (template) {
+      const customer = currentTask?.task?.customer;
+      // Replace basic variables in template
+      let subject = template.subject;
+      let body = template.body;
+      const customerName = customer?.company || [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || '';
+      const contactName = [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || '';
+      if (customerName) {
+        subject = subject.replace(/\{\{name\}\}/gi, customerName).replace(/\{\{customer_name\}\}/gi, customerName);
+        body = body.replace(/\{\{name\}\}/gi, customerName).replace(/\{\{customer_name\}\}/gi, customerName);
+      }
+      if (contactName) {
+        subject = subject.replace(/\{\{contact_name\}\}/gi, contactName);
+        body = body.replace(/\{\{contact_name\}\}/gi, contactName);
+      }
+      setEmailSubject(subject);
+      setEmailBody(body);
+    }
+  };
+
+  // Send email handler
+  const handleSendEmail = () => {
+    if (!emailTo || !emailSubject || !emailBody) {
+      toast({ title: 'Missing fields', description: 'Please fill in recipient, subject, and message', variant: 'destructive' });
+      return;
+    }
+    sendEmailMutation.mutate({
+      to: emailTo,
+      subject: emailSubject,
+      body: emailBody,
+      customerId: currentTask?.task?.customer?.id,
+    });
+  };
+
   if (isLoading) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center">
@@ -1307,9 +1394,20 @@ export default function Spotlight() {
               {/* Email & Phone Row */}
               <div className="flex items-center gap-6 mb-4 text-sm">
                 {customer.email && (
-                  <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">
-                    {customer.email}
-                  </a>
+                  <div className="flex items-center gap-2">
+                    <a href={`mailto:${customer.email}`} className="text-blue-600 hover:underline">
+                      {customer.email}
+                    </a>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="h-6 px-2 text-xs bg-blue-50 border-blue-200 text-blue-600 hover:bg-blue-100"
+                      onClick={handleOpenEmailComposer}
+                    >
+                      <Mail className="w-3 h-3 mr-1" />
+                      Compose
+                    </Button>
+                  </div>
                 )}
                 {customer.phone && (
                   <a href={`tel:${customer.phone}`} className="text-blue-600 hover:underline">
@@ -2456,6 +2554,134 @@ export default function Spotlight() {
               className="bg-blue-600 hover:bg-blue-700"
             >
               {completeMutation.isPending ? 'Scheduling...' : 'Schedule Follow-up'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Email Composer Dialog */}
+      <Dialog open={showEmailComposer} onOpenChange={setShowEmailComposer}>
+        <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <Mail className="h-5 w-5 text-blue-600" />
+              Compose Email
+            </DialogTitle>
+            <DialogDescription>
+              Send an email to this customer via your Gmail account
+            </DialogDescription>
+          </DialogHeader>
+
+          <div className="space-y-4 py-4">
+            {/* Template Selector */}
+            {emailTemplates.length > 0 && (
+              <div className="space-y-2">
+                <Label className="text-sm font-medium">Use Template</Label>
+                <Select 
+                  value={selectedTemplateId?.toString() || ''} 
+                  onValueChange={handleTemplateSelect}
+                >
+                  <SelectTrigger className="w-full">
+                    <SelectValue placeholder="Select a template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {emailTemplates.map((template) => (
+                      <SelectItem key={template.id} value={template.id.toString()}>
+                        {template.name} {template.category && `(${template.category})`}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
+            {/* To Field */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">To</Label>
+              <Input
+                type="email"
+                value={emailTo}
+                onChange={(e) => setEmailTo(e.target.value)}
+                placeholder="recipient@example.com"
+                className="w-full"
+              />
+            </div>
+
+            {/* Subject Field */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Subject</Label>
+              <Input
+                type="text"
+                value={emailSubject}
+                onChange={(e) => setEmailSubject(e.target.value)}
+                placeholder="Email subject..."
+                className="w-full"
+              />
+            </div>
+
+            {/* Body Field with basic formatting hint */}
+            <div className="space-y-2">
+              <Label className="text-sm font-medium">Message</Label>
+              <div className="flex gap-1 mb-1">
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setEmailBody(emailBody + '\n\n---\n\n')}
+                >
+                  — Line
+                </Button>
+                <Button
+                  type="button"
+                  variant="ghost"
+                  size="sm"
+                  className="h-7 px-2 text-xs"
+                  onClick={() => setEmailBody(emailBody + '\n\nBest regards,\n')}
+                >
+                  Sign-off
+                </Button>
+              </div>
+              <Textarea
+                value={emailBody}
+                onChange={(e) => setEmailBody(e.target.value)}
+                placeholder="Type your message here..."
+                className="min-h-[200px] w-full font-sans"
+                rows={10}
+              />
+              <p className="text-xs text-gray-500">Line breaks will be preserved in the email.</p>
+            </div>
+          </div>
+
+          <DialogFooter className="flex gap-2">
+            <Button 
+              variant="outline" 
+              onClick={() => {
+                setShowEmailComposer(false);
+                setEmailTo('');
+                setEmailSubject('');
+                setEmailBody('');
+                setSelectedTemplateId(null);
+              }}
+            >
+              Cancel
+            </Button>
+            <Button
+              onClick={handleSendEmail}
+              disabled={sendEmailMutation.isPending || !emailTo || !emailSubject || !emailBody}
+              className="bg-blue-600 hover:bg-blue-700"
+            >
+              {sendEmailMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Sending...
+                </>
+              ) : (
+                <>
+                  <Send className="w-4 h-4 mr-2" />
+                  Send Email
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
