@@ -51,6 +51,7 @@ import {
   ChevronDown,
 } from "lucide-react";
 import { SiOdoo } from "react-icons/si";
+import { Progress } from "@/components/ui/progress";
 
 interface Lead {
   id: number;
@@ -116,6 +117,7 @@ export default function LeadsPage() {
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'list'>('cards');
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [importStatus, setImportStatus] = useState<{ message: string; progress: number } | null>(null);
   const [newLead, setNewLead] = useState({
     name: '',
     email: '',
@@ -142,18 +144,28 @@ export default function LeadsPage() {
 
   const importMutation = useMutation({
     mutationFn: async () => {
+      setImportStatus({ message: 'Connecting to Odoo CRM Leads module...', progress: 10 });
+      await new Promise(r => setTimeout(r, 500));
+      setImportStatus({ message: 'Fetching leads from Odoo...', progress: 30 });
       const res = await apiRequest('POST', '/api/leads/import-from-odoo');
-      return res.json();
+      setImportStatus({ message: 'Processing lead records...', progress: 70 });
+      const data = await res.json();
+      setImportStatus({ message: 'Finalizing import...', progress: 90 });
+      await new Promise(r => setTimeout(r, 300));
+      return data;
     },
     onSuccess: (data) => {
+      setImportStatus({ message: 'Import complete!', progress: 100 });
+      setTimeout(() => setImportStatus(null), 2000);
       queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
       queryClient.invalidateQueries({ queryKey: ['/api/leads/stats'] });
       toast({
         title: 'Import Complete',
-        description: `Imported ${data.imported} new leads, updated ${data.updated}`,
+        description: `Imported ${data.imported} new leads, updated ${data.updated} from Odoo CRM Leads module`,
       });
     },
     onError: (error: any) => {
+      setImportStatus(null);
       toast({
         title: 'Import Failed',
         description: error.message || 'Could not import leads from Odoo',
@@ -243,6 +255,22 @@ export default function LeadsPage() {
             </Button>
           </div>
         </div>
+
+        {/* Import Progress Bar */}
+        {importStatus && (
+          <Card className="mb-6 border-purple-200 bg-gradient-to-r from-purple-50 to-blue-50">
+            <CardContent className="py-4">
+              <div className="flex items-center gap-3 mb-2">
+                <Loader2 className="w-5 h-5 animate-spin text-purple-600" />
+                <span className="text-sm font-medium text-purple-700">{importStatus.message}</span>
+              </div>
+              <Progress value={importStatus.progress} className="h-2" />
+              <p className="text-xs text-slate-500 mt-2">
+                Syncing from Odoo CRM Leads module (crm.lead) - not Contacts
+              </p>
+            </CardContent>
+          </Card>
+        )}
 
         {/* Stats Cards */}
         <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-4 mb-6">
