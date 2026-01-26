@@ -1,4 +1,4 @@
-import { useState, createContext, useContext, useCallback, useEffect, useRef } from "react";
+import { useState, createContext, useContext, useCallback, useEffect, useRef, useMemo } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast";
 import { Mail, Send, X, FileText, Loader2 } from "lucide-react";
 import type { EmailTemplate, Customer } from "@shared/schema";
 import { EmailRichTextEditor, type EmailRichTextEditorRef } from "@/components/EmailRichTextEditor";
+import { useAuth } from "@/hooks/useAuth";
 
 interface EmailComposeConfig {
   to?: string;
@@ -75,6 +76,7 @@ interface EmailComposePopupProps {
 
 function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComposePopupProps) {
   const { toast } = useToast();
+  const { user } = useAuth();
   const [to, setTo] = useState("");
   const [subject, setSubject] = useState("");
   const [body, setBody] = useState("");
@@ -92,6 +94,21 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
     queryKey: ["/api/email/signature"],
     enabled: isOpen,
   });
+
+  const allVariables = useMemo(() => {
+    const userFirstName = (user as any)?.firstName || '';
+    const userLastName = (user as any)?.lastName || '';
+    const userFullName = `${userFirstName} ${userLastName}`.trim() || (user as any)?.email?.split('@')[0] || '';
+    const userEmail = (user as any)?.email || '';
+    
+    return {
+      'user.name': userFullName,
+      'user.email': userEmail,
+      'user.signature': signature?.signatureHtml || '',
+      ...initialConfig.variables,
+      ...variables,
+    };
+  }, [user, signature, initialConfig.variables, variables]);
 
   const convertPlainTextToHtml = (text: string): string => {
     if (!text) return '';
@@ -173,11 +190,10 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
         let processedSubject = template.subject;
         let processedBody = template.body;
         
-        const allVars = { ...initialConfig.variables, ...variables };
-        Object.entries(allVars).forEach(([key, value]) => {
+        Object.entries(allVariables).forEach(([key, value]) => {
           const regex = new RegExp(`\\{\\{${key}\\}\\}`, 'g');
-          processedSubject = processedSubject.replace(regex, value);
-          processedBody = processedBody.replace(regex, value);
+          processedSubject = processedSubject.replace(regex, value || '');
+          processedBody = processedBody.replace(regex, value || '');
         });
         
         setSubject(processedSubject);
@@ -210,7 +226,6 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
       return;
     }
 
-    const allVariables = { ...initialConfig.variables, ...variables };
     const plainTextBody = stripHtml(body);
     sendMutation.mutate({
       to: to.trim(),

@@ -1559,7 +1559,11 @@ ${(user as any)?.email ? (user as any).email.split('@')[0].charAt(0).toUpperCase
       usageType: 'quick_quotes',
       variables: {
         'client.name': customerName,
+        'client.firstName': selectedCustomer?.firstName || '',
+        'client.lastName': selectedCustomer?.lastName || '',
         'client.company': selectedCustomer?.company || '',
+        'client.email': customerEmail,
+        'client.salesRep': selectedCustomer?.salesRepName || '',
         'quote.number': quoteNumber,
         'quote.total': `$${calculatedTotalAmount.toFixed(2)}`,
       },

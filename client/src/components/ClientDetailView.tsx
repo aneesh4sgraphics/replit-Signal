@@ -1343,7 +1343,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                             customerId: customer.id,
                             customerName: customerName,
                             usageType: 'client_email',
-                            variables: { 'client.name': customerName, 'client.company': customer.company || '' }
+                            variables: { 
+                              'client.name': customerName, 
+                              'client.firstName': customer.firstName || '',
+                              'client.lastName': customer.lastName || '',
+                              'client.company': customer.company || '',
+                              'client.email': customer.email || '',
+                              'client.salesRep': customer.salesRepName || ''
+                            }
                           })}
                           className="text-blue-600 hover:underline flex items-center gap-1"
                           data-testid="btn-email-customer"
@@ -1379,7 +1386,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                           customerId: customer.id,
                           customerName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName,
                           usageType: 'client_email',
-                          variables: { 'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 'client.company': customer.company || '' }
+                          variables: { 
+                            'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 
+                            'client.firstName': contact.firstName || '',
+                            'client.lastName': contact.lastName || '',
+                            'client.company': customer.company || '',
+                            'client.email': contact.email || '',
+                            'client.salesRep': customer.salesRepName || ''
+                          }
                         })}
                         className="text-blue-600 hover:underline flex items-center gap-1"
                         data-testid={`btn-email-contact-${contact.id}`}
@@ -1407,7 +1421,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                           customerId: customer.id,
                           customerName: contact.name,
                           usageType: 'client_email',
-                          variables: { 'client.name': contact.name, 'client.company': customer.company || '' }
+                          variables: { 
+                            'client.name': contact.name, 
+                            'client.firstName': contact.name?.split(' ')[0] || '',
+                            'client.lastName': contact.name?.split(' ').slice(1).join(' ') || '',
+                            'client.company': customer.company || '',
+                            'client.email': contact.email || '',
+                            'client.salesRep': customer.salesRepName || ''
+                          }
                         })}
                         className="text-blue-600 hover:underline flex items-center gap-1"
                         data-testid={`btn-email-additional-${contact.id}`}
@@ -1808,7 +1829,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                                   customerId: customer.id,
                                   customerName: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName,
                                   usageType: 'client_email',
-                                  variables: { 'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 'client.company': customer.company || '' }
+                                  variables: { 
+                                    'client.name': `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || customerName, 
+                                    'client.firstName': contact.firstName || '',
+                                    'client.lastName': contact.lastName || '',
+                                    'client.company': customer.company || '',
+                                    'client.email': contact.email || '',
+                                    'client.salesRep': customer.salesRepName || ''
+                                  }
                                 })}
                                 className="text-xs text-blue-600 hover:underline"
                                 data-testid={`btn-email-company-${contact.id}`}
@@ -1865,7 +1893,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                                 customerId: customer.id,
                                 customerName: customerName,
                                 usageType: 'client_email',
-                                variables: { 'client.name': customerName, 'client.company': customer.company || '' }
+                                variables: { 
+                                  'client.name': customerName, 
+                                  'client.firstName': customer.firstName || '',
+                                  'client.lastName': customer.lastName || '',
+                                  'client.company': customer.company || '',
+                                  'client.email': customer.email || '',
+                                  'client.salesRep': customer.salesRepName || ''
+                                }
                               })}
                               className="text-xs text-blue-600 hover:underline"
                               data-testid="btn-email-primary-contact"
@@ -1973,7 +2008,14 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
                               customerId: customer.id,
                               customerName: contact.name,
                               usageType: 'client_email',
-                              variables: { 'client.name': contact.name, 'client.company': customer.company || '' }
+                              variables: { 
+                                'client.name': contact.name, 
+                                'client.firstName': contact.name?.split(' ')[0] || '',
+                                'client.lastName': contact.name?.split(' ').slice(1).join(' ') || '',
+                                'client.company': customer.company || '',
+                                'client.email': contact.email || '',
+                                'client.salesRep': customer.salesRepName || ''
+                              }
                             })}
                             className="text-xs text-blue-600 hover:underline"
                             data-testid={`btn-email-ccontact-${contact.id}`}
