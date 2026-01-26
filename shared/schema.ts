@@ -405,7 +405,12 @@ export const leads = pgTable("leads", {
   // Assignment
   salesRepId: varchar("sales_rep_id"), // Assigned sales rep
   salesRepName: varchar("sales_rep_name", { length: 255 }),
-  // Machine profile (what equipment they own)
+  // Pricing and customer type (same fields as customers for consistency)
+  pricingTier: varchar("pricing_tier", { length: 50 }), // Uses same tiers as customers
+  pricingTierSetBy: varchar("pricing_tier_set_by", { length: 255 }),
+  pricingTierSetAt: timestamp("pricing_tier_set_at"),
+  customerType: varchar("customer_type", { length: 50 }), // 'reseller' or 'printer'
+  // Machine profile (what equipment they own - for printers)
   machineTypes: text("machine_types").array().default([]), // ['roland', 'hp_latex', 'mimaki', etc.]
   // Tags for categorization
   tags: varchar("tags", { length: 500 }),
