@@ -13535,9 +13535,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       console.log(`[Sales Person Sync] Customer ${customerId}: Odoo user_id=${salesPersonId}, app salesRepId=${appUserId}, name=${salesPersonName}`);
       
+      // If this is a company, propagate sales person to child contacts in Odoo
+      let childrenUpdated = 0;
+      if (customer.isCompany) {
+        try {
+          // Get all child contacts of this company from Odoo
+          const childContacts = await odooClient.searchRead('res.partner', [
+            ['parent_id', '=', customer.odooPartnerId],
+            ['is_company', '=', false]
+          ], ['id'], { limit: 500 });
+          
+          if (childContacts && childContacts.length > 0) {
+            // Update all child contacts with the same sales person in Odoo
+            for (const child of childContacts) {
+              try {
+                await odooClient.write('res.partner', child.id, {
+                  user_id: salesPersonId || false
+                });
+                childrenUpdated++;
+              } catch (childErr) {
+                console.error(`[Sales Person Sync] Failed to update child contact ${child.id}:`, childErr);
+              }
+            }
+            console.log(`[Sales Person Sync] Updated ${childrenUpdated} child contacts in Odoo`);
+            
+            // Also update child contacts in local database
+            const localChildContacts = await db.select({ id: customers.id })
+              .from(customers)
+              .where(eq(customers.parentCustomerId, customerId));
+            
+            if (localChildContacts.length > 0) {
+              await db.update(customers).set({
+                salesRepId: appUserId,
+                salesRepName: salesPersonName || null,
+                updatedAt: new Date()
+              }).where(eq(customers.parentCustomerId, customerId));
+              console.log(`[Sales Person Sync] Updated ${localChildContacts.length} child contacts in local database`);
+            }
+          }
+        } catch (childErr) {
+          console.error("[Sales Person Sync] Error updating child contacts:", childErr);
+          // Continue - main update succeeded
+        }
+      }
+      
       res.json({ 
         success: true, 
-        message: salesPersonName ? `Sales person set to ${salesPersonName}` : "Sales person unassigned"
+        message: salesPersonName 
+          ? `Sales person set to ${salesPersonName}${childrenUpdated > 0 ? ` (including ${childrenUpdated} child contacts)` : ''}`
+          : "Sales person unassigned"
       });
     } catch (error: any) {
       console.error("Error updating customer sales person:", error);
