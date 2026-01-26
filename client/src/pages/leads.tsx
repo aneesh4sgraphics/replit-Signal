@@ -92,6 +92,10 @@ interface Lead {
   existsInOdooAsContact: boolean | null;
   existsInShopify: boolean | null;
   sourceContactOdooPartnerId: number | null;
+  // Company/Contact relationship (like HubSpot/Pipedrive)
+  isCompany: boolean | null;
+  primaryContactName: string | null;
+  primaryContactEmail: string | null;
 }
 
 interface LeadStats {
@@ -476,8 +480,25 @@ export default function LeadsPage() {
                       </div>
                     </div>
 
+                    {/* Primary Contact for Companies */}
+                    {lead.isCompany && lead.primaryContactName && (
+                      <div className="mt-2 px-2 py-1.5 bg-blue-50 rounded-md border border-blue-100">
+                        <div className="flex items-center gap-2 text-xs">
+                          <User className="w-3.5 h-3.5 text-blue-500" />
+                          <span className="font-medium text-blue-700">Primary Contact:</span>
+                          <span className="text-blue-600">{lead.primaryContactName}</span>
+                        </div>
+                        {lead.primaryContactEmail && (
+                          <div className="flex items-center gap-2 text-xs mt-0.5 ml-5">
+                            <Mail className="w-3 h-3 text-blue-400" />
+                            <span className="text-blue-500">{lead.primaryContactEmail}</span>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
                     {/* Contact Info */}
-                    <div className="space-y-1 mb-3 text-sm">
+                    <div className="space-y-1 mb-3 text-sm mt-2">
                       {lead.email && (
                         <div className="flex items-center gap-2 text-slate-600">
                           <Mail className="w-3.5 h-3.5 text-slate-400" />
@@ -562,6 +583,7 @@ export default function LeadsPage() {
                     <th className="text-left p-3 font-medium text-slate-600">Stage</th>
                     <th className="text-left p-3 font-medium text-slate-600">Priority</th>
                     <th className="text-left p-3 font-medium text-slate-600">Origin</th>
+                    <th className="text-left p-3 font-medium text-slate-600">Primary Contact</th>
                     <th className="text-left p-3 font-medium text-slate-600">Touchpoints</th>
                     <th className="text-left p-3 font-medium text-slate-600">Score</th>
                     <th className="text-left p-3 font-medium text-slate-600">Sales Rep</th>
@@ -598,6 +620,18 @@ export default function LeadsPage() {
                             )}
                             {!lead.existsInOdooAsContact && !lead.existsInShopify && '-'}
                           </div>
+                        </td>
+                        <td className="p-3 text-slate-600">
+                          {lead.primaryContactName ? (
+                            <div className="flex flex-col">
+                              <span className="text-slate-700 text-sm">{lead.primaryContactName}</span>
+                              {lead.primaryContactEmail && (
+                                <span className="text-slate-400 text-xs">{lead.primaryContactEmail}</span>
+                              )}
+                            </div>
+                          ) : (
+                            '-'
+                          )}
                         </td>
                         <td className="p-3 text-slate-600">{lead.totalTouchpoints}</td>
                         <td className="p-3 text-slate-600">{lead.score}</td>

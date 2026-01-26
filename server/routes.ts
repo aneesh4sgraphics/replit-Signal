@@ -13201,9 +13201,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Batch convert contacts with $0 spending to leads
   app.post("/api/leads/convert-zero-spending-contacts", requireApproval, async (req: any, res) => {
     try {
-      console.log("[Leads] Starting batch conversion of $0 spending contacts to leads...");
+      console.log("[Leads] Starting batch conversion of $0 spending contacts/companies to leads...");
       
-      // Find all contacts with $0 total spent (or null) that are NOT companies, NOT already converted, NOT DNC
+      // Find all contacts with $0 total spent (or null) that are NOT already converted, NOT DNC
+      // Now includes both companies AND individual contacts (like HubSpot/Pipedrive)
       const zeroSpendingContacts = await db.select().from(customers).where(
         and(
           or(
@@ -13211,16 +13212,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
             eq(customers.totalSpent, "0.00"),
             isNull(customers.totalSpent)
           ),
-          eq(customers.isCompany, false),
           eq(customers.doNotContact, false)
         )
       );
       
-      console.log(`[Leads] Found ${zeroSpendingContacts.length} contacts with $0 spending`);
+      console.log(`[Leads] Found ${zeroSpendingContacts.length} contacts/companies with $0 spending`);
       
       let converted = 0;
       let skipped = 0;
-      const results: { id: number; name: string; existsInOdooAsContact: boolean; existsInShopify: boolean }[] = [];
+      const results: { id: number; name: string; existsInOdooAsContact: boolean; existsInShopify: boolean; isCompany: boolean; primaryContactName?: string }[] = [];
       
       for (const c of zeroSpendingContacts) {
         // Skip if already a lead (by email)
@@ -13238,6 +13238,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
         // Determine source origins
         const existsInOdooAsContact = Boolean(c.odooPartnerId);
         const existsInShopify = c.sources?.includes('shopify') || false;
+        const isCompany = c.isCompany || false;
+        
+        // For companies, find the primary contact (first child contact)
+        let primaryContactName: string | undefined;
+        let primaryContactEmail: string | undefined;
+        
+        if (isCompany) {
+          // Find ALL child contacts for this company
+          const childContacts = await db.select().from(customers).where(
+            and(
+              eq(customers.parentCustomerId, c.id),
+              eq(customers.isCompany, false)
+            )
+          );
+          
+          if (childContacts.length > 0) {
+            // Use first child as primary contact
+            const child = childContacts[0];
+            primaryContactName = `${child.firstName || ''} ${child.lastName || ''}`.trim() || undefined;
+            primaryContactEmail = child.email || undefined;
+            
+            // Mark ALL child contacts as DNC since the company is being moved
+            for (const childContact of childContacts) {
+              await db.update(customers)
+                .set({
+                  doNotContact: true,
+                  doNotContactReason: 'Parent company converted to Lead ($0 spending)',
+                  doNotContactSetBy: req.user?.email,
+                  doNotContactSetAt: new Date(),
+                  updatedAt: new Date()
+                })
+                .where(eq(customers.id, childContact.id));
+            }
+          }
+        }
         
         // Create the lead from customer data
         const leadData: any = {
@@ -13269,6 +13304,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
           existsInOdooAsContact,
           existsInShopify,
           sourceContactOdooPartnerId: c.odooPartnerId,
+          // Company/Contact relationship (like HubSpot/Pipedrive)
+          isCompany,
+          primaryContactName,
+          primaryContactEmail,
           // Trust-building tracking from contact
           swatchbookSentAt: c.swatchbookSentAt,
           priceListSentAt: c.priceListSentAt,
@@ -13280,7 +13319,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.insert(leadActivities).values({
           leadId: result[0].id,
           activityType: 'note',
-          summary: `Batch converted from contact with $0 spending: ${c.company || c.id}`,
+          summary: `Batch converted from ${isCompany ? 'company' : 'contact'} with $0 spending: ${c.company || c.id}${primaryContactName ? ` (Primary contact: ${primaryContactName})` : ''}`,
           performedBy: req.user?.email,
           performedByName: req.user?.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user?.email
         });
@@ -13300,7 +13339,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
           id: result[0].id,
           name: result[0].name,
           existsInOdooAsContact,
-          existsInShopify
+          existsInShopify,
+          isCompany,
+          primaryContactName
         });
         
         converted++;
@@ -13310,7 +13351,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       res.json({
         success: true,
-        message: `Converted ${converted} contacts to leads`,
+        message: `Converted ${converted} contacts/companies to leads`,
         converted,
         skipped,
         total: zeroSpendingContacts.length,
