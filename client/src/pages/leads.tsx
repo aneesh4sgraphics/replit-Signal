@@ -49,8 +49,10 @@ import {
   LayoutGrid,
   List,
   ChevronDown,
+  ShoppingBag,
+  UserMinus,
 } from "lucide-react";
-import { SiOdoo } from "react-icons/si";
+import { SiOdoo, SiShopify } from "react-icons/si";
 import { Progress } from "@/components/ui/progress";
 
 interface Lead {
@@ -86,6 +88,10 @@ interface Lead {
   description: string | null;
   createdAt: string;
   updatedAt: string;
+  // Origin tracking (for leads converted from contacts)
+  existsInOdooAsContact: boolean | null;
+  existsInShopify: boolean | null;
+  sourceContactOdooPartnerId: number | null;
 }
 
 interface LeadStats {
@@ -197,6 +203,40 @@ export default function LeadsPage() {
     },
   });
 
+  // Mutation for converting $0 spending contacts to leads
+  const convertZeroSpendingMutation = useMutation({
+    mutationFn: async () => {
+      setImportStatus({ message: 'Finding contacts with $0 spending...', progress: 20 });
+      await new Promise(r => setTimeout(r, 300));
+      setImportStatus({ message: 'Converting contacts to leads...', progress: 50 });
+      const res = await apiRequest('POST', '/api/leads/convert-zero-spending-contacts');
+      setImportStatus({ message: 'Processing conversions...', progress: 80 });
+      const data = await res.json();
+      setImportStatus({ message: 'Conversion complete!', progress: 100 });
+      await new Promise(r => setTimeout(r, 300));
+      return data;
+    },
+    onSuccess: (data) => {
+      setTimeout(() => setImportStatus(null), 2000);
+      queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/leads/stats'] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      
+      toast({
+        title: 'Conversion Complete',
+        description: `Converted ${data.converted} contacts to leads (${data.skipped} skipped as duplicates)`,
+      });
+    },
+    onError: (error: any) => {
+      setImportStatus(null);
+      toast({
+        title: 'Conversion Failed',
+        description: error.message || 'Could not convert contacts to leads',
+        variant: 'destructive',
+      });
+    },
+  });
+
   const leads = leadsData?.leads || [];
 
   const getStageInfo = (stage: string) => STAGES.find(s => s.value === stage) || STAGES[0];
@@ -232,7 +272,7 @@ export default function LeadsPage() {
               variant="outline"
               size="sm"
               onClick={() => importMutation.mutate()}
-              disabled={importMutation.isPending}
+              disabled={importMutation.isPending || convertZeroSpendingMutation.isPending}
               className="gap-2"
             >
               {importMutation.isPending ? (
@@ -241,6 +281,20 @@ export default function LeadsPage() {
                 <SiOdoo className="w-4 h-4" />
               )}
               Import from Odoo
+            </Button>
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => convertZeroSpendingMutation.mutate()}
+              disabled={importMutation.isPending || convertZeroSpendingMutation.isPending}
+              className="gap-2 border-amber-300 text-amber-700 hover:bg-amber-50"
+            >
+              {convertZeroSpendingMutation.isPending ? (
+                <Loader2 className="w-4 h-4 animate-spin" />
+              ) : (
+                <UserMinus className="w-4 h-4" />
+              )}
+              Move $0 Contacts
             </Button>
             <Button
               variant="outline"
@@ -402,6 +456,23 @@ export default function LeadsPage() {
                             {priorityInfo.label}
                           </Badge>
                         )}
+                        {/* Origin badges for converted contacts */}
+                        {(lead.existsInOdooAsContact || lead.existsInShopify) && (
+                          <div className="flex items-center gap-1 mt-1">
+                            {lead.existsInOdooAsContact && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-purple-50 border-purple-200 text-purple-700 flex items-center gap-1">
+                                <SiOdoo className="w-3 h-3" />
+                                <span>Odoo</span>
+                              </Badge>
+                            )}
+                            {lead.existsInShopify && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-green-50 border-green-200 text-green-700 flex items-center gap-1">
+                                <SiShopify className="w-3 h-3" />
+                                <span>Shopify</span>
+                              </Badge>
+                            )}
+                          </div>
+                        )}
                       </div>
                     </div>
 
@@ -490,6 +561,7 @@ export default function LeadsPage() {
                     <th className="text-left p-3 font-medium text-slate-600">Email</th>
                     <th className="text-left p-3 font-medium text-slate-600">Stage</th>
                     <th className="text-left p-3 font-medium text-slate-600">Priority</th>
+                    <th className="text-left p-3 font-medium text-slate-600">Origin</th>
                     <th className="text-left p-3 font-medium text-slate-600">Touchpoints</th>
                     <th className="text-left p-3 font-medium text-slate-600">Score</th>
                     <th className="text-left p-3 font-medium text-slate-600">Sales Rep</th>
@@ -511,6 +583,21 @@ export default function LeadsPage() {
                           <Badge variant="outline" className={priorityInfo.color}>
                             {priorityInfo.label}
                           </Badge>
+                        </td>
+                        <td className="p-3">
+                          <div className="flex items-center gap-1">
+                            {lead.existsInOdooAsContact && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-purple-50 border-purple-200 text-purple-700 flex items-center gap-1">
+                                <SiOdoo className="w-3 h-3" />
+                              </Badge>
+                            )}
+                            {lead.existsInShopify && (
+                              <Badge variant="outline" className="text-xs px-1.5 py-0.5 bg-green-50 border-green-200 text-green-700 flex items-center gap-1">
+                                <SiShopify className="w-3 h-3" />
+                              </Badge>
+                            )}
+                            {!lead.existsInOdooAsContact && !lead.existsInShopify && '-'}
+                          </div>
                         </td>
                         <td className="p-3 text-slate-600">{lead.totalTouchpoints}</td>
                         <td className="p-3 text-slate-600">{lead.score}</td>

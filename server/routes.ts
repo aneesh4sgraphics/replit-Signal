@@ -13130,6 +13130,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Determine source origins
+      const existsInOdooAsContact = Boolean(c.odooPartnerId);
+      const existsInShopify = c.sources?.includes('shopify') || false;
+      
       // Create the lead from customer data
       const leadData: any = {
         sourceType: 'converted_contact',
@@ -13151,8 +13155,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         priority: 'medium',
         salesRepId: c.salesRepId,
         salesRepName: c.salesRepName,
+        pricingTier: c.pricingTier,
+        pricingTierSetBy: c.pricingTierSetBy,
+        pricingTierSetAt: c.pricingTierSetAt,
         tags: c.tags,
         description: c.note,
+        // Origin tracking
+        existsInOdooAsContact,
+        existsInShopify,
+        sourceContactOdooPartnerId: c.odooPartnerId,
+        // Trust-building tracking from contact
+        swatchbookSentAt: c.swatchbookSentAt,
+        priceListSentAt: c.priceListSentAt,
       };
       
       const result = await db.insert(leads).values(leadData).returning();
@@ -13181,6 +13195,130 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error converting contact to lead:", error);
       res.status(500).json({ error: "Failed to convert contact to lead" });
+    }
+  });
+
+  // Batch convert contacts with $0 spending to leads
+  app.post("/api/leads/convert-zero-spending-contacts", requireApproval, async (req: any, res) => {
+    try {
+      console.log("[Leads] Starting batch conversion of $0 spending contacts to leads...");
+      
+      // Find all contacts with $0 total spent (or null) that are NOT companies, NOT already converted, NOT DNC
+      const zeroSpendingContacts = await db.select().from(customers).where(
+        and(
+          or(
+            eq(customers.totalSpent, "0"),
+            eq(customers.totalSpent, "0.00"),
+            isNull(customers.totalSpent)
+          ),
+          eq(customers.isCompany, false),
+          eq(customers.doNotContact, false)
+        )
+      );
+      
+      console.log(`[Leads] Found ${zeroSpendingContacts.length} contacts with $0 spending`);
+      
+      let converted = 0;
+      let skipped = 0;
+      const results: { id: number; name: string; existsInOdooAsContact: boolean; existsInShopify: boolean }[] = [];
+      
+      for (const c of zeroSpendingContacts) {
+        // Skip if already a lead (by email)
+        if (c.emailNormalized) {
+          const existingLead = await db.select({ id: leads.id }).from(leads)
+            .where(eq(leads.emailNormalized, c.emailNormalized))
+            .limit(1);
+          
+          if (existingLead.length > 0) {
+            skipped++;
+            continue;
+          }
+        }
+        
+        // Determine source origins
+        const existsInOdooAsContact = Boolean(c.odooPartnerId);
+        const existsInShopify = c.sources?.includes('shopify') || false;
+        
+        // Create the lead from customer data
+        const leadData: any = {
+          sourceType: 'converted_contact',
+          sourceCustomerId: c.id,
+          name: c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
+          email: c.email,
+          emailNormalized: c.emailNormalized,
+          phone: c.phone,
+          mobile: c.cell,
+          company: c.company,
+          street: c.address1,
+          street2: c.address2,
+          city: c.city,
+          state: c.province,
+          zip: c.zip,
+          country: c.country,
+          website: c.website,
+          stage: 'new',
+          priority: 'medium',
+          salesRepId: c.salesRepId,
+          salesRepName: c.salesRepName,
+          pricingTier: c.pricingTier,
+          pricingTierSetBy: c.pricingTierSetBy,
+          pricingTierSetAt: c.pricingTierSetAt,
+          tags: c.tags,
+          description: c.note,
+          // Origin tracking
+          existsInOdooAsContact,
+          existsInShopify,
+          sourceContactOdooPartnerId: c.odooPartnerId,
+          // Trust-building tracking from contact
+          swatchbookSentAt: c.swatchbookSentAt,
+          priceListSentAt: c.priceListSentAt,
+        };
+        
+        const result = await db.insert(leads).values(leadData).returning();
+        
+        // Log activity
+        await db.insert(leadActivities).values({
+          leadId: result[0].id,
+          activityType: 'note',
+          summary: `Batch converted from contact with $0 spending: ${c.company || c.id}`,
+          performedBy: req.user?.email,
+          performedByName: req.user?.firstName ? `${req.user.firstName} ${req.user.lastName}` : req.user?.email
+        });
+        
+        // Mark the customer as DNC so they don't appear in SPOTLIGHT as a contact
+        await db.update(customers)
+          .set({
+            doNotContact: true,
+            doNotContactReason: 'Converted to Lead ($0 spending)',
+            doNotContactSetBy: req.user?.email,
+            doNotContactSetAt: new Date(),
+            updatedAt: new Date()
+          })
+          .where(eq(customers.id, c.id));
+        
+        results.push({
+          id: result[0].id,
+          name: result[0].name,
+          existsInOdooAsContact,
+          existsInShopify
+        });
+        
+        converted++;
+      }
+      
+      console.log(`[Leads] Batch conversion complete: ${converted} converted, ${skipped} skipped (already leads)`);
+      
+      res.json({
+        success: true,
+        message: `Converted ${converted} contacts to leads`,
+        converted,
+        skipped,
+        total: zeroSpendingContacts.length,
+        results
+      });
+    } catch (error) {
+      console.error("Error batch converting contacts to leads:", error);
+      res.status(500).json({ error: "Failed to batch convert contacts to leads" });
     }
   });
 
