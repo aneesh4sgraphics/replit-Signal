@@ -13252,9 +13252,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   app.post("/api/leads/convert-zero-spending-contacts", requireApproval, async (req: any, res) => {
     try {
       console.log("[Leads] Starting OPTIMIZED batch conversion of $0 spending contacts to leads...");
+      console.log("[Leads] Logic: Only move $0 COMPANIES (with their primary contact info) and orphan contacts without a parent");
       
-      // Step 1: Get all $0 spending contacts in one query
-      const zeroSpendingContacts = await db.select().from(customers).where(
+      // Step 1: Get all $0 spending customers (companies AND contacts) in one query
+      const zeroSpendingAll = await db.select().from(customers).where(
         and(
           or(
             eq(customers.totalSpent, "0"),
@@ -13265,9 +13266,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
         )
       );
       
-      console.log(`[Leads] Found ${zeroSpendingContacts.length} contacts with $0 spending`);
+      console.log(`[Leads] Found ${zeroSpendingAll.length} total records with $0 spending`);
       
-      if (zeroSpendingContacts.length === 0) {
+      if (zeroSpendingAll.length === 0) {
         return res.json({
           success: true,
           message: 'No $0 spending contacts to convert',
@@ -13278,6 +13279,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
       
+      // Separate into companies and contacts
+      const zeroSpendingCompanies = zeroSpendingAll.filter(c => c.isCompany === true);
+      const zeroSpendingContacts = zeroSpendingAll.filter(c => c.isCompany !== true);
+      console.log(`[Leads] Breakdown: ${zeroSpendingCompanies.length} companies, ${zeroSpendingContacts.length} contacts`);
+      
       // Step 2: Get ALL existing leads' normalized emails in one query (for duplicate check)
       const existingLeadEmails = await db.select({ emailNormalized: leads.emailNormalized })
         .from(leads)
@@ -13285,18 +13291,42 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const existingEmailSet = new Set(existingLeadEmails.map(e => e.emailNormalized).filter(Boolean));
       console.log(`[Leads] Found ${existingEmailSet.size} existing lead emails for dedup`);
       
-      // Step 3: Get parent company IDs that have purchases (to exclude their child contacts)
-      const parentIds = zeroSpendingContacts
-        .filter(c => c.parentCustomerId)
-        .map(c => c.parentCustomerId as number);
+      // Step 3: Get all child contacts for $0 companies (to attach primary contact to lead)
+      const companyIds = zeroSpendingCompanies.map(c => c.id);
+      const childContactsMap = new Map<string, typeof zeroSpendingAll[0]>();
+      const childContactParentIds = new Set<string>(); // Track contacts that have a parent
       
-      let parentCompaniesWithSpending = new Set<number>();
-      if (parentIds.length > 0) {
+      if (companyIds.length > 0) {
+        const allChildContacts = await db.select().from(customers).where(
+          inArray(customers.parentCustomerId, companyIds)
+        );
+        // Map first child contact per parent, and track all child contact IDs
+        for (const child of allChildContacts) {
+          if (child.parentCustomerId) {
+            childContactParentIds.add(child.id);
+            if (!childContactsMap.has(child.parentCustomerId)) {
+              childContactsMap.set(child.parentCustomerId, child);
+            }
+          }
+        }
+        console.log(`[Leads] Found ${allChildContacts.length} child contacts under ${companyIds.length} $0 companies (will be included with their company, not as separate leads)`);
+      }
+      
+      // Step 4: For orphan contacts (no parent), check if they have a parent company with spending
+      // Get all parent company IDs for contacts that have a parent
+      const contactsWithParent = zeroSpendingContacts.filter(c => c.parentCustomerId);
+      const parentIdsToCheck = [...new Set(contactsWithParent.map(c => c.parentCustomerId as string))];
+      
+      const parentCompaniesWithSpending = new Set<string>();
+      const parentCompaniesZeroSpending = new Set<string>();
+      
+      if (parentIdsToCheck.length > 0) {
+        // Check which parents have spending
         const parentsWithSpending = await db.select({ id: customers.id })
           .from(customers)
           .where(
             and(
-              inArray(customers.id, parentIds),
+              inArray(customers.id, parentIdsToCheck),
               not(or(
                 eq(customers.totalSpent, "0"),
                 eq(customers.totalSpent, "0.00"),
@@ -13304,102 +13334,150 @@ export async function registerRoutes(app: Express): Promise<Server> {
               ))
             )
           );
-        parentCompaniesWithSpending = new Set(parentsWithSpending.map(p => p.id));
-        console.log(`[Leads] Found ${parentCompaniesWithSpending.size} parent companies with purchases (their contacts will be skipped)`);
-      }
-      
-      // Step 4: Get all child contacts for companies in one query
-      const companyIds = zeroSpendingContacts.filter(c => c.isCompany).map(c => c.id);
-      let childContactsMap = new Map<number, typeof zeroSpendingContacts[0]>();
-      
-      if (companyIds.length > 0) {
-        const allChildContacts = await db.select().from(customers).where(
-          and(
-            inArray(customers.parentCustomerId, companyIds),
-            eq(customers.isCompany, false)
-          )
-        );
-        // Map first child contact per parent
-        for (const child of allChildContacts) {
-          if (child.parentCustomerId && !childContactsMap.has(child.parentCustomerId)) {
-            childContactsMap.set(child.parentCustomerId, child);
-          }
-        }
-        console.log(`[Leads] Fetched ${allChildContacts.length} child contacts for ${companyIds.length} companies`);
+        parentsWithSpending.forEach(p => parentCompaniesWithSpending.add(p.id));
+        
+        // Parents with $0 spending (their contacts should NOT be added separately)
+        const parentsZeroSpending = await db.select({ id: customers.id })
+          .from(customers)
+          .where(
+            and(
+              inArray(customers.id, parentIdsToCheck),
+              or(
+                eq(customers.totalSpent, "0"),
+                eq(customers.totalSpent, "0.00"),
+                isNull(customers.totalSpent)
+              )
+            )
+          );
+        parentsZeroSpending.forEach(p => parentCompaniesZeroSpending.add(p.id));
+        
+        console.log(`[Leads] Parent companies: ${parentCompaniesWithSpending.size} have purchases (contacts skipped), ${parentCompaniesZeroSpending.size} have $0 (contacts handled via company)`);
       }
       
       // Step 5: Prepare lead records for batch insert
       const leadsToInsert: any[] = [];
-      const contactsToConvert: typeof zeroSpendingContacts = [];
+      const contactsToConvert: typeof zeroSpendingAll = [];
       let skipped = 0;
       let skippedParentHasSpending = 0;
+      let skippedChildOfZeroCompany = 0;
       
-      for (const c of zeroSpendingContacts) {
+      // First: Add all $0 COMPANIES as leads (with their primary contact info)
+      for (const company of zeroSpendingCompanies) {
         // Skip if already a lead (by normalized email)
-        if (c.emailNormalized && existingEmailSet.has(c.emailNormalized)) {
+        if (company.emailNormalized && existingEmailSet.has(company.emailNormalized)) {
           skipped++;
           continue;
         }
         
-        // Skip if this contact's parent company has purchases
-        if (c.parentCustomerId && parentCompaniesWithSpending.has(c.parentCustomerId)) {
+        const existsInOdooAsContact = Boolean(company.odooPartnerId);
+        const existsInShopify = company.sources?.includes('shopify') || false;
+        
+        // Get primary contact from pre-fetched map
+        const child = childContactsMap.get(company.id);
+        const primaryContactName = child ? `${child.firstName || ''} ${child.lastName || ''}`.trim() || undefined : undefined;
+        const primaryContactEmail = child ? child.email || undefined : undefined;
+        
+        leadsToInsert.push({
+          sourceType: 'converted_contact',
+          sourceCustomerId: company.id,
+          name: company.company || 'Unknown Company',
+          email: company.email,
+          emailNormalized: company.emailNormalized,
+          phone: company.phone,
+          mobile: company.cell,
+          company: company.company,
+          street: company.address1,
+          street2: company.address2,
+          city: company.city,
+          state: company.province,
+          zip: company.zip,
+          country: company.country,
+          website: company.website,
+          stage: 'new',
+          priority: 'medium',
+          salesRepId: company.salesRepId,
+          salesRepName: company.salesRepName,
+          pricingTier: company.pricingTier,
+          pricingTierSetBy: company.pricingTierSetBy,
+          pricingTierSetAt: company.pricingTierSetAt,
+          tags: company.tags,
+          description: company.note,
+          existsInOdooAsContact,
+          existsInShopify,
+          sourceContactOdooPartnerId: company.odooPartnerId,
+          isCompany: true,
+          primaryContactName,
+          primaryContactEmail,
+          swatchbookSentAt: company.swatchbookSentAt,
+          priceListSentAt: company.priceListSentAt,
+        });
+        
+        contactsToConvert.push(company);
+      }
+      
+      console.log(`[Leads] Added ${leadsToInsert.length} companies as leads`);
+      
+      // Second: Add ORPHAN contacts (no parent company) as leads
+      for (const contact of zeroSpendingContacts) {
+        // Skip if already a lead (by normalized email)
+        if (contact.emailNormalized && existingEmailSet.has(contact.emailNormalized)) {
+          skipped++;
+          continue;
+        }
+        
+        // Skip if this contact has a parent company with purchases
+        if (contact.parentCustomerId && parentCompaniesWithSpending.has(contact.parentCustomerId)) {
           skippedParentHasSpending++;
           continue;
         }
         
-        const existsInOdooAsContact = Boolean(c.odooPartnerId);
-        const existsInShopify = c.sources?.includes('shopify') || false;
-        const isCompany = c.isCompany || false;
-        
-        // Get primary contact from pre-fetched map
-        let primaryContactName: string | undefined;
-        let primaryContactEmail: string | undefined;
-        
-        if (isCompany) {
-          const child = childContactsMap.get(c.id);
-          if (child) {
-            primaryContactName = `${child.firstName || ''} ${child.lastName || ''}`.trim() || undefined;
-            primaryContactEmail = child.email || undefined;
-          }
+        // Skip if this contact has a $0 parent company (they'll be handled via the company lead)
+        if (contact.parentCustomerId && parentCompaniesZeroSpending.has(contact.parentCustomerId)) {
+          skippedChildOfZeroCompany++;
+          continue;
         }
+        
+        // This is an orphan contact (no parent) - add as its own lead
+        const existsInOdooAsContact = Boolean(contact.odooPartnerId);
+        const existsInShopify = contact.sources?.includes('shopify') || false;
         
         leadsToInsert.push({
           sourceType: 'converted_contact',
-          sourceCustomerId: c.id,
-          name: c.company || `${c.firstName || ''} ${c.lastName || ''}`.trim() || 'Unknown',
-          email: c.email,
-          emailNormalized: c.emailNormalized,
-          phone: c.phone,
-          mobile: c.cell,
-          company: c.company,
-          street: c.address1,
-          street2: c.address2,
-          city: c.city,
-          state: c.province,
-          zip: c.zip,
-          country: c.country,
-          website: c.website,
+          sourceCustomerId: contact.id,
+          name: `${contact.firstName || ''} ${contact.lastName || ''}`.trim() || contact.company || 'Unknown',
+          email: contact.email,
+          emailNormalized: contact.emailNormalized,
+          phone: contact.phone,
+          mobile: contact.cell,
+          company: contact.company,
+          street: contact.address1,
+          street2: contact.address2,
+          city: contact.city,
+          state: contact.province,
+          zip: contact.zip,
+          country: contact.country,
+          website: contact.website,
           stage: 'new',
           priority: 'medium',
-          salesRepId: c.salesRepId,
-          salesRepName: c.salesRepName,
-          pricingTier: c.pricingTier,
-          pricingTierSetBy: c.pricingTierSetBy,
-          pricingTierSetAt: c.pricingTierSetAt,
-          tags: c.tags,
-          description: c.note,
+          salesRepId: contact.salesRepId,
+          salesRepName: contact.salesRepName,
+          pricingTier: contact.pricingTier,
+          pricingTierSetBy: contact.pricingTierSetBy,
+          pricingTierSetAt: contact.pricingTierSetAt,
+          tags: contact.tags,
+          description: contact.note,
           existsInOdooAsContact,
           existsInShopify,
-          sourceContactOdooPartnerId: c.odooPartnerId,
-          isCompany,
-          primaryContactName,
-          primaryContactEmail,
-          swatchbookSentAt: c.swatchbookSentAt,
-          priceListSentAt: c.priceListSentAt,
+          sourceContactOdooPartnerId: contact.odooPartnerId,
+          isCompany: false,
+          swatchbookSentAt: contact.swatchbookSentAt,
+          priceListSentAt: contact.priceListSentAt,
         });
         
-        contactsToConvert.push(c);
+        contactsToConvert.push(contact);
       }
+      
+      console.log(`[Leads] Total leads to insert: ${leadsToInsert.length} (companies + orphan contacts)`);
       
       console.log(`[Leads] Prepared ${leadsToInsert.length} leads for insertion, ${skipped} skipped (already leads)`);
       
@@ -13460,15 +13538,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         };
       });
       
-      console.log(`[Leads] Batch conversion complete: ${insertedLeads.length} converted, ${skipped} skipped (already leads), ${skippedParentHasSpending} skipped (parent has purchases)`);
+      console.log(`[Leads] Batch conversion complete: ${insertedLeads.length} converted, ${skipped} skipped (already leads), ${skippedParentHasSpending} skipped (parent has purchases), ${skippedChildOfZeroCompany} skipped (child of $0 company - handled via company lead)`);
       
       res.json({
         success: true,
-        message: `Converted ${insertedLeads.length} contacts/companies to leads (skipped ${skippedParentHasSpending} contacts whose parent company has purchases)`,
+        message: `Converted ${insertedLeads.length} leads (${zeroSpendingCompanies.length - skipped} companies + orphan contacts). Skipped: ${skippedParentHasSpending} (parent has purchases), ${skippedChildOfZeroCompany} (child contacts handled via their company)`,
         converted: insertedLeads.length,
         skipped,
         skippedParentHasSpending,
-        total: zeroSpendingContacts.length,
+        skippedChildOfZeroCompany,
+        totalCompanies: zeroSpendingCompanies.length,
+        totalContacts: zeroSpendingContacts.length,
+        total: zeroSpendingAll.length,
         results
       });
     } catch (error) {
