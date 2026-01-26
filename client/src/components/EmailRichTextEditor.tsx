@@ -7,10 +7,11 @@ import Image from '@tiptap/extension-image';
 import { TextStyle } from '@tiptap/extension-text-style';
 import { Color } from '@tiptap/extension-color';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useCallback, useEffect, useRef, forwardRef, useImperativeHandle } from 'react';
+import { useCallback, useEffect, useRef, useState, forwardRef, useImperativeHandle } from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Textarea } from '@/components/ui/textarea';
 import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import {
   Bold,
@@ -29,6 +30,9 @@ import {
   Redo,
   Type,
   AlignVerticalSpaceAround,
+  Code,
+  ZoomIn,
+  ZoomOut,
 } from 'lucide-react';
 
 // Custom extension for line height
@@ -167,6 +171,9 @@ export const EmailRichTextEditor = forwardRef<EmailRichTextEditorRef, EmailRichT
 }, ref) => {
   const imageUrlRef = useRef<HTMLInputElement>(null);
   const linkUrlRef = useRef<HTMLInputElement>(null);
+  const [isHtmlMode, setIsHtmlMode] = useState(false);
+  const [htmlSource, setHtmlSource] = useState(content);
+  const [selectedImageSize, setSelectedImageSize] = useState<number>(100);
 
   const editor = useEditor({
     extensions: [
@@ -217,6 +224,92 @@ export const EmailRichTextEditor = forwardRef<EmailRichTextEditorRef, EmailRichT
       editor.commands.setContent(content);
     }
   }, [content, editor]);
+
+  useEffect(() => {
+    if (!isHtmlMode) {
+      setHtmlSource(content);
+    }
+  }, [content, isHtmlMode]);
+
+  const toggleHtmlMode = useCallback(() => {
+    if (isHtmlMode) {
+      if (editor) {
+        editor.commands.setContent(htmlSource);
+        onChange(htmlSource);
+      }
+    } else {
+      if (editor) {
+        setHtmlSource(editor.getHTML());
+      }
+    }
+    setIsHtmlMode(!isHtmlMode);
+  }, [isHtmlMode, htmlSource, editor, onChange]);
+
+  const handleHtmlChange = useCallback((value: string) => {
+    setHtmlSource(value);
+    onChange(value);
+  }, [onChange]);
+
+  const [isImageSelected, setIsImageSelected] = useState(false);
+
+  useEffect(() => {
+    if (!editor) return;
+
+    const updateImageState = () => {
+      const active = editor.isActive('image');
+      setIsImageSelected(active);
+      
+      if (active) {
+        const attrs = editor.getAttributes('image');
+        if (attrs.width) {
+          const widthStr = typeof attrs.width === 'string' ? attrs.width : `${attrs.width}`;
+          const parsed = parseInt(widthStr.replace('%', ''));
+          if (!isNaN(parsed)) {
+            setSelectedImageSize(parsed);
+          }
+        } else {
+          setSelectedImageSize(100);
+        }
+      }
+    };
+
+    updateImageState();
+
+    editor.on('selectionUpdate', updateImageState);
+    editor.on('transaction', updateImageState);
+
+    return () => {
+      editor.off('selectionUpdate', updateImageState);
+      editor.off('transaction', updateImageState);
+    };
+  }, [editor]);
+
+  const resizeSelectedImage = useCallback((scale: number) => {
+    if (editor && editor.isActive('image')) {
+      const attrs = editor.getAttributes('image');
+      const currentWidth = attrs.width || '100%';
+      const numericWidth = typeof currentWidth === 'string' 
+        ? parseInt(currentWidth.replace('%', '')) 
+        : currentWidth;
+      const newWidth = Math.max(25, Math.min(100, numericWidth + scale));
+      
+      editor.chain().focus().updateAttributes('image', { 
+        width: `${newWidth}%`,
+        style: `width: ${newWidth}%; max-width: ${newWidth}%;`
+      }).run();
+      setSelectedImageSize(newWidth);
+    }
+  }, [editor]);
+
+  const setImageSize = useCallback((size: number) => {
+    if (editor && editor.isActive('image')) {
+      editor.chain().focus().updateAttributes('image', { 
+        width: `${size}%`,
+        style: `width: ${size}%; max-width: ${size}%;`
+      }).run();
+      setSelectedImageSize(size);
+    }
+  }, [editor]);
 
   useImperativeHandle(ref, () => ({
     insertContent: (text: string) => {
@@ -558,9 +651,99 @@ export const EmailRichTextEditor = forwardRef<EmailRichTextEditorRef, EmailRichT
         >
           <Redo className="h-4 w-4" />
         </Button>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        {/* Image Resize Controls */}
+        <Popover>
+          <PopoverTrigger asChild>
+            <Button
+              type="button"
+              variant={isImageSelected ? "secondary" : "ghost"}
+              size="sm"
+              className={`h-8 px-2 text-xs gap-1 ${isImageSelected ? 'bg-green-100 text-green-700' : ''}`}
+              title="Resize Image"
+            >
+              <ZoomIn className="h-3 w-3" />
+              <span>Size</span>
+            </Button>
+          </PopoverTrigger>
+          <PopoverContent className="w-48 p-3">
+            <div className="space-y-3">
+              <Label className="text-xs font-medium">Image Size</Label>
+              {isImageSelected ? (
+                <>
+                  <div className="flex items-center gap-2">
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => resizeSelectedImage(-10)}
+                      title="Decrease size"
+                    >
+                      <ZoomOut className="h-4 w-4" />
+                    </Button>
+                    <span className="text-sm font-medium flex-1 text-center">{selectedImageSize}%</span>
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-8 w-8 p-0"
+                      onClick={() => resizeSelectedImage(10)}
+                      title="Increase size"
+                    >
+                      <ZoomIn className="h-4 w-4" />
+                    </Button>
+                  </div>
+                  <div className="grid grid-cols-4 gap-1">
+                    {[25, 50, 75, 100].map((size) => (
+                      <Button
+                        key={size}
+                        type="button"
+                        size="sm"
+                        variant={selectedImageSize === size ? "default" : "outline"}
+                        className="h-7 text-xs"
+                        onClick={() => setImageSize(size)}
+                      >
+                        {size}%
+                      </Button>
+                    ))}
+                  </div>
+                </>
+              ) : (
+                <p className="text-xs text-gray-500">Click on an image in the editor to resize it</p>
+              )}
+            </div>
+          </PopoverContent>
+        </Popover>
+
+        <div className="w-px h-6 bg-gray-300 mx-1" />
+
+        {/* HTML Source Mode Toggle */}
+        <Button
+          type="button"
+          variant={isHtmlMode ? "secondary" : "ghost"}
+          size="sm"
+          onClick={toggleHtmlMode}
+          className={`h-8 px-2 text-xs gap-1 ${isHtmlMode ? 'bg-blue-100 text-blue-700' : ''}`}
+          title={isHtmlMode ? "Switch to Visual Editor" : "Edit HTML Source"}
+        >
+          <Code className="h-3 w-3" />
+          <span>{isHtmlMode ? "Visual" : "HTML"}</span>
+        </Button>
       </div>
 
-      <EditorContent editor={editor} />
+      {isHtmlMode ? (
+        <Textarea
+          value={htmlSource}
+          onChange={(e) => handleHtmlChange(e.target.value)}
+          className="min-h-[200px] font-mono text-sm border-0 rounded-none focus-visible:ring-0"
+          placeholder="Enter HTML code here..."
+        />
+      ) : (
+        <EditorContent editor={editor} />
+      )}
     </div>
   );
 });
