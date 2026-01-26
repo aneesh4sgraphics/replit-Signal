@@ -18908,6 +18908,205 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Sync Shopify orders to Odoo as confirmed sales orders
+  app.post("/api/shopify/sync-invoices-to-odoo", isAuthenticated, async (req: any, res) => {
+    try {
+      if (req.user?.role !== 'admin') {
+        return res.status(403).json({ error: "Admin access required" });
+      }
+
+      console.log("[Shopify->Odoo] Starting invoice sync...");
+
+      // Get all Shopify orders that are paid and haven't been synced yet
+      const ordersToSync = await db.select().from(shopifyOrders)
+        .where(
+          and(
+            eq(shopifyOrders.financialStatus, 'paid'),
+            or(
+              isNull(shopifyOrders.odooSyncedAt),
+              eq(shopifyOrders.odooSynced, false)
+            )
+          )
+        )
+        .orderBy(shopifyOrders.shopifyCreatedAt);
+
+      console.log(`[Shopify->Odoo] Found ${ordersToSync.length} orders to sync`);
+
+      const results: Array<{
+        orderId: string;
+        orderName: string;
+        status: 'success' | 'failed' | 'skipped';
+        odooOrderId?: number;
+        odooOrderName?: string;
+        error?: string;
+      }> = [];
+
+      let synced = 0;
+      let failed = 0;
+      let skipped = 0;
+
+      for (const order of ordersToSync) {
+        try {
+          // 1. Find the customer in Odoo by email
+          const customerEmail = order.email;
+          if (!customerEmail) {
+            results.push({
+              orderId: order.shopifyOrderId,
+              orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+              status: 'skipped',
+              error: 'No customer email'
+            });
+            skipped++;
+            continue;
+          }
+
+          // Search for partner in Odoo
+          const partners = await odooClient.searchRead('res.partner', [
+            ['email', 'ilike', customerEmail]
+          ], ['id', 'name', 'email'], { limit: 1 });
+
+          if (partners.length === 0) {
+            results.push({
+              orderId: order.shopifyOrderId,
+              orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+              status: 'skipped',
+              error: `Customer not found in Odoo: ${customerEmail}`
+            });
+            skipped++;
+            continue;
+          }
+
+          const partnerId = partners[0].id;
+
+          // 2. Build order lines from Shopify line items
+          const lineItems = order.lineItems as Array<{
+            sku?: string;
+            title?: string;
+            quantity: number;
+            price: string;
+            variant_id?: number;
+          }>;
+
+          if (!lineItems || lineItems.length === 0) {
+            results.push({
+              orderId: order.shopifyOrderId,
+              orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+              status: 'skipped',
+              error: 'No line items'
+            });
+            skipped++;
+            continue;
+          }
+
+          const orderLines: Array<[number, number, { product_id: number; product_uom_qty: number; price_unit: number }]> = [];
+          let allProductsFound = true;
+          let missingProducts: string[] = [];
+
+          for (const item of lineItems) {
+            // Find product in Odoo by SKU/default_code
+            const sku = item.sku;
+            if (!sku) {
+              allProductsFound = false;
+              missingProducts.push(item.title || 'Unknown product');
+              continue;
+            }
+
+            const products = await odooClient.searchRead('product.product', [
+              ['default_code', '=', sku]
+            ], ['id', 'name', 'default_code'], { limit: 1 });
+
+            if (products.length === 0) {
+              allProductsFound = false;
+              missingProducts.push(`${item.title || 'Unknown'} (SKU: ${sku})`);
+              continue;
+            }
+
+            orderLines.push([0, 0, {
+              product_id: products[0].id,
+              product_uom_qty: item.quantity,
+              price_unit: parseFloat(item.price)
+            }]);
+          }
+
+          if (!allProductsFound || orderLines.length === 0) {
+            results.push({
+              orderId: order.shopifyOrderId,
+              orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+              status: 'failed',
+              error: `Products not found in Odoo: ${missingProducts.join(', ')}`
+            });
+            failed++;
+            continue;
+          }
+
+          // 3. Create sale order in Odoo
+          const saleOrderId = await odooClient.create('sale.order', {
+            partner_id: partnerId,
+            order_line: orderLines,
+            client_order_ref: order.orderNumber || `Shopify-${order.shopifyOrderId}`,
+            note: `Synced from Shopify order ${order.orderNumber} on ${new Date().toISOString()}`,
+          });
+
+          // 4. Confirm the sale order (this deducts inventory)
+          await odooClient.execute('sale.order', 'action_confirm', [saleOrderId]);
+
+          // Get the order name from Odoo
+          const createdOrder = await odooClient.searchRead('sale.order', [
+            ['id', '=', saleOrderId]
+          ], ['name'], { limit: 1 });
+
+          const odooOrderName = createdOrder.length > 0 ? createdOrder[0].name : `SO${saleOrderId}`;
+
+          // 5. Mark as synced in our database
+          await db.update(shopifyOrders)
+            .set({
+              odooSynced: true,
+              odooSyncedAt: new Date(),
+              odooOrderId: saleOrderId,
+              updatedAt: new Date()
+            })
+            .where(eq(shopifyOrders.id, order.id));
+
+          results.push({
+            orderId: order.shopifyOrderId,
+            orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+            status: 'success',
+            odooOrderId: saleOrderId,
+            odooOrderName
+          });
+          synced++;
+
+          console.log(`[Shopify->Odoo] Synced order ${order.orderNumber} -> ${odooOrderName}`);
+
+        } catch (orderError: any) {
+          console.error(`[Shopify->Odoo] Error syncing order ${order.orderNumber}:`, orderError);
+          results.push({
+            orderId: order.shopifyOrderId,
+            orderName: order.orderNumber || `#${order.shopifyOrderId}`,
+            status: 'failed',
+            error: orderError.message || 'Unknown error'
+          });
+          failed++;
+        }
+      }
+
+      console.log(`[Shopify->Odoo] Sync complete: ${synced} synced, ${failed} failed, ${skipped} skipped`);
+
+      res.json({
+        success: true,
+        total: ordersToSync.length,
+        synced,
+        failed,
+        skipped,
+        results
+      });
+
+    } catch (error: any) {
+      console.error("[Shopify->Odoo] Error syncing invoices:", error);
+      res.status(500).json({ error: "Failed to sync invoices to Odoo", details: error.message });
+    }
+  });
+
   // Sync draft orders from Shopify
   app.post("/api/shopify/sync-draft-orders", isAuthenticated, async (req: any, res) => {
     try {

@@ -23,7 +23,10 @@ import {
   AlertTriangle,
   Package,
   Users,
-  ChevronRight
+  ChevronRight,
+  Upload,
+  FileText,
+  Loader2
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest, queryClient } from "@/lib/queryClient";
@@ -141,6 +144,39 @@ export default function ShopifySettingsPage() {
     },
     onError: (error: any) => {
       toast({ title: "Email backfill failed", description: error.message, variant: "destructive" });
+    },
+  });
+
+  // Invoice sync to Odoo state
+  const [invoiceSyncResult, setInvoiceSyncResult] = useState<{
+    total: number;
+    synced: number;
+    failed: number;
+    skipped: number;
+    results: Array<{
+      orderId: string;
+      orderName: string;
+      status: 'success' | 'failed' | 'skipped';
+      odooOrderId?: number;
+      odooOrderName?: string;
+      error?: string;
+    }>;
+  } | null>(null);
+
+  const syncInvoicesToOdooMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/shopify/sync-invoices-to-odoo', {});
+      return res.json();
+    },
+    onSuccess: (data: any) => {
+      setInvoiceSyncResult(data);
+      toast({ 
+        title: "Invoice sync complete!", 
+        description: `Synced: ${data.synced}, Failed: ${data.failed}, Skipped: ${data.skipped}` 
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Invoice sync failed", description: error.message, variant: "destructive" });
     },
   });
 
@@ -388,6 +424,9 @@ export default function ShopifySettingsPage() {
             {webhookEvents.length > 0 && (
               <Badge variant="outline" className="ml-2">{webhookEvents.length}</Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="sync-invoices">
+            Sync Invoices
           </TabsTrigger>
         </TabsList>
 
@@ -1379,6 +1418,130 @@ export default function ShopifySettingsPage() {
                   )}
                 </TableBody>
               </Table>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="sync-invoices">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2">
+                <Upload className="h-5 w-5" />
+                Sync Shopify Orders to Odoo
+              </CardTitle>
+              <CardDescription>
+                Push Shopify orders to Odoo as confirmed sales orders. Product codes will be mapped, inventory deducted, and prices transferred.
+              </CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-6">
+              <div className="bg-amber-50 border border-amber-200 rounded-lg p-4">
+                <div className="flex items-start gap-3">
+                  <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+                  <div>
+                    <h4 className="font-medium text-amber-900">Before Syncing</h4>
+                    <ul className="text-sm text-amber-800 mt-1 space-y-1 list-disc list-inside">
+                      <li>Ensure product SKUs in Shopify match Odoo product codes</li>
+                      <li>Customer emails should match between Shopify and Odoo partners</li>
+                      <li>Only paid/fulfilled orders will be synced as confirmed sales orders</li>
+                      <li>Inventory will be deducted in Odoo when the order is confirmed</li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <Button 
+                onClick={() => syncInvoicesToOdooMutation.mutate()}
+                disabled={syncInvoicesToOdooMutation.isPending}
+                className="w-full sm:w-auto"
+              >
+                {syncInvoicesToOdooMutation.isPending ? (
+                  <>
+                    <Loader2 className="h-4 w-4 mr-2 animate-spin" />
+                    Syncing Orders to Odoo...
+                  </>
+                ) : (
+                  <>
+                    <Upload className="h-4 w-4 mr-2" />
+                    Sync Shopify Orders to Odoo
+                  </>
+                )}
+              </Button>
+
+              {invoiceSyncResult && (
+                <div className="space-y-4">
+                  <div className="grid grid-cols-4 gap-4">
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold text-blue-600">{invoiceSyncResult.total}</div>
+                      <div className="text-sm text-gray-500">Total Orders</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold text-green-600">{invoiceSyncResult.synced}</div>
+                      <div className="text-sm text-gray-500">Synced</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold text-red-600">{invoiceSyncResult.failed}</div>
+                      <div className="text-sm text-gray-500">Failed</div>
+                    </Card>
+                    <Card className="p-4">
+                      <div className="text-2xl font-bold text-gray-600">{invoiceSyncResult.skipped}</div>
+                      <div className="text-sm text-gray-500">Skipped</div>
+                    </Card>
+                  </div>
+
+                  <Card>
+                    <CardHeader>
+                      <CardTitle className="text-lg flex items-center gap-2">
+                        <FileText className="h-4 w-4" />
+                        Sync Results
+                      </CardTitle>
+                    </CardHeader>
+                    <CardContent>
+                      <Table>
+                        <TableHeader>
+                          <TableRow>
+                            <TableHead>Shopify Order</TableHead>
+                            <TableHead>Status</TableHead>
+                            <TableHead>Odoo Order</TableHead>
+                            <TableHead>Details</TableHead>
+                          </TableRow>
+                        </TableHeader>
+                        <TableBody>
+                          {invoiceSyncResult.results.map((result, idx) => (
+                            <TableRow key={idx}>
+                              <TableCell className="font-medium">{result.orderName}</TableCell>
+                              <TableCell>
+                                {result.status === 'success' && (
+                                  <Badge className="bg-green-100 text-green-800">
+                                    <CheckCircle className="h-3 w-3 mr-1" />
+                                    Success
+                                  </Badge>
+                                )}
+                                {result.status === 'failed' && (
+                                  <Badge variant="destructive">
+                                    <XCircle className="h-3 w-3 mr-1" />
+                                    Failed
+                                  </Badge>
+                                )}
+                                {result.status === 'skipped' && (
+                                  <Badge variant="outline">
+                                    Skipped
+                                  </Badge>
+                                )}
+                              </TableCell>
+                              <TableCell>
+                                {result.odooOrderName || '-'}
+                              </TableCell>
+                              <TableCell className="text-sm text-gray-500">
+                                {result.error || (result.status === 'success' ? 'Order created & confirmed' : '-')}
+                              </TableCell>
+                            </TableRow>
+                          ))}
+                        </TableBody>
+                      </Table>
+                    </CardContent>
+                  </Card>
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

@@ -1937,6 +1937,10 @@ export const shopifyOrders = pgTable("shopify_orders", {
   shopifyCreatedAt: timestamp("shopify_created_at"),
   processedForCoaching: boolean("processed_for_coaching").default(false),
   coachingProcessedAt: timestamp("coaching_processed_at"),
+  // Odoo sync tracking
+  odooSynced: boolean("odoo_synced").default(false),
+  odooSyncedAt: timestamp("odoo_synced_at"),
+  odooOrderId: integer("odoo_order_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
