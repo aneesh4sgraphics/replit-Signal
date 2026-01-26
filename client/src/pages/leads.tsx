@@ -1,6 +1,6 @@
 import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
-import { Link } from "wouter";
+import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
@@ -127,6 +127,7 @@ const PRIORITIES = [
 
 export default function LeadsPage() {
   const { toast } = useToast();
+  const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
   
   const [search, setSearch] = useState('');
@@ -506,12 +507,12 @@ export default function LeadsPage() {
               const trustProgress = getTrustBuildingProgress(lead);
               
               return (
-                <Card 
-                  key={lead.id}
-                  className="hover:shadow-lg transition-all cursor-pointer group"
-                  style={{ backgroundColor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)' }}
-                >
-                  <CardContent className="p-4">
+                <Link key={lead.id} href={`/leads/${lead.id}`} className="block">
+                  <Card 
+                    className="hover:shadow-lg transition-all cursor-pointer group"
+                    style={{ backgroundColor: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(8px)' }}
+                  >
+                    <CardContent className="p-4">
                     {/* Header */}
                     <div className="flex items-start justify-between mb-3">
                       <div className="flex-1 min-w-0">
@@ -637,9 +638,10 @@ export default function LeadsPage() {
                         <User className="w-3 h-3" />
                         <span>{lead.salesRepName}</span>
                       </div>
-                    )}
-                  </CardContent>
-                </Card>
+                      )}
+                    </CardContent>
+                  </Card>
+                </Link>
               );
             })}
           </div>
@@ -666,7 +668,11 @@ export default function LeadsPage() {
                     const stageInfo = getStageInfo(lead.stage);
                     const priorityInfo = getPriorityInfo(lead.priority);
                     return (
-                      <tr key={lead.id} className="border-t border-slate-100 hover:bg-slate-50/50">
+                      <tr 
+                        key={lead.id} 
+                        className="border-t border-slate-100 hover:bg-slate-50/50 cursor-pointer"
+                        onClick={() => setLocation(`/leads/${lead.id}`)}
+                      >
                         <td className="p-3 font-medium text-slate-800">{lead.name}</td>
                         <td className="p-3 text-slate-600">{lead.company || '-'}</td>
                         <td className="p-3 text-slate-600">{lead.email || '-'}</td>
