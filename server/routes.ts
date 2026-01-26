@@ -13350,115 +13350,131 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const { odooClient: odoo } = await import('./odoo');
       const { determineSalesRep, SALES_REPS } = await import('./sales-rep-auto-assign');
       
-      console.log("[Leads] Starting Odoo lead import...");
+      console.log("[Leads] Starting Odoo lead import (optimized batch mode)...");
       
       // Fetch all leads from Odoo
       const odooLeads = await odoo.getAllLeads('lead'); // Only import actual leads, not opportunities
       
       console.log(`[Leads] Found ${odooLeads.length} leads in Odoo`);
       
-      // Get all existing customer emails to skip leads that are already contacts
+      // Get all existing customer emails to skip leads that are already contacts (single query)
       const existingCustomerEmails = await db.select({ emailNormalized: customers.emailNormalized })
         .from(customers)
         .where(isNotNull(customers.emailNormalized));
       const customerEmailSet = new Set(existingCustomerEmails.map(c => c.emailNormalized?.toLowerCase()));
       console.log(`[Leads] Found ${customerEmailSet.size} existing customer emails to check against`);
       
+      // Get ALL existing leads by odooLeadId in a single query
+      const existingLeads = await db.select({ id: leads.id, odooLeadId: leads.odooLeadId, salesRepId: leads.salesRepId })
+        .from(leads)
+        .where(isNotNull(leads.odooLeadId));
+      const existingLeadsMap = new Map(existingLeads.map(l => [l.odooLeadId, l]));
+      console.log(`[Leads] Found ${existingLeadsMap.size} existing leads in database`);
+      
       // Round-robin counter for distributing leads without location rules
       const salesRepOrder = [SALES_REPS.aneesh, SALES_REPS.patricio, SALES_REPS.santiago];
       let roundRobinIndex = 0;
       
-      let imported = 0;
-      let updated = 0;
-      let skipped = 0;
+      // Prepare batch arrays
+      const toInsert: any[] = [];
+      const toUpdate: { odooLeadId: number; data: any }[] = [];
       let skippedExistingCustomer = 0;
       
+      // Process all leads (fast in-memory filtering)
       for (const ol of odooLeads) {
-        try {
-          // Skip leads whose email already exists in customers (Contacts)
-          const leadEmailNormalized = ol.email_from ? normalizeEmail(ol.email_from) : null;
-          if (leadEmailNormalized && customerEmailSet.has(leadEmailNormalized.toLowerCase())) {
-            console.log(`[Leads] Skipping lead ${ol.id} - email ${ol.email_from} already exists in Contacts`);
-            skippedExistingCustomer++;
-            continue;
+        // Skip leads whose email already exists in customers (Contacts)
+        const leadEmailNormalized = ol.email_from ? normalizeEmail(ol.email_from) : null;
+        if (leadEmailNormalized && customerEmailSet.has(leadEmailNormalized.toLowerCase())) {
+          skippedExistingCustomer++;
+          continue;
+        }
+        
+        // Determine sales rep assignment based on location rules
+        const country = ol.country_id ? ol.country_id[1] : null;
+        const state = ol.state_id ? ol.state_id[1] : null;
+        let assignedRep = determineSalesRep({ country, province: state });
+        
+        // If no location rule matches, use round-robin distribution
+        if (!assignedRep) {
+          assignedRep = salesRepOrder[roundRobinIndex % salesRepOrder.length];
+          roundRobinIndex++;
+        }
+        
+        const leadData: any = {
+          odooLeadId: ol.id,
+          sourceType: 'odoo',
+          name: ol.contact_name || ol.name || 'Unknown',
+          email: ol.email_from || null,
+          emailNormalized: leadEmailNormalized,
+          phone: ol.phone || null,
+          mobile: ol.mobile || null,
+          company: ol.partner_name || null,
+          jobTitle: ol.function || null,
+          website: ol.website || null,
+          street: ol.street || null,
+          street2: ol.street2 || null,
+          city: ol.city || null,
+          state: state,
+          zip: ol.zip || null,
+          country: country,
+          description: ol.description || null,
+          stage: 'new',
+          priority: ol.priority === '3' ? 'high' : ol.priority === '2' ? 'medium' : 'low',
+          probability: ol.probability || 10,
+          expectedRevenue: ol.expected_revenue ? String(ol.expected_revenue) : null,
+          salesRepId: assignedRep.id,
+          salesRepName: assignedRep.name,
+          odooWriteDate: ol.write_date ? new Date(ol.write_date) : null,
+          lastOdooSyncAt: new Date(),
+          updatedAt: new Date(),
+        };
+        
+        const existing = existingLeadsMap.get(ol.id);
+        if (existing) {
+          // Keep existing salesRep if already set
+          if (existing.salesRepId) {
+            delete leadData.salesRepId;
+            delete leadData.salesRepName;
           }
-          
-          // Check if already imported by Odoo ID
-          const existing = await db.select().from(leads)
-            .where(eq(leads.odooLeadId, ol.id))
-            .limit(1);
-          
-          // Determine sales rep assignment based on location rules
-          const country = ol.country_id ? ol.country_id[1] : null;
-          const state = ol.state_id ? ol.state_id[1] : null;
-          let assignedRep = determineSalesRep({ country, province: state });
-          
-          // If no location rule matches, use round-robin distribution
-          if (!assignedRep) {
-            assignedRep = salesRepOrder[roundRobinIndex % salesRepOrder.length];
-            roundRobinIndex++;
-            console.log(`[Leads] Round-robin assigned ${assignedRep.name} to lead ${ol.id} (no location rule)`);
-          }
-          
-          const leadData: any = {
-            odooLeadId: ol.id,
-            sourceType: 'odoo',
-            name: ol.contact_name || ol.name || 'Unknown',
-            email: ol.email_from || null,
-            emailNormalized: leadEmailNormalized,
-            phone: ol.phone || null,
-            mobile: ol.mobile || null,
-            company: ol.partner_name || null,
-            jobTitle: ol.function || null,
-            website: ol.website || null,
-            street: ol.street || null,
-            street2: ol.street2 || null,
-            city: ol.city || null,
-            state: state,
-            zip: ol.zip || null,
-            country: country,
-            description: ol.description || null,
-            stage: 'new', // Map Odoo stages later if needed
-            priority: ol.priority === '3' ? 'high' : ol.priority === '2' ? 'medium' : 'low',
-            probability: ol.probability || 10,
-            expectedRevenue: ol.expected_revenue ? String(ol.expected_revenue) : null,
-            // Auto-assign sales rep based on location rules
-            salesRepId: assignedRep.id,
-            salesRepName: assignedRep.name,
-            odooWriteDate: ol.write_date ? new Date(ol.write_date) : null,
-            lastOdooSyncAt: new Date(),
-            updatedAt: new Date(),
-          };
-          
-          if (existing.length > 0) {
-            // Update existing lead (keep existing salesRep if already set)
-            const existingLead = existing[0];
-            if (existingLead.salesRepId) {
-              delete leadData.salesRepId;
-              delete leadData.salesRepName;
-            }
-            await db.update(leads)
-              .set(leadData)
-              .where(eq(leads.odooLeadId, ol.id));
-            updated++;
-          } else {
-            // Insert new lead
-            await db.insert(leads).values(leadData);
-            imported++;
-          }
-        } catch (err) {
-          console.error(`[Leads] Error importing lead ${ol.id}:`, err);
-          skipped++;
+          toUpdate.push({ odooLeadId: ol.id, data: leadData });
+        } else {
+          toInsert.push(leadData);
         }
       }
       
-      console.log(`[Leads] Import complete: ${imported} new, ${updated} updated, ${skipped} errors, ${skippedExistingCustomer} skipped (already in Contacts)`);
+      console.log(`[Leads] Batch processing: ${toInsert.length} to insert, ${toUpdate.length} to update`);
+      
+      // Batch insert new leads (chunks of 100)
+      let imported = 0;
+      const BATCH_SIZE = 100;
+      for (let i = 0; i < toInsert.length; i += BATCH_SIZE) {
+        const batch = toInsert.slice(i, i + BATCH_SIZE);
+        await db.insert(leads).values(batch);
+        imported += batch.length;
+        console.log(`[Leads] Inserted batch ${Math.floor(i / BATCH_SIZE) + 1}: ${imported}/${toInsert.length}`);
+      }
+      
+      // Batch update existing leads (chunks of 50 for updates)
+      let updated = 0;
+      const UPDATE_BATCH_SIZE = 50;
+      for (let i = 0; i < toUpdate.length; i += UPDATE_BATCH_SIZE) {
+        const batch = toUpdate.slice(i, i + UPDATE_BATCH_SIZE);
+        await Promise.all(batch.map(item => 
+          db.update(leads).set(item.data).where(eq(leads.odooLeadId, item.odooLeadId))
+        ));
+        updated += batch.length;
+        if (i % 200 === 0) {
+          console.log(`[Leads] Updated batch: ${updated}/${toUpdate.length}`);
+        }
+      }
+      
+      console.log(`[Leads] Import complete: ${imported} new, ${updated} updated, ${skippedExistingCustomer} skipped (already in Contacts)`);
       
       res.json({
         success: true,
         imported,
         updated,
-        skipped,
+        skipped: 0,
         skippedExistingCustomer,
         total: odooLeads.length
       });
