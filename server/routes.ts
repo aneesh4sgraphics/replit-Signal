@@ -13420,7 +13420,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           description: ol.description || null,
           stage: 'new',
           priority: ol.priority === '3' ? 'high' : ol.priority === '2' ? 'medium' : 'low',
-          probability: ol.probability || 10,
+          probability: ol.probability ? Math.round(Number(ol.probability)) : 10,
           expectedRevenue: ol.expected_revenue ? String(ol.expected_revenue) : null,
           salesRepId: assignedRep.id,
           salesRepName: assignedRep.name,
