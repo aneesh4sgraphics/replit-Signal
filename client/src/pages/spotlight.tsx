@@ -498,21 +498,33 @@ export default function Spotlight() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Send email mutation
+  // Send email mutation - also marks task as complete for Follow-Up credit
   const sendEmailMutation = useMutation({
-    mutationFn: async (data: { to: string; subject: string; body: string; customerId?: string }) => {
+    mutationFn: async (data: { to: string; subject: string; body: string; customerId?: string; taskId?: string }) => {
       return apiRequest('POST', '/api/email/send', {
         ...data,
         htmlBody: data.body.replace(/\n/g, '<br>'),
       });
     },
-    onSuccess: () => {
+    onSuccess: (_, variables) => {
       setShowEmailComposer(false);
       setEmailTo('');
       setEmailSubject('');
       setEmailBody('');
       setSelectedTemplateId(null);
       toast({ title: 'Email sent!', description: 'Your email was sent successfully via Gmail' });
+      
+      // Mark the current Spotlight task as complete (counts as Follow-Up)
+      if (variables.taskId || currentTask?.task?.id) {
+        const taskId = variables.taskId || currentTask?.task?.id;
+        if (taskId) {
+          completeMutation.mutate({ 
+            taskId, 
+            outcomeId: 'email_sent',
+            notes: `Email sent to ${variables.to}: ${variables.subject?.substring(0, 50)}...`
+          });
+        }
+      }
     },
     onError: (error: any) => {
       toast({ title: 'Failed to send', description: error?.message || 'Could not send email', variant: 'destructive' });
