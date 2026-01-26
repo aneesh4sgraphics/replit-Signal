@@ -2,6 +2,7 @@ import { useState, useEffect } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useLocation } from "wouter";
 import { Button } from "@/components/ui/button";
+import { useEmailComposer } from "@/components/email-composer";
 import { Input } from "@/components/ui/input";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -133,6 +134,7 @@ export default function LeadsPage() {
   const { toast } = useToast();
   const [, setLocation] = useLocation();
   const queryClient = useQueryClient();
+  const emailComposer = useEmailComposer();
   
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
@@ -692,7 +694,16 @@ export default function LeadsPage() {
                           onClick={(e) => {
                             e.stopPropagation();
                             e.preventDefault();
-                            window.location.href = `mailto:${lead.email}?subject=Following up from ${lead.company || 'your inquiry'}`;
+                            emailComposer.open({
+                              to: lead.email!,
+                              subject: `Following up from ${lead.company || 'your inquiry'}`,
+                              customerName: lead.name || lead.company || 'Lead',
+                              variables: {
+                                'client.email': lead.email!,
+                                'client.name': lead.name || '',
+                                'client.company': lead.company || '',
+                              },
+                            });
                           }}
                         >
                           <Send className="w-3 h-3 mr-1" />
@@ -836,7 +847,16 @@ export default function LeadsPage() {
                                   className="h-6 px-2 text-xs"
                                   onClick={(e) => {
                                     e.stopPropagation();
-                                    window.location.href = `mailto:${lead.email}`;
+                                    emailComposer.open({
+                                      to: lead.email!,
+                                      subject: `Following up from ${lead.company || 'your inquiry'}`,
+                                      customerName: lead.name || lead.company || 'Lead',
+                                      variables: {
+                                        'client.email': lead.email!,
+                                        'client.name': lead.name || '',
+                                        'client.company': lead.company || '',
+                                      },
+                                    });
                                   }}
                                 >
                                   <Mail className="w-3 h-3" />

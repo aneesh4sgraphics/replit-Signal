@@ -12965,6 +12965,56 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get lead statistics for dashboard (must be before :id route)
+  app.get("/api/leads/stats", isAuthenticated, async (req: any, res) => {
+    try {
+      const stats = await db.select({
+        stage: leads.stage,
+        count: sql<number>`count(*)::int`
+      }).from(leads)
+        .groupBy(leads.stage);
+      
+      const totalLeads = stats.reduce((sum, s) => sum + (Number(s.count) || 0), 0);
+      
+      res.json({
+        total: totalLeads,
+        byStage: Object.fromEntries(stats.map(s => [s.stage, Number(s.count) || 0]))
+      });
+    } catch (error) {
+      console.error("Error fetching lead stats:", error);
+      res.status(500).json({ error: "Failed to fetch lead statistics" });
+    }
+  });
+
+  // Get leads that need Monday morning review (must be before :id route)
+  app.get("/api/leads/needs-review", isAuthenticated, async (req: any, res) => {
+    try {
+      const oneWeekAgo = new Date();
+      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
+      
+      const activeStages = ['new', 'contacted', 'qualified', 'nurturing', 'contact_later'];
+      
+      const reviewLeads = await db.select().from(leads)
+        .where(
+          and(
+            inArray(leads.stage, activeStages),
+            or(
+              gte(leads.updatedAt, oneWeekAgo),
+              gte(leads.lastContactAt, oneWeekAgo),
+              gte(leads.createdAt, oneWeekAgo)
+            )
+          )
+        )
+        .orderBy(desc(leads.updatedAt))
+        .limit(50);
+      
+      res.json({ leads: reviewLeads, count: reviewLeads.length });
+    } catch (error) {
+      console.error("Error fetching leads for review:", error);
+      res.status(500).json({ error: "Failed to fetch leads for review" });
+    }
+  });
+
   // Get single lead by ID
   app.get("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
@@ -13481,58 +13531,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error importing leads from Odoo:", error);
       res.status(500).json({ error: "Failed to import leads from Odoo" });
-    }
-  });
-
-  // Get lead statistics for dashboard
-  app.get("/api/leads/stats", isAuthenticated, async (req: any, res) => {
-    try {
-      const stats = await db.select({
-        stage: leads.stage,
-        count: sql<number>`count(*)::int`
-      }).from(leads)
-        .groupBy(leads.stage);
-      
-      const totalLeads = stats.reduce((sum, s) => sum + (Number(s.count) || 0), 0);
-      
-      res.json({
-        total: totalLeads,
-        byStage: Object.fromEntries(stats.map(s => [s.stage, Number(s.count) || 0]))
-      });
-    } catch (error) {
-      console.error("Error fetching lead stats:", error);
-      res.status(500).json({ error: "Failed to fetch lead statistics" });
-    }
-  });
-
-  // Get leads that need Monday morning review (active leads from last week)
-  app.get("/api/leads/needs-review", isAuthenticated, async (req: any, res) => {
-    try {
-      // Find leads that are in active stages (not converted, lost, or not_a_fit)
-      // and have activity or were updated in the last 7 days
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      
-      const activeStages = ['new', 'contacted', 'qualified', 'nurturing', 'contact_later'];
-      
-      const reviewLeads = await db.select().from(leads)
-        .where(
-          and(
-            inArray(leads.stage, activeStages),
-            or(
-              gte(leads.updatedAt, oneWeekAgo),
-              gte(leads.lastContactAt, oneWeekAgo),
-              gte(leads.createdAt, oneWeekAgo)
-            )
-          )
-        )
-        .orderBy(desc(leads.updatedAt))
-        .limit(50);
-      
-      res.json({ leads: reviewLeads, count: reviewLeads.length });
-    } catch (error) {
-      console.error("Error fetching leads for review:", error);
-      res.status(500).json({ error: "Failed to fetch leads for review" });
     }
   });
 
