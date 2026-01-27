@@ -14087,13 +14087,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // Build partner data
+      // Build partner data - only include valid res.partner fields
       const partnerData: Record<string, any> = {
         name,
         is_company: customer.isCompany || false,
         email: customer.email || false,
         phone: customer.phone || customer.cell || false,
-        mobile: customer.cell || false,
         street: customer.address1 || false,
         city: customer.city || false,
         zip: customer.zip || false,
