@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { gmailSyncState, gmailMessages, gmailInsights, customers, shipmentFollowUpTasks, userGmailConnections } from "@shared/schema";
+import { gmailSyncState, gmailMessages, gmailInsights, customers, shipmentFollowUpTasks, userGmailConnections, leads } from "@shared/schema";
 import { eq, and, desc, sql, inArray, lt, isNull, or } from "drizzle-orm";
 import { getMessages, getMessage } from "./gmail-client";
 import { getImapMessages, getImapMessage, hasAnyImapCredentials } from "./imap-client";
@@ -918,6 +918,25 @@ export async function checkForReplyAndCloseTask(message: typeof gmailMessages.$i
       .where(eq(shipmentFollowUpTasks.id, task.id));
     
     console.log(`[Shipment Follow-up] Auto-closed task ${task.id} - reply received`);
+  }
+  
+  // Update lead's firstEmailReplyAt if this is a reply from a lead
+  try {
+    if (message.senderEmail) {
+      const normalizedSender = message.senderEmail.toLowerCase().trim();
+      const leadByEmail = await db.select().from(leads)
+        .where(sql`LOWER(${leads.email}) = ${normalizedSender} AND ${leads.firstEmailReplyAt} IS NULL`)
+        .limit(1);
+      
+      if (leadByEmail.length > 0) {
+        await db.update(leads)
+          .set({ firstEmailReplyAt: message.sentAt || new Date() })
+          .where(eq(leads.id, leadByEmail[0].id));
+        console.log(`[Lead Trust] Marked firstEmailReplyAt for lead ${leadByEmail[0].id} - reply received`);
+      }
+    }
+  } catch (leadError: any) {
+    console.error("[Lead Trust] Error updating firstEmailReplyAt (non-critical):", leadError.message);
   }
 }
 

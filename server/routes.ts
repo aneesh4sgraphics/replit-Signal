@@ -8479,6 +8479,23 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // Update lead's firstEmailSentAt if this email is to a lead (non-blocking)
+      try {
+        const normalizedRecipient = to.toLowerCase().trim();
+        const leadByEmail = await db.select().from(leads)
+          .where(sql`LOWER(${leads.email}) = ${normalizedRecipient} AND ${leads.firstEmailSentAt} IS NULL`)
+          .limit(1);
+        
+        if (leadByEmail.length > 0) {
+          await db.update(leads)
+            .set({ firstEmailSentAt: new Date() })
+            .where(eq(leads.id, leadByEmail[0].id));
+          console.log(`[Lead Trust] Marked firstEmailSentAt for lead ${leadByEmail[0].id}`);
+        }
+      } catch (leadError: any) {
+        console.error("Error updating lead firstEmailSentAt (non-critical):", leadError.message);
+      }
+      
       res.json({ 
         success: true, 
         messageId: result.id, 

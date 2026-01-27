@@ -390,6 +390,8 @@ export const leads = pgTable("leads", {
   probability: integer("probability").default(10), // % chance of conversion
   expectedRevenue: decimal("expected_revenue", { precision: 10, scale: 2 }),
   // Trust-building tracking
+  firstEmailSentAt: timestamp("first_email_sent_at"), // When first outreach email was sent
+  firstEmailReplyAt: timestamp("first_email_reply_at"), // When lead first replied to an email
   swatchbookSentAt: timestamp("swatchbook_sent_at"),
   sampleSentAt: timestamp("sample_sent_at"),
   priceListSentAt: timestamp("price_list_sent_at"),

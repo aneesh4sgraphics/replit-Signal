@@ -84,6 +84,8 @@ interface Lead {
   score: number;
   probability: number;
   expectedRevenue: string | null;
+  firstEmailSentAt: string | null;
+  firstEmailReplyAt: string | null;
   swatchbookSentAt: string | null;
   sampleSentAt: string | null;
   priceListSentAt: string | null;
@@ -316,6 +318,8 @@ export default function LeadsPage() {
 
   const getTrustBuildingProgress = (lead: Lead) => {
     const items = [
+      { sent: !!lead.firstEmailSentAt, label: 'Email Sent' },
+      { sent: !!lead.firstEmailReplyAt, label: 'Reply Received' },
       { sent: !!lead.swatchbookSentAt, label: 'SwatchBook' },
       { sent: !!lead.sampleSentAt, label: 'Samples' },
       { sent: !!lead.priceListSentAt, label: 'Price List' },
