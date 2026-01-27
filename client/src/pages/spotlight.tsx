@@ -625,6 +625,14 @@ export default function Spotlight() {
   const deleteMutation = useMutation({
     mutationFn: async (customerId: string) => {
       const res = await apiRequest('DELETE', `/api/customers/${customerId}?reason=Deleted via Spotlight hygiene`);
+      if (!res.ok) {
+        if (res.status === 404) {
+          // Customer already deleted - treat as success
+          return { alreadyDeleted: true };
+        }
+        const err = await res.json().catch(() => ({}));
+        throw new Error(err.error || 'Failed to delete customer');
+      }
       return res.json();
     },
     onSuccess: (result) => {
@@ -641,10 +649,12 @@ export default function Spotlight() {
       }, 400);
       
       toast({ 
-        title: "Customer deleted", 
-        description: result.excluded 
-          ? "Customer removed and blocked from re-import" 
-          : "Customer removed from database"
+        title: result?.alreadyDeleted ? "Customer already deleted" : "Customer deleted", 
+        description: result?.alreadyDeleted 
+          ? "This customer was already removed from the system"
+          : result?.excluded 
+            ? "Customer removed and blocked from re-import" 
+            : "Customer removed from database"
       });
     },
     onError: (error: any) => {

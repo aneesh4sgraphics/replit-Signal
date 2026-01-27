@@ -741,17 +741,24 @@ export default function OdooCompanyDetail() {
     mutationFn: async () => {
       const res = await apiRequest('DELETE', `/api/customers/${companyId}`);
       if (!res.ok) {
-        const err = await res.json();
+        const err = await res.json().catch(() => ({}));
+        if (res.status === 404) {
+          // Customer already deleted - treat as success
+          return { alreadyDeleted: true };
+        }
         throw new Error(err.error || 'Failed to delete customer');
       }
       return res.json();
     },
-    onSuccess: () => {
+    onSuccess: (data) => {
       toast({
-        title: "Customer Deleted",
-        description: "The customer has been permanently deleted.",
+        title: data?.alreadyDeleted ? "Customer Already Deleted" : "Customer Deleted",
+        description: data?.alreadyDeleted 
+          ? "This customer was already removed from the system." 
+          : "The customer has been permanently deleted.",
       });
       setIsDeleteConfirmOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
       navigate('/odoo-contacts');
     },
     onError: (error: Error) => {
