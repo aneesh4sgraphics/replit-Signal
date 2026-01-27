@@ -171,6 +171,67 @@ function setCachedData(key: string, data: any) {
   cache.set(key, { data, timestamp: Date.now() });
 }
 
+// Stale-While-Revalidate cache for Odoo reports (per-user, 10 min TTL)
+const reportCache = new Map<string, { data: any; timestamp: number; refreshing: boolean }>();
+const REPORT_CACHE_TTL = 10 * 60 * 1000; // 10 minutes
+
+interface ReportCacheResult {
+  data: any | null;
+  isStale: boolean;
+  isCached: boolean;
+}
+
+function getReportCache(userId: string, reportKey: string): ReportCacheResult {
+  const key = `${userId}:${reportKey}`;
+  const cached = reportCache.get(key);
+  
+  if (!cached) {
+    return { data: null, isStale: false, isCached: false };
+  }
+  
+  const age = Date.now() - cached.timestamp;
+  const isStale = age > REPORT_CACHE_TTL;
+  
+  return { data: cached.data, isStale, isCached: true };
+}
+
+function setReportCache(userId: string, reportKey: string, data: any) {
+  const key = `${userId}:${reportKey}`;
+  reportCache.set(key, { data, timestamp: Date.now(), refreshing: false });
+}
+
+function isReportRefreshing(userId: string, reportKey: string): boolean {
+  const key = `${userId}:${reportKey}`;
+  return reportCache.get(key)?.refreshing || false;
+}
+
+function setReportRefreshing(userId: string, reportKey: string, refreshing: boolean) {
+  const key = `${userId}:${reportKey}`;
+  const cached = reportCache.get(key);
+  if (cached) {
+    cached.refreshing = refreshing;
+  }
+}
+
+// Background refresh helper - runs fetch and updates cache
+async function refreshReportInBackground(
+  userId: string,
+  reportKey: string,
+  fetchFn: () => Promise<any>
+) {
+  if (isReportRefreshing(userId, reportKey)) return;
+  
+  setReportRefreshing(userId, reportKey, true);
+  try {
+    const freshData = await fetchFn();
+    setReportCache(userId, reportKey, freshData);
+  } catch (error) {
+    console.error(`[Report Cache] Background refresh failed for ${reportKey}:`, error);
+  } finally {
+    setReportRefreshing(userId, reportKey, false);
+  }
+}
+
 // Pre-load logo buffer at startup for fast PDF generation
 let cachedLogoBuffer: Buffer | null = null;
 const logoPath = path.join(process.cwd(), 'attached_assets', '4s_logo_Clean_120x_1764801255491.png');
@@ -687,75 +748,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reports 2026 - Invoice totals for 2026 only
+  // Helper to fetch invoices-2026 data
+  async function fetchInvoices2026Data() {
+    const year = 2026;
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    
+    const invoices = await odooClient.searchRead('account.move', [
+      ['move_type', 'in', ['out_invoice']],
+      ['state', '=', 'posted'],
+      ['invoice_date', '>=', startDate],
+      ['invoice_date', '<=', endDate],
+    ], ['id', 'invoice_date', 'amount_total', 'amount_untaxed', 'state'], { limit: 10000 });
+    
+    const monthlyData = new Map<number, { total: number; untaxed: number; count: number }>();
+    for (let m = 1; m <= 12; m++) {
+      monthlyData.set(m, { total: 0, untaxed: 0, count: 0 });
+    }
+    
+    let grandTotal = 0;
+    let grandUntaxed = 0;
+    
+    for (const inv of invoices) {
+      if (inv.invoice_date) {
+        const month = parseInt(inv.invoice_date.split('-')[1]);
+        const current = monthlyData.get(month) || { total: 0, untaxed: 0, count: 0 };
+        current.total += inv.amount_total || 0;
+        current.untaxed += inv.amount_untaxed || 0;
+        current.count += 1;
+        monthlyData.set(month, current);
+        grandTotal += inv.amount_total || 0;
+        grandUntaxed += inv.amount_untaxed || 0;
+      }
+    }
+    
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const chartData = months.map((name, idx) => {
+      const data = monthlyData.get(idx + 1) || { total: 0, untaxed: 0, count: 0 };
+      return { month: name, total: data.total, untaxed: data.untaxed, count: data.count };
+    });
+    
+    const ordersToInvoice = await odooClient.searchRead('sale.order', [
+      ['state', '=', 'sale'],
+      ['invoice_status', '=', 'to invoice'],
+    ], ['id', 'amount_total'], { limit: 10000 });
+    
+    return {
+      success: true,
+      year,
+      grandTotal,
+      grandUntaxed,
+      invoiceCount: invoices.length,
+      chartData,
+      waitingToInvoice: {
+        count: ordersToInvoice.length,
+        amount: ordersToInvoice.reduce((sum: number, o: any) => sum + (o.amount_total || 0), 0),
+      },
+    };
+  }
+
+  // Reports 2026 - Invoice totals for 2026 only (with stale-while-revalidate cache)
   app.get("/api/reports/invoices-2026", isAuthenticated, async (req: any, res) => {
     try {
-      const year = 2026;
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
+      const userId = req.user?.email || 'anonymous';
+      const reportKey = 'invoices-2026';
+      const cached = getReportCache(userId, reportKey);
       
-      // Get invoices from Odoo for 2026
-      const invoices = await odooClient.searchRead('account.move', [
-        ['move_type', 'in', ['out_invoice']],
-        ['state', '=', 'posted'],
-        ['invoice_date', '>=', startDate],
-        ['invoice_date', '<=', endDate],
-      ], ['id', 'invoice_date', 'amount_total', 'amount_untaxed', 'state'], { limit: 10000 });
-      
-      // Group by month
-      const monthlyData = new Map<number, { total: number; untaxed: number; count: number }>();
-      for (let m = 1; m <= 12; m++) {
-        monthlyData.set(m, { total: 0, untaxed: 0, count: 0 });
-      }
-      
-      let grandTotal = 0;
-      let grandUntaxed = 0;
-      
-      for (const inv of invoices) {
-        if (inv.invoice_date) {
-          const month = parseInt(inv.invoice_date.split('-')[1]);
-          const current = monthlyData.get(month) || { total: 0, untaxed: 0, count: 0 };
-          current.total += inv.amount_total || 0;
-          current.untaxed += inv.amount_untaxed || 0;
-          current.count += 1;
-          monthlyData.set(month, current);
-          grandTotal += inv.amount_total || 0;
-          grandUntaxed += inv.amount_untaxed || 0;
+      if (cached.isCached) {
+        if (cached.isStale) {
+          refreshReportInBackground(userId, reportKey, fetchInvoices2026Data);
         }
+        return res.json({ ...cached.data, cached: true });
       }
       
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const chartData = months.map((name, idx) => {
-        const data = monthlyData.get(idx + 1) || { total: 0, untaxed: 0, count: 0 };
-        return {
-          month: name,
-          total: data.total,
-          untaxed: data.untaxed,
-          count: data.count,
-        };
-      });
-      
-      // Get sale orders ready to invoice (state 'sale' with invoice_status 'to invoice')
-      const ordersToInvoice = await odooClient.searchRead('sale.order', [
-        ['state', '=', 'sale'],
-        ['invoice_status', '=', 'to invoice'],
-      ], ['id', 'amount_total'], { limit: 10000 });
-      
-      const waitingToInvoiceCount = ordersToInvoice.length;
-      const waitingToInvoiceAmount = ordersToInvoice.reduce((sum: number, o: any) => sum + (o.amount_total || 0), 0);
-      
-      res.json({
-        success: true,
-        year,
-        grandTotal,
-        grandUntaxed,
-        invoiceCount: invoices.length,
-        chartData,
-        waitingToInvoice: {
-          count: waitingToInvoiceCount,
-          amount: waitingToInvoiceAmount,
-        },
-      });
+      const data = await fetchInvoices2026Data();
+      setReportCache(userId, reportKey, data);
+      res.json(data);
     } catch (error) {
       console.error("Invoices 2026 report error:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -763,82 +831,88 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reports 2026 - Quotations vs Confirmed Sales Orders
-  app.get("/api/reports/quotes-vs-orders-2026", isAuthenticated, async (req: any, res) => {
-    try {
-      const year = 2026;
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
-      
-      // Get all sale.order records from Odoo for 2026
-      const saleOrders = await odooClient.searchRead('sale.order', [
-        ['date_order', '>=', `${startDate} 00:00:00`],
-        ['date_order', '<=', `${endDate} 23:59:59`],
-      ], ['id', 'name', 'state', 'date_order', 'amount_total', 'amount_untaxed'], { limit: 10000 });
-      
-      // Group by month and state
-      const monthlyQuotes = new Map<number, { amount: number; count: number }>();
-      const monthlyConfirmed = new Map<number, { amount: number; count: number }>();
-      
-      for (let m = 1; m <= 12; m++) {
-        monthlyQuotes.set(m, { amount: 0, count: 0 });
-        monthlyConfirmed.set(m, { amount: 0, count: 0 });
-      }
-      
-      let totalQuotesAmount = 0;
-      let totalConfirmedAmount = 0;
-      let quotesCount = 0;
-      let confirmedCount = 0;
-      
-      for (const order of saleOrders) {
-        if (order.date_order) {
-          const dateStr = order.date_order.split(' ')[0];
-          const month = parseInt(dateStr.split('-')[1]);
-          
-          if (['draft', 'sent'].includes(order.state)) {
-            // Quotations
-            const current = monthlyQuotes.get(month) || { amount: 0, count: 0 };
-            current.amount += order.amount_total || 0;
-            current.count += 1;
-            monthlyQuotes.set(month, current);
-            totalQuotesAmount += order.amount_total || 0;
-            quotesCount += 1;
-          } else if (['sale', 'done'].includes(order.state)) {
-            // Confirmed orders
-            const current = monthlyConfirmed.get(month) || { amount: 0, count: 0 };
-            current.amount += order.amount_total || 0;
-            current.count += 1;
-            monthlyConfirmed.set(month, current);
-            totalConfirmedAmount += order.amount_total || 0;
-            confirmedCount += 1;
-          }
+  // Helper to fetch quotes-vs-orders-2026 data
+  async function fetchQuotesVsOrders2026Data() {
+    const year = 2026;
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    
+    const saleOrders = await odooClient.searchRead('sale.order', [
+      ['date_order', '>=', `${startDate} 00:00:00`],
+      ['date_order', '<=', `${endDate} 23:59:59`],
+    ], ['id', 'name', 'state', 'date_order', 'amount_total', 'amount_untaxed'], { limit: 10000 });
+    
+    const monthlyQuotes = new Map<number, { amount: number; count: number }>();
+    const monthlyConfirmed = new Map<number, { amount: number; count: number }>();
+    
+    for (let m = 1; m <= 12; m++) {
+      monthlyQuotes.set(m, { amount: 0, count: 0 });
+      monthlyConfirmed.set(m, { amount: 0, count: 0 });
+    }
+    
+    let totalQuotesAmount = 0, totalConfirmedAmount = 0, quotesCount = 0, confirmedCount = 0;
+    
+    for (const order of saleOrders) {
+      if (order.date_order) {
+        const dateStr = order.date_order.split(' ')[0];
+        const month = parseInt(dateStr.split('-')[1]);
+        
+        if (['draft', 'sent'].includes(order.state)) {
+          const current = monthlyQuotes.get(month) || { amount: 0, count: 0 };
+          current.amount += order.amount_total || 0;
+          current.count += 1;
+          monthlyQuotes.set(month, current);
+          totalQuotesAmount += order.amount_total || 0;
+          quotesCount += 1;
+        } else if (['sale', 'done'].includes(order.state)) {
+          const current = monthlyConfirmed.get(month) || { amount: 0, count: 0 };
+          current.amount += order.amount_total || 0;
+          current.count += 1;
+          monthlyConfirmed.set(month, current);
+          totalConfirmedAmount += order.amount_total || 0;
+          confirmedCount += 1;
         }
       }
+    }
+    
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const chartData = months.map((name, idx) => {
+      const quotes = monthlyQuotes.get(idx + 1) || { amount: 0, count: 0 };
+      const confirmed = monthlyConfirmed.get(idx + 1) || { amount: 0, count: 0 };
+      return {
+        month: name,
+        quotesAmount: quotes.amount,
+        quotesCount: quotes.count,
+        confirmedAmount: confirmed.amount,
+        confirmedCount: confirmed.count,
+      };
+    });
+    
+    return {
+      success: true,
+      year,
+      totals: { quotesAmount: totalQuotesAmount, quotesCount, confirmedAmount: totalConfirmedAmount, confirmedCount },
+      chartData,
+    };
+  }
+
+  // Reports 2026 - Quotations vs Confirmed Sales Orders (with stale-while-revalidate cache)
+  app.get("/api/reports/quotes-vs-orders-2026", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.email || 'anonymous';
+      const reportKey = 'quotes-vs-orders-2026';
+      const cached = getReportCache(userId, reportKey);
       
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const chartData = months.map((name, idx) => {
-        const quotes = monthlyQuotes.get(idx + 1) || { amount: 0, count: 0 };
-        const confirmed = monthlyConfirmed.get(idx + 1) || { amount: 0, count: 0 };
-        return {
-          month: name,
-          quotesAmount: quotes.amount,
-          quotesCount: quotes.count,
-          confirmedAmount: confirmed.amount,
-          confirmedCount: confirmed.count,
-        };
-      });
+      if (cached.isCached) {
+        if (cached.isStale) {
+          refreshReportInBackground(userId, reportKey, fetchQuotesVsOrders2026Data);
+        }
+        return res.json({ ...cached.data, cached: true });
+      }
       
-      res.json({
-        success: true,
-        year,
-        totals: {
-          quotesAmount: totalQuotesAmount,
-          quotesCount,
-          confirmedAmount: totalConfirmedAmount,
-          confirmedCount,
-        },
-        chartData,
-      });
+      const data = await fetchQuotesVsOrders2026Data();
+      setReportCache(userId, reportKey, data);
+      res.json(data);
     } catch (error) {
       console.error("Quotes vs Orders 2026 report error:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
@@ -846,91 +920,91 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
-  // Reports 2026 - Gross Profit (COGS vs Sales)
+  // Helper to fetch gross-profit-2026 data
+  async function fetchGrossProfit2026Data() {
+    const year = 2026;
+    const startDate = `${year}-01-01`;
+    const endDate = `${year}-12-31`;
+    
+    const incomeLines = await odooClient.searchRead('account.move.line', [
+      ['account_id.account_type', 'in', ['income', 'income_other']],
+      ['date', '>=', startDate],
+      ['date', '<=', endDate],
+      ['parent_state', '=', 'posted'],
+    ], ['credit', 'debit', 'date'], { limit: 50000 });
+    
+    const cosLines = await odooClient.searchRead('account.move.line', [
+      ['account_id.account_type', '=', 'expense_direct_cost'],
+      ['date', '>=', startDate],
+      ['date', '<=', endDate],
+      ['parent_state', '=', 'posted'],
+    ], ['credit', 'debit', 'date'], { limit: 50000 });
+    
+    const monthlyData = new Map<number, { revenue: number; cogs: number }>();
+    for (let m = 1; m <= 12; m++) {
+      monthlyData.set(m, { revenue: 0, cogs: 0 });
+    }
+    
+    let totalRevenue = 0;
+    for (const line of incomeLines) {
+      const lineRevenue = (line.credit || 0) - (line.debit || 0);
+      totalRevenue += lineRevenue;
+      if (line.date) {
+        const month = parseInt(line.date.split('-')[1]);
+        const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
+        current.revenue += lineRevenue;
+        monthlyData.set(month, current);
+      }
+    }
+    
+    let totalCogs = 0;
+    for (const line of cosLines) {
+      const lineCogs = (line.debit || 0) - (line.credit || 0);
+      totalCogs += lineCogs;
+      if (line.date) {
+        const month = parseInt(line.date.split('-')[1]);
+        const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
+        current.cogs += lineCogs;
+        monthlyData.set(month, current);
+      }
+    }
+    
+    const grossProfit = totalRevenue - totalCogs;
+    const grossMarginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
+    
+    const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+    const chartData = months.map((name, idx) => {
+      const data = monthlyData.get(idx + 1) || { revenue: 0, cogs: 0 };
+      const profit = data.revenue - data.cogs;
+      const margin = data.revenue > 0 ? ((profit / data.revenue) * 100) : 0;
+      return { month: name, revenue: data.revenue, cogs: data.cogs, profit, margin: Math.round(margin * 10) / 10 };
+    });
+    
+    return {
+      success: true,
+      year,
+      totals: { revenue: totalRevenue, cogs: totalCogs, grossProfit, grossMarginPercent: Math.round(grossMarginPercent * 10) / 10 },
+      chartData,
+    };
+  }
+
+  // Reports 2026 - Gross Profit (COGS vs Sales) (with stale-while-revalidate cache)
   app.get("/api/reports/gross-profit-2026", isAuthenticated, async (req: any, res) => {
     try {
-      const year = 2026;
-      const startDate = `${year}-01-01`;
-      const endDate = `${year}-12-31`;
+      const userId = req.user?.email || 'anonymous';
+      const reportKey = 'gross-profit-2026';
+      const cached = getReportCache(userId, reportKey);
       
-      // Get Revenue from Income accounts (income, income_other account types)
-      const incomeLines = await odooClient.searchRead('account.move.line', [
-        ['account_id.account_type', 'in', ['income', 'income_other']],
-        ['date', '>=', startDate],
-        ['date', '<=', endDate],
-        ['parent_state', '=', 'posted'],
-      ], ['credit', 'debit', 'date'], { limit: 50000 });
-      
-      // Get COGS from Cost of Sales accounts (expense_direct_cost account type)
-      const cosLines = await odooClient.searchRead('account.move.line', [
-        ['account_id.account_type', '=', 'expense_direct_cost'],
-        ['date', '>=', startDate],
-        ['date', '<=', endDate],
-        ['parent_state', '=', 'posted'],
-      ], ['credit', 'debit', 'date'], { limit: 50000 });
-      
-      // Group by month
-      const monthlyData = new Map<number, { revenue: number; cogs: number }>();
-      for (let m = 1; m <= 12; m++) {
-        monthlyData.set(m, { revenue: 0, cogs: 0 });
-      }
-      
-      // Revenue: credit increases, debit decreases
-      let totalRevenue = 0;
-      for (const line of incomeLines) {
-        const lineRevenue = (line.credit || 0) - (line.debit || 0);
-        totalRevenue += lineRevenue;
-        
-        if (line.date) {
-          const month = parseInt(line.date.split('-')[1]);
-          const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
-          current.revenue += lineRevenue;
-          monthlyData.set(month, current);
+      if (cached.isCached) {
+        if (cached.isStale) {
+          refreshReportInBackground(userId, reportKey, fetchGrossProfit2026Data);
         }
+        return res.json({ ...cached.data, cached: true });
       }
       
-      // COGS: debit increases, credit decreases
-      let totalCogs = 0;
-      for (const line of cosLines) {
-        const lineCogs = (line.debit || 0) - (line.credit || 0);
-        totalCogs += lineCogs;
-        
-        if (line.date) {
-          const month = parseInt(line.date.split('-')[1]);
-          const current = monthlyData.get(month) || { revenue: 0, cogs: 0 };
-          current.cogs += lineCogs;
-          monthlyData.set(month, current);
-        }
-      }
-      
-      const grossProfit = totalRevenue - totalCogs;
-      const grossMarginPercent = totalRevenue > 0 ? ((grossProfit / totalRevenue) * 100) : 0;
-      
-      const months = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-      const chartData = months.map((name, idx) => {
-        const data = monthlyData.get(idx + 1) || { revenue: 0, cogs: 0 };
-        const profit = data.revenue - data.cogs;
-        const margin = data.revenue > 0 ? ((profit / data.revenue) * 100) : 0;
-        return {
-          month: name,
-          revenue: data.revenue,
-          cogs: data.cogs,
-          profit,
-          margin: Math.round(margin * 10) / 10,
-        };
-      });
-      
-      res.json({
-        success: true,
-        year,
-        totals: {
-          revenue: totalRevenue,
-          cogs: totalCogs,
-          grossProfit,
-          grossMarginPercent: Math.round(grossMarginPercent * 10) / 10,
-        },
-        chartData,
-      });
+      const data = await fetchGrossProfit2026Data();
+      setReportCache(userId, reportKey, data);
+      res.json(data);
     } catch (error) {
       console.error("Gross Profit 2026 report error:", error);
       const errorMessage = error instanceof Error ? error.message : "Unknown error";
