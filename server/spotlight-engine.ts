@@ -175,12 +175,13 @@ export interface SpotlightSession {
 }
 
 const DAILY_QUOTAS: Record<TaskBucket, number> = {
-  calls: 2,
-  follow_ups: 3,
-  outreach: 5,
-  data_hygiene: 25,  // Increased for March data hygiene deadline
-  enablement: 3,
+  calls: 4,           // Increased for lead integration
+  follow_ups: 6,      // Increased for lead follow-ups
+  outreach: 8,        // Increased for lead outreach
+  data_hygiene: 27,   // Increased for data hygiene
+  enablement: 5,      // Increased for enablement tasks
 };
+// Total: 50 tasks per day
 
 const TOTAL_DAILY_QUOTA = Object.values(DAILY_QUOTAS).reduce((a, b) => a + b, 0);
 
