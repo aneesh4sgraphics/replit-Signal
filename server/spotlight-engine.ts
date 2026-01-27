@@ -8,7 +8,7 @@ const GENERIC_EMAIL_DOMAINS = [
   'live.com', 'msn.com', 'me.com', 'comcast.net', 'verizon.net',
   'att.net', 'sbcglobal.net', 'bellsouth.net', 'cox.net', 'charter.net'
 ];
-import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, isNotNull, inArray, notInArray, count } from "drizzle-orm";
+import { eq, and, isNull, or, ne, sql, desc, asc, lt, lte, gte, gt, isNotNull, inArray, notInArray, count } from "drizzle-orm";
 import { nanoid } from "nanoid";
 import { analyzeForHints, SpotlightHint, getCustomerMachineProfiles, getProductSuggestionsForMachines, getMachineLabel, checkMissingMachineProfile } from "./spotlight-heuristics";
 
@@ -1672,12 +1672,30 @@ class SpotlightEngine {
           gte(gmailMessages.sentAt, yesterday),
           lte(gmailMessages.sentAt, yesterdayEnd),
           or(
+            // Pricing keywords
             sql`LOWER(${gmailMessages.subject}) LIKE '%pricing%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%price list%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%price%'`,
+            // Sample/swatchbook keywords
             sql`LOWER(${gmailMessages.subject}) LIKE '%sample%'`,
             sql`LOWER(${gmailMessages.subject}) LIKE '%swatchbook%'`,
-            sql`LOWER(${gmailMessages.subject}) LIKE '%price list%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%press test%'`,
+            // Quote/proposal keywords
+            sql`LOWER(${gmailMessages.subject}) LIKE '%quote%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%proposal%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%estimate%'`,
+            // Product/catalog keywords
+            sql`LOWER(${gmailMessages.subject}) LIKE '%catalog%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%product%'`,
+            // Follow-up indicators
+            sql`LOWER(${gmailMessages.subject}) LIKE '%following up%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%follow up%'`,
+            sql`LOWER(${gmailMessages.subject}) LIKE '%checking in%'`,
+            // Body keywords for sales-related content
             sql`LOWER(${gmailMessages.snippet}) LIKE '%pricing%'`,
-            sql`LOWER(${gmailMessages.snippet}) LIKE '%sample%'`
+            sql`LOWER(${gmailMessages.snippet}) LIKE '%sample%'`,
+            sql`LOWER(${gmailMessages.snippet}) LIKE '%quote%'`,
+            sql`LOWER(${gmailMessages.snippet}) LIKE '%attached%'`
           ),
           // Exclude already skipped customers
           ...(skippedIds.filter(id => !id.startsWith('lead-')).length > 0 
@@ -1717,6 +1735,111 @@ class SpotlightEngine {
       }
     } catch (err) {
       console.error('[Spotlight] Error fetching email follow-up tasks:', err);
+    }
+    
+    // PRIORITY 2.7: Older unreplied emails (2-3 days old) - leads going cold!
+    try {
+      const threeDaysAgo = new Date();
+      threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+      threeDaysAgo.setHours(0, 0, 0, 0);
+      const twoDaysAgo = new Date();
+      twoDaysAgo.setDate(twoDaysAgo.getDate() - 2);
+      twoDaysAgo.setHours(23, 59, 59, 999);
+      
+      // Find outbound emails from 2-3 days ago that haven't been followed up
+      const olderEmailFollowUps = await db
+        .select({
+          id: gmailMessages.id,
+          subject: gmailMessages.subject,
+          snippet: gmailMessages.snippet,
+          toEmail: gmailMessages.toEmail,
+          threadId: gmailMessages.threadId,
+          sentAt: gmailMessages.sentAt,
+          customerId: gmailMessages.customerId,
+          customer: {
+            id: customers.id,
+            company: customers.company,
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            email: customers.email,
+            phone: customers.phone,
+            address1: customers.address1,
+            address2: customers.address2,
+            city: customers.city,
+            province: customers.province,
+            zip: customers.zip,
+            country: customers.country,
+            website: customers.website,
+            salesRepId: customers.salesRepId,
+            salesRepName: customers.salesRepName,
+            pricingTier: customers.pricingTier,
+            updatedAt: customers.updatedAt,
+            isHotProspect: customers.isHotProspect,
+          },
+        })
+        .from(gmailMessages)
+        .leftJoin(customers, eq(gmailMessages.customerId, customers.id))
+        .where(and(
+          eq(gmailMessages.userId, userId),
+          eq(gmailMessages.direction, 'outbound'),
+          gte(gmailMessages.sentAt, threeDaysAgo),
+          lte(gmailMessages.sentAt, twoDaysAgo),
+          isNotNull(gmailMessages.customerId),
+          // Exclude already skipped customers
+          ...(skippedIds.filter(id => !id.startsWith('lead-')).length > 0 
+            ? [sql`${gmailMessages.customerId} NOT IN (${sql.raw(skippedIds.filter(id => !id.startsWith('lead-')).map(id => `'${id}'`).join(','))})`] 
+            : []),
+          // Exclude internal emails
+          sql`LOWER(${gmailMessages.toEmail}) NOT LIKE '%4sgraphics%'`
+        ))
+        .orderBy(asc(gmailMessages.sentAt)) // Oldest first - most urgent
+        .limit(1);
+      
+      if (olderEmailFollowUps.length > 0 && olderEmailFollowUps[0].customer) {
+        const emailData = olderEmailFollowUps[0];
+        
+        // Check if there's been an inbound reply in this thread
+        const hasReply = emailData.threadId ? await db
+          .select({ id: gmailMessages.id })
+          .from(gmailMessages)
+          .where(and(
+            eq(gmailMessages.threadId, emailData.threadId),
+            eq(gmailMessages.direction, 'inbound'),
+            gt(gmailMessages.sentAt, emailData.sentAt!)
+          ))
+          .limit(1) : [];
+        
+        // Only show if no reply received
+        if (hasReply.length === 0) {
+          const subjectPreview = emailData.subject?.substring(0, 40) || 'Email';
+          const daysSent = Math.floor((now.getTime() - (emailData.sentAt?.getTime() || 0)) / (1000 * 60 * 60 * 24));
+          
+          return {
+            id: `follow_ups::unreplied_email_${emailData.id}::${emailData.customer.id}::unreplied_email_followup`,
+            customerId: emailData.customer.id,
+            bucket: 'follow_ups',
+            taskSubtype: 'pricing_samples_followup', // Use same outcomes
+            priority: 80, // Slightly lower than yesterday's emails
+            whyNow: `⚠️ No reply in ${daysSent} days: "${subjectPreview}..." - Follow up before they go cold!`,
+            outcomes: [
+              { id: 'called', label: 'Called', icon: 'phone' },
+              { id: 'email_sent', label: 'Sent Follow-up', icon: 'mail' },
+              { id: 'replied', label: 'They Replied', icon: 'check' },
+              { id: 'skip', label: 'Skip', icon: 'x' },
+            ],
+            customer: emailData.customer,
+            context: {
+              emailId: emailData.id,
+              originalSubject: emailData.subject || undefined,
+              sentAt: emailData.sentAt?.toISOString(),
+              daysSinceEmail: daysSent,
+              sourceType: 'unreplied_email',
+            },
+          };
+        }
+      }
+    } catch (err) {
+      console.error('[Spotlight] Error fetching unreplied email tasks:', err);
     }
     
     // PRIORITY 3: Regular follow-up tasks
