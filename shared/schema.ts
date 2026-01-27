@@ -245,6 +245,8 @@ export const customers = pgTable("customers", {
   index("IDX_customers_is_company").on(table.isCompany),
   index("IDX_customers_do_not_contact").on(table.doNotContact),
   index("IDX_customers_odoo_partner_id").on(table.odooPartnerId),
+  index("IDX_customers_phone").on(table.phone),
+  index("IDX_customers_website").on(table.website),
 ]);
 
 // Predefined pricing tiers - every customer must have one
