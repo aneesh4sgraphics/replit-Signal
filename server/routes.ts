@@ -18093,6 +18093,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         { topic: 'orders/updated', address: `${webhookUrl}/orders` },
         { topic: 'customers/create', address: `${webhookUrl}/customers` },
         { topic: 'customers/update', address: `${webhookUrl}/customers` },
+        { topic: 'customers/delete', address: `${webhookUrl}/customers` },
       ];
 
       for (const webhook of webhooksToRegister) {
@@ -18692,6 +18693,57 @@ export async function registerRoutes(app: Express): Promise<Server> {
         await db.update(shopifyWebhookEvents)
           .set({ processed: true, processedAt: new Date() })
           .where(eq(shopifyWebhookEvents.shopifyId, String(customer.id)));
+      }
+      
+      // Handle customer deletion - remove from Clients and Leads
+      if (topic === 'customers/delete' || topic === 'customers/redact') {
+        const customerEmail = customer.email?.toLowerCase();
+        const shopifyCustomerId = String(customer.id);
+        
+        console.log(`[Shopify Webhook] Customer deletion: ID=${shopifyCustomerId}, email=${customerEmail}`);
+        
+        let deletedCustomers = 0;
+        let deletedLeads = 0;
+        
+        // Delete from customers table by email
+        if (customerEmail) {
+          const deleteResult = await db.delete(customers)
+            .where(ilike(customers.email, customerEmail))
+            .returning({ id: customers.id });
+          deletedCustomers = deleteResult.length;
+          
+          // Also delete from leads table
+          const deleteLeadsResult = await db.delete(leads)
+            .where(ilike(leads.email, customerEmail))
+            .returning({ id: leads.id });
+          deletedLeads = deleteLeadsResult.length;
+        }
+        
+        // Also check Shopify customer ID mapping and add to exclusion list
+        const mappings = await db.select().from(shopifyCustomerMappings)
+          .where(eq(shopifyCustomerMappings.shopifyCustomerId, shopifyCustomerId));
+        
+        for (const mapping of mappings) {
+          // Add to excluded list to prevent re-import
+          await db.insert(excludedShopifyCustomerIds)
+            .values({
+              shopifyCustomerId: shopifyCustomerId,
+              reason: 'customer_deleted_in_shopify',
+              excludedAt: new Date(),
+            })
+            .onConflictDoNothing();
+          
+          // Delete mapping
+          await db.delete(shopifyCustomerMappings)
+            .where(eq(shopifyCustomerMappings.shopifyCustomerId, shopifyCustomerId));
+        }
+        
+        console.log(`[Shopify Webhook] Deleted ${deletedCustomers} customers, ${deletedLeads} leads for Shopify customer ${shopifyCustomerId}`);
+        
+        // Update webhook event as processed
+        await db.update(shopifyWebhookEvents)
+          .set({ processed: true, processedAt: new Date() })
+          .where(eq(shopifyWebhookEvents.shopifyId, shopifyCustomerId));
       }
     } catch (error) {
       console.error("Error processing Shopify customer webhook:", error);
