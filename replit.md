@@ -133,6 +133,13 @@ Generates daily prioritized tasks for sales reps:
 - Admin can view flagged customers in Settings > Territory tab
 - Admin can decide to keep, delete, or reassign these customers
 
+**Bounced Email Detection:**
+- Scans Gmail for bounce notifications (mailer-daemon, postmaster, delivery failure messages)
+- Extracts bounced email addresses and matches them to customers/contacts
+- Creates highest-priority hygiene task when a bounce is detected
+- User options: Mark as Do Not Contact (recommended), Keep Active, or Investigate Later
+- Helps identify contacts who left the company or businesses that closed
+
 ### 4. UI Design Pattern ("Pastel & Soft")
 - Cream background: `#FDFBF7`
 - Glassmorphism cards with soft shadows

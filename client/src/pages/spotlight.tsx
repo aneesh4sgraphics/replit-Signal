@@ -1734,6 +1734,39 @@ export default function Spotlight() {
                 </div>
               )}
 
+              {/* Data Hygiene: Bounced Email */}
+              {task.taskSubtype === 'hygiene_bounced_email' && (
+                <div className="space-y-3 mb-4">
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-2">
+                        <p className="text-sm font-medium text-red-800">Email Bounced</p>
+                        {(task as any).extraContext?.bouncedEmail && (
+                          <div className="bg-red-100 rounded-lg p-2 text-xs">
+                            <p className="text-red-700"><strong>Bounced Email:</strong> {(task as any).extraContext.bouncedEmail}</p>
+                            {(task as any).extraContext.bounceDate && (
+                              <p className="text-red-600">Date: {new Date((task as any).extraContext.bounceDate).toLocaleDateString()}</p>
+                            )}
+                          </div>
+                        )}
+                        <p className="text-sm text-red-700">
+                          This could mean the person has left the company or the business has closed.
+                        </p>
+                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
+                          <p className="text-xs text-amber-800 font-medium">Recommended Actions:</p>
+                          <ul className="text-xs text-amber-700 mt-1 list-disc pl-4">
+                            <li><strong>Mark as Do Not Contact</strong> - Keep record for reference but stop all outreach (recommended)</li>
+                            <li><strong>Keep Active</strong> - If you believe the bounce was temporary</li>
+                            <li><strong>Investigate Later</strong> - Snooze for 7 days to research further</li>
+                          </ul>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* Data Hygiene: Name, Company, Phone */}
               {(task.taskSubtype === 'hygiene_name' || task.taskSubtype === 'hygiene_company' || task.taskSubtype === 'hygiene_phone') && (
                 <div className="space-y-3 mb-4">

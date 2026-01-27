@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages } from "@shared/schema";
 
 // Generic email domains to deprioritize in data hygiene tasks
 const GENERIC_EMAIL_DOMAINS = [
@@ -99,6 +99,12 @@ export interface SpotlightTask {
     machineContext?: string;
     sourceType?: string;
   };
+  extraContext?: {
+    bouncedEmail?: string;
+    bounceSubject?: string;
+    bounceDate?: string;
+    [key: string]: any;
+  };
 }
 
 export interface TaskOutcome {
@@ -106,7 +112,7 @@ export interface TaskOutcome {
   label: string;
   icon?: string;
   nextAction?: {
-    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action' | 'mark_dnc' | 'custom_follow_up';
+    type: 'schedule_follow_up' | 'send_email' | 'mark_complete' | 'no_action' | 'mark_dnc' | 'custom_follow_up' | 'delete_record';
     daysUntil?: number;
     taskType?: string;
   };
@@ -187,6 +193,11 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'confirmed', label: 'Machines Confirmed', icon: 'settings', nextAction: { type: 'mark_complete' } },
     { id: 'skip', label: 'Ask Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'research' } },
   ],
+  hygiene_bounced_email: [
+    { id: 'mark_inactive', label: 'Mark as Do Not Contact', icon: 'user-x', nextAction: { type: 'mark_dnc' } },
+    { id: 'keep', label: 'Keep Active', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Investigate Later', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'research' } },
+  ],
   sales_call: [
     { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
     { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'call' } },
@@ -253,6 +264,7 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   hygiene_company: 'Company name is missing - add it for better organization.',
   hygiene_phone: 'No phone number on file - add it for call outreach.',
   hygiene_machines: 'Find out what machines they use - helps recommend the right products!',
+  hygiene_bounced_email: 'Emails to this contact are bouncing - they may have left the company or the business closed.',
   sales_call: 'Time for a call - build the relationship!',
   sales_follow_up: 'Follow-up is due - keep the momentum going.',
   sales_quote_follow_up: 'Quote sent but no response - time to check in.',
@@ -1642,8 +1654,10 @@ class SpotlightEngine {
     
     // For sales rep hygiene, check BOTH salesRepId AND salesRepName to handle edge cases
     // where only one field might be set (defensive fallback)
-    // Priority order: business emails first, generic emails last
+    // Priority order: bounced emails first, then business emails, generic emails last
     const priorityOrder = [
+      // HIGHEST priority: Bounced emails - person may have left company or business closed
+      { subtype: 'hygiene_bounced_email', condition: null, excludeGeneric: false, special: 'bounced_email' },
       // High priority: Business email domain customers
       { subtype: 'hygiene_sales_rep', condition: and(isNull(customers.salesRepId), isNull(customers.salesRepName)), excludeGeneric: true },
       { subtype: 'hygiene_pricing_tier', condition: isNull(customers.pricingTier), excludeGeneric: true },
@@ -1666,6 +1680,20 @@ class SpotlightEngine {
       const { subtype, condition } = item;
       const excludeGeneric = 'excludeGeneric' in item ? item.excludeGeneric : false;
       const onlyGeneric = 'onlyGeneric' in item ? item.onlyGeneric : false;
+      const special = 'special' in item ? (item as any).special : null;
+      
+      // Special handling for bounced email detection - queries gmail for bounce messages
+      if (special === 'bounced_email') {
+        const bouncedCustomer = await this.findBouncedEmailCustomer(userId, skippedIds);
+        if (bouncedCustomer) {
+          return this.buildTask(bouncedCustomer.customer, 'data_hygiene', 'hygiene_bounced_email', i + 1, {
+            bouncedEmail: bouncedCustomer.bouncedEmail,
+            bounceSubject: bouncedCustomer.bounceSubject,
+            bounceDate: bouncedCustomer.bounceDate,
+          });
+        }
+        continue;
+      }
       
       // Special handling for machine hygiene - requires async check
       if (subtype === 'hygiene_machines') {
@@ -1833,6 +1861,200 @@ class SpotlightEngine {
     }
 
     return null;
+  }
+  
+  private async findBouncedEmailCustomer(userId: string, skippedIds: string[]): Promise<{
+    customer: any;
+    bouncedEmail: string;
+    bounceSubject: string;
+    bounceDate: string;
+  } | null> {
+    // Look for bounce notification emails in the user's gmail messages
+    // Common bounce indicators:
+    // - From: mailer-daemon@*, postmaster@*
+    // - Subject contains: "undeliverable", "delivery", "failed", "returned", "bounce", "rejected"
+    const bouncePatterns = [
+      'mailer-daemon',
+      'postmaster',
+      'mail delivery',
+      'mail-delivery',
+    ];
+    
+    const subjectPatterns = [
+      'undeliverable',
+      'delivery failed',
+      'delivery failure',
+      'delivery status',
+      'mail delivery',
+      'returned mail',
+      'bounce',
+      'rejected',
+      'could not be delivered',
+      'not delivered',
+    ];
+    
+    // Build SQL pattern conditions for bounce detection
+    const fromConditions = bouncePatterns.map(pattern => 
+      sql`LOWER(${gmailMessages.fromEmail}) LIKE ${'%' + pattern + '%'}`
+    );
+    
+    const subjectConditions = subjectPatterns.map(pattern =>
+      sql`LOWER(${gmailMessages.subject}) LIKE ${'%' + pattern + '%'}`
+    );
+    
+    // Find bounce messages from the last 30 days
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    
+    try {
+      // Query for bounce messages that mention customer emails
+      const bounceMessages = await db
+        .select({
+          id: gmailMessages.id,
+          fromEmail: gmailMessages.fromEmail,
+          subject: gmailMessages.subject,
+          bodyText: gmailMessages.bodyText,
+          sentAt: gmailMessages.sentAt,
+          toEmail: gmailMessages.toEmail,
+        })
+        .from(gmailMessages)
+        .where(and(
+          eq(gmailMessages.userId, userId),
+          or(...fromConditions, ...subjectConditions),
+          sql`${gmailMessages.sentAt} > ${thirtyDaysAgo}`,
+          eq(gmailMessages.direction, 'inbound'),
+        ))
+        .orderBy(desc(gmailMessages.sentAt))
+        .limit(20);
+      
+      if (bounceMessages.length === 0) {
+        return null;
+      }
+      
+      // For each bounce message, try to extract the bounced email address
+      // and match it to a customer
+      for (const bounce of bounceMessages) {
+        // Extract email addresses from the bounce message body and subject
+        const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+        const bodyEmails = (bounce.bodyText || '').match(emailRegex) || [];
+        const subjectEmails = (bounce.subject || '').match(emailRegex) || [];
+        const allEmails = [...new Set([...bodyEmails, ...subjectEmails])];
+        
+        // Filter out common system emails
+        const potentialBouncedEmails = allEmails.filter(email => {
+          const lower = email.toLowerCase();
+          return !lower.includes('mailer-daemon') && 
+                 !lower.includes('postmaster') &&
+                 !lower.includes('4sgraphics') &&
+                 !lower.includes('noreply') &&
+                 !lower.includes('no-reply');
+        });
+        
+        // Try to match each potential bounced email to a customer
+        for (const bouncedEmail of potentialBouncedEmails) {
+          const normalizedEmail = bouncedEmail.toLowerCase().trim();
+          
+          // Check if this customer was already skipped
+          const customerMatch = await db
+            .select({
+              id: customers.id,
+              company: customers.company,
+              firstName: customers.firstName,
+              lastName: customers.lastName,
+              email: customers.email,
+              phone: customers.phone,
+              address1: customers.address1,
+              address2: customers.address2,
+              city: customers.city,
+              province: customers.province,
+              zip: customers.zip,
+              country: customers.country,
+              website: customers.website,
+              salesRepId: customers.salesRepId,
+              salesRepName: customers.salesRepName,
+              pricingTier: customers.pricingTier,
+              updatedAt: customers.updatedAt,
+              isHotProspect: customers.isHotProspect,
+            })
+            .from(customers)
+            .where(and(
+              sql`LOWER(${customers.email}) = ${normalizedEmail}`,
+              eq(customers.doNotContact, false),
+              skippedIds.length > 0 ? notInArray(customers.id, skippedIds) : sql`1=1`,
+              or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+            ))
+            .limit(1);
+          
+          if (customerMatch.length > 0) {
+            // Also check customer contacts
+            return {
+              customer: customerMatch[0],
+              bouncedEmail: normalizedEmail,
+              bounceSubject: bounce.subject || 'Delivery failure',
+              bounceDate: bounce.sentAt?.toISOString() || new Date().toISOString(),
+            };
+          }
+          
+          // Check customer contacts
+          const contactMatch = await db
+            .select({
+              customerId: customerContacts.customerId,
+              email: customerContacts.email,
+            })
+            .from(customerContacts)
+            .innerJoin(customers, eq(customers.id, customerContacts.customerId))
+            .where(and(
+              sql`LOWER(${customerContacts.email}) = ${normalizedEmail}`,
+              eq(customers.doNotContact, false),
+              skippedIds.length > 0 ? notInArray(customers.id, skippedIds) : sql`1=1`,
+              or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+            ))
+            .limit(1);
+          
+          if (contactMatch.length > 0) {
+            // Get the full customer data
+            const customer = await db
+              .select({
+                id: customers.id,
+                company: customers.company,
+                firstName: customers.firstName,
+                lastName: customers.lastName,
+                email: customers.email,
+                phone: customers.phone,
+                address1: customers.address1,
+                address2: customers.address2,
+                city: customers.city,
+                province: customers.province,
+                zip: customers.zip,
+                country: customers.country,
+                website: customers.website,
+                salesRepId: customers.salesRepId,
+                salesRepName: customers.salesRepName,
+                pricingTier: customers.pricingTier,
+                updatedAt: customers.updatedAt,
+                isHotProspect: customers.isHotProspect,
+              })
+              .from(customers)
+              .where(eq(customers.id, contactMatch[0].customerId))
+              .limit(1);
+            
+            if (customer.length > 0) {
+              return {
+                customer: customer[0],
+                bouncedEmail: normalizedEmail,
+                bounceSubject: bounce.subject || 'Delivery failure',
+                bounceDate: bounce.sentAt?.toISOString() || new Date().toISOString(),
+              };
+            }
+          }
+        }
+      }
+      
+      return null;
+    } catch (error) {
+      console.error('[Spotlight] Error finding bounced email customers:', error);
+      return null;
+    }
   }
 
   private async findEnablementTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
@@ -2031,9 +2253,15 @@ class SpotlightEngine {
     };
   }
   
-  private buildTask(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1): SpotlightTask {
+  private buildTask(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1, extraContext?: Record<string, any>): SpotlightTask {
     const isHot = customer.isHotProspect === true;
     let whyNow = WHY_NOW_MESSAGES[subtype] || 'Take action on this customer.';
+    
+    // Add bounce details to the whyNow message for bounced email tasks
+    if (subtype === 'hygiene_bounced_email' && extraContext?.bouncedEmail) {
+      const bounceDate = extraContext.bounceDate ? new Date(extraContext.bounceDate).toLocaleDateString() : 'recently';
+      whyNow = `Email to ${extraContext.bouncedEmail} bounced on ${bounceDate}. Subject: "${extraContext.bounceSubject || 'Delivery failure'}". The contact may have left the company or the business closed.`;
+    }
     
     if (isHot) {
       whyNow = `🔥 HOT PROSPECT - ${whyNow} Call more often, email at least weekly!`;
@@ -2070,6 +2298,7 @@ class SpotlightEngine {
         isHotProspect: customer.isHotProspect,
         updatedAt: customer.updatedAt,
       },
+      extraContext,
     };
   }
 
@@ -2081,7 +2310,7 @@ class SpotlightEngine {
     value?: string,
     notes?: string,
     customFollowUpDays?: number
-  ): Promise<{ success: boolean; nextFollowUp?: { date: Date; type: string } }> {
+  ): Promise<{ success: boolean; nextFollowUp?: { date: Date; type: string }; deleted?: boolean }> {
     const session = this.getSession(userId);
     
     let bucket: TaskBucket;
@@ -2244,6 +2473,53 @@ class SpotlightEngine {
         ));
       
       console.log(`[Spotlight] Customer ${customerId} marked as DNC by user ${userId}`);
+    }
+    
+    // Handle delete_record action - permanently delete the customer/lead
+    if (selectedOutcome?.nextAction?.type === 'delete_record') {
+      try {
+        // Log the deletion for audit purposes
+        const customerData = await db.select({
+          id: customers.id,
+          company: customers.company,
+          email: customers.email,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+        }).from(customers).where(eq(customers.id, customerId)).limit(1);
+        
+        console.log(`[Spotlight] Customer deletion initiated by user ${userId}:`, {
+          customerId,
+          company: customerData[0]?.company,
+          email: customerData[0]?.email,
+          reason: 'bounced_email',
+          taskSubtype: subtype,
+        });
+        
+        // First cancel all pending follow-up tasks
+        await db.update(followUpTasks)
+          .set({ 
+            status: 'cancelled',
+            updatedAt: new Date(),
+          })
+          .where(and(
+            eq(followUpTasks.customerId, customerId),
+            ne(followUpTasks.status, 'completed')
+          ));
+        
+        // Delete customer contacts first (foreign key constraint)
+        await db.delete(customerContacts).where(eq(customerContacts.customerId, customerId));
+        
+        // Delete the customer record
+        await db.delete(customers).where(eq(customers.id, customerId));
+        
+        console.log(`[Spotlight] Customer ${customerId} deleted successfully due to bounced email by user ${userId}`);
+        
+        // Return success - the record has been deleted
+        return { success: true, deleted: true };
+      } catch (deleteError) {
+        console.error(`[Spotlight] Failed to delete customer ${customerId}:`, deleteError);
+        // Continue with normal flow - at least mark the task as completed
+      }
     }
 
     let nextFollowUp: { date: Date; type: string } | undefined;
