@@ -141,6 +141,9 @@ export default function Dashboard() {
     month_total: number;
     bucket_stats: Record<string, { today: number; week: number; month: number }>;
     hot_leads: number;
+    total_leads: number;
+    leads_emailed: number;
+    leads_replied: number;
   }
 
   const { data: leaderboardData } = useQuery<{
@@ -383,6 +386,14 @@ export default function Dashboard() {
                           <span className="text-gray-600">This Week</span>
                           <span className="font-bold text-base">{repUser.week_total}</span>
                         </div>
+                        {repUser.total_leads > 0 && (
+                          <div className="flex justify-between items-center text-xs border-t pt-1 mt-1">
+                            <span className="text-gray-600">Leads</span>
+                            <span className="font-medium text-purple-700">
+                              {repUser.leads_emailed}/{repUser.total_leads}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Bucket Breakdown */}

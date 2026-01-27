@@ -189,6 +189,9 @@ export default function Admin() {
     month_total: number;
     bucket_stats: Record<string, { today: number; week: number; month: number }>;
     hot_leads: number;
+    total_leads: number;
+    leads_emailed: number;
+    leads_replied: number;
   }
 
   const { data: leaderboardData, isLoading: leaderboardLoading } = useQuery<{
@@ -490,6 +493,17 @@ export default function Admin() {
                           <span className="text-gray-600">This Month</span>
                           <span className="font-bold text-xl text-primary">{user.month_total}</span>
                         </div>
+                        {user.total_leads > 0 && (
+                          <div className="flex justify-between items-center text-sm border-t pt-2">
+                            <span className="text-gray-600">Leads Touched</span>
+                            <span className="font-medium text-purple-700">
+                              {user.leads_emailed}/{user.total_leads}
+                              {user.leads_replied > 0 && (
+                                <span className="text-green-600 ml-1">({user.leads_replied} replied)</span>
+                              )}
+                            </span>
+                          </div>
+                        )}
                       </div>
 
                       {/* Bucket Breakdown */}

@@ -22293,6 +22293,16 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
             AND c.do_not_contact = false
             AND c.sales_rep_id IS NOT NULL
           GROUP BY c.sales_rep_id
+        ),
+        leads_touched AS (
+          SELECT 
+            l.sales_rep_id,
+            COUNT(*) as total_leads,
+            COUNT(*) FILTER (WHERE l.first_email_sent_at IS NOT NULL) as leads_emailed,
+            COUNT(*) FILTER (WHERE l.first_email_reply_at IS NOT NULL) as leads_replied
+          FROM leads l
+          WHERE l.sales_rep_id IS NOT NULL
+          GROUP BY l.sales_rep_id
         )
         SELECT 
           ba.user_id,
@@ -22302,9 +22312,13 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
           ba.week_total::int as week_total,
           ba.month_total::int as month_total,
           ba.bucket_stats,
-          COALESCE(hl.hot_lead_count, 0)::int as hot_leads
+          COALESCE(hl.hot_lead_count, 0)::int as hot_leads,
+          COALESCE(lt.total_leads, 0)::int as total_leads,
+          COALESCE(lt.leads_emailed, 0)::int as leads_emailed,
+          COALESCE(lt.leads_replied, 0)::int as leads_replied
         FROM bucket_agg ba
         LEFT JOIN hot_leads hl ON ba.user_id = hl.sales_rep_id
+        LEFT JOIN leads_touched lt ON ba.user_id = lt.sales_rep_id
         ORDER BY ba.week_total DESC
       `);
 
