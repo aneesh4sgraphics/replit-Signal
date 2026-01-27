@@ -1324,7 +1324,7 @@ export default function OdooCompanyDetail() {
               Delete Customer
             </DialogTitle>
             <DialogDescription>
-              Are you sure you want to permanently delete <strong>{customer?.company || `${customer?.firstName} ${customer?.lastName}`}</strong>? This action cannot be undone and will remove all associated quotes, notes, and activity history.
+              Are you sure you want to permanently delete <strong>{company?.company || `${company?.firstName} ${company?.lastName}`}</strong>? This action cannot be undone and will remove all associated quotes, notes, and activity history.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter className="gap-2">
