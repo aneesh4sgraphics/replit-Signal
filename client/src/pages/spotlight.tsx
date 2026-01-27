@@ -1017,6 +1017,29 @@ export default function Spotlight() {
     setShowEmailComposer(true);
   };
 
+  // Helper to convert HTML to plain text with proper line breaks
+  const htmlToPlainText = (html: string): string => {
+    // First replace block-level elements with newlines
+    let text = html
+      .replace(/<\/p>/gi, '\n\n')
+      .replace(/<br\s*\/?>/gi, '\n')
+      .replace(/<\/div>/gi, '\n')
+      .replace(/<\/li>/gi, '\n')
+      .replace(/<\/h[1-6]>/gi, '\n\n')
+      .replace(/<li>/gi, '• ')
+      .replace(/<ul>|<\/ul>|<ol>|<\/ol>/gi, '\n');
+    
+    // Parse remaining HTML and get text content
+    const tempDiv = document.createElement('div');
+    tempDiv.innerHTML = text;
+    text = tempDiv.textContent || tempDiv.innerText || '';
+    
+    // Clean up excessive whitespace while preserving intentional line breaks
+    return text
+      .replace(/\n{3,}/g, '\n\n')
+      .trim();
+  };
+
   // Handle template selection - fill in subject and body
   const handleTemplateSelect = (templateId: string) => {
     const id = parseInt(templateId);
@@ -1037,11 +1060,12 @@ export default function Spotlight() {
         subject = subject.replace(/\{\{contact_name\}\}/gi, contactName);
         body = body.replace(/\{\{contact_name\}\}/gi, contactName);
       }
+      // Convert HTML body to plain text for the textarea
+      body = htmlToPlainText(body);
+      
       // Append signature if available
       if (userSignature?.signatureHtml) {
-        const tempDiv = document.createElement('div');
-        tempDiv.innerHTML = userSignature.signatureHtml;
-        const signatureText = tempDiv.textContent || tempDiv.innerText || '';
+        const signatureText = htmlToPlainText(userSignature.signatureHtml);
         body = body + `\n\n${signatureText}`;
       }
       setEmailSubject(subject);
