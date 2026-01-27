@@ -9,12 +9,16 @@ const ODOO_API_KEY = process.env.ODOO_API_KEY;
 // These are kept separate to avoid confusion between the two models
 
 const PARTNER_FIELDS = [
-  'id', 'name', 'email', 'phone', 'mobile',
+  'id', 'name', 'email', 'phone',
   'street', 'street2', 'city', 'state_id', 'zip', 'country_id',
   'is_company', 'company_type', 'parent_id', 'child_ids',
   'user_id', 'category_id', 'comment', 'website', 'function',
   'property_product_pricelist', 'type'
 ];
+
+// Fields that are NOT supported by the current Odoo V19 instance for res.partner
+// These will be filtered out before sending to Odoo
+const UNSUPPORTED_PARTNER_FIELDS = ['mobile'];
 
 const LEAD_FIELDS = [
   'id', 'name', 'contact_name', 'email_from', 'phone', 'mobile',
@@ -423,11 +427,21 @@ class OdooClient {
   }
 
   async createPartner(values: Partial<OdooPartner>): Promise<number> {
-    return this.create('res.partner', values);
+    // Filter out unsupported fields before sending to Odoo
+    const filteredValues = { ...values };
+    for (const field of UNSUPPORTED_PARTNER_FIELDS) {
+      delete (filteredValues as any)[field];
+    }
+    return this.create('res.partner', filteredValues);
   }
 
   async updatePartner(id: number, values: Partial<OdooPartner>): Promise<boolean> {
-    return this.write('res.partner', [id], values);
+    // Filter out unsupported fields before sending to Odoo
+    const filteredValues = { ...values };
+    for (const field of UNSUPPORTED_PARTNER_FIELDS) {
+      delete (filteredValues as any)[field];
+    }
+    return this.write('res.partner', [id], filteredValues);
   }
 
   async getProducts(options: { limit?: number; offset?: number; domain?: any[] } = {}): Promise<OdooProduct[]> {
@@ -1275,6 +1289,10 @@ ${plainTextBody}`;
 
       for (const [crmField, value] of Object.entries(values)) {
         const odooField = fieldMapping[crmField] || crmField;
+        // Skip unsupported fields
+        if (UNSUPPORTED_PARTNER_FIELDS.includes(odooField)) {
+          continue;
+        }
         odooValues[odooField] = value;
       }
 
