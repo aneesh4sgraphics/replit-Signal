@@ -2,7 +2,6 @@ import { useState, useEffect, useCallback } from 'react';
 import { useLocation } from 'wouter';
 import { Command, CommandDialog, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList, CommandSeparator } from '@/components/ui/command';
 import { SiShopify } from 'react-icons/si';
-import odooLogoPath from '@assets/Odoo_idrS-IC4Vn_0_1768250561474.jpeg';
 import { useAppUsage } from '@/hooks/useAppUsage';
 import { useAuth } from '@/hooks/useAuth';
 import { queryClient } from '@/lib/queryClient';
@@ -40,7 +39,7 @@ import {
 type IconComponent = React.FC<{ className?: string }>;
 
 export const OdooIcon: React.FC<{ className?: string }> = ({ className }) => (
-  <img src={odooLogoPath} alt="Odoo" className={className} style={{ objectFit: 'contain' }} />
+  <span className={`font-bold text-purple-600 ${className}`}>O</span>
 );
 
 export { QuickQuotesIcon, SavedQuotesIcon, PdfIcon as PdfSettingsIcon };
