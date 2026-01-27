@@ -276,7 +276,7 @@ const HINT_STYLES: Record<SpotlightHint['type'], { bg: string; border: string; i
 const BUCKET_INFO: Record<TaskBucket, { label: string; icon: any; color: string }> = {
   calls: { label: 'Calls', icon: PhoneCall, color: '#A855F7' },
   follow_ups: { label: 'Follow-ups', icon: RefreshCw, color: '#22C55E' },
-  outreach: { label: 'Outreach', icon: Send, color: '#F97316' },
+  outreach: { label: 'Emails', icon: Mail, color: '#F97316' },
   data_hygiene: { label: 'Data Hygiene', icon: UserCog, color: '#6366F1' },
   enablement: { label: 'Enablement', icon: Package, color: '#06B6D4' },
 };
@@ -1378,23 +1378,26 @@ export default function Spotlight() {
 
             {/* Bucket Progress Card - V0 Style */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
-              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Buckets</p>
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Today's Progress</p>
               <div className="space-y-2">
-                {session?.buckets.slice(0, 3).map((bucket) => {
-                  const info = BUCKET_INFO[bucket.bucket];
-                  const bucketProgress = bucket.target > 0 ? (bucket.completed / bucket.target) * 100 : 0;
-                  return (
-                    <div key={bucket.bucket} className="flex items-center gap-2">
-                      <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                        <div 
-                          className="h-full rounded-full" 
-                          style={{ width: `${bucketProgress}%`, backgroundColor: info.color }}
-                        />
+                {session?.buckets
+                  .filter((b) => ['calls', 'outreach', 'data_hygiene'].includes(b.bucket))
+                  .map((bucket) => {
+                    const info = BUCKET_INFO[bucket.bucket];
+                    const bucketProgress = bucket.target > 0 ? (bucket.completed / bucket.target) * 100 : 0;
+                    return (
+                      <div key={bucket.bucket} className="flex items-center gap-2">
+                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                          <div 
+                            className="h-full rounded-full" 
+                            style={{ width: `${bucketProgress}%`, backgroundColor: info.color }}
+                          />
+                        </div>
+                        <span className="text-xs text-muted-foreground w-20">{info.label}</span>
+                        <span className="text-xs font-medium text-gray-600 w-10 text-right">{bucket.completed}/{bucket.target}</span>
                       </div>
-                      <span className="text-xs text-muted-foreground w-16">{info.label}</span>
-                    </div>
-                  );
-                })}
+                    );
+                  })}
               </div>
             </div>
 
