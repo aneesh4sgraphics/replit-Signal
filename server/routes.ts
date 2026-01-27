@@ -2751,7 +2751,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             if (Object.keys(updates).length > 0) {
               await db.update(customers).set(updates).where(eq(customers.id, company.id));
               results.contactToCompany++;
-              console.log(`[Backfill] Company ${company.company} filled from contact: ${JSON.stringify(updates)}`);
             }
           }
         } catch (err) {
@@ -2875,13 +2874,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Auto-assign sales reps based on location rules
   app.post('/api/admin/auto-assign-sales-reps', isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
-      console.log("=== AUTO-ASSIGN SALES REPS ===");
-      
       // Get all customers without a sales rep
       const allCustomers = await storage.getCustomers();
       const unassignedCustomers = allCustomers.filter(c => !c.salesRepId || c.salesRepId.trim() === '');
-      
-      console.log(`Found ${unassignedCustomers.length} customers without sales rep`);
       
       const results = {
         santiago: 0,
@@ -3611,7 +3606,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             if (Object.keys(updates).length > 0) {
               await db.update(customers).set(updates).where(eq(customers.id, child.id));
-              console.log(`[Propagation] Company ${customer.company} -> Contact ${child.id}: ${JSON.stringify(updates)}`);
             }
           }
         } catch (propError) {
@@ -3641,7 +3635,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
             }
             if (Object.keys(updates).length > 0) {
               await db.update(customers).set(updates).where(eq(customers.id, parentCompany.id));
-              console.log(`[Propagation] Contact ${customer.id} -> Company ${parentCompany.company}: ${JSON.stringify(updates)}`);
             }
           }
         } catch (propError) {
@@ -4140,15 +4133,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Merge customers (All authenticated users)
   app.post("/api/customers/merge", isAuthenticated, async (req: any, res) => {
     try {
-      console.log("=== MERGE CUSTOMERS API CALLED ===");
-      console.log("Request body:", req.body);
       const { targetId, sourceId, fieldSelections } = req.body;
       
       if (!targetId || !sourceId) {
-        console.log("Missing targetId or sourceId");
         return res.status(400).json({ error: "Both targetId and sourceId are required" });
       }
-      console.log("Merging:", { targetId, sourceId });
       
       const targetCustomer = await storage.getCustomer(targetId);
       const sourceCustomer = await storage.getCustomer(sourceId);
@@ -4950,7 +4939,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       };
       
-      console.log('Upload response:', JSON.stringify(response, null, 2));
       res.json(response);
     } catch (error) {
       console.error("Error uploading product data:", error);
@@ -5556,10 +5544,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Generate PDF quote using pdfkit (optimized for speed)
   app.post("/api/generate-pdf-quote", isAuthenticated, async (req: any, res) => {
-    console.log('=== PDF GENERATION START ===');
-    console.log('User:', req.user?.claims?.email || 'unknown');
-    console.log('Request body keys:', Object.keys(req.body || {}));
-    
     try {
       const { customerName, customerEmail, customerCompany, customerAddress, quoteItems, sentVia, additionalCharges = [] } = req.body;
       
@@ -6254,9 +6238,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       const requiredStringFields = ['type', 'dimensions', 'thickness', 'productKind', 'surfaceFinish', 'supplierInfo', 'infoReceivedFrom', 'notes', 'source'];
       const requiredNumericFields = ['packQty', 'inputPrice', 'pricePerSqIn', 'pricePerSqFt', 'pricePerSqMeter'];
       
-      console.log("=== VALIDATION DETAILS ===");
-      console.log("Received data:", JSON.stringify(pricingData, null, 2));
-      
       const validationErrors = [];
       
       // Check required string fields
@@ -6553,19 +6534,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
           addedBy: (req.user as any)?.claims?.sub || 'admin'
         };
         
-        console.log('Final competitor data:', JSON.stringify(competitorData, null, 2));
-        
         // Check for duplicate before saving
         const newFingerprint = createFingerprint(competitorData);
         if (existingFingerprints.has(newFingerprint)) {
-          console.log(`Skipping duplicate row ${i + 1}`);
           skippedDuplicates++;
           continue;
         }
         
         try {
           const savedEntry = await storage.createCompetitorPricing(competitorData as any);
-          console.log('Successfully saved entry:', JSON.stringify(savedEntry, null, 2));
           uploadedCount++;
           // Add fingerprint to set to prevent duplicates within same upload
           existingFingerprints.add(newFingerprint);
@@ -9529,13 +9506,9 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   app.post("/api/crm/journeys", isAuthenticated, async (req, res) => {
-    console.log("=== POST /api/crm/journeys received ===");
-    console.log("Request body:", req.body);
     try {
       const validatedData = insertCustomerJourneySchema.parse(req.body);
-      console.log("Validated data:", validatedData);
       const journey = await storage.upsertCustomerJourney(validatedData);
-      console.log("Created journey:", journey);
       res.status(201).json(journey);
     } catch (error) {
       if (error instanceof z.ZodError) {
@@ -17726,15 +17699,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Sync Odoo sale orders into sent_quotes for reports
   app.post("/api/odoo/sync-sales", requireAdmin, async (req: any, res) => {
     try {
-      console.log("=== Starting Odoo Sales Sync ===");
-      console.log("[Odoo Sync] Environment:", process.env.NODE_ENV);
-      console.log("[Odoo Sync] Database URL prefix:", process.env.DATABASE_URL?.substring(0, 30) + "...");
-      
       // Get existing quote numbers to avoid duplicates
       const existingQuotes = await db.select({ quoteNumber: sentQuotes.quoteNumber })
         .from(sentQuotes);
       const existingQuoteNumbers = new Set(existingQuotes.map(q => q.quoteNumber));
-      console.log(`[Odoo Sync] Found ${existingQuotes.length} existing quotes in database`);
       
       // Get partner mapping for customer names
       const customers = await storage.getCustomers();
@@ -17802,8 +17770,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           offset += batchSize;
         }
       }
-      
-      console.log(`=== Odoo Sales Sync Complete: ${imported} imported, ${skipped} skipped, ${totalFetched} total fetched ===`);
       
       res.json({
         success: true,
