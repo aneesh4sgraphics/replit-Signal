@@ -51,6 +51,7 @@ import {
   Plus,
   UserPlus,
   GitMerge,
+  Trash2,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -141,6 +142,7 @@ export default function OdooCompanyDetail() {
   const [isCreateOdooDialogOpen, setIsCreateOdooDialogOpen] = useState(false);
   const [duplicatePartners, setDuplicatePartners] = useState<Array<{ id: number; name: string; email: string; isCompany: boolean }>>([]);
   const [isPrintLabelOpen, setIsPrintLabelOpen] = useState(false);
+  const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
   const [isNewContactOpen, setIsNewContactOpen] = useState(false);
@@ -732,6 +734,33 @@ export default function OdooCompanyDetail() {
     },
   });
 
+  // Mutation to delete customer
+  const deleteCustomerMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('DELETE', `/api/customers/${companyId}`);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to delete customer');
+      }
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Customer Deleted",
+        description: "The customer has been permanently deleted.",
+      });
+      setIsDeleteConfirmOpen(false);
+      navigate('/odoo-contacts');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Delete Customer",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
   // Find contacts with duplicate emails for merge functionality
   const duplicateEmailContacts = useMemo(() => {
     if (!contactsData?.contacts) return [];
@@ -965,6 +994,16 @@ export default function OdooCompanyDetail() {
               >
                 <Printer className="w-4 h-4 mr-2" />
                 Print Label
+              </Button>
+              
+              <Button 
+                variant="outline" 
+                size="sm" 
+                onClick={() => setIsDeleteConfirmOpen(true)}
+                className="border-red-200 text-red-600 hover:bg-red-50"
+                title="Delete customer"
+              >
+                <Trash2 className="w-4 h-4" />
               </Button>
               
               <div className="flex items-center gap-1 border-l pl-2 ml-1">
@@ -1267,6 +1306,46 @@ export default function OdooCompanyDetail() {
                 <Printer className="w-4 h-4 mr-2" />
               )}
               Print Label
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete Confirmation Dialog */}
+      <Dialog open={isDeleteConfirmOpen} onOpenChange={setIsDeleteConfirmOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="w-5 h-5" />
+              Delete Customer
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to permanently delete <strong>{customer?.company || `${customer?.firstName} ${customer?.lastName}`}</strong>? This action cannot be undone and will remove all associated quotes, notes, and activity history.
+            </DialogDescription>
+          </DialogHeader>
+          <DialogFooter className="gap-2">
+            <Button
+              variant="outline"
+              onClick={() => setIsDeleteConfirmOpen(false)}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => deleteCustomerMutation.mutate()}
+              disabled={deleteCustomerMutation.isPending}
+            >
+              {deleteCustomerMutation.isPending ? (
+                <>
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                  Deleting...
+                </>
+              ) : (
+                <>
+                  <Trash2 className="w-4 h-4 mr-2" />
+                  Delete Permanently
+                </>
+              )}
             </Button>
           </DialogFooter>
         </DialogContent>
