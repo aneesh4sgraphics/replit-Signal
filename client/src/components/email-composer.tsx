@@ -132,8 +132,17 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
       recipientName?: string;
       variableData?: Record<string, string>;
     }) => {
-      const res = await apiRequest("POST", "/api/email/send", data);
-      return res.json();
+      const res = await fetch("/api/email/send", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(data),
+        credentials: "include",
+      });
+      const json = await res.json();
+      if (!res.ok) {
+        throw new Error(json.error || json.message || "Failed to send email");
+      }
+      return json;
     },
     onSuccess: () => {
       toast({
