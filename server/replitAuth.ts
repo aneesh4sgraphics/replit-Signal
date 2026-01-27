@@ -27,6 +27,16 @@ const ADMIN_EMAILS = [
 
 const SESSION_TTL = 7 * 24 * 60 * 60 * 1000; // 1 week in milliseconds
 
+// Exported session config for diagnostics - reflects the actual live config
+export const sessionConfig = {
+  get isProduction() { return process.env.NODE_ENV === 'production' || !!process.env.REPLIT_DEPLOYMENT; },
+  get sameSite() { return this.isProduction ? 'none' as const : 'lax' as const; },
+  get secure() { return this.isProduction; },
+  httpOnly: true,
+  ttl: SESSION_TTL,
+  path: "/",
+};
+
 function isAllowedEmail(email: string | undefined | null): boolean {
   if (!email || typeof email !== 'string') return false;
   return email.toLowerCase().endsWith(ALLOWED_DOMAIN);

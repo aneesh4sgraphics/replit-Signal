@@ -42,12 +42,19 @@ checkAndUpdateVersion().catch(error => {
   console.error('Cache version check failed:', error);
 });
 
-// Register service worker in production
+// DISABLED: Service worker registration in production
+// Reason: Auth/reporting stability issues - SW caching interferes with session cookies
+// To re-enable: uncomment the register() call below and remove unregister()
 if (import.meta.env.PROD) {
   window.addEventListener('load', () => {
-    swManager.register().catch(error => {
-      console.error('Service worker registration failed:', error);
+    // Unregister any existing service workers to prevent stale cache issues
+    swManager.unregister().catch(error => {
+      console.error('Service worker unregistration failed:', error);
     });
+    // Original registration code (disabled):
+    // swManager.register().catch(error => {
+    //   console.error('Service worker registration failed:', error);
+    // });
   });
 }
 

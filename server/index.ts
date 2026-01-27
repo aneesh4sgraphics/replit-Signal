@@ -12,6 +12,7 @@ import { startDataRetentionWorker } from "./data-retention";
 import { startOdooSyncWorker } from "./odoo-sync-worker";
 import { ensureTaxonomySeeded } from "./taxonomy-seed";
 import { seedSpotlightCoachingContent } from "./spotlight-coaching-seed";
+import { sessionConfig } from "./replitAuth";
 
 // Configure Puppeteer to use system Chromium for PDF generation
 if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
@@ -76,6 +77,15 @@ app.get('/api/diagnostics/auth-env', (req, res) => {
       present: !!req.cookies,
       sessionCookie: !!req.cookies?.['connect.sid'],
     },
+    sessionCookieConfig: {
+      isProduction: sessionConfig.isProduction,
+      sameSite: sessionConfig.sameSite,
+      secure: sessionConfig.secure,
+      httpOnly: sessionConfig.httpOnly,
+      ttl: sessionConfig.ttl,
+      path: sessionConfig.path,
+    },
+    trustProxy: true,
   });
 });
 
