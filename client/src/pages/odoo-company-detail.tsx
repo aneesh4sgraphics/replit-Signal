@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute, useLocation } from "wouter";
 import { PRICING_TIERS } from "@shared/schema";
@@ -13,6 +13,8 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
+import { Checkbox } from "@/components/ui/checkbox";
+import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
 import {
@@ -47,6 +49,8 @@ import {
   UserCheck,
   StickyNote,
   Plus,
+  UserPlus,
+  Merge,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -139,6 +143,11 @@ export default function OdooCompanyDetail() {
   const [isPrintLabelOpen, setIsPrintLabelOpen] = useState(false);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
+  const [isNewContactOpen, setIsNewContactOpen] = useState(false);
+  const [newContactForm, setNewContactForm] = useState({ name: '', email: '', phone: '', function: '' });
+  const [isMergeContactsOpen, setIsMergeContactsOpen] = useState(false);
+  const [selectedMergeContacts, setSelectedMergeContacts] = useState<number[]>([]);
+  const [keepContactId, setKeepContactId] = useState<number | null>(null);
   const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'other'>('swatch_book');
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
   const [labelQuantity, setLabelQuantity] = useState(1);
@@ -664,6 +673,81 @@ export default function OdooCompanyDetail() {
       });
     },
   });
+
+  // Mutation to create a new contact
+  const createContactMutation = useMutation({
+    mutationFn: async (data: { name: string; email: string; phone: string; function: string }) => {
+      const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/contacts`, data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to create contact');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Contact Created",
+        description: data.message || "Contact successfully created in Odoo",
+      });
+      setIsNewContactOpen(false);
+      setNewContactForm({ name: '', email: '', phone: '', function: '' });
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer', companyId, 'contacts'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Create Contact",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Mutation to merge contacts
+  const mergeContactsMutation = useMutation({
+    mutationFn: async (data: { keepContactId: number; deleteContactIds: number[] }) => {
+      const res = await apiRequest('POST', `/api/odoo/customer/${companyId}/contacts/merge`, data);
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to merge contacts');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      toast({
+        title: "Contacts Merged",
+        description: data.message,
+      });
+      setIsMergeContactsOpen(false);
+      setSelectedMergeContacts([]);
+      setKeepContactId(null);
+      queryClient.invalidateQueries({ queryKey: ['/api/odoo/customer', companyId, 'contacts'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Failed to Merge Contacts",
+        description: error.message,
+        variant: "destructive",
+      });
+    },
+  });
+
+  // Find contacts with duplicate emails for merge functionality
+  const duplicateEmailContacts = useMemo(() => {
+    if (!contactsData?.contacts) return [];
+    const emailCounts: Record<string, OdooContact[]> = {};
+    contactsData.contacts.forEach(contact => {
+      if (contact.email) {
+        const normalizedEmail = contact.email.toLowerCase().trim();
+        if (!emailCounts[normalizedEmail]) {
+          emailCounts[normalizedEmail] = [];
+        }
+        emailCounts[normalizedEmail].push(contact);
+      }
+    });
+    return Object.entries(emailCounts)
+      .filter(([_, contacts]) => contacts.length >= 2)
+      .map(([email, contacts]) => ({ email, contacts }));
+  }, [contactsData?.contacts]);
 
   // Initialize edit form when company data is available and dialog opens
   const openEditDialog = () => {
@@ -2048,11 +2132,99 @@ export default function OdooCompanyDetail() {
             </Card>
 
             <Card>
-              <CardHeader>
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <User className="w-5 h-5 text-violet-500" />
-                  Contacts
-                </CardTitle>
+              <CardHeader className="pb-3">
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <User className="w-5 h-5 text-violet-500" />
+                    Contacts
+                  </CardTitle>
+                  <div className="flex items-center gap-2">
+                    {duplicateEmailContacts.length > 0 && (
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        className="gap-1 text-amber-600 border-amber-300 hover:bg-amber-50"
+                        onClick={() => {
+                          setSelectedMergeContacts([]);
+                          setKeepContactId(null);
+                          setIsMergeContactsOpen(true);
+                        }}
+                      >
+                        <Merge className="w-4 h-4" />
+                        Merge
+                      </Button>
+                    )}
+                    {company.odooPartnerId && (
+                      <Dialog open={isNewContactOpen} onOpenChange={setIsNewContactOpen}>
+                        <DialogTrigger asChild>
+                          <Button size="sm" variant="outline" className="gap-1">
+                            <Plus className="w-4 h-4" />
+                          </Button>
+                        </DialogTrigger>
+                        <DialogContent>
+                          <DialogHeader>
+                            <DialogTitle>Add New Contact</DialogTitle>
+                            <DialogDescription>
+                              Add a contact person for this company. This will be created in Odoo.
+                            </DialogDescription>
+                          </DialogHeader>
+                          <div className="space-y-4 py-4">
+                            <div className="space-y-2">
+                              <Label>Name *</Label>
+                              <Input
+                                placeholder="John Doe"
+                                value={newContactForm.name}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, name: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Job Title / Function</Label>
+                              <Input
+                                placeholder="Sales Manager"
+                                value={newContactForm.function}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, function: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Email</Label>
+                              <Input
+                                type="email"
+                                placeholder="john@example.com"
+                                value={newContactForm.email}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, email: e.target.value }))}
+                              />
+                            </div>
+                            <div className="space-y-2">
+                              <Label>Phone</Label>
+                              <Input
+                                placeholder="+1 555-123-4567"
+                                value={newContactForm.phone}
+                                onChange={(e) => setNewContactForm(prev => ({ ...prev, phone: e.target.value }))}
+                              />
+                            </div>
+                          </div>
+                          <DialogFooter>
+                            <Button variant="outline" onClick={() => setIsNewContactOpen(false)}>
+                              Cancel
+                            </Button>
+                            <Button
+                              type="button"
+                              onClick={() => createContactMutation.mutate(newContactForm)}
+                              disabled={!newContactForm.name.trim() || createContactMutation.isPending}
+                            >
+                              {createContactMutation.isPending ? (
+                                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                              ) : (
+                                <UserPlus className="w-4 h-4 mr-2" />
+                              )}
+                              Add Contact
+                            </Button>
+                          </DialogFooter>
+                        </DialogContent>
+                      </Dialog>
+                    )}
+                  </div>
+                </div>
               </CardHeader>
               <CardContent>
                 {contactsLoading ? (
@@ -2111,6 +2283,79 @@ export default function OdooCompanyDetail() {
                 )}
               </CardContent>
             </Card>
+
+            <Dialog open={isMergeContactsOpen} onOpenChange={setIsMergeContactsOpen}>
+              <DialogContent className="max-w-lg">
+                <DialogHeader>
+                  <DialogTitle>Merge Duplicate Contacts</DialogTitle>
+                  <DialogDescription>
+                    Found contacts with the same email. Select which contact to keep and which to delete.
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-4 py-4 max-h-[400px] overflow-y-auto">
+                  {duplicateEmailContacts.map(({ email, contacts }) => (
+                    <div key={email} className="border rounded-lg p-3">
+                      <p className="text-sm font-medium text-amber-600 mb-2">
+                        <Mail className="w-4 h-4 inline-block mr-1" />
+                        {email}
+                      </p>
+                      <RadioGroup
+                        value={keepContactId?.toString() || ''}
+                        onValueChange={(value) => {
+                          const id = parseInt(value);
+                          setKeepContactId(id);
+                          setSelectedMergeContacts(contacts.filter(c => c.id !== id).map(c => c.id));
+                        }}
+                      >
+                        {contacts.map((contact) => (
+                          <div key={contact.id} className="flex items-center gap-2 p-2 rounded hover:bg-gray-50">
+                            <RadioGroupItem value={contact.id.toString()} id={`contact-${contact.id}`} />
+                            <Label htmlFor={`contact-${contact.id}`} className="flex-1 cursor-pointer">
+                              <span className="font-medium">{contact.name}</span>
+                              {contact.function && (
+                                <span className="text-xs text-gray-500 ml-2">({contact.function})</span>
+                              )}
+                              {contact.phone && (
+                                <span className="text-xs text-gray-400 ml-2">{contact.phone}</span>
+                              )}
+                            </Label>
+                          </div>
+                        ))}
+                      </RadioGroup>
+                    </div>
+                  ))}
+                </div>
+                <div className="bg-amber-50 border border-amber-200 rounded-lg p-3 text-sm">
+                  <AlertCircle className="w-4 h-4 inline-block mr-1 text-amber-600" />
+                  <strong>Important:</strong> After merging, please also update this in Odoo and Shopify manually if needed.
+                </div>
+                <DialogFooter>
+                  <Button variant="outline" onClick={() => setIsMergeContactsOpen(false)}>
+                    Cancel
+                  </Button>
+                  <Button
+                    type="button"
+                    onClick={() => {
+                      if (keepContactId && selectedMergeContacts.length > 0) {
+                        mergeContactsMutation.mutate({
+                          keepContactId,
+                          deleteContactIds: selectedMergeContacts
+                        });
+                      }
+                    }}
+                    disabled={!keepContactId || selectedMergeContacts.length === 0 || mergeContactsMutation.isPending}
+                    className="bg-amber-600 hover:bg-amber-700"
+                  >
+                    {mergeContactsMutation.isPending ? (
+                      <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                    ) : (
+                      <Merge className="w-4 h-4 mr-2" />
+                    )}
+                    Merge Contacts
+                  </Button>
+                </DialogFooter>
+              </DialogContent>
+            </Dialog>
 
             {company.note && (
               <Card>

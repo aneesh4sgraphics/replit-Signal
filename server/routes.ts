@@ -15030,6 +15030,114 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Create a new contact (child partner) for a company
+  app.post("/api/odoo/customer/:customerId/contacts", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { name, email, phone, function: jobFunction } = req.body;
+      
+      if (!name || !name.trim()) {
+        return res.status(422).json({ error: "Contact name is required" });
+      }
+      
+      // Get customer to find their odooPartnerId
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      
+      // Build contact data matching Odoo's res.partner format
+      const contactData: Record<string, any> = {
+        name: name.trim(),
+        is_company: false,
+        type: 'contact', // Odoo contact type for child contacts
+        email: email?.trim() || false,
+        phone: phone?.trim() || false,
+        function: jobFunction?.trim() || false, // job title/function field
+      };
+      
+      // If customer is linked to Odoo, create contact as child in Odoo
+      if (customer.odooPartnerId) {
+        contactData.parent_id = customer.odooPartnerId;
+        
+        const newContactId = await odooClient.create('res.partner', contactData);
+        if (!newContactId) {
+          return res.status(500).json({ error: "Failed to create contact in Odoo" });
+        }
+        
+        console.log(`[Odoo] Created child contact ID ${newContactId} for parent ${customer.odooPartnerId}`);
+        
+        res.status(201).json({ 
+          success: true, 
+          contactId: newContactId,
+          message: "Contact created in Odoo successfully" 
+        });
+      } else {
+        // Store locally if not linked to Odoo (for future push)
+        // For now, just return an error since contacts need an Odoo parent
+        return res.status(400).json({ 
+          error: "Cannot create contact: Company is not linked to Odoo. Please create the company in Odoo first." 
+        });
+      }
+    } catch (error: any) {
+      console.error("Error creating Odoo contact:", error);
+      res.status(500).json({ error: error.message || "Failed to create contact" });
+    }
+  });
+
+  // Merge contacts in Odoo (keeps one, deletes others)
+  app.post("/api/odoo/customer/:customerId/contacts/merge", requireApproval, async (req: any, res) => {
+    try {
+      const { customerId } = req.params;
+      const { keepContactId, deleteContactIds } = req.body;
+      
+      if (!keepContactId || !deleteContactIds || !Array.isArray(deleteContactIds) || deleteContactIds.length === 0) {
+        return res.status(422).json({ error: "Must specify one contact to keep and at least one to delete" });
+      }
+      
+      // Get customer to verify ownership
+      const [customer] = await db.select().from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!customer) {
+        return res.status(404).json({ error: "Customer not found" });
+      }
+      if (!customer.odooPartnerId) {
+        return res.status(400).json({ error: "Customer is not linked to Odoo" });
+      }
+      
+      // Verify all contacts belong to this parent
+      const allContactIds = [keepContactId, ...deleteContactIds];
+      const contacts = await odooClient.searchRead('res.partner', [
+        ['id', 'in', allContactIds],
+        ['parent_id', '=', customer.odooPartnerId]
+      ], ['id', 'name', 'email'], {});
+      
+      if (contacts.length !== allContactIds.length) {
+        return res.status(400).json({ error: "Some contacts do not belong to this company" });
+      }
+      
+      // Delete the duplicate contacts from Odoo
+      for (const contactId of deleteContactIds) {
+        try {
+          await odooClient.execute('res.partner', 'unlink', [[contactId]]);
+          console.log(`[Odoo] Deleted merged contact ID ${contactId}`);
+        } catch (err: any) {
+          console.error(`[Odoo] Failed to delete contact ${contactId}:`, err.message);
+          // Continue with other deletions
+        }
+      }
+      
+      res.json({ 
+        success: true, 
+        message: `Merged ${deleteContactIds.length} contact(s) into one. Remember to update this in Odoo and Shopify manually if needed.`,
+        keptContactId: keepContactId,
+        deletedContactIds: deleteContactIds
+      });
+    } catch (error: any) {
+      console.error("Error merging Odoo contacts:", error);
+      res.status(500).json({ error: error.message || "Failed to merge contacts" });
+    }
+  });
+
   // Get partner data for editing - fetches current Odoo data for the edit form
   app.get("/api/odoo/customer/:customerId/edit-data", requireApproval, async (req: any, res) => {
     try {
