@@ -1007,17 +1007,16 @@ export default function Spotlight() {
     if (customerName) {
       setEmailSubject(`Following up - ${customerName}`);
     }
-    // Pre-fill body with signature if available
-    if (userSignature?.signatureHtml) {
-      // Convert HTML signature to plain text for the textarea
-      const tempDiv = document.createElement('div');
-      tempDiv.innerHTML = userSignature.signatureHtml;
-      const signatureText = tempDiv.textContent || tempDiv.innerText || '';
-      setEmailBody(`\n\n${signatureText}`);
-    } else {
-      setEmailBody('');
-    }
+    // Pre-fill body with signature if available (keep as HTML)
+    const initialBody = userSignature?.signatureHtml 
+      ? `<p></p><p></p>${userSignature.signatureHtml}` 
+      : '<p></p>';
+    setEmailBody(initialBody);
     setShowEmailComposer(true);
+    // Set the editor content after dialog opens
+    setTimeout(() => {
+      emailEditorRef.current?.setContent(initialBody);
+    }, 100);
   };
 
   // Helper to convert HTML to plain text with proper line breaks
@@ -1063,16 +1062,38 @@ export default function Spotlight() {
         subject = subject.replace(/\{\{contact_name\}\}/gi, contactName);
         body = body.replace(/\{\{contact_name\}\}/gi, contactName);
       }
-      // Convert HTML body to plain text for the textarea
-      body = htmlToPlainText(body);
+      if (customer?.firstName) {
+        body = body.replace(/\{\{client\.firstName\}\}/gi, customer.firstName);
+      }
+      
+      // Convert plain text with bullet points to HTML if needed
+      if (!body.includes('<') || !body.includes('>')) {
+        // Plain text - convert line breaks and bullets to HTML
+        body = body
+          .split('\n')
+          .map(line => {
+            const trimmed = line.trim();
+            if (trimmed.startsWith('•') || trimmed.startsWith('-') || trimmed.startsWith('*')) {
+              return `<li>${trimmed.substring(1).trim()}</li>`;
+            }
+            return trimmed ? `<p>${trimmed}</p>` : '<p><br></p>';
+          })
+          .join('');
+        // Wrap consecutive list items in ul
+        body = body.replace(/(<li>.*?<\/li>)+/g, '<ul>$&</ul>');
+      }
       
       // Append signature if available
       if (userSignature?.signatureHtml) {
-        const signatureText = htmlToPlainText(userSignature.signatureHtml);
-        body = body + `\n\n${signatureText}`;
+        body = body + `<br><br>${userSignature.signatureHtml}`;
       }
+      
       setEmailSubject(subject);
       setEmailBody(body);
+      // Update the rich text editor content
+      setTimeout(() => {
+        emailEditorRef.current?.setContent(body);
+      }, 50);
     }
   };
 
