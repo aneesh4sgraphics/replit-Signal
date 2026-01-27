@@ -253,6 +253,17 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   enablement_swatchbook: 'Send a SwatchBook to showcase your products.',
   enablement_press_test: 'Send a Press Test Kit to demonstrate quality.',
   enablement_price_list: 'They have samples - now send the price list!',
+  // Light fallback tasks when queue is empty
+  light_call_check_in: 'Quick check-in call - see how they are doing.',
+  light_call_intro: 'Introduce yourself - build the relationship.',
+  light_follow_up_confirm: 'Confirm their contact info is still current.',
+  light_follow_up_thank: 'Send a quick thank-you for their past business.',
+  light_outreach_linkedin: 'Connect with them on LinkedIn.',
+  light_outreach_website: 'Review their website for conversation starters.',
+  light_hygiene_verify: 'Double-check this record looks complete.',
+  light_hygiene_notes: 'Add any notes from past interactions.',
+  light_enablement_catalog: 'Share our latest product catalog.',
+  light_enablement_newsletter: 'Add them to our newsletter list.',
 };
 
 interface DataReadiness {
@@ -1271,11 +1282,17 @@ class SpotlightEngine {
       }
 
       if (!task) {
-        const bucketData = session.buckets.find(b => b.bucket === nextBucket);
-        if (bucketData) {
-          bucketData.completed = bucketData.target;
+        // Try fallback light task before marking bucket as complete
+        task = await this.findFallbackTask(nextBucket, userId, excludeIds);
+        
+        if (!task) {
+          // Truly no tasks available - mark bucket as complete
+          const bucketData = session.buckets.find(b => b.bucket === nextBucket);
+          if (bucketData) {
+            bucketData.completed = bucketData.target;
+          }
+          return this.getNextTask(userId);
         }
-        return this.getNextTask(userId);
       }
       
       // Claim this customer so other users won't get the same task
@@ -1820,6 +1837,78 @@ class SpotlightEngine {
       return this.buildTask(customer, 'enablement', 'enablement_swatchbook');
     }
     return null;
+  }
+
+  // ========== FALLBACK LIGHT TASKS ==========
+  // When the queue is empty, generate light tasks to ensure reps always have a full day plan
+
+  private async findFallbackTask(bucket: TaskBucket, userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // Get ANY customer that can receive a light task (very relaxed criteria)
+    let conditions = [
+      eq(customers.doNotContact, false),
+      sql`LOWER(COALESCE(${customers.email}, '')) NOT LIKE '%4sgraphics%'`,
+    ];
+    
+    if (skippedIds.length > 0) {
+      conditions.push(notInArray(customers.id, skippedIds));
+    }
+
+    // Prefer customers assigned to this rep or unassigned
+    conditions.push(
+      or(
+        isNull(customers.salesRepId),
+        eq(customers.salesRepId, userId)
+      )
+    );
+
+    // Order by random for variety, but prioritize those with more data
+    const result = await db
+      .select({
+        id: customers.id,
+        company: customers.company,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        email: customers.email,
+        phone: customers.phone,
+        address1: customers.address1,
+        address2: customers.address2,
+        city: customers.city,
+        province: customers.province,
+        zip: customers.zip,
+        country: customers.country,
+        website: customers.website,
+        salesRepId: customers.salesRepId,
+        salesRepName: customers.salesRepName,
+        pricingTier: customers.pricingTier,
+        updatedAt: customers.updatedAt,
+        isHotProspect: customers.isHotProspect,
+      })
+      .from(customers)
+      .where(and(...conditions))
+      .orderBy(sql`RANDOM()`)
+      .limit(1);
+
+    if (result.length === 0) {
+      return null;
+    }
+
+    const customer = result[0];
+    const subtype = this.getLightTaskSubtype(bucket);
+    
+    return this.buildTask(customer, bucket, subtype, 50); // Low priority for light tasks
+  }
+
+  private getLightTaskSubtype(bucket: TaskBucket): string {
+    const lightTasks: Record<TaskBucket, string[]> = {
+      calls: ['light_call_check_in', 'light_call_intro'],
+      follow_ups: ['light_follow_up_confirm', 'light_follow_up_thank'],
+      outreach: ['light_outreach_linkedin', 'light_outreach_website'],
+      data_hygiene: ['light_hygiene_verify', 'light_hygiene_notes'],
+      enablement: ['light_enablement_catalog', 'light_enablement_newsletter'],
+    };
+    
+    const options = lightTasks[bucket];
+    return options[Math.floor(Math.random() * options.length)];
   }
 
   private async buildTaskWithMachineContext(customer: any, bucket: TaskBucket, subtype: string, priority: number = 1): Promise<SpotlightTask> {
