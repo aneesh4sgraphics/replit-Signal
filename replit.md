@@ -120,12 +120,26 @@ normalizeEmail("John.Doe@GMAIL.COM") → "johndoe@gmail.com"
 ```
 
 ### 3. SPOTLIGHT Coaching System
-Generates daily prioritized tasks for sales reps:
-- Overdue follow-ups
-- Hot leads needing attention
-- Customers with declining engagement
-- Reorder opportunities
-- Data hygiene tasks (business emails prioritized over generic domains like gmail/yahoo)
+Generates daily prioritized tasks for sales reps using a bucket-based system:
+
+**Task Buckets (with difficulty levels):**
+- `calls` (hard) - Phone calls to customers and hot leads
+- `follow_ups` (medium) - Scheduled follow-ups, lead nurturing
+- `outreach` (medium) - Initial contact with new leads and dormant customers
+- `data_hygiene` (easy) - Missing data, bounced emails
+- `enablement` (easy) - Swatchbooks, samples, price lists
+
+**Lead Integration:**
+Leads are fully integrated into SPOTLIGHT for consistent daily work:
+- **Calls bucket**: Hot/urgent leads (high priority) surface first for immediate calls
+- **Outreach bucket**: New leads without first contact appear for initial outreach
+- **Follow-ups bucket**: Leads that were contacted but haven't replied, qualified leads needing attention, or nurturing leads going stale
+
+Lead task outcomes automatically update lead records:
+- `email_sent` / `called` → Updates stage to 'contacted', sets lastContactAt
+- `qualified` → Updates stage to 'qualified'
+- `not_interested` / `lost` → Updates stage to 'lost' with reason
+- Unassigned leads are auto-assigned to the rep who works them
 
 **Territory Skip Tracking:**
 - When a rep marks "Not My Territory", it's tracked per customer

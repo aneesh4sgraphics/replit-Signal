@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads } from "@shared/schema";
 
 // Generic email domains to deprioritize in data hygiene tasks
 const GENERIC_EMAIL_DOMAINS = [
@@ -65,6 +65,8 @@ export interface BucketQuota {
 export interface SpotlightTask {
   id: string;
   customerId: string;
+  leadId?: number; // If this is a lead task, the lead ID
+  isLeadTask?: boolean; // Flag to indicate this is a lead task
   bucket: TaskBucket;
   taskSubtype: string;
   priority: number;
@@ -87,6 +89,25 @@ export interface SpotlightTask {
     salesRepId: string | null;
     salesRepName: string | null;
     pricingTier: string | null;
+  };
+  lead?: {
+    id: number;
+    name: string;
+    company: string | null;
+    email: string | null;
+    phone: string | null;
+    mobile: string | null;
+    stage: string;
+    priority: string | null;
+    score: number | null;
+    city: string | null;
+    state: string | null;
+    salesRepId: string | null;
+    salesRepName: string | null;
+    firstEmailSentAt: Date | null;
+    firstEmailReplyAt: Date | null;
+    lastContactAt: Date | null;
+    totalTouchpoints: number | null;
   };
   context?: {
     followUpId?: number;
@@ -242,6 +263,61 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'sent', label: 'Sent Price List', icon: 'file-text', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
     { id: 'not_ready', label: 'Not Ready Yet', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'outreach' } },
   ],
+  // Lead-specific task outcomes
+  lead_call_hot: [
+    { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
+    { id: 'no_answer', label: 'No Answer', icon: 'phone-missed', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
+    { id: 'qualified', label: 'Qualified!', icon: 'star', nextAction: { type: 'mark_complete' } },
+    { id: 'not_interested', label: 'Not Interested', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  lead_call_urgent: [
+    { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
+    { id: 'no_answer', label: 'No Answer', icon: 'phone-missed', nextAction: { type: 'schedule_follow_up', daysUntil: 1, taskType: 'call' } },
+    { id: 'qualified', label: 'Qualified!', icon: 'star', nextAction: { type: 'mark_complete' } },
+    { id: 'not_interested', label: 'Not Interested', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  lead_call_qualified: [
+    { id: 'connected', label: 'Connected', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'voicemail', label: 'Left Voicemail', icon: 'voicemail', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'call' } },
+    { id: 'no_answer', label: 'No Answer', icon: 'phone-missed', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'call' } },
+    { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  lead_outreach_new: [
+    { id: 'email_sent', label: 'Sent Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'called', label: 'Called', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'follow_up' } },
+    { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
+    { id: 'not_interested', label: 'Not a Fit', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  lead_outreach_intro: [
+    { id: 'email_sent', label: 'Sent Intro Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'skip', label: 'Not Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  lead_follow_up_no_reply: [
+    { id: 'followed_up', label: 'Followed Up', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'called', label: 'Called Instead', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'replied', label: 'Got Reply!', icon: 'check', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Give More Time', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  lead_follow_up_nurture: [
+    { id: 'sent_content', label: 'Sent Helpful Content', icon: 'file-text', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'called', label: 'Called to Check In', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'progressing', label: 'Moving Forward!', icon: 'trending-up', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Not Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  lead_follow_up_stale: [
+    { id: 're_engaged', label: 'Re-engaged!', icon: 'check', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'sent_email', label: 'Sent Re-engagement Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'lost', label: 'Mark as Lost', icon: 'x', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Try Again Later', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
+  lead_follow_up_qualified: [
+    { id: 'followed_up', label: 'Followed Up', icon: 'check', nextAction: { type: 'schedule_follow_up', daysUntil: 5, taskType: 'follow_up' } },
+    { id: 'called', label: 'Called', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'converting', label: 'Ready to Convert!', icon: 'star', nextAction: { type: 'mark_complete' } },
+    { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
+  ],
 };
 
 const BUCKET_LABELS: Record<TaskBucket, string> = {
@@ -284,6 +360,16 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   light_hygiene_notes: 'Add any notes from past interactions.',
   light_enablement_catalog: 'Share our latest product catalog.',
   light_enablement_newsletter: 'Add them to our newsletter list.',
+  // Lead-specific task messages
+  lead_call_hot: '🔥 HOT LEAD needs a call NOW - strike while the iron is hot!',
+  lead_call_urgent: '⚡ URGENT lead - high probability of conversion, call today!',
+  lead_call_qualified: 'Qualified lead ready for a call - move them forward!',
+  lead_outreach_new: '🆕 NEW LEAD - make first contact to start trust building!',
+  lead_outreach_intro: 'Send intro email to this lead - start the conversation.',
+  lead_follow_up_no_reply: 'Lead hasn\'t replied yet - follow up to stay on their radar.',
+  lead_follow_up_nurture: 'Time to nurture this lead - send helpful info to build trust.',
+  lead_follow_up_stale: 'Lead going cold - re-engage before they lose interest!',
+  lead_follow_up_qualified: 'Qualified lead needs attention - keep the momentum going.',
 };
 
 interface DataReadiness {
@@ -1334,6 +1420,18 @@ class SpotlightEngine {
   }
 
   private async findCallTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // PRIORITY 1: Check for hot/urgent leads first - they take precedence
+    const skippedLeadIds = skippedIds
+      .filter(id => id.startsWith('lead-'))
+      .map(id => parseInt(id.replace('lead-', '')))
+      .filter(id => !isNaN(id));
+    
+    const leadTask = await this.findLeadCallTask(userId, skippedLeadIds);
+    if (leadTask) {
+      return leadTask;
+    }
+
+    // PRIORITY 2: Check for customer call tasks
     let conditions = [
       eq(customers.doNotContact, false),
       isNotNull(customers.phone),
@@ -1345,8 +1443,10 @@ class SpotlightEngine {
       sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
-    if (skippedIds.length > 0) {
-      conditions.push(notInArray(customers.id, skippedIds));
+    // Filter out customer IDs (non-lead IDs)
+    const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
+    if (customerSkippedIds.length > 0) {
+      conditions.push(notInArray(customers.id, customerSkippedIds));
     }
 
     const result = await db
@@ -1505,7 +1605,18 @@ class SpotlightEngine {
       console.error('[Spotlight] Error fetching Shopify quote tasks:', err);
     }
     
-    // PRIORITY 2: Regular follow-up tasks
+    // PRIORITY 2: Lead follow-up tasks (leads that need nurturing/follow-up)
+    const skippedLeadIds = skippedIds
+      .filter(id => id.startsWith('lead-'))
+      .map(id => parseInt(id.replace('lead-', '')))
+      .filter(id => !isNaN(id));
+    
+    const leadFollowUpTask = await this.findLeadFollowUpTask(userId, skippedLeadIds);
+    if (leadFollowUpTask) {
+      return leadFollowUpTask;
+    }
+    
+    // PRIORITY 3: Regular follow-up tasks
     let conditions = [
       or(
         eq(followUpTasks.assignedTo, userId),
@@ -1587,8 +1698,23 @@ class SpotlightEngine {
   }
 
   private async findOutreachTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // PRIORITY 1: New leads that need first contact (trust building step 1)
+    const skippedLeadIds = skippedIds
+      .filter(id => id.startsWith('lead-'))
+      .map(id => parseInt(id.replace('lead-', '')))
+      .filter(id => !isNaN(id));
+    
+    const leadOutreachTask = await this.findLeadOutreachTask(userId, skippedLeadIds);
+    if (leadOutreachTask) {
+      return leadOutreachTask;
+    }
+
+    // PRIORITY 2: Customer outreach (no recent contact)
     const thirtyDaysAgo = new Date();
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+
+    // Filter out lead IDs from skipped IDs for customer queries
+    const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
 
     let conditions = [
       eq(customers.doNotContact, false),
@@ -1606,8 +1732,8 @@ class SpotlightEngine {
       sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
-    if (skippedIds.length > 0) {
-      conditions.push(notInArray(customers.id, skippedIds));
+    if (customerSkippedIds.length > 0) {
+      conditions.push(notInArray(customers.id, customerSkippedIds));
     }
 
     const result = await db
@@ -2302,6 +2428,276 @@ class SpotlightEngine {
     };
   }
 
+  // Build a task for a lead (not a customer)
+  private buildLeadTask(lead: any, bucket: TaskBucket, subtype: string, priority: number = 1): SpotlightTask {
+    const isHot = lead.priority === 'high' || lead.priority === 'urgent';
+    let whyNow = WHY_NOW_MESSAGES[subtype] || 'Work on this lead to move them forward.';
+    
+    // Parse the name to extract first/last name for display
+    const nameParts = (lead.name || '').trim().split(' ');
+    const firstName = nameParts[0] || null;
+    const lastName = nameParts.length > 1 ? nameParts.slice(1).join(' ') : null;
+    
+    return {
+      id: `${bucket}::lead::${lead.id}::${subtype}`,
+      customerId: `lead-${lead.id}`, // Prefix with 'lead-' to distinguish from customer IDs
+      leadId: lead.id,
+      isLeadTask: true,
+      bucket,
+      taskSubtype: subtype,
+      priority: isHot ? priority + 100 : priority,
+      whyNow,
+      outcomes: TASK_OUTCOMES[subtype] || [
+        { id: 'done', label: 'Done', icon: 'check', nextAction: { type: 'mark_complete' } },
+        { id: 'skip', label: 'Skip', icon: 'x', nextAction: { type: 'no_action' } },
+      ],
+      // Provide customer-like structure for compatibility
+      customer: {
+        id: `lead-${lead.id}`,
+        company: lead.company,
+        firstName,
+        lastName,
+        email: lead.email,
+        phone: lead.phone || lead.mobile,
+        address1: lead.street,
+        address2: lead.street2,
+        city: lead.city,
+        province: lead.state,
+        zip: lead.zip,
+        country: lead.country,
+        website: lead.website,
+        salesRepId: lead.salesRepId,
+        salesRepName: lead.salesRepName,
+        pricingTier: lead.pricingTier,
+      },
+      lead: {
+        id: lead.id,
+        name: lead.name,
+        company: lead.company,
+        email: lead.email,
+        phone: lead.phone,
+        mobile: lead.mobile,
+        stage: lead.stage,
+        priority: lead.priority,
+        score: lead.score,
+        city: lead.city,
+        state: lead.state,
+        salesRepId: lead.salesRepId,
+        salesRepName: lead.salesRepName,
+        firstEmailSentAt: lead.firstEmailSentAt,
+        firstEmailReplyAt: lead.firstEmailReplyAt,
+        lastContactAt: lead.lastContactAt,
+        totalTouchpoints: lead.totalTouchpoints,
+      },
+      context: {
+        sourceType: 'lead',
+      },
+    };
+  }
+
+  // Find hot/urgent leads that need calls (for the calls bucket)
+  private async findLeadCallTask(userId: string, skippedLeadIds: number[]): Promise<SpotlightTask | null> {
+    try {
+      let conditions = [
+        // Only active leads (not converted or lost)
+        notInArray(leads.stage, ['converted', 'lost']),
+        // Has phone number
+        or(isNotNull(leads.phone), isNotNull(leads.mobile)),
+        // Assigned to this user or unassigned
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+        // Priority conditions - only hot/urgent/qualified leads for calls
+        or(
+          eq(leads.priority, 'urgent'),
+          eq(leads.priority, 'high'),
+          eq(leads.stage, 'qualified')
+        ),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      const result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(
+          // Urgent first, then high priority, then by score
+          sql`CASE WHEN ${leads.priority} = 'urgent' THEN 0 WHEN ${leads.priority} = 'high' THEN 1 ELSE 2 END`,
+          desc(leads.score),
+          asc(leads.lastContactAt)
+        )
+        .limit(1);
+
+      if (result.length > 0) {
+        const lead = result[0];
+        let subtype = 'lead_call_qualified';
+        if (lead.priority === 'urgent') subtype = 'lead_call_urgent';
+        else if (lead.priority === 'high') subtype = 'lead_call_hot';
+        
+        return this.buildLeadTask(lead, 'calls', subtype, lead.priority === 'urgent' ? 200 : 150);
+      }
+      return null;
+    } catch (error) {
+      console.error('[Spotlight] Error finding lead call task:', error);
+      return null;
+    }
+  }
+
+  // Find new leads for outreach (for the outreach bucket)
+  private async findLeadOutreachTask(userId: string, skippedLeadIds: number[]): Promise<SpotlightTask | null> {
+    try {
+      let conditions = [
+        // Only new or contacted leads that haven't been emailed yet
+        inArray(leads.stage, ['new', 'contacted']),
+        // Has email
+        isNotNull(leads.email),
+        // Not yet emailed (trust building step 1)
+        isNull(leads.firstEmailSentAt),
+        // Assigned to this user or unassigned
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      const result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(
+          // Higher priority first
+          sql`CASE WHEN ${leads.priority} = 'urgent' THEN 0 WHEN ${leads.priority} = 'high' THEN 1 WHEN ${leads.priority} = 'medium' THEN 2 ELSE 3 END`,
+          desc(leads.score),
+          asc(leads.createdAt)
+        )
+        .limit(1);
+
+      if (result.length > 0) {
+        const lead = result[0];
+        const subtype = lead.stage === 'new' ? 'lead_outreach_new' : 'lead_outreach_intro';
+        return this.buildLeadTask(lead, 'outreach', subtype, lead.priority === 'high' || lead.priority === 'urgent' ? 80 : 50);
+      }
+      return null;
+    } catch (error) {
+      console.error('[Spotlight] Error finding lead outreach task:', error);
+      return null;
+    }
+  }
+
+  // Find leads that need follow-up (for the follow_ups bucket)
+  private async findLeadFollowUpTask(userId: string, skippedLeadIds: number[]): Promise<SpotlightTask | null> {
+    const threeDaysAgo = new Date();
+    threeDaysAgo.setDate(threeDaysAgo.getDate() - 3);
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const fourteenDaysAgo = new Date();
+    fourteenDaysAgo.setDate(fourteenDaysAgo.getDate() - 14);
+
+    try {
+      // Priority order for lead follow-ups:
+      // 1. Leads emailed but no reply after 3+ days
+      // 2. Qualified leads not contacted in 5+ days
+      // 3. Nurturing leads going stale (14+ days no contact)
+
+      // Check for no-reply leads first (emailed but no response)
+      let conditions = [
+        notInArray(leads.stage, ['converted', 'lost']),
+        isNotNull(leads.firstEmailSentAt),
+        isNull(leads.firstEmailReplyAt),
+        lt(leads.firstEmailSentAt, threeDaysAgo),
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      let result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(desc(leads.score), asc(leads.firstEmailSentAt))
+        .limit(1);
+
+      if (result.length > 0) {
+        return this.buildLeadTask(result[0], 'follow_ups', 'lead_follow_up_no_reply', 60);
+      }
+
+      // Check for qualified leads needing follow-up
+      conditions = [
+        eq(leads.stage, 'qualified'),
+        or(isNull(leads.lastContactAt), lt(leads.lastContactAt, threeDaysAgo)),
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(desc(leads.score), asc(leads.lastContactAt))
+        .limit(1);
+
+      if (result.length > 0) {
+        return this.buildLeadTask(result[0], 'follow_ups', 'lead_follow_up_qualified', 55);
+      }
+
+      // Check for stale nurturing leads
+      conditions = [
+        eq(leads.stage, 'nurturing'),
+        or(isNull(leads.lastContactAt), lt(leads.lastContactAt, fourteenDaysAgo)),
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(asc(leads.lastContactAt))
+        .limit(1);
+
+      if (result.length > 0) {
+        return this.buildLeadTask(result[0], 'follow_ups', 'lead_follow_up_stale', 40);
+      }
+
+      // General nurturing leads
+      conditions = [
+        inArray(leads.stage, ['contacted', 'nurturing']),
+        or(isNull(leads.lastContactAt), lt(leads.lastContactAt, sevenDaysAgo)),
+        or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
+      ];
+      
+      if (skippedLeadIds.length > 0) {
+        conditions.push(notInArray(leads.id, skippedLeadIds));
+      }
+
+      result = await db
+        .select()
+        .from(leads)
+        .where(and(...conditions))
+        .orderBy(desc(leads.score), asc(leads.lastContactAt))
+        .limit(1);
+
+      if (result.length > 0) {
+        return this.buildLeadTask(result[0], 'follow_ups', 'lead_follow_up_nurture', 35);
+      }
+
+      return null;
+    } catch (error) {
+      console.error('[Spotlight] Error finding lead follow-up task:', error);
+      return null;
+    }
+  }
+
   async completeTask(
     userId: string, 
     taskId: string, 
@@ -2317,16 +2713,29 @@ class SpotlightEngine {
     let customerId: string;
     let subtype: string;
     let followUpId: number | null = null;
+    let isLeadTask = false;
+    let leadId: number | null = null;
     
     if (taskId.includes('::')) {
       const parts = taskId.split('::');
       bucket = parts[0] as TaskBucket;
-      // Handle both 3-part (bucket::customerId::subtype) and 4-part (bucket::entityId::customerId::subtype) formats
+      // Handle different task ID formats:
+      // - Lead tasks: bucket::lead::leadId::subtype (4 parts, parts[1] = 'lead')
+      // - Follow-up tasks: bucket::taskId::customerId::subtype (4 parts, parts[1] = numeric)
+      // - Standard tasks: bucket::customerId::subtype (3 parts)
       if (parts.length === 4) {
-        // follow_ups format: bucket::taskId::customerId::subtype
-        followUpId = parseInt(parts[1]);
-        customerId = parts[2];
-        subtype = parts[3];
+        if (parts[1] === 'lead') {
+          // Lead task format: bucket::lead::leadId::subtype
+          isLeadTask = true;
+          leadId = parseInt(parts[2]);
+          customerId = `lead-${parts[2]}`; // Synthetic customer ID for leads
+          subtype = parts[3];
+        } else {
+          // follow_ups format: bucket::taskId::customerId::subtype
+          followUpId = parseInt(parts[1]);
+          customerId = parts[2];
+          subtype = parts[3];
+        }
       } else {
         // Standard format: bucket::customerId::subtype
         customerId = parts[1];
@@ -2566,6 +2975,94 @@ class SpotlightEngine {
     const now = new Date();
     const markedDnc = selectedOutcome?.nextAction?.type === 'mark_dnc';
     
+    // Handle lead-specific updates when completing lead tasks
+    if (isLeadTask && leadId) {
+      try {
+        // Fetch the current lead state to make proper decisions
+        const [currentLead] = await db.select({
+          salesRepId: leads.salesRepId,
+          stage: leads.stage,
+          firstEmailSentAt: leads.firstEmailSentAt,
+          firstEmailReplyAt: leads.firstEmailReplyAt,
+        }).from(leads).where(eq(leads.id, leadId)).limit(1);
+        
+        if (!currentLead) {
+          console.error(`[Spotlight] Lead ${leadId} not found for task completion`);
+        } else {
+          const leadUpdateData: Record<string, any> = {
+            lastContactAt: now,
+            updatedAt: now,
+          };
+          
+          // Only increment touchpoints for actual contact outcomes
+          const contactOutcomes = ['email_sent', 'called', 'connected', 'voicemail', 'followed_up', 'sent_content', 'sent_email'];
+          if (contactOutcomes.includes(outcomeId)) {
+            leadUpdateData.totalTouchpoints = sql`COALESCE(${leads.totalTouchpoints}, 0) + 1`;
+          }
+          
+          // Update stage and timestamps based on outcome
+          if (subtype.startsWith('lead_outreach_') && (outcomeId === 'email_sent' || outcomeId === 'called')) {
+            // First contact - move from 'new' to 'contacted'
+            leadUpdateData.stage = 'contacted';
+            // Only set firstEmailSentAt if it's null
+            if (outcomeId === 'email_sent' && !currentLead.firstEmailSentAt) {
+              leadUpdateData.firstEmailSentAt = now;
+            }
+          } else if (outcomeId === 'replied') {
+            // Lead replied - update reply timestamp if not already set
+            if (!currentLead.firstEmailReplyAt) {
+              leadUpdateData.firstEmailReplyAt = now;
+            }
+          } else if (outcomeId === 'qualified') {
+            // Lead has been qualified
+            leadUpdateData.stage = 'qualified';
+          } else if (outcomeId === 'converting') {
+            // Ready to convert
+            leadUpdateData.stage = 'qualified';
+            leadUpdateData.probability = 80;
+          } else if (outcomeId === 'not_interested' || outcomeId === 'lost') {
+            // Lead is lost
+            leadUpdateData.stage = 'lost';
+            leadUpdateData.lostReason = notes || 'Marked as not interested via SPOTLIGHT';
+          } else if (outcomeId === 're_engaged') {
+            // Re-engaged - move to nurturing if currently stale/contacted
+            if (currentLead.stage !== 'qualified') {
+              leadUpdateData.stage = 'nurturing';
+            }
+          } else if (outcomeId === 'progressing') {
+            // Progressing - move to nurturing if not already qualified
+            if (currentLead.stage !== 'qualified') {
+              leadUpdateData.stage = 'nurturing';
+            }
+          } else if (outcomeId === 'followed_up' || outcomeId === 'sent_content') {
+            // Follow-up actions - move to nurturing if currently just contacted
+            if (currentLead.stage === 'contacted') {
+              leadUpdateData.stage = 'nurturing';
+            }
+          }
+          
+          // Assign to this sales rep if unassigned
+          if (!currentLead.salesRepId) {
+            leadUpdateData.salesRepId = userId;
+            // Get sales rep name
+            const [rep] = await db.select({ firstName: users.firstName, lastName: users.lastName, email: users.email })
+              .from(users)
+              .where(eq(users.id, userId));
+            if (rep) {
+              leadUpdateData.salesRepName = rep.firstName && rep.lastName 
+                ? `${rep.firstName} ${rep.lastName}` 
+                : rep.email;
+            }
+          }
+          
+          await db.update(leads).set(leadUpdateData).where(eq(leads.id, leadId));
+          console.log(`[Spotlight] Lead ${leadId} updated after task completion: outcome=${outcomeId}`);
+        }
+      } catch (e) {
+        console.error('[Spotlight] Failed to update lead after task completion:', e);
+      }
+    }
+    
     // Map bucket/subtype to a specific event type for better tracking
     const getActivityEventType = () => {
       if (bucket === 'calls') return 'call';
@@ -2659,15 +3156,26 @@ class SpotlightEngine {
     let customerId: string;
     let bucket: TaskBucket;
     let subtype: string;
+    let isLeadTask = false;
     
     if (taskId.includes('::')) {
       const parts = taskId.split('::');
       bucket = parts[0] as TaskBucket;
-      // Handle both 3-part (bucket::customerId::subtype) and 4-part (bucket::entityId::customerId::subtype) formats
+      // Handle different task ID formats:
+      // - Lead tasks: bucket::lead::leadId::subtype (4 parts, parts[1] = 'lead')
+      // - Follow-up tasks: bucket::taskId::customerId::subtype (4 parts, parts[1] = numeric)
+      // - Standard tasks: bucket::customerId::subtype (3 parts)
       if (parts.length === 4) {
-        // follow_ups format: bucket::taskId::customerId::subtype
-        customerId = parts[2];
-        subtype = parts[3];
+        if (parts[1] === 'lead') {
+          // Lead task format: bucket::lead::leadId::subtype
+          isLeadTask = true;
+          customerId = `lead-${parts[2]}`; // Synthetic customer ID for leads
+          subtype = parts[3];
+        } else {
+          // follow_ups format: bucket::taskId::customerId::subtype
+          customerId = parts[2];
+          subtype = parts[3];
+        }
       } else {
         // Standard format: bucket::customerId::subtype
         customerId = parts[1];
