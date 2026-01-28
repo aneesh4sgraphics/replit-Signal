@@ -81,6 +81,9 @@ import {
   ChevronRight,
   UserPlus,
   Search,
+  Box,
+  UserX,
+  Linkedin,
 } from "lucide-react";
 
 // Progress Ring SVG Component for Pastel & Soft design
@@ -302,6 +305,13 @@ const OUTCOME_ICONS: Record<string, any> = {
   'package': Package,
   'file-text': FileText,
   'ban': Ban,
+  'box': Box,
+  'linkedin': Linkedin,
+  'star': Star,
+  'user-x': UserX,
+  'trash-2': Trash2,
+  'printer': Printer,
+  'trending-up': Rocket, // Use Rocket as fallback for trending-up
 };
 
 const PRICING_FEEDBACK_OPTIONS = [
@@ -2064,6 +2074,140 @@ export default function Spotlight() {
                               <p className="text-sm font-semibold text-blue-800">Reseller</p>
                               <p className="text-xs text-blue-600 mt-1">Buys to resell</p>
                             </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DRIP Stale Followup - Creative Options */}
+              {task.taskSubtype === 'drip_stale_followup' && (
+                <div className="space-y-3 mb-4">
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <Clock className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-2 w-full">
+                        <p className="text-sm font-medium text-amber-800">No response to your drip campaign</p>
+                        <p className="text-sm text-amber-700">
+                          {task.context?.emailsSent} emails sent, last one {task.context?.daysSinceLastEmail} days ago.
+                          Time to try something different!
+                        </p>
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                          <button
+                            onClick={() => handleOutcome('send_drip')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-amber-200 rounded-xl hover:border-amber-400 hover:bg-amber-50 transition-all"
+                          >
+                            <Mail className="w-6 h-6 text-amber-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-amber-800">Send Email</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('send_swatchbook')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-purple-200 rounded-xl hover:border-purple-400 hover:bg-purple-50 transition-all"
+                          >
+                            <Package className="w-6 h-6 text-purple-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-purple-800">Swatch Book</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('send_press_test')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <Box className="w-6 h-6 text-blue-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-blue-800">Press Test Kit</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('call')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all"
+                          >
+                            <Phone className="w-6 h-6 text-green-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-green-800">Call Them</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('linkedin')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-sky-200 rounded-xl hover:border-sky-400 hover:bg-sky-50 transition-all"
+                          >
+                            <Linkedin className="w-6 h-6 text-sky-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-sky-800">LinkedIn</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('lost')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-red-200 rounded-xl hover:border-red-400 hover:bg-red-50 transition-all"
+                          >
+                            <X className="w-6 h-6 text-red-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-red-800">Mark Lost</p>
+                            </div>
+                          </button>
+                        </div>
+                        <button
+                          onClick={() => handleOutcome('skip')}
+                          className="w-full mt-2 py-2 text-sm text-amber-600 hover:text-amber-800 font-medium"
+                        >
+                          Give More Time
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* DRIP Reply Urgent - Call Now UI */}
+              {task.taskSubtype === 'drip_reply_urgent' && (
+                <div className="space-y-3 mb-4">
+                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <Flame className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0 animate-pulse" />
+                      <div className="space-y-2 w-full">
+                        <p className="text-sm font-medium text-red-800">🔥 They replied to your drip campaign!</p>
+                        <p className="text-sm text-red-700">
+                          From campaign: "{task.context?.campaignName}"
+                          {task.context?.replySubject && (
+                            <span className="block mt-1 italic">Subject: "{task.context.replySubject}"</span>
+                          )}
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <button
+                            onClick={() => handleOutcome('called')}
+                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-green-300 rounded-xl hover:border-green-500 hover:bg-green-50 transition-all"
+                          >
+                            <Phone className="w-8 h-8 text-green-600" />
+                            <div className="text-center">
+                              <p className="text-sm font-bold text-green-800">Call Them Now!</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('email_sent')}
+                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <Mail className="w-8 h-8 text-blue-600" />
+                            <div className="text-center">
+                              <p className="text-sm font-semibold text-blue-800">Reply to Email</p>
+                            </div>
+                          </button>
+                        </div>
+                        <div className="flex gap-2 mt-3">
+                          <button
+                            onClick={() => handleOutcome('qualified')}
+                            className="flex-1 py-2 px-3 text-sm bg-emerald-100 border border-emerald-300 rounded-lg text-emerald-700 hover:bg-emerald-200"
+                          >
+                            ⭐ Qualified!
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('not_interested')}
+                            className="flex-1 py-2 px-3 text-sm bg-slate-100 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-200"
+                          >
+                            Not Interested
                           </button>
                         </div>
                       </div>

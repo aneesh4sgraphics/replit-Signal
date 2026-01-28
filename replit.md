@@ -165,7 +165,19 @@ Lead task outcomes automatically update lead records:
 - Button in "What Happened" section allows reps to defer a task to later
 - Task is temporarily skipped but tracked in session.remindTodayTasks
 - Persisted in `spotlight_events` with event_type = 'remind_today' for cross-restart durability
-- Uses helper methods getRemindTodayTasks() and allowRemindTodayTask() for resurfacing
+
+**DRIP Email Integration:**
+SPOTLIGHT automatically surfaces drip campaign follow-ups:
+- **drip_reply_urgent** (calls bucket, priority 100): When a customer replies to a drip email (Re: or Fwd: subject within 14 days of drip send), surfaces as HIGHEST priority task with "Call Now!" action
+- **drip_stale_followup** (follow_ups bucket, priority 70): When 10+ days pass since last drip email with no reply, surfaces creative follow-up options:
+  - Send Another Email
+  - Send Swatch Book
+  - Send Press Test Kit
+  - Call Them
+  - Connect on LinkedIn
+  - Mark as Lost
+- Both task types check `spotlight_events` to prevent re-surfacing handled tasks
+- Detection uses stricter matching to avoid false positives (subject line matching, time windows)
 
 ### 4. UI Design Pattern ("Pastel & Soft")
 - Cream background: `#FDFBF7`

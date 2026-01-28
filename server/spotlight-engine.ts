@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads, bouncedEmails } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads, bouncedEmails, dripCampaignStepStatus, dripCampaignAssignments, dripCampaignSteps, dripCampaigns, emailSends } from "@shared/schema";
 import { scanForBouncedEmails } from "./bounce-detector";
 
 // Generic email domains to deprioritize in data hygiene tasks
@@ -342,6 +342,23 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'converting', label: 'Ready to Convert!', icon: 'star', nextAction: { type: 'mark_complete' } },
     { id: 'skip', label: 'Skip for Now', icon: 'clock', nextAction: { type: 'no_action' } },
   ],
+  // DRIP email tasks - reply detected (HIGH PRIORITY)
+  drip_reply_urgent: [
+    { id: 'called', label: 'Called Them', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'email_sent', label: 'Replied to Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'qualified', label: 'Qualified!', icon: 'star', nextAction: { type: 'mark_complete' } },
+    { id: 'not_interested', label: 'Not Interested', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
+  // DRIP stale follow-up - 10 days no response with creative options
+  drip_stale_followup: [
+    { id: 'send_drip', label: 'Send Another Email', icon: 'mail', nextAction: { type: 'schedule_follow_up', daysUntil: 10, taskType: 'drip_followup' } },
+    { id: 'send_swatchbook', label: 'Send Swatch Book', icon: 'package', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'follow_up' } },
+    { id: 'send_press_test', label: 'Send Press Test Kit', icon: 'box', nextAction: { type: 'schedule_follow_up', daysUntil: 14, taskType: 'follow_up' } },
+    { id: 'call', label: 'Call Them', icon: 'phone', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
+    { id: 'linkedin', label: 'Connect on LinkedIn', icon: 'linkedin', nextAction: { type: 'schedule_follow_up', daysUntil: 7, taskType: 'follow_up' } },
+    { id: 'skip', label: 'Give More Time', icon: 'clock', nextAction: { type: 'no_action' } },
+    { id: 'lost', label: 'Mark as Lost', icon: 'x', nextAction: { type: 'mark_complete' } },
+  ],
 };
 
 const BUCKET_LABELS: Record<TaskBucket, string> = {
@@ -395,6 +412,9 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   lead_follow_up_nurture: 'Time to nurture this lead - send helpful info to build trust.',
   lead_follow_up_stale: 'Lead going cold - re-engage before they lose interest!',
   lead_follow_up_qualified: 'Qualified lead needs attention - keep the momentum going.',
+  // DRIP email task messages
+  drip_reply_urgent: '🔥 DRIP REPLY! They responded to your drip email - strike now while they\'re engaged!',
+  drip_stale_followup: '⏰ 10 days since your drip campaign ended with no response. Time to try something different!',
 };
 
 interface DataReadiness {
@@ -1444,6 +1464,13 @@ class SpotlightEngine {
   }
 
   private async findCallTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // PRIORITY 0: Check for DRIP email replies - HIGHEST PRIORITY
+    const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
+    const dripReplyTask = await this.findDripReplyTask(userId, customerSkippedIds);
+    if (dripReplyTask) {
+      return dripReplyTask;
+    }
+
     // PRIORITY 1: Check for hot/urgent leads first - they take precedence
     const skippedLeadIds = skippedIds
       .filter(id => id.startsWith('lead-'))
@@ -1467,8 +1494,7 @@ class SpotlightEngine {
       sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`,
     ];
     
-    // Filter out customer IDs (non-lead IDs)
-    const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
+    // Re-use customerSkippedIds from drip reply check above
     if (customerSkippedIds.length > 0) {
       conditions.push(notInArray(customers.id, customerSkippedIds));
     }
@@ -1506,8 +1532,271 @@ class SpotlightEngine {
     return null;
   }
 
+  // Find DRIP email replies - customers who replied to a drip campaign email
+  private async findDripReplyTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    try {
+      // Find drip emails sent in the last 30 days that have replies in Gmail
+      const thirtyDaysAgo = new Date();
+      thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+      
+      // Get drip emails sent to customers
+      const dripEmails = await db
+        .select({
+          stepStatusId: dripCampaignStepStatus.id,
+          assignmentId: dripCampaignStepStatus.assignmentId,
+          stepId: dripCampaignStepStatus.stepId,
+          sentAt: dripCampaignStepStatus.sentAt,
+          gmailMessageId: dripCampaignStepStatus.gmailMessageId,
+          customerId: dripCampaignAssignments.customerId,
+          campaignName: dripCampaigns.name,
+          stepName: dripCampaignSteps.name,
+          customer: {
+            id: customers.id,
+            company: customers.company,
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            email: customers.email,
+            phone: customers.phone,
+            address1: customers.address1,
+            address2: customers.address2,
+            city: customers.city,
+            province: customers.province,
+            zip: customers.zip,
+            country: customers.country,
+            website: customers.website,
+            salesRepId: customers.salesRepId,
+            salesRepName: customers.salesRepName,
+            pricingTier: customers.pricingTier,
+          },
+        })
+        .from(dripCampaignStepStatus)
+        .innerJoin(dripCampaignAssignments, eq(dripCampaignStepStatus.assignmentId, dripCampaignAssignments.id))
+        .innerJoin(dripCampaigns, eq(dripCampaignAssignments.campaignId, dripCampaigns.id))
+        .innerJoin(dripCampaignSteps, eq(dripCampaignStepStatus.stepId, dripCampaignSteps.id))
+        .innerJoin(customers, eq(dripCampaignAssignments.customerId, customers.id))
+        .where(and(
+          eq(dripCampaignStepStatus.status, 'sent'),
+          gte(dripCampaignStepStatus.sentAt, thirtyDaysAgo),
+          eq(customers.doNotContact, false),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+          ...(skippedIds.length > 0 ? [notInArray(customers.id, skippedIds)] : [])
+        ))
+        .orderBy(desc(dripCampaignStepStatus.sentAt))
+        .limit(50);
+      
+      // For each drip email, check if there's a reply in Gmail
+      for (const drip of dripEmails) {
+        if (!drip.customer.email) continue;
+        
+        // Check for inbound emails from this customer after the drip was sent
+        // Use stricter matching: reply must be within 14 days of drip and subject should indicate a reply
+        const fourteenDaysAfterDrip = new Date(drip.sentAt!);
+        fourteenDaysAfterDrip.setDate(fourteenDaysAfterDrip.getDate() + 14);
+        
+        const replies = await db
+          .select({ id: gmailMessages.id, subject: gmailMessages.subject, sentAt: gmailMessages.sentAt, threadId: gmailMessages.threadId })
+          .from(gmailMessages)
+          .where(and(
+            eq(gmailMessages.direction, 'inbound'),
+            eq(gmailMessages.customerId, drip.customer.id),
+            gt(gmailMessages.sentAt, drip.sentAt!),
+            lte(gmailMessages.sentAt, fourteenDaysAfterDrip),
+            // Subject should indicate a reply (starts with Re: or Fwd:)
+            or(
+              sql`LOWER(${gmailMessages.subject}) LIKE 're:%'`,
+              sql`LOWER(${gmailMessages.subject}) LIKE 'fwd:%'`
+            )
+          ))
+          .orderBy(desc(gmailMessages.sentAt))
+          .limit(1);
+        
+        if (replies.length > 0) {
+          // Check if we already handled this specific drip step's reply (check spotlight_events)
+          // Use specific step status ID to avoid re-surfacing the same drip->reply combination
+          const alreadyHandled = await db
+            .select({ id: spotlightEvents.id })
+            .from(spotlightEvents)
+            .where(and(
+              eq(spotlightEvents.customerId, drip.customer.id),
+              or(
+                // Check for this specific drip step being handled
+                sql`${spotlightEvents.taskId} LIKE ${'calls::drip_reply_' + drip.stepStatusId + '::%'}`,
+                // Also check for ANY drip reply task for this customer since the drip was sent
+                and(
+                  sql`${spotlightEvents.taskId} LIKE 'calls::drip_reply_%'`,
+                  gte(spotlightEvents.createdAt, drip.sentAt!)
+                )
+              )
+            ))
+            .limit(1);
+          
+          if (alreadyHandled.length === 0) {
+            const daysSinceReply = Math.floor((Date.now() - (replies[0].sentAt?.getTime() || 0)) / (1000 * 60 * 60 * 24));
+            const urgencyLabel = daysSinceReply === 0 ? '🔥 TODAY!' : daysSinceReply === 1 ? '⚡ Yesterday!' : `${daysSinceReply} days ago`;
+            
+            return {
+              id: `calls::drip_reply_${drip.stepStatusId}::${drip.customer.id}::drip_reply_urgent`,
+              customerId: drip.customer.id,
+              bucket: 'calls',
+              taskSubtype: 'drip_reply_urgent',
+              priority: 100, // Highest priority
+              whyNow: `🔥 DRIP REPLY (${urgencyLabel})! They replied to "${drip.campaignName}" - call them now!`,
+              outcomes: TASK_OUTCOMES.drip_reply_urgent,
+              customer: drip.customer,
+              context: {
+                campaignName: drip.campaignName,
+                stepName: drip.stepName,
+                replySubject: replies[0].subject || undefined,
+                repliedAt: replies[0].sentAt?.toISOString(),
+                sourceType: 'drip_reply',
+              },
+            };
+          }
+        }
+      }
+    } catch (error) {
+      console.error('[Spotlight] Error finding drip reply task:', error);
+    }
+    return null;
+  }
+
+  // Find stale DRIP campaigns - 10 days since last email with no response
+  private async findDripStaleFollowupTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    try {
+      const tenDaysAgo = new Date();
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+      const sixtyDaysAgo = new Date();
+      sixtyDaysAgo.setDate(sixtyDaysAgo.getDate() - 60);
+      
+      // Find completed or stale drip campaigns where the last email was sent 10+ days ago
+      const staleDripCustomers = await db
+        .select({
+          assignmentId: dripCampaignAssignments.id,
+          customerId: dripCampaignAssignments.customerId,
+          campaignName: dripCampaigns.name,
+          lastStepSentAt: sql<Date>`MAX(${dripCampaignStepStatus.sentAt})`.as('lastStepSentAt'),
+          totalStepsSent: sql<number>`COUNT(CASE WHEN ${dripCampaignStepStatus.status} = 'sent' THEN 1 END)`.as('totalStepsSent'),
+          customer: {
+            id: customers.id,
+            company: customers.company,
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            email: customers.email,
+            phone: customers.phone,
+            address1: customers.address1,
+            address2: customers.address2,
+            city: customers.city,
+            province: customers.province,
+            zip: customers.zip,
+            country: customers.country,
+            website: customers.website,
+            salesRepId: customers.salesRepId,
+            salesRepName: customers.salesRepName,
+            pricingTier: customers.pricingTier,
+          },
+        })
+        .from(dripCampaignAssignments)
+        .innerJoin(dripCampaigns, eq(dripCampaignAssignments.campaignId, dripCampaigns.id))
+        .innerJoin(customers, eq(dripCampaignAssignments.customerId, customers.id))
+        .leftJoin(dripCampaignStepStatus, eq(dripCampaignStepStatus.assignmentId, dripCampaignAssignments.id))
+        .where(and(
+          or(eq(dripCampaignAssignments.status, 'completed'), eq(dripCampaignAssignments.status, 'active')),
+          eq(customers.doNotContact, false),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+          ...(skippedIds.length > 0 ? [notInArray(customers.id, skippedIds)] : [])
+        ))
+        .groupBy(
+          dripCampaignAssignments.id, 
+          dripCampaignAssignments.customerId, 
+          dripCampaigns.name,
+          customers.id,
+          customers.company,
+          customers.firstName,
+          customers.lastName,
+          customers.email,
+          customers.phone,
+          customers.address1,
+          customers.address2,
+          customers.city,
+          customers.province,
+          customers.zip,
+          customers.country,
+          customers.website,
+          customers.salesRepId,
+          customers.salesRepName,
+          customers.pricingTier
+        )
+        .having(and(
+          lte(sql`MAX(${dripCampaignStepStatus.sentAt})`, tenDaysAgo),
+          gte(sql`MAX(${dripCampaignStepStatus.sentAt})`, sixtyDaysAgo)
+        ))
+        .orderBy(asc(sql`MAX(${dripCampaignStepStatus.sentAt})`))
+        .limit(10);
+      
+      for (const stale of staleDripCustomers) {
+        if (!stale.customer.email) continue;
+        
+        // Check if customer has replied since the drip was sent
+        const hasReplied = await db
+          .select({ id: gmailMessages.id })
+          .from(gmailMessages)
+          .where(and(
+            eq(gmailMessages.direction, 'inbound'),
+            eq(gmailMessages.customerId, stale.customer.id),
+            gt(gmailMessages.sentAt, stale.lastStepSentAt)
+          ))
+          .limit(1);
+        
+        if (hasReplied.length > 0) continue; // They replied, no need for creative follow-up
+        
+        // Check if we already handled this stale campaign
+        const alreadyHandled = await db
+          .select({ id: spotlightEvents.id })
+          .from(spotlightEvents)
+          .where(and(
+            eq(spotlightEvents.customerId, stale.customer.id),
+            sql`${spotlightEvents.taskId} LIKE 'follow_ups::drip_stale_%'`,
+            gte(spotlightEvents.createdAt, stale.lastStepSentAt)
+          ))
+          .limit(1);
+        
+        if (alreadyHandled.length === 0) {
+          const daysSinceLastEmail = Math.floor((Date.now() - (stale.lastStepSentAt?.getTime() || 0)) / (1000 * 60 * 60 * 24));
+          
+          return {
+            id: `follow_ups::drip_stale_${stale.assignmentId}::${stale.customer.id}::drip_stale_followup`,
+            customerId: stale.customer.id,
+            bucket: 'follow_ups',
+            taskSubtype: 'drip_stale_followup',
+            priority: 70,
+            whyNow: `⏰ ${daysSinceLastEmail} days since "${stale.campaignName}" ended - no response. Try something creative!`,
+            outcomes: TASK_OUTCOMES.drip_stale_followup,
+            customer: stale.customer,
+            context: {
+              campaignName: stale.campaignName,
+              lastEmailSentAt: stale.lastStepSentAt?.toISOString(),
+              emailsSent: stale.totalStepsSent,
+              daysSinceLastEmail,
+              sourceType: 'drip_stale',
+            },
+          };
+        }
+      }
+    } catch (error) {
+      console.error('[Spotlight] Error finding drip stale followup task:', error);
+    }
+    return null;
+  }
+
   private async findFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
     const now = new Date();
+    const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
+    
+    // PRIORITY 0: Check for stale DRIP campaigns - 10 days no response, creative follow-up options
+    const dripStaleTask = await this.findDripStaleFollowupTask(userId, customerSkippedIds);
+    if (dripStaleTask) {
+      return dripStaleTask;
+    }
     
     // PRIORITY 1: Check for high-priority Shopify quotes first (abandoned carts, draft orders)
     try {
