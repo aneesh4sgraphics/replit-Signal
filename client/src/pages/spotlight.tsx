@@ -2039,28 +2039,32 @@ export default function Spotlight() {
                   <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
                       <HelpCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-2">
+                      <div className="space-y-2 w-full">
                         <p className="text-sm font-medium text-blue-800">What type of customer is this?</p>
                         <p className="text-sm text-blue-700">
                           This helps us know what information to collect.
                         </p>
-                        <div className="bg-blue-100 rounded-lg p-3 mt-2">
-                          <div className="space-y-2">
-                            <div className="flex items-start gap-2">
-                              <span className="text-lg">🖨️</span>
-                              <div>
-                                <p className="text-xs font-medium text-blue-800">Printing Company</p>
-                                <p className="text-xs text-blue-600">Has printing equipment. We'll collect machine details for product recommendations.</p>
-                              </div>
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <button
+                            onClick={() => handleOutcome('printer')}
+                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <span className="text-3xl">🖨️</span>
+                            <div className="text-center">
+                              <p className="text-sm font-semibold text-blue-800">Printing Company</p>
+                              <p className="text-xs text-blue-600 mt-1">Has printing equipment</p>
                             </div>
-                            <div className="flex items-start gap-2">
-                              <span className="text-lg">🚚</span>
-                              <div>
-                                <p className="text-xs font-medium text-blue-800">Reseller / Distributor</p>
-                                <p className="text-xs text-blue-600">Buys products to sell to their customers. No machine details needed.</p>
-                              </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('reseller')}
+                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <span className="text-3xl">🚚</span>
+                            <div className="text-center">
+                              <p className="text-sm font-semibold text-blue-800">Reseller</p>
+                              <p className="text-xs text-blue-600 mt-1">Buys to resell</p>
                             </div>
-                          </div>
+                          </button>
                         </div>
                       </div>
                     </div>
