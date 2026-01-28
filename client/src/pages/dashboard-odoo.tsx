@@ -351,7 +351,9 @@ export default function Dashboard() {
                 </span>
               </div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '12px' }}>
-                {leaderboardData.users.map((repUser, index) => {
+                {leaderboardData.users
+                  .filter((u) => !u.display_name?.toLowerCase().includes('test'))
+                  .map((repUser, index) => {
                   const rank = index + 1;
                   return (
                     <div
