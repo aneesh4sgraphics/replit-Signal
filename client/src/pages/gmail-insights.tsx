@@ -1749,15 +1749,6 @@ export default function GmailInsightsPage() {
                     Emails that couldn't be matched to customers automatically. Link them manually to enable analysis.
                   </CardDescription>
                 </div>
-                <Button
-                  size="sm"
-                  onClick={() => manualSyncMutation.mutate()}
-                  disabled={manualSyncMutation.isPending}
-                  className="bg-[#875A7B] hover:bg-[#6d4863]"
-                >
-                  <Play className={`h-4 w-4 mr-2 ${manualSyncMutation.isPending ? 'animate-pulse' : ''}`} />
-                  {manualSyncMutation.isPending ? "Syncing..." : "Sync Now"}
-                </Button>
               </div>
             </CardHeader>
             <CardContent>
@@ -1894,15 +1885,6 @@ export default function GmailInsightsPage() {
                   >
                     <RefreshCw className={`h-4 w-4 mr-2 ${emailSyncStatusLoading ? 'animate-spin' : ''}`} />
                     Refresh
-                  </Button>
-                  <Button
-                    size="sm"
-                    onClick={() => manualSyncMutation.mutate()}
-                    disabled={manualSyncMutation.isPending}
-                    className="bg-[#875A7B] hover:bg-[#6d4863]"
-                  >
-                    <Play className={`h-4 w-4 mr-2 ${manualSyncMutation.isPending ? 'animate-pulse' : ''}`} />
-                    {manualSyncMutation.isPending ? "Running..." : "Run Full Sync"}
                   </Button>
                 </div>
               </div>
@@ -2052,11 +2034,7 @@ export default function GmailInsightsPage() {
                 <div className="py-12 text-center">
                   <AlertTriangle className="h-12 w-12 mx-auto text-amber-500 mb-4" />
                   <h3 className="text-lg font-medium mb-2">No sync data available</h3>
-                  <p className="text-muted-foreground mb-4">Run a sync to see debug information</p>
-                  <Button onClick={() => manualSyncMutation.mutate()} disabled={manualSyncMutation.isPending}>
-                    <Play className="h-4 w-4 mr-2" />
-                    Run Full Sync
-                  </Button>
+                  <p className="text-muted-foreground mb-4">Run a sync using the button above to see debug information</p>
                 </div>
               )}
             </CardContent>
@@ -2086,34 +2064,6 @@ export default function GmailInsightsPage() {
                   <RefreshCw className={`h-4 w-4 mr-2 ${salesEventsLoading ? 'animate-spin' : ''}`} />
                   Refresh
                 </Button>
-              </div>
-              
-              {/* Category Tabs */}
-              <div className="flex gap-1 mt-4 flex-wrap">
-                {[
-                  { id: 'all', label: 'All', icon: Mail },
-                  { id: 'urgent', label: 'Urgent', icon: Zap },
-                  { id: 'opportunities', label: 'Opportunities', icon: Target },
-                  { id: 'commitments', label: 'Commitments', icon: Handshake },
-                  { id: 'actions', label: 'Actions', icon: ListTodo },
-                  { id: 'feedback', label: 'Feedback', icon: MessageSquare },
-                ].map(cat => {
-                  const CatIcon = cat.icon;
-                  const count = cat.id === 'all' ? salesEvents?.total : getCategoryCount(cat.id);
-                  return (
-                    <Button
-                      key={cat.id}
-                      size="sm"
-                      variant={salesEventCategory === cat.id ? 'default' : 'outline'}
-                      onClick={() => setSalesEventCategory(cat.id)}
-                      className="gap-1"
-                    >
-                      <CatIcon className="h-3 w-3" />
-                      {cat.label}
-                      {count ? <Badge variant="secondary" className="ml-1 text-xs">{count}</Badge> : null}
-                    </Button>
-                  );
-                })}
               </div>
             </CardHeader>
             <CardContent>
@@ -2263,15 +2213,9 @@ export default function GmailInsightsPage() {
                   <h3 className="text-lg font-medium mb-2">No events in this category</h3>
                   <p className="text-muted-foreground mb-4">
                     {salesEventCategory === 'all' 
-                      ? "Run an email sync to detect sales signals."
+                      ? "Run a sync using the button above to detect sales signals."
                       : "No events match this category filter."}
                   </p>
-                  {salesEventCategory === 'all' && (
-                    <Button onClick={() => manualSyncMutation.mutate()} disabled={manualSyncMutation.isPending}>
-                      <Play className="h-4 w-4 mr-2" />
-                      Run Full Sync
-                    </Button>
-                  )}
                 </div>
               )}
             </CardContent>
