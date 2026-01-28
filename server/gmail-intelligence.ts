@@ -281,9 +281,10 @@ export async function syncGmailMessages(userId: string, userEmail: string, maxMe
         
         if (customer && !customer.salesRepId) {
           // Get user's name for salesRepName
-          const [user] = await db.execute(sql`
+          const userResult = await db.execute(sql`
             SELECT first_name, last_name, email FROM users WHERE id = ${userId} LIMIT 1
           `);
+          const user = userResult.rows?.[0] as any;
           const userName = user?.first_name && user?.last_name 
             ? `${user.first_name} ${user.last_name}` 
             : (user?.email || 'Unknown');

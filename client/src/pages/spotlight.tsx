@@ -567,7 +567,16 @@ export default function Spotlight() {
       }
     },
     onError: (error: any) => {
-      toast({ title: 'Failed to send', description: error?.message || 'Could not send email', variant: 'destructive' });
+      const errorMessage = error?.message || 'Could not send email';
+      const isConnectionError = errorMessage.toLowerCase().includes('not connected') || 
+                                 errorMessage.toLowerCase().includes('reconnect');
+      toast({ 
+        title: 'Failed to send', 
+        description: isConnectionError 
+          ? 'Gmail not connected. Please connect your Gmail in Settings to send emails.'
+          : errorMessage, 
+        variant: 'destructive' 
+      });
     },
   });
 
