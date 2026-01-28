@@ -154,6 +154,12 @@ Lead task outcomes automatically update lead records:
 - User options: Mark as Do Not Contact (recommended), Keep Active, or Investigate Later
 - Helps identify contacts who left the company or businesses that closed
 
+**Remind Me Again Today:**
+- Button in "What Happened" section allows reps to defer a task to later
+- Task is temporarily skipped but tracked in session.remindTodayTasks
+- Persisted in `spotlight_events` with event_type = 'remind_today' for cross-restart durability
+- Uses helper methods getRemindTodayTasks() and allowRemindTodayTask() for resurfacing
+
 ### 4. UI Design Pattern ("Pastel & Soft")
 - Cream background: `#FDFBF7`
 - Glassmorphism cards with soft shadows

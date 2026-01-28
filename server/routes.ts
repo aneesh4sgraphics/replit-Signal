@@ -2256,13 +2256,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
         ? `${req.user.firstName} ${req.user.lastName}` 
         : req.user?.email || 'Unknown';
 
-      // Validate request body
+      // Validate request body - either customerId or leadId
       const schema = z.object({
-        customerId: z.string(),
+        customerId: z.string().optional(),
+        leadId: z.number().optional(),
         labelType: z.enum(['swatch_book', 'press_test_kit', 'mailer', 'other']),
         otherDescription: z.string().optional(),
         quantity: z.number().int().positive().default(1),
         notes: z.string().optional(),
+      }).refine(data => data.customerId || data.leadId, {
+        message: "Either customerId or leadId is required"
       });
 
       const parsed = schema.safeParse(req.body);
@@ -2270,31 +2273,70 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Invalid request", details: parsed.error.errors });
       }
 
-      const { customerId, labelType, otherDescription, quantity, notes } = parsed.data;
+      const { customerId, leadId, labelType, otherDescription, quantity, notes } = parsed.data;
 
-      // Get customer for address info
-      const customer = await storage.getCustomer(customerId);
-      if (!customer) {
-        return res.status(404).json({ error: "Customer not found" });
+      // Get address info from customer or lead
+      let recipientName: string;
+      let addressData: {
+        address1?: string;
+        address2?: string;
+        city?: string;
+        province?: string;
+        country?: string;
+        zip?: string;
+      };
+      let finalCustomerId = customerId;
+
+      if (leadId) {
+        // Get lead for address info
+        const [lead] = await db.select().from(leads).where(eq(leads.id, leadId));
+        if (!lead) {
+          return res.status(404).json({ error: "Lead not found" });
+        }
+        recipientName = lead.name || lead.company || 'Lead';
+        addressData = {
+          address1: lead.street || '',
+          address2: lead.street2 || '',
+          city: lead.city || '',
+          province: lead.state || '',
+          country: lead.country || '',
+          zip: lead.zip || '',
+        };
+        finalCustomerId = `lead-${leadId}`;
+      } else if (customerId) {
+        // Get customer for address info
+        const customer = await storage.getCustomer(customerId);
+        if (!customer) {
+          return res.status(404).json({ error: "Customer not found" });
+        }
+        recipientName = customer.company || 
+          `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 
+          'Customer';
+        addressData = {
+          address1: customer.address1 || '',
+          address2: customer.address2 || '',
+          city: customer.city || '',
+          province: customer.province || '',
+          country: customer.country || '',
+          zip: customer.zip || '',
+        };
+        finalCustomerId = customerId;
+      } else {
+        return res.status(400).json({ error: "Either customerId or leadId is required" });
       }
-
-      // Determine recipient name
-      const recipientName = customer.company || 
-        `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 
-        'Customer';
 
       // Create label print record
       const [labelPrint] = await db.insert(labelPrints).values({
-        customerId,
+        customerId: finalCustomerId,
         labelType,
         otherDescription: labelType === 'other' ? otherDescription : null,
         quantity,
-        addressLine1: customer.address1 || '',
-        addressLine2: customer.address2 || '',
-        city: customer.city || '',
-        province: customer.province || '',
-        country: customer.country || '',
-        postalCode: customer.zip || '',
+        addressLine1: addressData.address1 || '',
+        addressLine2: addressData.address2 || '',
+        city: addressData.city || '',
+        province: addressData.province || '',
+        country: addressData.country || '',
+        postalCode: addressData.zip || '',
         printedByUserId: userId,
         printedByUserName: userName,
         notes,
@@ -2333,18 +2375,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
       doc.fontSize(11)
          .font('Helvetica');
 
-      if (customer.address1) {
-        doc.text(customer.address1.toUpperCase());
+      if (addressData.address1) {
+        doc.text(addressData.address1.toUpperCase());
       }
-      if (customer.address2) {
-        doc.text(customer.address2.toUpperCase());
+      if (addressData.address2) {
+        doc.text(addressData.address2.toUpperCase());
       }
 
       // City, Province/State, Postal Code
       const cityLine = [
-        customer.city,
-        customer.province,
-        customer.zip
+        addressData.city,
+        addressData.province,
+        addressData.zip
       ].filter(Boolean).join(', ').toUpperCase();
       
       if (cityLine) {
@@ -2352,8 +2394,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
 
       // Country (if not USA/Canada)
-      if (customer.country && !['US', 'USA', 'CA', 'CAN', 'Canada', 'United States'].includes(customer.country)) {
-        doc.text(customer.country.toUpperCase());
+      if (addressData.country && !['US', 'USA', 'CA', 'CAN', 'Canada', 'United States'].includes(addressData.country)) {
+        doc.text(addressData.country.toUpperCase());
       }
 
       doc.end();
@@ -22147,6 +22189,29 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     } catch (error) {
       console.error("[Spotlight] Error skipping task:", error);
       res.status(500).json({ error: "Failed to skip task" });
+    }
+  });
+
+  // Remind Me Again Today - reschedules task to end of day
+  app.post("/api/spotlight/remind-today", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const { taskId } = req.body;
+      if (!taskId) {
+        return res.status(400).json({ error: "taskId is required" });
+      }
+
+      // Mark as "remind_today" - this moves it to end of queue and tracks for EOD report
+      await spotlightEngine.remindToday(userId, taskId);
+      
+      res.json({ success: true });
+    } catch (error) {
+      console.error("[Spotlight] Error setting remind today:", error);
+      res.status(500).json({ error: "Failed to set reminder" });
     }
   });
 

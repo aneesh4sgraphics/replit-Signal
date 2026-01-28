@@ -172,6 +172,14 @@ export interface SpotlightSession {
   warmupShown: boolean;
   energyCheckShown: boolean;
   recapShown: boolean;
+  // Remind Me Again Today tracking
+  remindTodayTasks?: {
+    taskId: string;
+    customerId: string;
+    bucket: TaskBucket;
+    subtype: string;
+    remindedAt: Date;
+  }[];
 }
 
 const DAILY_QUOTAS: Record<TaskBucket, number> = {
@@ -3476,6 +3484,103 @@ class SpotlightEngine {
     await this.releaseClaim(userId);
 
     console.log(`[Spotlight] User ${userId} skipped task ${taskId}: ${reason}`);
+  }
+
+  /**
+   * Remind Me Again Today - defers task to end of day
+   * The task will be temporarily skipped but tracked for later reappearance
+   * Uses spotlight_events with 'remind_today' event_type to persist across restarts
+   */
+  async remindToday(userId: string, taskId: string): Promise<void> {
+    const session = this.getSession(userId);
+    
+    let customerId: string;
+    let bucket: TaskBucket;
+    let subtype: string;
+    
+    if (taskId.includes('::')) {
+      const parts = taskId.split('::');
+      bucket = parts[0] as TaskBucket;
+      if (parts.length === 4) {
+        if (parts[1] === 'lead') {
+          customerId = `lead-${parts[2]}`;
+          subtype = parts[3];
+        } else {
+          customerId = parts[2];
+          subtype = parts[3];
+        }
+      } else {
+        customerId = parts[1];
+        subtype = parts[2];
+      }
+    } else {
+      const parts = taskId.split('_');
+      bucket = parts[0] as TaskBucket;
+      customerId = parts[1];
+      subtype = parts.slice(2).join('_');
+    }
+
+    // Add to skipped list so it moves to end of queue for now
+    // But we'll also track it as remind_today so getNextTask can resurface it later
+    if (!session.skippedCustomerIds.includes(customerId)) {
+      session.skippedCustomerIds.push(customerId);
+    }
+
+    // Track in session for in-memory end-of-day reappearance
+    if (!session.remindTodayTasks) {
+      session.remindTodayTasks = [];
+    }
+    session.remindTodayTasks.push({
+      taskId,
+      customerId,
+      bucket,
+      subtype,
+      remindedAt: new Date(),
+    });
+
+    const now = new Date();
+    const today = now.toISOString().split('T')[0]; // YYYY-MM-DD
+    
+    // Persist to DB for cross-restart durability and next-day priority
+    try {
+      await db.insert(spotlightEvents).values({
+        eventType: 'remind_today',
+        userId,
+        customerId,
+        bucket,
+        taskSubtype: subtype,
+        skipReason: `remind_today::${today}`, // Include date for next-day tracking
+        dayOfWeek: now.getDay(),
+        hourOfDay: now.getHours(),
+      });
+    } catch (e) {
+      console.error('[Spotlight] Failed to log remind_today event:', e);
+    }
+
+    await this.releaseClaim(userId);
+
+    console.log(`[Spotlight] User ${userId} set remind today for task ${taskId}`);
+  }
+
+  /**
+   * Get tasks that were marked "Remind Me Again Today" - for EOD surfacing
+   * Returns tasks that should reappear at end of current session
+   */
+  getRemindTodayTasks(userId: string): Array<{taskId: string; customerId: string; bucket: TaskBucket; subtype: string; remindedAt: Date}> {
+    const session = this.getSession(userId);
+    return session.remindTodayTasks || [];
+  }
+
+  /**
+   * Clear a remind-today task from skipped list so it can resurface
+   * Call this when serving remind-today tasks at end of day
+   */
+  allowRemindTodayTask(userId: string, customerId: string): void {
+    const session = this.getSession(userId);
+    const idx = session.skippedCustomerIds.indexOf(customerId);
+    if (idx >= 0) {
+      session.skippedCustomerIds.splice(idx, 1);
+    }
   }
 
   /**

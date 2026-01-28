@@ -496,17 +496,21 @@ export default function Spotlight() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Fetch machine profiles for current customer
+  // Fetch machine profiles for current customer (not for leads)
   const customerId = currentTask?.task?.customer?.id;
+  const isLeadTask = currentTask?.task?.isLeadTask || customerId?.startsWith('lead-');
+  const leadId = currentTask?.task?.leadId || (isLeadTask && customerId ? parseInt(customerId.replace('lead-', '')) : null);
+  
   const { data: customerMachines = [] } = useQuery<{ id: number; machineFamily: string; confirmed: boolean }[]>({
     queryKey: ['/api/crm/machine-profiles', customerId],
     queryFn: async () => {
-      if (!customerId) return [];
+      // Skip machine profiles for lead tasks - leads don't have machine profiles
+      if (!customerId || isLeadTask) return [];
       const res = await fetch(`/api/crm/machine-profiles/${customerId}`, { credentials: 'include' });
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!customerId,
+    enabled: !!customerId && !isLeadTask,
     staleTime: 60 * 1000,
   });
 
@@ -516,10 +520,11 @@ export default function Spotlight() {
     staleTime: 5 * 60 * 1000,
   });
 
-  // Add machine mutation
+  // Add machine mutation (not available for leads)
   const addMachineMutation = useMutation({
     mutationFn: async (machineFamily: string) => {
       if (!customerId) throw new Error('No customer selected');
+      if (isLeadTask) throw new Error('Machine profiles are not available for leads. Convert to customer first.');
       return apiRequest('POST', '/api/crm/machine-profiles', { customerId, machineFamily, status: 'confirmed', source: 'spotlight' });
     },
     onSuccess: () => {
@@ -527,8 +532,8 @@ export default function Spotlight() {
       setShowAddMachine(false);
       toast({ title: 'Machine added', description: 'Customer machine profile updated' });
     },
-    onError: () => {
-      toast({ title: 'Error', description: 'Failed to add machine', variant: 'destructive' });
+    onError: (error: any) => {
+      toast({ title: 'Error', description: error?.message || 'Failed to add machine', variant: 'destructive' });
     },
   });
 
@@ -582,8 +587,10 @@ export default function Spotlight() {
 
   const printLabelMutation = useMutation({
     mutationFn: async (data: { labelType: string; otherDescription?: string; quantity: number; notes?: string }) => {
+      // For leads, pass leadId instead of customerId
       const res = await apiRequest('POST', '/api/labels/print', {
-        customerId,
+        customerId: isLeadTask ? undefined : customerId,
+        leadId: isLeadTask ? leadId : undefined,
         labelType: data.labelType,
         otherDescription: data.otherDescription,
         quantity: data.quantity,
@@ -686,6 +693,20 @@ export default function Spotlight() {
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
       toast({ title: "Skipped", description: "Moving to next moment..." });
+    },
+  });
+
+  const remindTodayMutation = useMutation({
+    mutationFn: async (data: { taskId: string }) => {
+      const res = await apiRequest('POST', '/api/spotlight/remind-today', data);
+      return res.json();
+    },
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
+      toast({ title: "Reminder set", description: "This will come up again at end of day" });
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Failed to set reminder", variant: "destructive" });
     },
   });
 
@@ -1602,8 +1623,8 @@ export default function Spotlight() {
               </div>
             )}
 
-            {/* Main Customer/Lead Card - V0 Style */}
-            <div className={`spotlight-card p-6 mb-4 ${task.isLeadTask ? 'ring-2 ring-emerald-400 bg-gradient-to-br from-emerald-50 to-white' : ''}`}>
+            {/* Main Customer/Lead Card - V0 Style - Green for Leads */}
+            <div className={`spotlight-card p-6 mb-4 ${task.isLeadTask ? 'ring-2 ring-emerald-500 bg-gradient-to-br from-emerald-100 via-emerald-50 to-green-50 shadow-emerald-100' : ''}`}>
               {/* Lead Badge - shown only for lead tasks */}
               {task.isLeadTask && (
                 <div className="flex items-center gap-2 mb-3">
@@ -2121,6 +2142,14 @@ export default function Spotlight() {
                       disabled={skipMutation.isPending}
                     >
                       Skip
+                    </button>
+                    <button 
+                      className="text-sm font-medium text-amber-500 hover:text-amber-700 px-4 py-2 rounded-lg transition flex items-center gap-1"
+                      onClick={() => remindTodayMutation.mutate({ taskId: task.id })}
+                      disabled={remindTodayMutation.isPending}
+                    >
+                      <Clock className="w-4 h-4" />
+                      Remind Me Again Today
                     </button>
                     {customer.email && (
                       <button 
