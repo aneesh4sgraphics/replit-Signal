@@ -786,12 +786,19 @@ export default function Spotlight() {
   };
 
   const fixDataMutation = useMutation({
-    mutationFn: async (data: { customerId: string; updates: Record<string, string> }) => {
+    mutationFn: async (data: { customerId?: string; leadId?: number; updates: Record<string, string> }) => {
+      // For lead tasks, update the lead record instead of customer
+      if (data.leadId) {
+        const res = await apiRequest('PUT', `/api/leads/${data.leadId}`, data.updates);
+        return res.json();
+      }
+      // For regular customer tasks
       const res = await apiRequest('PUT', `/api/customers/${data.customerId}`, data.updates);
       return res.json();
     },
     onSuccess: () => {
-      toast({ title: "Data updated", description: "Customer information has been updated." });
+      const isLead = currentTask?.task?.isLeadTask;
+      toast({ title: "Data updated", description: `${isLead ? 'Lead' : 'Customer'} information has been updated.` });
       setShowFixDataModal(false);
       setFixDataFields({ email: '', pricingTier: '', salesRepId: '' });
       setAvailableEmails([]);
@@ -807,21 +814,28 @@ export default function Spotlight() {
       }
     },
     onError: () => {
-      toast({ title: "Error", description: "Failed to update customer data", variant: "destructive" });
+      const isLead = currentTask?.task?.isLeadTask;
+      toast({ title: "Error", description: `Failed to update ${isLead ? 'lead' : 'customer'} data`, variant: "destructive" });
     },
   });
 
   const handleFixData = async (missingFields: string[]) => {
     setMissingFieldsToFix(missingFields);
     const customer = currentTask?.task?.customer;
+    const lead = currentTask?.task?.lead;
     const customerId = currentTask?.task?.customerId;
+    const isLeadTask = currentTask?.task?.isLeadTask || customerId?.startsWith('lead-');
     
-    // Collect emails from customer
+    // Collect emails from customer or lead
     const emails: string[] = [];
-    if (customer?.email) emails.push(customer.email);
+    if (isLeadTask && lead?.email) {
+      emails.push(lead.email);
+    } else if (customer?.email) {
+      emails.push(customer.email);
+    }
     
-    // Fetch contacts to get additional emails
-    if (customerId) {
+    // Fetch contacts to get additional emails (only for customers, not leads)
+    if (customerId && !isLeadTask) {
       try {
         const res = await fetch(`/api/customers/${customerId}/contacts`);
         if (res.ok) {
@@ -838,11 +852,20 @@ export default function Spotlight() {
     }
     
     setAvailableEmails(emails);
-    setFixDataFields({
-      email: customer?.email || '',
-      pricingTier: customer?.pricingTier || '',
-      salesRepId: customer?.salesRepId || '',
-    });
+    // Use lead data for lead tasks, customer data for customer tasks
+    if (isLeadTask && lead) {
+      setFixDataFields({
+        email: lead.email || '',
+        pricingTier: lead.pricingTier || '',
+        salesRepId: lead.salesRepId || '',
+      });
+    } else {
+      setFixDataFields({
+        email: customer?.email || '',
+        pricingTier: customer?.pricingTier || '',
+        salesRepId: customer?.salesRepId || '',
+      });
+    }
     setShowFixDataModal(true);
   };
 
@@ -864,7 +887,13 @@ export default function Spotlight() {
       }
     }
     if (Object.keys(updates).length > 0) {
-      fixDataMutation.mutate({ customerId: currentTask.task.customerId, updates });
+      // For lead tasks, update the lead instead of the customer
+      const isLeadTask = currentTask.task.isLeadTask || currentTask.task.customerId?.startsWith('lead-');
+      if (isLeadTask && currentTask.task.leadId) {
+        fixDataMutation.mutate({ leadId: currentTask.task.leadId, updates });
+      } else if (!isLeadTask && currentTask.task.customerId) {
+        fixDataMutation.mutate({ customerId: currentTask.task.customerId, updates });
+      }
     }
   };
 
