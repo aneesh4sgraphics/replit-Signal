@@ -1136,14 +1136,21 @@ export default function Spotlight() {
     skipMutation.mutate({ taskId: currentTask.task.id, reason: 'not_now' });
   };
 
-  // Open email composer with customer's email prefilled
+  // Open email composer with customer's or lead's email prefilled
   const handleOpenEmailComposer = () => {
     const customer = currentTask?.task?.customer;
-    if (customer?.email) {
-      setEmailTo(customer.email);
+    const lead = currentTask?.task?.lead;
+    const isLeadTask = currentTask?.task?.isLeadTask;
+    
+    // Use lead email for lead tasks, otherwise customer email
+    const emailAddress = isLeadTask ? (lead?.email || customer?.email) : customer?.email;
+    if (emailAddress) {
+      setEmailTo(emailAddress);
     }
-    // Pre-fill subject with customer/company name if available
-    const customerName = customer?.company || [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || '';
+    // Pre-fill subject with customer/company/lead name if available
+    const customerName = isLeadTask 
+      ? (lead?.name || lead?.company || customer?.company || '')
+      : (customer?.company || [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || '');
     if (customerName) {
       setEmailSubject(`Following up - ${customerName}`);
     }
@@ -1403,6 +1410,10 @@ export default function Spotlight() {
   const BucketIcon = bucketInfo.icon;
   const customer = task.customer;
   const customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Unknown Client';
+  
+  // For Lead tasks, use lead data for email/address; for customers use customer data
+  const effectiveEmail = task.isLeadTask ? (task.lead?.email || customer.email) : customer.email;
+  const effectiveAddress = task.isLeadTask ? (task.lead?.address || customer.address1) : customer.address1;
   
   // Calculate remaining for the day
   const remaining = (session?.totalTarget || 30) - (session?.totalCompleted || 0);
@@ -1737,11 +1748,13 @@ export default function Spotlight() {
                   )}
                 </div>
 
-                {/* Machines Box */}
+                {/* Machines Box - Only for customers, not leads */}
                 <div className="bg-white border border-slate-200 rounded-xl p-3">
                   <p className="text-sm font-semibold text-slate-700 mb-2">Machines</p>
                   <div className="flex flex-wrap gap-1.5">
-                    {customerMachines.length > 0 ? (
+                    {task.isLeadTask ? (
+                      <span className="text-xs text-slate-400 italic">Convert to customer to add machines</span>
+                    ) : customerMachines.length > 0 ? (
                       customerMachines.map((m) => (
                         <Badge key={m.id} variant="outline" className="text-xs bg-slate-50">
                           {m.machineFamily}
@@ -1750,32 +1763,34 @@ export default function Spotlight() {
                     ) : (
                       <span className="text-xs text-slate-400">No machines on file</span>
                     )}
-                    {showAddMachine ? (
-                      <Select
-                        onValueChange={(value) => {
-                          addMachineMutation.mutate(value);
-                        }}
-                        disabled={addMachineMutation.isPending}
-                      >
-                        <SelectTrigger className="h-6 w-32 text-xs">
-                          <SelectValue placeholder="Select..." />
-                        </SelectTrigger>
-                        <SelectContent>
-                          {machineTypes.map((mt) => (
-                            <SelectItem key={mt.code} value={mt.code} className="text-xs">
-                              {mt.label}
-                            </SelectItem>
-                          ))}
-                        </SelectContent>
-                      </Select>
-                    ) : (
-                      <Badge 
-                        variant="outline" 
-                        className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100"
-                        onClick={() => setShowAddMachine(true)}
-                      >
-                        + Add
-                      </Badge>
+                    {!task.isLeadTask && (
+                      showAddMachine ? (
+                        <Select
+                          onValueChange={(value) => {
+                            addMachineMutation.mutate(value);
+                          }}
+                          disabled={addMachineMutation.isPending}
+                        >
+                          <SelectTrigger className="h-6 w-32 text-xs">
+                            <SelectValue placeholder="Select..." />
+                          </SelectTrigger>
+                          <SelectContent>
+                            {machineTypes.map((mt) => (
+                              <SelectItem key={mt.code} value={mt.code} className="text-xs">
+                                {mt.label}
+                              </SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      ) : (
+                        <Badge 
+                          variant="outline" 
+                          className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100"
+                          onClick={() => setShowAddMachine(true)}
+                        >
+                          + Add
+                        </Badge>
+                      )
                     )}
                   </div>
                 </div>
@@ -1783,9 +1798,12 @@ export default function Spotlight() {
 
               {/* View Map, Tier Badge, Rep Row */}
               <div className="flex items-center gap-4 mb-4 text-sm">
-                {customer.address1 && (
+                {effectiveAddress && (
                   <a 
-                    href={`https://maps.google.com/?q=${encodeURIComponent(`${customer.address1}, ${customer.city || ''} ${customer.province || ''} ${customer.zip || ''}`)}`}
+                    href={task.isLeadTask && task.lead?.city
+                      ? `https://maps.google.com/?q=${encodeURIComponent(`${task.lead.address || ''}, ${task.lead.city || ''} ${task.lead.state || ''} ${task.lead.zip || ''}`)}`
+                      : `https://maps.google.com/?q=${encodeURIComponent(`${customer.address1}, ${customer.city || ''} ${customer.province || ''} ${customer.zip || ''}`)}`
+                    }
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex items-center gap-1 text-slate-600 hover:text-blue-600"
@@ -2151,7 +2169,7 @@ export default function Spotlight() {
                       <Clock className="w-4 h-4" />
                       Remind Me Again Today
                     </button>
-                    {customer.email && (
+                    {effectiveEmail && (
                       <button 
                         className="text-sm font-medium text-blue-500 hover:text-blue-700 px-4 py-2 rounded-lg transition flex items-center gap-1"
                         onClick={handleOpenEmailComposer}
@@ -2160,7 +2178,7 @@ export default function Spotlight() {
                         Compose
                       </button>
                     )}
-                    {customer.address1 && (
+                    {effectiveAddress && (
                       <button 
                         className="text-sm font-medium text-purple-500 hover:text-purple-700 px-4 py-2 rounded-lg transition flex items-center gap-1"
                         onClick={() => setShowPrintLabel(true)}
@@ -2175,7 +2193,7 @@ export default function Spotlight() {
                     >
                       Bad Fit
                     </button>
-                    {task.customerId && (
+                    {task.customerId && !task.isLeadTask && (
                       <button 
                         className="text-sm font-medium text-emerald-500 hover:text-emerald-700 px-4 py-2 rounded-lg transition flex items-center gap-1"
                         onClick={() => assignAsLeadMutation.mutate({ customerId: task.customerId, taskId: task.id })}
@@ -3325,17 +3343,31 @@ export default function Spotlight() {
               />
             </div>
 
-            {/* Address Preview */}
+            {/* Address Preview - Use lead data for lead tasks */}
             <div className="bg-gray-50 rounded-lg p-4 border">
               <p className="text-xs text-gray-500 mb-2">Shipping To:</p>
-              <p className="font-semibold">{customer?.company || `${customer?.firstName} ${customer?.lastName}`.trim()}</p>
-              {customer?.address1 && <p className="text-sm text-gray-700">{customer.address1}</p>}
-              {customer?.address2 && <p className="text-sm text-gray-700">{customer.address2}</p>}
-              <p className="text-sm text-gray-700">
-                {[customer?.city, customer?.province, customer?.zip].filter(Boolean).join(', ')}
-              </p>
-              {customer?.country && !['US', 'USA', 'CA', 'CAN'].includes(customer.country) && (
-                <p className="text-sm text-gray-700">{customer.country}</p>
+              {task?.isLeadTask && task?.lead ? (
+                <>
+                  <p className="font-semibold">{task.lead.company || task.lead.name || 'Lead'}</p>
+                  {task.lead.address && <p className="text-sm text-gray-700">{task.lead.address}</p>}
+                  {task.lead.city && (
+                    <p className="text-sm text-gray-700">
+                      {[task.lead.city, task.lead.state, task.lead.zip].filter(Boolean).join(', ')}
+                    </p>
+                  )}
+                </>
+              ) : (
+                <>
+                  <p className="font-semibold">{customer?.company || `${customer?.firstName} ${customer?.lastName}`.trim()}</p>
+                  {customer?.address1 && <p className="text-sm text-gray-700">{customer.address1}</p>}
+                  {customer?.address2 && <p className="text-sm text-gray-700">{customer.address2}</p>}
+                  <p className="text-sm text-gray-700">
+                    {[customer?.city, customer?.province, customer?.zip].filter(Boolean).join(', ')}
+                  </p>
+                  {customer?.country && !['US', 'USA', 'CA', 'CAN'].includes(customer.country) && (
+                    <p className="text-sm text-gray-700">{customer.country}</p>
+                  )}
+                </>
               )}
             </div>
           </div>
