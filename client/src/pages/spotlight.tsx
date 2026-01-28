@@ -2396,16 +2396,18 @@ export default function Spotlight() {
               <Trash2 className="w-5 h-5" />
               Delete Customer?
             </AlertDialogTitle>
-            <AlertDialogDescription className="space-y-2">
-              <p>
-                <span className="font-medium text-gray-900">
-                  {customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'This customer'}
+            <AlertDialogDescription asChild>
+              <div className="space-y-2">
+                <span className="block">
+                  <span className="font-medium text-gray-900">
+                    {customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'This customer'}
+                  </span>
+                  {customer?.email && <span className="text-gray-500 ml-1">({customer.email})</span>}
                 </span>
-                {customer?.email && <span className="text-gray-500 ml-1">({customer.email})</span>}
-              </p>
-              <p className="text-amber-600">
-                This action cannot be undone. The customer will be permanently removed and blocked from future imports.
-              </p>
+                <span className="block text-amber-600">
+                  This action cannot be undone. The customer will be permanently removed and blocked from future imports.
+                </span>
+              </div>
             </AlertDialogDescription>
           </AlertDialogHeader>
           <AlertDialogFooter>
@@ -2483,19 +2485,21 @@ export default function Spotlight() {
               <UserCog className="w-5 h-5 text-blue-500" />
               Update Missing Data
             </DialogTitle>
-            <DialogDescription className="space-y-1">
-              <div className="font-medium text-gray-900">
-                {customer?.company || customer?.firstName || 'Unknown'}
+            <DialogDescription asChild>
+              <div className="space-y-1">
+                <span className="font-medium text-gray-900 block">
+                  {customer?.company || customer?.firstName || 'Unknown'}
+                </span>
+                {customer?.email && (
+                  <a 
+                    href={`mailto:${customer.email}`}
+                    className="text-sm text-primary hover:underline block"
+                  >
+                    {customer.email}
+                  </a>
+                )}
+                <span className="text-gray-400 mt-1 block">Fill in the missing information to improve data quality.</span>
               </div>
-              {customer?.email && (
-                <a 
-                  href={`mailto:${customer.email}`}
-                  className="text-sm text-primary hover:underline block"
-                >
-                  {customer.email}
-                </a>
-              )}
-              <div className="text-gray-400 mt-1">Fill in the missing information to improve data quality.</div>
             </DialogDescription>
           </DialogHeader>
           
