@@ -309,5 +309,31 @@ export async function sendEmailAsUser(userId: string, to: string, subject: strin
   
   console.log('[User Gmail] Email sent successfully, messageId:', result.data.id);
   
+  // Explicitly ensure the email has SENT label (some OAuth configurations may not do this automatically)
+  if (result.data.id) {
+    try {
+      // Check if SENT label is already present
+      const messageDetails = await gmail.users.messages.get({
+        userId: 'me',
+        id: result.data.id!
+      });
+      
+      const currentLabels = messageDetails.data.labelIds || [];
+      if (!currentLabels.includes('SENT')) {
+        await gmail.users.messages.modify({
+          userId: 'me',
+          id: result.data.id!,
+          requestBody: {
+            addLabelIds: ['SENT']
+          }
+        });
+        console.log('[User Gmail] Added SENT label to message:', result.data.id);
+      }
+    } catch (labelError) {
+      // Non-critical - just log the error, email was still sent successfully
+      console.warn('[User Gmail] Could not verify/add SENT label:', labelError);
+    }
+  }
+  
   return result.data;
 }
