@@ -1571,7 +1571,7 @@ export default function Spotlight() {
                         <span className={`text-sm ${style.textColor}`}>{hint.message}</span>
                       </div>
                       <div className="flex items-center gap-2">
-                        {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && (
+                        {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && !task.isLeadTask && !customer.id?.startsWith('lead-') && (
                           <Button
                             size="sm"
                             variant="outline"
@@ -1602,17 +1602,20 @@ export default function Spotlight() {
                             {hint.ctaLabel}
                           </Button>
                         )}
-                        {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && (
+                        {hint.ctaAction === 'view_duplicate' && hint.metadata?.duplicateIds?.[0] && !task.isLeadTask && !customer.id?.startsWith('lead-') && (
                           <Button
                             size="sm"
                             variant="ghost"
                             className="text-xs text-purple-600 hover:text-purple-700 hover:bg-purple-50 rounded-full"
                             onClick={() => {
-                              doNotMergeMutation.mutate({ 
-                                customerId1: customer.id, 
-                                customerId2: hint.metadata?.duplicateIds?.[0],
-                                taskId: task.id
-                              });
+                              const duplicateId = hint.metadata?.duplicateIds?.[0];
+                              if (duplicateId && customer.id) {
+                                doNotMergeMutation.mutate({ 
+                                  customerId1: customer.id, 
+                                  customerId2: duplicateId,
+                                  taskId: task.id
+                                });
+                              }
                             }}
                             disabled={doNotMergeMutation.isPending || completeMutation.isPending}
                           >

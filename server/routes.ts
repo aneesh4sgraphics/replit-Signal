@@ -4394,6 +4394,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: "Both targetId and sourceId are required" });
       }
       
+      // Reject lead-prefixed IDs - leads don't use the customer merge system
+      if (targetId.startsWith('lead-') || sourceId.startsWith('lead-')) {
+        return res.status(400).json({ error: "Cannot merge leads. This feature is only for customer duplicates." });
+      }
+      
       const targetCustomer = await storage.getCustomer(targetId);
       const sourceCustomer = await storage.getCustomer(sourceId);
       
@@ -4587,6 +4592,11 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       if (!customerId1 || !customerId2) {
         return res.status(400).json({ error: "Both customerId1 and customerId2 are required" });
+      }
+      
+      // Reject lead-prefixed IDs - leads don't use the customer merge system
+      if (customerId1.startsWith('lead-') || customerId2.startsWith('lead-')) {
+        return res.status(400).json({ error: "Cannot mark leads as do-not-merge. This feature is only for customer duplicates." });
       }
       
       // Sort IDs to ensure consistent ordering (smaller ID first)
