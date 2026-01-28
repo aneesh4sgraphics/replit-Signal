@@ -939,7 +939,46 @@ export default function Spotlight() {
 
   const handleOpenMergeModal = async (duplicateIds: string[], currentCustomerId: string) => {
     try {
-      // Fetch both customers' data
+      // Check if this is a lead task (customer ID starts with 'lead-')
+      const isLeadTask = currentCustomerId.startsWith('lead-');
+      
+      if (isLeadTask) {
+        // For leads, the current customer doesn't exist in customers table
+        // Fetch only the duplicate customer, and use task.customer data for current
+        const duplicateRes = await fetch(`/api/customers/${duplicateIds[0]}`);
+        
+        if (!duplicateRes.ok) {
+          throw new Error('Failed to fetch customer data');
+        }
+        
+        const duplicateCustomer = await duplicateRes.json();
+        
+        // Get current lead's customer data from current task
+        const currentCustomer = currentTask?.task?.customer || {};
+        
+        // Collect all unique emails from both
+        const allEmails: string[] = [];
+        if (currentCustomer.email) allEmails.push(currentCustomer.email);
+        if (duplicateCustomer.email) allEmails.push(duplicateCustomer.email);
+        if (duplicateCustomer.email2) allEmails.push(duplicateCustomer.email2);
+        const uniqueEmails = [...new Set(allEmails.filter((e: string) => e && e.trim()))];
+        
+        setMergeData({
+          sourceCustomer: { ...currentCustomer, isLead: true },
+          targetCustomer: duplicateCustomer,
+          duplicateIds,
+        });
+        setMergeTarget(duplicateIds[0]); // Default to keeping the duplicate as primary
+        setMergeFieldSelections({});
+        setMergeEmailSelections({
+          primary: uniqueEmails[0] || '',
+          secondary: uniqueEmails[1] || ''
+        });
+        setShowMergeModal(true);
+        return;
+      }
+      
+      // Regular customer merge flow
       const [currentRes, duplicateRes] = await Promise.all([
         fetch(`/api/customers/${currentCustomerId}`),
         fetch(`/api/customers/${duplicateIds[0]}`)
@@ -974,6 +1013,7 @@ export default function Spotlight() {
       });
       setShowMergeModal(true);
     } catch (error) {
+      console.error('[Merge] Error loading customer data:', error);
       toast({
         title: "Error",
         description: "Could not load customer data for merge",
