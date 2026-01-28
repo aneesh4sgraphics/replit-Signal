@@ -2790,6 +2790,40 @@ export const insertGmailUnmatchedEmailSchema = createInsertSchema(gmailUnmatched
 export type GmailUnmatchedEmail = typeof gmailUnmatchedEmails.$inferSelect;
 export type InsertGmailUnmatchedEmail = z.infer<typeof insertGmailUnmatchedEmailSchema>;
 
+// Bounced Email Detection - tracks emails that bounced for hygiene tasks
+export const bouncedEmails = pgTable("bounced_emails", {
+  id: serial("id").primaryKey(),
+  bouncedEmail: varchar("bounced_email", { length: 255 }).notNull(),
+  bouncedEmailNormalized: varchar("bounced_email_normalized", { length: 255 }).notNull(),
+  bounceSubject: varchar("bounce_subject", { length: 500 }),
+  bounceDate: timestamp("bounce_date").notNull(),
+  bounceReason: text("bounce_reason"),
+  gmailMessageId: varchar("gmail_message_id", { length: 100 }).notNull(),
+  detectedBy: varchar("detected_by").notNull(),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "set null" }),
+  contactId: integer("contact_id").references(() => customerContacts.id, { onDelete: "set null" }),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "set null" }),
+  matchType: varchar("match_type", { length: 20 }),
+  status: varchar("status", { length: 20 }).default("pending"),
+  resolvedAt: timestamp("resolved_at"),
+  resolvedBy: varchar("resolved_by"),
+  resolution: varchar("resolution", { length: 50 }),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_bounced_emails_email_normalized").on(table.bouncedEmailNormalized),
+  index("IDX_bounced_emails_gmail_message_id").on(table.gmailMessageId),
+  index("IDX_bounced_emails_status").on(table.status),
+  index("IDX_bounced_emails_customer_id").on(table.customerId),
+  index("IDX_bounced_emails_lead_id").on(table.leadId),
+]);
+
+export const insertBouncedEmailSchema = createInsertSchema(bouncedEmails).omit({
+  id: true,
+  createdAt: true,
+});
+export type BouncedEmail = typeof bouncedEmails.$inferSelect;
+export type InsertBouncedEmail = z.infer<typeof insertBouncedEmailSchema>;
+
 // Email Sales Events - rule-based extracted events from emails
 export const EMAIL_SALES_EVENT_TYPES = [
   'po',                 // Purchase Orders - customer placing/confirming orders
