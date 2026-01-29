@@ -179,6 +179,16 @@ SPOTLIGHT automatically surfaces drip campaign follow-ups:
 - Both task types check `spotlight_events` to prevent re-surfacing handled tasks
 - Detection uses stricter matching to avoid false positives (subject line matching, time windows)
 
+**Differentiated Task Cards:**
+Tasks display with source-specific styling to help reps mentally switch contexts:
+- **Email tasks** (pricing_samples_followup, unreplied_email): White card with red left border, Gmail icon, "Open in Gmail" button linking directly to the message, "Remind Later" button
+- **Drip reply tasks** (drip_reply_urgent): Amber/orange pulsing gradient with flame icon and "Call Now!" badge
+- **Drip stale tasks** (drip_stale_followup): Purple/indigo gradient with clock icon for creative follow-up prompts
+- **Lead tasks**: Emerald/teal gradient with stage badges and priority indicators
+- **Default tasks**: Blue gradient for standard tasks
+
+The "Remind Me Later" feature allows reps to postpone email follow-ups by 1-30 days, creating a scheduled follow-up task.
+
 ### 4. UI Design Pattern ("Pastel & Soft")
 - Cream background: `#FDFBF7`
 - Glassmorphism cards with soft shadows
