@@ -464,6 +464,64 @@ class SpotlightEngine {
     }
   }
 
+  // Get customer/lead IDs contacted TODAY by ANY user (prevent duplicate contacts across users)
+  private async getTodayContactedByAnyUser(): Promise<{ customerIds: string[]; leadIds: number[] }> {
+    const today = new Date();
+    today.setHours(0, 0, 0, 0);
+    
+    try {
+      // Check spotlight_events for completed tasks TODAY that involve any form of customer/lead contact
+      // Comprehensive list of outcomes that indicate contact was made
+      const contactOutcomes = "'email_sent','called','connected','voicemail','quoted','followed_up','sent_content','sent_email','sent','replied','qualified'";
+      const completedToday = await db
+        .selectDistinct({ 
+          customerId: spotlightEvents.customerId,
+          leadId: spotlightEvents.leadId 
+        })
+        .from(spotlightEvents)
+        .where(
+          and(
+            gte(spotlightEvents.createdAt, today),
+            eq(spotlightEvents.eventType, 'completed'),
+            or(
+              sql`${spotlightEvents.metadata}->>'outcome' IN (${sql.raw(contactOutcomes)})`,
+              sql`${spotlightEvents.metadata}->>'outcomeId' IN (${sql.raw(contactOutcomes)})`
+            )
+          )
+        );
+      
+      // Also check customerActivityEvents for today
+      const activityToday = await db
+        .selectDistinct({ customerId: customerActivityEvents.customerId })
+        .from(customerActivityEvents)
+        .where(
+          and(
+            gte(customerActivityEvents.createdAt, today),
+            inArray(customerActivityEvents.eventType, ['call', 'email', 'quote'])
+          )
+        );
+      
+      const customerIds = new Set<string>();
+      const leadIds = new Set<number>();
+      
+      for (const row of completedToday) {
+        if (row.customerId) customerIds.add(row.customerId);
+        if (row.leadId) leadIds.add(row.leadId);
+      }
+      for (const row of activityToday) {
+        if (row.customerId) customerIds.add(row.customerId);
+      }
+      
+      return { 
+        customerIds: Array.from(customerIds), 
+        leadIds: Array.from(leadIds) 
+      };
+    } catch (e) {
+      console.error('[Spotlight] Error getting today contacted IDs:', e);
+      return { customerIds: [], leadIds: [] };
+    }
+  }
+
   private async calculateDataReadiness(userId: string): Promise<DataReadiness> {
     const cacheKey = `${userId}_${this.getTodayKey()}`;
     const cached = this.readinessCache.get(cacheKey);
@@ -1404,13 +1462,19 @@ class SpotlightEngine {
       }
 
       // PERFORMANCE: Parallelize exclusion queries
-      const needsRecentlyContacted = nextBucket === 'calls' || nextBucket === 'outreach';
-      const [claimedByOthers, recentlyContacted] = await Promise.all([
+      // Apply TODAY's contacts exclusion to ALL buckets to prevent duplicate outreach across users
+      const [claimedByOthers, recentlyContacted, todayContacted] = await Promise.all([
         this.getClaimedCustomerIds(userId),
-        needsRecentlyContacted ? this.getRecentlyContactedIds(7) : Promise.resolve([])
+        this.getRecentlyContactedIds(7),
+        this.getTodayContactedByAnyUser()
       ]);
       
-      let excludeIds = [...session.skippedCustomerIds, ...claimedByOthers, ...recentlyContacted];
+      // Merge all customer IDs to exclude (includes today's contacted to prevent duplicate outreach)
+      let excludeIds = [...session.skippedCustomerIds, ...claimedByOthers, ...recentlyContacted, ...todayContacted.customerIds];
+      // Add lead IDs contacted today as 'lead-{id}' format for lead task filtering
+      for (const leadId of todayContacted.leadIds) {
+        excludeIds.push(`lead-${leadId}`);
+      }
 
       let task: SpotlightTask | null = null;
       

@@ -141,6 +141,12 @@ Lead task outcomes automatically update lead records:
 - `not_interested` / `lost` → Updates stage to 'lost' with reason
 - Unassigned leads are auto-assigned to the rep who works them
 
+**Cross-User Contact Prevention:**
+- When ANY user contacts a customer/lead TODAY (email, call, quote), that customer/lead is automatically excluded from ALL other users' task lists for the rest of the day
+- Prevents duplicate outreach that could irritate customers
+- Uses both `spotlight_events` (completed tasks) and `customerActivityEvents` to detect contacts
+- Applies to ALL task buckets (calls, follow-ups, outreach, data hygiene, enablement)
+
 **Territory Skip Tracking:**
 - When a rep marks "Not My Territory", it's tracked per customer
 - If ALL active users skip the same customer, it's flagged for admin review
