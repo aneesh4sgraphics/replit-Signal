@@ -1631,7 +1631,7 @@ class SpotlightEngine {
     }
   }
 
-  async getNextTask(userId: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
+  async getNextTask(userId: string, forceBucket?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
     const session = await this.getSessionAsync(userId);
     
     if (session.isPaused) {
@@ -1646,7 +1646,8 @@ class SpotlightEngine {
     }
     
     try {
-      const nextBucket = this.getNextBucket(session);
+      // Allow forcing a specific bucket for debugging (e.g., ?forceBucket=data_hygiene)
+      const nextBucket = forceBucket as BucketType || this.getNextBucket(session);
       if (!nextBucket) {
         session.dayComplete = true;
         return { task: null, session, allDone: true };
@@ -2946,14 +2947,12 @@ class SpotlightEngine {
             continue;
           }
           
-          // Get lead data
+          // Get lead data - bounced emails should show regardless of sales rep assignment
+          // since they're data quality issues that need immediate attention
           const leadData = await db
             .select()
             .from(leads)
-            .where(and(
-              eq(leads.id, leadId),
-              or(isNull(leads.salesRepId), eq(leads.salesRepId, userId)),
-            ))
+            .where(eq(leads.id, leadId))
             .limit(1);
           
           if (leadData.length > 0) {

@@ -364,6 +364,13 @@ export default function Spotlight() {
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const lastActivityRef = useRef(Date.now());
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
+  
+  // Debug: allow forcing a specific bucket via URL param (e.g., ?forceBucket=data_hygiene)
+  const urlParams = new URLSearchParams(window.location.search);
+  const forceBucket = urlParams.get('forceBucket');
+  const spotlightApiUrl = forceBucket 
+    ? `/api/spotlight/current?forceBucket=${forceBucket}` 
+    : '/api/spotlight/current';
 
   const { data: currentTask, isLoading, refetch } = useQuery<{ 
     task: SpotlightTask | null; 
@@ -375,7 +382,12 @@ export default function Spotlight() {
     microCard?: MicroCoachingCard | null;
     coachTip?: CoachTip | null;
   }>({
-    queryKey: ['/api/spotlight/current'],
+    queryKey: ['/api/spotlight/current', forceBucket],
+    queryFn: async () => {
+      const res = await fetch(spotlightApiUrl, { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed to fetch spotlight');
+      return res.json();
+    },
     refetchOnWindowFocus: false,
     staleTime: 60 * 1000, // Increased from 30s to reduce refetches
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes

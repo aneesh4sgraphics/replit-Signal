@@ -22158,7 +22158,9 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(401).json({ error: "Not authenticated" });
       }
 
-      const { task, session, allDone } = await spotlightEngine.getNextTask(userId);
+      // Debug: force a specific bucket type with ?forceBucket=data_hygiene
+      const forceBucket = req.query.forceBucket as string | undefined;
+      const { task, session, allDone } = await spotlightEngine.getNextTask(userId, forceBucket);
       
       // PERFORMANCE: Parallelize secondary data fetching
       const gamification = spotlightEngine.getGamificationState(session as any);
