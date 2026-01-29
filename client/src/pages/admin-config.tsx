@@ -1301,7 +1301,7 @@ export default function AdminConfig() {
         </div>
 
         <Tabs value={activeTab} onValueChange={setActiveTab} className="space-y-4">
-          <TabsList className="grid grid-cols-12 w-full max-w-7xl">
+          <TabsList className="flex flex-wrap justify-start gap-1 w-full max-w-7xl">
             <TabsTrigger value="home" className="flex items-center gap-1" data-testid="tab-home">
               <Home className="h-4 w-4" />
               <span className="hidden sm:inline">Home</span>
@@ -1349,6 +1349,10 @@ export default function AdminConfig() {
             <TabsTrigger value="audit" className="flex items-center gap-1" data-testid="tab-audit">
               <History className="h-4 w-4" />
               <span className="hidden sm:inline">Audit</span>
+            </TabsTrigger>
+            <TabsTrigger value="database" className="flex items-center gap-1" data-testid="tab-database">
+              <Database className="h-4 w-4" />
+              <span className="hidden sm:inline">Database</span>
             </TabsTrigger>
           </TabsList>
 
@@ -1431,6 +1435,10 @@ export default function AdminConfig() {
 
           <TabsContent value="territory">
             <TerritorySkipFlagsTab />
+          </TabsContent>
+
+          <TabsContent value="database">
+            <DatabaseManagementTab />
           </TabsContent>
         </Tabs>
       </div>
@@ -4278,6 +4286,310 @@ function UsersTab() {
           </CardContent>
         </Card>
       )}
+    </div>
+  );
+}
+
+// Database Management Tab
+function DatabaseManagementTab() {
+  const { toast } = useToast();
+  const [isExporting, setIsExporting] = useState(false);
+  const [isImporting, setIsImporting] = useState(false);
+  const [importData, setImportData] = useState<any>(null);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+
+  const { data: stats, isLoading: statsLoading, refetch: refetchStats } = useQuery<{
+    customers: number;
+    leads: number;
+    quotes: number;
+    spotlightEvents: number;
+    followUpTasks: number;
+    activityEvents: number;
+    emailSends: number;
+    territoryFlags: number;
+    bouncedEmails: number;
+    products: number;
+    dripCampaigns: number;
+    dripAssignments: number;
+    fetchedAt: string;
+  }>({
+    queryKey: ['/api/admin/database/stats'],
+  });
+
+  const handleExport = async () => {
+    setIsExporting(true);
+    try {
+      const response = await fetch('/api/admin/database/export', {
+        credentials: 'include',
+      });
+      
+      if (!response.ok) throw new Error('Export failed');
+      
+      const data = await response.json();
+      const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `database-export-${new Date().toISOString().split('T')[0]}.json`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      
+      toast({
+        title: "Export Complete",
+        description: `Exported ${Object.values(data.counts).reduce((a: number, b: any) => a + b, 0)} records`,
+      });
+    } catch (error) {
+      toast({
+        title: "Export Failed",
+        description: "Could not export database",
+        variant: "destructive",
+      });
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
+  const handleFileSelect = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    
+    const reader = new FileReader();
+    reader.onload = (event) => {
+      try {
+        const data = JSON.parse(event.target?.result as string);
+        if (!data.tables || !data.version) {
+          throw new Error('Invalid export file format');
+        }
+        setImportData(data);
+        setShowImportDialog(true);
+      } catch (error) {
+        toast({
+          title: "Invalid File",
+          description: "The selected file is not a valid database export",
+          variant: "destructive",
+        });
+      }
+    };
+    reader.readAsText(file);
+  };
+
+  const handleImport = async () => {
+    if (!importData) return;
+    
+    setIsImporting(true);
+    try {
+      const response = await apiRequest('/api/admin/database/import', {
+        method: 'POST',
+        body: JSON.stringify({
+          data: importData,
+          options: { skipExisting: true },
+        }),
+      });
+
+      toast({
+        title: "Import Complete",
+        description: `Import finished successfully`,
+      });
+      
+      setShowImportDialog(false);
+      setImportData(null);
+      refetchStats();
+    } catch (error: any) {
+      toast({
+        title: "Import Failed",
+        description: error.message || "Could not import data",
+        variant: "destructive",
+      });
+    } finally {
+      setIsImporting(false);
+    }
+  };
+
+  return (
+    <div className="space-y-6">
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Database className="h-5 w-5" />
+            Database Statistics
+          </CardTitle>
+          <CardDescription>
+            Current record counts in this database. Use export/import to migrate data between development and production.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {statsLoading ? (
+            <div className="text-center py-8 text-gray-500">Loading statistics...</div>
+          ) : stats ? (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+                <StatCard label="Customers" value={stats.customers} />
+                <StatCard label="Leads" value={stats.leads} />
+                <StatCard label="Quotes" value={stats.quotes} />
+                <StatCard label="Products" value={stats.products} />
+                <StatCard label="SPOTLIGHT Events" value={stats.spotlightEvents} />
+                <StatCard label="Follow-up Tasks" value={stats.followUpTasks} />
+                <StatCard label="Activity Events" value={stats.activityEvents} />
+                <StatCard label="Email Sends" value={stats.emailSends} />
+                <StatCard label="Territory Flags" value={stats.territoryFlags} />
+                <StatCard label="Bounced Emails" value={stats.bouncedEmails} />
+                <StatCard label="Drip Campaigns" value={stats.dripCampaigns} />
+                <StatCard label="Drip Assignments" value={stats.dripAssignments} />
+              </div>
+              <div className="text-xs text-gray-500 mt-4">
+                Last updated: {new Date(stats.fetchedAt).toLocaleString()}
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8 text-gray-500">Could not load statistics</div>
+          )}
+        </CardContent>
+      </Card>
+
+      <Card className="border-gray-200">
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <RefreshCw className="h-5 w-5" />
+            Data Migration
+          </CardTitle>
+          <CardDescription>
+            Export your development data to a JSON file, then import it into production after publishing.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-start gap-4 p-4 bg-amber-50 border border-amber-200 rounded-lg">
+            <AlertTriangle className="h-5 w-5 text-amber-600 mt-0.5" />
+            <div className="text-sm text-amber-800">
+              <strong>Important:</strong> Development and production use separate databases. 
+              After publishing, use this tool to copy your test data to production. 
+              The import will skip any records that already exist.
+            </div>
+          </div>
+
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <Card className="border-blue-200 bg-blue-50/50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <Database className="h-12 w-12 mx-auto text-blue-600" />
+                  <div>
+                    <h3 className="font-semibold text-blue-900">Export Data</h3>
+                    <p className="text-sm text-blue-700 mt-1">
+                      Download all your data as a JSON file
+                    </p>
+                  </div>
+                  <Button 
+                    onClick={handleExport} 
+                    disabled={isExporting}
+                    className="w-full"
+                  >
+                    {isExporting ? (
+                      <>
+                        <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                        Exporting...
+                      </>
+                    ) : (
+                      <>
+                        <Save className="h-4 w-4 mr-2" />
+                        Export to JSON
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card className="border-green-200 bg-green-50/50">
+              <CardContent className="pt-6">
+                <div className="text-center space-y-4">
+                  <Package className="h-12 w-12 mx-auto text-green-600" />
+                  <div>
+                    <h3 className="font-semibold text-green-900">Import Data</h3>
+                    <p className="text-sm text-green-700 mt-1">
+                      Load data from a previously exported JSON file
+                    </p>
+                  </div>
+                  <label className="block">
+                    <input
+                      type="file"
+                      accept=".json"
+                      onChange={handleFileSelect}
+                      className="hidden"
+                    />
+                    <Button 
+                      variant="outline" 
+                      className="w-full border-green-300 hover:bg-green-100"
+                      onClick={(e) => {
+                        const input = e.currentTarget.previousElementSibling as HTMLInputElement;
+                        input?.click();
+                      }}
+                    >
+                      <Package className="h-4 w-4 mr-2" />
+                      Select JSON File
+                    </Button>
+                  </label>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent>
+          <DialogHeader>
+            <DialogTitle>Confirm Import</DialogTitle>
+            <DialogDescription>
+              Review the data to be imported. Existing records will be skipped.
+            </DialogDescription>
+          </DialogHeader>
+          
+          {importData && (
+            <div className="space-y-4">
+              <div className="text-sm text-gray-500">
+                Exported: {new Date(importData.exportedAt).toLocaleString()}
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-sm">
+                {Object.entries(importData.counts || {}).map(([key, value]) => (
+                  <div key={key} className="flex justify-between p-2 bg-gray-50 rounded">
+                    <span className="text-gray-600">{key}</span>
+                    <span className="font-medium">{String(value)}</span>
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setShowImportDialog(false)}>
+              Cancel
+            </Button>
+            <Button onClick={handleImport} disabled={isImporting}>
+              {isImporting ? (
+                <>
+                  <RefreshCw className="h-4 w-4 mr-2 animate-spin" />
+                  Importing...
+                </>
+              ) : (
+                <>
+                  <Check className="h-4 w-4 mr-2" />
+                  Import Data
+                </>
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+    </div>
+  );
+}
+
+function StatCard({ label, value }: { label: string; value: number }) {
+  return (
+    <div className="p-3 bg-gray-50 rounded-lg border border-gray-200">
+      <div className="text-2xl font-bold text-gray-900">{value.toLocaleString()}</div>
+      <div className="text-xs text-gray-500">{label}</div>
     </div>
   );
 }

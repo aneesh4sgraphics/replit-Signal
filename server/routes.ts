@@ -147,6 +147,12 @@ import {
   insertLeadSchema,
   insertLeadActivitySchema,
   territorySkipFlags,
+  spotlightEvents,
+  bouncedEmails,
+  dripCampaigns,
+  dripCampaignSteps,
+  dripCampaignAssignments,
+  dripCampaignStepStatus,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -23751,6 +23757,204 @@ Analyze this bounced email and provide insights in JSON format:
     } catch (error) {
       console.error("Error fetching cost summary:", error);
       res.status(500).json({ error: "Failed to fetch cost summary" });
+    }
+  });
+
+  // ====== Database Management Endpoints ======
+  // Get database statistics for admin monitoring
+  app.get("/api/admin/database/stats", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const stats = await Promise.all([
+        db.execute(sql`SELECT COUNT(*) as count FROM customers`),
+        db.execute(sql`SELECT COUNT(*) as count FROM leads`),
+        db.execute(sql`SELECT COUNT(*) as count FROM sent_quotes`),
+        db.execute(sql`SELECT COUNT(*) as count FROM spotlight_events`),
+        db.execute(sql`SELECT COUNT(*) as count FROM follow_up_tasks`),
+        db.execute(sql`SELECT COUNT(*) as count FROM customer_activity_events`),
+        db.execute(sql`SELECT COUNT(*) as count FROM email_sends`),
+        db.execute(sql`SELECT COUNT(*) as count FROM territory_skip_flags`),
+        db.execute(sql`SELECT COUNT(*) as count FROM bounced_emails`),
+        db.execute(sql`SELECT COUNT(*) as count FROM product_pricing_master`),
+        db.execute(sql`SELECT COUNT(*) as count FROM drip_campaigns`),
+        db.execute(sql`SELECT COUNT(*) as count FROM drip_campaign_assignments`),
+      ]);
+
+      res.json({
+        customers: parseInt(stats[0].rows[0]?.count || '0'),
+        leads: parseInt(stats[1].rows[0]?.count || '0'),
+        quotes: parseInt(stats[2].rows[0]?.count || '0'),
+        spotlightEvents: parseInt(stats[3].rows[0]?.count || '0'),
+        followUpTasks: parseInt(stats[4].rows[0]?.count || '0'),
+        activityEvents: parseInt(stats[5].rows[0]?.count || '0'),
+        emailSends: parseInt(stats[6].rows[0]?.count || '0'),
+        territoryFlags: parseInt(stats[7].rows[0]?.count || '0'),
+        bouncedEmails: parseInt(stats[8].rows[0]?.count || '0'),
+        products: parseInt(stats[9].rows[0]?.count || '0'),
+        dripCampaigns: parseInt(stats[10].rows[0]?.count || '0'),
+        dripAssignments: parseInt(stats[11].rows[0]?.count || '0'),
+        fetchedAt: new Date().toISOString(),
+      });
+    } catch (error) {
+      console.error("Error fetching database stats:", error);
+      res.status(500).json({ error: "Failed to fetch database stats" });
+    }
+  });
+
+  // Export database data as JSON for migration
+  app.get("/api/admin/database/export", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      console.log("[DB Export] Starting full database export...");
+      
+      // Export key tables that contain business data worth preserving
+      const [
+        customersData,
+        leadsData,
+        quotesData,
+        spotlightEventsData,
+        followUpTasksData,
+        activityEventsData,
+        emailSendsData,
+        territoryFlagsData,
+        bouncedEmailsData,
+        dripCampaignsData,
+        dripCampaignStepsData,
+        dripAssignmentsData,
+        dripStepStatusData,
+      ] = await Promise.all([
+        db.select().from(customers),
+        db.select().from(leads),
+        db.select().from(sentQuotes),
+        db.select().from(spotlightEvents),
+        db.select().from(followUpTasks),
+        db.select().from(customerActivityEvents),
+        db.select().from(emailSends),
+        db.select().from(territorySkipFlags),
+        db.select().from(bouncedEmails),
+        db.select().from(dripCampaigns),
+        db.select().from(dripCampaignSteps),
+        db.select().from(dripCampaignAssignments),
+        db.select().from(dripCampaignStepStatus),
+      ]);
+
+      const exportData = {
+        exportedAt: new Date().toISOString(),
+        version: "1.0",
+        tables: {
+          customers: customersData,
+          leads: leadsData,
+          sentQuotes: quotesData,
+          spotlightEvents: spotlightEventsData,
+          followUpTasks: followUpTasksData,
+          customerActivityEvents: activityEventsData,
+          emailSends: emailSendsData,
+          territorySkipFlags: territoryFlagsData,
+          bouncedEmails: bouncedEmailsData,
+          dripCampaigns: dripCampaignsData,
+          dripCampaignSteps: dripCampaignStepsData,
+          dripCampaignAssignments: dripAssignmentsData,
+          dripCampaignStepStatus: dripStepStatusData,
+        },
+        counts: {
+          customers: customersData.length,
+          leads: leadsData.length,
+          sentQuotes: quotesData.length,
+          spotlightEvents: spotlightEventsData.length,
+          followUpTasks: followUpTasksData.length,
+          customerActivityEvents: activityEventsData.length,
+          emailSends: emailSendsData.length,
+          territorySkipFlags: territoryFlagsData.length,
+          bouncedEmails: bouncedEmailsData.length,
+          dripCampaigns: dripCampaignsData.length,
+          dripCampaignSteps: dripCampaignStepsData.length,
+          dripCampaignAssignments: dripAssignmentsData.length,
+          dripCampaignStepStatus: dripStepStatusData.length,
+        },
+      };
+
+      console.log("[DB Export] Export complete:", exportData.counts);
+      
+      // Set headers for file download
+      res.setHeader('Content-Type', 'application/json');
+      res.setHeader('Content-Disposition', `attachment; filename="database-export-${new Date().toISOString().split('T')[0]}.json"`);
+      res.json(exportData);
+    } catch (error) {
+      console.error("Error exporting database:", error);
+      res.status(500).json({ error: "Failed to export database" });
+    }
+  });
+
+  // Import database data from JSON export (with duplicate prevention)
+  app.post("/api/admin/database/import", isAuthenticated, requireAdmin, async (req, res) => {
+    try {
+      const { data, options = {} } = req.body;
+      const { skipExisting = true, tables: tablesToImport } = options;
+      
+      if (!data || !data.tables) {
+        return res.status(400).json({ error: "Invalid import data format" });
+      }
+
+      console.log("[DB Import] Starting import with options:", options);
+      const results: Record<string, { imported: number; skipped: number; errors: number }> = {};
+
+      // Helper to safely import a table with duplicate checking
+      async function importTable<T extends Record<string, any>>(
+        tableName: string,
+        tableData: T[],
+        table: any,
+        idField: keyof T = 'id' as keyof T
+      ) {
+        if (!tablesToImport || tablesToImport.includes(tableName)) {
+          results[tableName] = { imported: 0, skipped: 0, errors: 0 };
+          
+          for (const record of tableData || []) {
+            try {
+              if (skipExisting && record[idField]) {
+                // Check if record exists
+                const existing = await db.select({ id: table[idField] })
+                  .from(table)
+                  .where(eq(table[idField], record[idField]))
+                  .limit(1);
+                
+                if (existing.length > 0) {
+                  results[tableName].skipped++;
+                  continue;
+                }
+              }
+              
+              await db.insert(table).values(record).onConflictDoNothing();
+              results[tableName].imported++;
+            } catch (err) {
+              console.error(`[DB Import] Error importing ${tableName} record:`, err);
+              results[tableName].errors++;
+            }
+          }
+        }
+      }
+
+      // Import tables in order (respecting foreign key dependencies)
+      await importTable('customers', data.tables.customers, customers);
+      await importTable('leads', data.tables.leads, leads);
+      await importTable('sentQuotes', data.tables.sentQuotes, sentQuotes);
+      await importTable('spotlightEvents', data.tables.spotlightEvents, spotlightEvents);
+      await importTable('followUpTasks', data.tables.followUpTasks, followUpTasks);
+      await importTable('customerActivityEvents', data.tables.customerActivityEvents, customerActivityEvents);
+      await importTable('emailSends', data.tables.emailSends, emailSends);
+      await importTable('territorySkipFlags', data.tables.territorySkipFlags, territorySkipFlags);
+      await importTable('bouncedEmails', data.tables.bouncedEmails, bouncedEmails);
+      await importTable('dripCampaigns', data.tables.dripCampaigns, dripCampaigns);
+      await importTable('dripCampaignSteps', data.tables.dripCampaignSteps, dripCampaignSteps);
+      await importTable('dripCampaignAssignments', data.tables.dripCampaignAssignments, dripCampaignAssignments);
+      await importTable('dripCampaignStepStatus', data.tables.dripCampaignStepStatus, dripCampaignStepStatus);
+
+      console.log("[DB Import] Import complete:", results);
+      res.json({ 
+        success: true, 
+        results,
+        message: "Import completed successfully"
+      });
+    } catch (error) {
+      console.error("Error importing database:", error);
+      res.status(500).json({ error: "Failed to import database" });
     }
   });
 
