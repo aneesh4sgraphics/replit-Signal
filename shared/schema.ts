@@ -230,6 +230,7 @@ export const customers = pgTable("customers", {
   swatchbookSentAt: timestamp("swatchbook_sent_at"), // Track swatchbook send date
   pressTestSentAt: timestamp("press_test_sent_at"), // Track press test send date
   priceListSentAt: timestamp("price_list_sent_at"), // Track price list send date
+  customerType: varchar("customer_type", { length: 50 }), // 'reseller' or 'printer'
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [

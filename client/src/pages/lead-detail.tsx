@@ -42,6 +42,8 @@ import {
   Globe,
   Briefcase,
   StickyNote,
+  Printer,
+  Truck,
 } from "lucide-react";
 
 // Helper function to strip HTML tags and extract plain text
@@ -238,6 +240,24 @@ export default function LeadDetail() {
     },
   });
 
+  const updateCustomerTypeMutation = useMutation({
+    mutationFn: async (customerType: 'printer' | 'reseller') => {
+      const res = await apiRequest('PUT', `/api/leads/${leadId}`, { customerType });
+      return res.json();
+    },
+    onSuccess: (_, customerType) => {
+      toast({ 
+        title: customerType === 'printer' ? 'Marked as Printing Company' : 'Marked as Reseller',
+        description: 'Customer type has been updated'
+      });
+      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads', leadId] });
+      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads'] });
+    },
+    onError: () => {
+      toast({ title: 'Error', description: 'Failed to update customer type', variant: 'destructive' });
+    },
+  });
+
   const getStageInfo = (stage: string) => stageConfig[stage] || { label: stage, color: "bg-gray-100 text-gray-600" };
   const getPriorityInfo = (priority: string | null) => priorityConfig[priority || "medium"] || priorityConfig.medium;
   const getActivityInfo = (type: string) => activityTypeConfig[type] || { label: type, icon: MessageSquare, color: "bg-gray-100 text-gray-600" };
@@ -378,6 +398,36 @@ export default function LeadDetail() {
           <Button variant="outline" onClick={handleEditClick}>
             <Edit className="w-4 h-4 mr-2" /> Edit
           </Button>
+          
+          {/* Customer Type Toggle */}
+          <div className="flex items-center gap-1 border rounded-lg p-1 bg-slate-50">
+            <Button
+              variant={lead.customerType === 'printer' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => updateCustomerTypeMutation.mutate('printer')}
+              disabled={updateCustomerTypeMutation.isPending}
+              className={lead.customerType === 'printer' 
+                ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                : 'text-slate-600 hover:bg-slate-100'}
+              title="Mark as Printing Company"
+            >
+              <Printer className="w-4 h-4 mr-1" />
+              Printer
+            </Button>
+            <Button
+              variant={lead.customerType === 'reseller' ? 'default' : 'ghost'}
+              size="sm"
+              onClick={() => updateCustomerTypeMutation.mutate('reseller')}
+              disabled={updateCustomerTypeMutation.isPending}
+              className={lead.customerType === 'reseller' 
+                ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                : 'text-slate-600 hover:bg-slate-100'}
+              title="Mark as Reseller/Distributor"
+            >
+              <Truck className="w-4 h-4 mr-1" />
+              Reseller
+            </Button>
+          </div>
         </div>
       </div>
 

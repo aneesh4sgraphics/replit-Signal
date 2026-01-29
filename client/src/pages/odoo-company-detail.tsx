@@ -52,6 +52,7 @@ import {
   UserPlus,
   GitMerge,
   Trash2,
+  Truck,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -92,6 +93,7 @@ interface Contact {
   website: string | null;
   isCompany: boolean;
   contactType: string | null;
+  customerType: string | null;
   salesRepName: string | null;
   pricingTier: string | null;
   tags: string | null;
@@ -770,6 +772,32 @@ export default function OdooCompanyDetail() {
     },
   });
 
+  // Mutation to update customer type (printer/reseller)
+  const updateCustomerTypeMutation = useMutation({
+    mutationFn: async (customerType: 'printer' | 'reseller') => {
+      const res = await apiRequest('PUT', `/api/customers/${companyId}`, { customerType });
+      if (!res.ok) {
+        throw new Error('Failed to update customer type');
+      }
+      return res.json();
+    },
+    onSuccess: (_, customerType) => {
+      toast({
+        title: customerType === 'printer' ? 'Marked as Printing Company' : 'Marked as Reseller',
+        description: 'Customer type has been updated',
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Failed to Update Customer Type',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
   // Find contacts with duplicate emails for merge functionality
   const duplicateEmailContacts = useMemo(() => {
     if (!contactsData?.contacts) return [];
@@ -1016,6 +1044,36 @@ export default function OdooCompanyDetail() {
                   <Trash2 className="w-4 h-4" />
                 </Button>
               )}
+              
+              {/* Customer Type Toggle */}
+              <div className="flex items-center gap-1 border rounded-lg p-1 bg-slate-50">
+                <Button
+                  variant={company.customerType === 'printer' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => updateCustomerTypeMutation.mutate('printer')}
+                  disabled={updateCustomerTypeMutation.isPending}
+                  className={company.customerType === 'printer' 
+                    ? 'bg-blue-600 hover:bg-blue-700 text-white' 
+                    : 'text-slate-600 hover:bg-slate-100'}
+                  title="Mark as Printing Company"
+                >
+                  <Printer className="w-4 h-4 mr-1" />
+                  Printer
+                </Button>
+                <Button
+                  variant={company.customerType === 'reseller' ? 'default' : 'ghost'}
+                  size="sm"
+                  onClick={() => updateCustomerTypeMutation.mutate('reseller')}
+                  disabled={updateCustomerTypeMutation.isPending}
+                  className={company.customerType === 'reseller' 
+                    ? 'bg-amber-600 hover:bg-amber-700 text-white' 
+                    : 'text-slate-600 hover:bg-slate-100'}
+                  title="Mark as Reseller/Distributor"
+                >
+                  <Truck className="w-4 h-4 mr-1" />
+                  Reseller
+                </Button>
+              </div>
               
               <div className="flex items-center gap-1 border-l pl-2 ml-1">
                 <Button 
