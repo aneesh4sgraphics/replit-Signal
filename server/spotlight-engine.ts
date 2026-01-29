@@ -658,9 +658,126 @@ class SpotlightEngine {
         energyCheckShown: false,
         recapShown: false,
       };
+      
+      // Try to restore session state from database (survives server restarts)
+      try {
+        const persistedState = await db.select()
+          .from(spotlightSessionState)
+          .where(and(
+            eq(spotlightSessionState.userId, userId),
+            eq(spotlightSessionState.sessionDate, today)
+          ))
+          .limit(1);
+        
+        if (persistedState.length > 0) {
+          const state = persistedState[0];
+          console.log(`[Spotlight] Restoring session state for user ${userId} from database`);
+          
+          // Restore bucket completions
+          const bucketMap: Record<string, { completed: number; target: number }> = {
+            'calls': { completed: state.callsCompleted || 0, target: state.callsTarget || 10 },
+            'follow_ups': { completed: state.followUpsCompleted || 0, target: state.followUpsTarget || 10 },
+            'outreach': { completed: state.outreachCompleted || 0, target: state.outreachTarget || 10 },
+            'data_hygiene': { completed: state.dataHygieneCompleted || 0, target: state.dataHygieneTarget || 10 },
+            'enablement': { completed: state.enablementCompleted || 0, target: state.enablementTarget || 10 },
+          };
+          
+          for (const bucket of session.buckets) {
+            const restored = bucketMap[bucket.bucket];
+            if (restored) {
+              bucket.completed = restored.completed;
+            }
+          }
+          
+          session.totalCompleted = state.totalCompleted || 0;
+          session.dayComplete = state.dayComplete || false;
+          session.currentEnergy = state.currentEnergy || 100;
+          session.comboCount = state.comboCount || 0;
+          session.comboMultiplier = parseFloat(String(state.comboMultiplier || '1.0'));
+          session.hardTasksCompletedToday = state.hardTasksCompletedToday || 0;
+          session.powerUpsAvailable = state.powerUpsAvailable || 0;
+          session.powerUpsUsedToday = state.powerUpsUsedToday || 0;
+          session.tasksSinceMicroCard = state.tasksSinceMicroCard || 0;
+          session.microCardsShownToday = (state.microCardsShownToday as number[]) || [];
+          session.warmupShown = state.warmupShown || false;
+          session.energyCheckShown = state.energyCheckShown || false;
+          session.recapShown = state.recapShown || false;
+          session.lastTaskTypes = (state.lastTaskTypes as string[]) || [];
+          
+          console.log(`[Spotlight] Restored progress: ${session.totalCompleted}/${session.totalTarget}`);
+        }
+      } catch (restoreError) {
+        console.error('[Spotlight] Error restoring session state:', restoreError);
+      }
+      
       this.sessions.set(sessionKey, session);
     }
     return session;
+  }
+  
+  private async persistSessionState(userId: string, session: SpotlightSession): Promise<void> {
+    const today = this.getTodayKey();
+    
+    try {
+      const bucketData = {
+        callsCompleted: session.buckets.find(b => b.bucket === 'calls')?.completed || 0,
+        callsTarget: session.buckets.find(b => b.bucket === 'calls')?.target || 10,
+        followUpsCompleted: session.buckets.find(b => b.bucket === 'follow_ups')?.completed || 0,
+        followUpsTarget: session.buckets.find(b => b.bucket === 'follow_ups')?.target || 10,
+        outreachCompleted: session.buckets.find(b => b.bucket === 'outreach')?.completed || 0,
+        outreachTarget: session.buckets.find(b => b.bucket === 'outreach')?.target || 10,
+        dataHygieneCompleted: session.buckets.find(b => b.bucket === 'data_hygiene')?.completed || 0,
+        dataHygieneTarget: session.buckets.find(b => b.bucket === 'data_hygiene')?.target || 10,
+        enablementCompleted: session.buckets.find(b => b.bucket === 'enablement')?.completed || 0,
+        enablementTarget: session.buckets.find(b => b.bucket === 'enablement')?.target || 10,
+      };
+      
+      await db.insert(spotlightSessionState)
+        .values({
+          userId,
+          sessionDate: today,
+          ...bucketData,
+          totalCompleted: session.totalCompleted,
+          totalTarget: session.totalTarget,
+          dayComplete: session.dayComplete,
+          currentEnergy: session.currentEnergy,
+          comboCount: session.comboCount,
+          comboMultiplier: String(session.comboMultiplier),
+          hardTasksCompletedToday: session.hardTasksCompletedToday,
+          powerUpsAvailable: session.powerUpsAvailable,
+          powerUpsUsedToday: session.powerUpsUsedToday,
+          tasksSinceMicroCard: session.tasksSinceMicroCard,
+          microCardsShownToday: session.microCardsShownToday,
+          warmupShown: session.warmupShown,
+          recapShown: session.recapShown,
+          energyCheckShown: session.energyCheckShown,
+          lastTaskTypes: session.lastTaskTypes,
+        })
+        .onConflictDoUpdate({
+          target: [spotlightSessionState.userId, spotlightSessionState.sessionDate],
+          set: {
+            ...bucketData,
+            totalCompleted: session.totalCompleted,
+            totalTarget: session.totalTarget,
+            dayComplete: session.dayComplete,
+            currentEnergy: session.currentEnergy,
+            comboCount: session.comboCount,
+            comboMultiplier: String(session.comboMultiplier),
+            hardTasksCompletedToday: session.hardTasksCompletedToday,
+            powerUpsAvailable: session.powerUpsAvailable,
+            powerUpsUsedToday: session.powerUpsUsedToday,
+            tasksSinceMicroCard: session.tasksSinceMicroCard,
+            microCardsShownToday: session.microCardsShownToday,
+            warmupShown: session.warmupShown,
+            recapShown: session.recapShown,
+            energyCheckShown: session.energyCheckShown,
+            lastTaskTypes: session.lastTaskTypes,
+            updatedAt: new Date(),
+          },
+        });
+    } catch (persistError) {
+      console.error('[Spotlight] Error persisting session state:', persistError);
+    }
   }
 
   private getSession(userId: string): SpotlightSession {
@@ -3933,6 +4050,9 @@ class SpotlightEngine {
 
     // Release claim so other users can work on this customer
     await this.releaseClaim(userId);
+    
+    // Persist session state to database (survives server restarts)
+    await this.persistSessionState(userId, session);
 
     console.log(`[Spotlight] Task completed for customer ${customerId}, bucket ${bucket}, outcome ${outcomeId}`);
 

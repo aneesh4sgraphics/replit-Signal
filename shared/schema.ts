@@ -3137,6 +3137,20 @@ export const spotlightSessionState = pgTable("spotlight_session_state", {
   userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
   sessionDate: varchar("session_date", { length: 10 }).notNull(), // YYYY-MM-DD
   
+  // Bucket completion tracking - persists across server restarts
+  callsCompleted: integer("calls_completed").default(0),
+  callsTarget: integer("calls_target").default(10),
+  followUpsCompleted: integer("follow_ups_completed").default(0),
+  followUpsTarget: integer("follow_ups_target").default(10),
+  outreachCompleted: integer("outreach_completed").default(0),
+  outreachTarget: integer("outreach_target").default(10),
+  dataHygieneCompleted: integer("data_hygiene_completed").default(0),
+  dataHygieneTarget: integer("data_hygiene_target").default(10),
+  enablementCompleted: integer("enablement_completed").default(0),
+  enablementTarget: integer("enablement_target").default(10),
+  totalCompleted: integer("total_completed").default(0),
+  totalTarget: integer("total_target").default(50),
+  
   // Task interleaving tracking
   lastTaskTypes: jsonb("last_task_types").$type<string[]>().default([]), // Rolling window of recent task types
   currentEnergy: integer("current_energy").default(100), // 0-100 energy level
@@ -3158,6 +3172,7 @@ export const spotlightSessionState = pgTable("spotlight_session_state", {
   // Session flow
   warmupShown: boolean("warmup_shown").default(false),
   recapShown: boolean("recap_shown").default(false),
+  dayComplete: boolean("day_complete").default(false),
   
   // Cross-user task claiming - prevents same customer shown to multiple users
   currentClaimedCustomerId: varchar("current_claimed_customer_id"),
