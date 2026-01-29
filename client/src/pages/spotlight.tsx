@@ -410,13 +410,15 @@ export default function Spotlight() {
   const [selectedTemplateId, setSelectedTemplateId] = useState<number | null>(null);
   const emailEditorRef = useRef<EmailRichTextEditorRef>(null);
   
-  // Optimistic customer type state for immediate UI feedback
+  // Optimistic states for immediate UI feedback
   const [optimisticCustomerType, setOptimisticCustomerType] = useState<string | null>(null);
+  const [optimisticHotProspect, setOptimisticHotProspect] = useState<boolean | null>(null);
   
-  // Reset optimistic state when task changes
+  // Reset optimistic states when task changes
   const currentTaskId = currentTask?.task?.id;
   useEffect(() => {
     setOptimisticCustomerType(null);
+    setOptimisticHotProspect(null);
   }, [currentTaskId]);
   
   // Coaching content based on task type
@@ -1872,29 +1874,39 @@ export default function Spotlight() {
                     <p className="text-sm text-slate-600 mt-0.5">{customer.firstName} {customer.lastName || ''}</p>
                   )}
                 </div>
-                {!task.isLeadTask && customer.isHotProspect ? (
-                  <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-50 text-red-500 text-sm font-medium border border-red-200">
-                    <Flame className="w-4 h-4" />
-                    Hot
-                  </span>
-                ) : !task.isLeadTask ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    className="flex items-center gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50 rounded-full"
-                    onClick={() => {
-                      apiRequest('PUT', `/api/customers/${customer.id}`, { isHotProspect: true })
-                        .then(() => {
-                          toast({ title: "Marked as Hot Prospect" });
-                          refetch();
-                        })
-                        .catch(() => toast({ title: "Error", variant: "destructive" }));
-                    }}
-                  >
-                    <Flame className="w-4 h-4" />
-                    Mark Hot
-                  </Button>
-                ) : null}
+                {(() => {
+                  const isHot = optimisticHotProspect ?? customer.isHotProspect;
+                  if (task.isLeadTask) return null;
+                  if (isHot) {
+                    return (
+                      <span className="inline-flex items-center gap-1 px-3 py-1 rounded-full bg-red-50 text-red-500 text-sm font-medium border border-red-200">
+                        <Flame className="w-4 h-4" />
+                        Hot
+                      </span>
+                    );
+                  }
+                  return (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="flex items-center gap-1.5 text-orange-600 border-orange-200 hover:bg-orange-50 rounded-full"
+                      onClick={() => {
+                        setOptimisticHotProspect(true);
+                        apiRequest('PUT', `/api/customers/${customer.id}`, { isHotProspect: true })
+                          .then(() => {
+                            toast({ title: "Marked as Hot Prospect" });
+                          })
+                          .catch(() => {
+                            setOptimisticHotProspect(null);
+                            toast({ title: "Error", variant: "destructive" });
+                          });
+                      }}
+                    >
+                      <Flame className="w-4 h-4" />
+                      Mark Hot
+                    </Button>
+                  );
+                })()}
               </div>
 
               {/* Printer/Reseller Toggle */}
@@ -1921,7 +1933,6 @@ export default function Spotlight() {
                           apiRequest('PUT', endpoint, { customerType: 'printer' })
                             .then(() => {
                               toast({ title: "Marked as Printing Company" });
-                              refetch();
                             })
                             .catch(() => {
                               setOptimisticCustomerType(null);
@@ -1946,7 +1957,6 @@ export default function Spotlight() {
                           apiRequest('PUT', endpoint, { customerType: 'reseller' })
                             .then(() => {
                               toast({ title: "Marked as Reseller" });
-                              refetch();
                             })
                             .catch(() => {
                               setOptimisticCustomerType(null);
