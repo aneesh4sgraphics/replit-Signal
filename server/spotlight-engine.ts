@@ -285,6 +285,7 @@ const TASK_OUTCOMES: Record<string, TaskOutcome[]> = {
     { id: 'email_sent', label: 'Sent Follow-up Email', icon: 'send', nextAction: { type: 'schedule_follow_up', daysUntil: 3, taskType: 'follow_up' } },
     { id: 'replied', label: 'They Replied', icon: 'check', nextAction: { type: 'mark_complete' } },
     { id: 'no_response_yet', label: 'No Response Yet', icon: 'clock', nextAction: { type: 'schedule_follow_up', daysUntil: 2, taskType: 'follow_up' } },
+    { id: 'remind_later', label: 'Remind Me Later', icon: 'clock', nextAction: { type: 'custom_follow_up' } },
     { id: 'skip', label: 'Skip', icon: 'x', nextAction: { type: 'no_action' } },
   ],
   // Lead-specific task outcomes
@@ -1941,6 +1942,8 @@ class SpotlightEngine {
       const emailFollowUps = await db
         .select({
           id: gmailMessages.id,
+          gmailMessageId: gmailMessages.gmailMessageId,
+          threadId: gmailMessages.threadId,
           subject: gmailMessages.subject,
           snippet: gmailMessages.snippet,
           toEmail: gmailMessages.toEmail,
@@ -2031,6 +2034,8 @@ class SpotlightEngine {
           customer: emailData.customer,
           context: {
             emailId: emailData.id,
+            gmailMessageId: emailData.gmailMessageId || undefined,
+            gmailThreadId: emailData.threadId || undefined,
             originalSubject: emailData.subject || undefined,
             sentAt: emailData.sentAt?.toISOString(),
             sourceType: 'email_pricing_samples',
@@ -2054,6 +2059,7 @@ class SpotlightEngine {
       const olderEmailFollowUps = await db
         .select({
           id: gmailMessages.id,
+          gmailMessageId: gmailMessages.gmailMessageId,
           subject: gmailMessages.subject,
           snippet: gmailMessages.snippet,
           toEmail: gmailMessages.toEmail,
@@ -2134,6 +2140,8 @@ class SpotlightEngine {
             customer: emailData.customer,
             context: {
               emailId: emailData.id,
+              gmailMessageId: emailData.gmailMessageId || undefined,
+              gmailThreadId: emailData.threadId || undefined,
               originalSubject: emailData.subject || undefined,
               sentAt: emailData.sentAt?.toISOString(),
               daysSinceEmail: daysSent,
@@ -3585,8 +3593,28 @@ class SpotlightEngine {
 
     let nextFollowUp: { date: Date; type: string } | undefined;
     
+    // Handle "remind_later" outcome for email tasks - directly schedule a follow-up
+    if (outcomeId === 'remind_later' && customFollowUpDays) {
+      const dueDate = new Date();
+      dueDate.setDate(dueDate.getDate() + customFollowUpDays);
+      
+      await db.insert(followUpTasks).values({
+        customerId,
+        title: `📧 Email Follow-up Reminder`,
+        description: notes || `Reminder to follow up on this email task`,
+        taskType: 'email_follow_up',
+        dueDate,
+        status: 'pending',
+        assignedTo: userId,
+        createdAt: new Date(),
+        updatedAt: new Date(),
+      });
+
+      nextFollowUp = { date: dueDate, type: 'email_follow_up' };
+      console.log(`[Spotlight] Created email reminder for ${customerId} in ${customFollowUpDays} days`);
+    }
     // Handle custom follow-up with user-specified days
-    if (selectedOutcome?.nextAction?.type === 'custom_follow_up' && customFollowUpDays) {
+    else if (selectedOutcome?.nextAction?.type === 'custom_follow_up' && customFollowUpDays) {
       const dueDate = new Date();
       dueDate.setDate(dueDate.getDate() + customFollowUpDays);
       
