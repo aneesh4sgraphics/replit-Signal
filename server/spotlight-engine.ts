@@ -530,6 +530,11 @@ class SpotlightEngine {
         if (row.id) customerIds.add(row.id);
       }
       
+      console.log(`[Spotlight Cross-User Filter] Leads contacted today: ${leadIds.size}, Customers: ${customerIds.size}`);
+      if (leadIds.size > 0) {
+        console.log(`[Spotlight Cross-User Filter] Lead IDs to exclude: ${Array.from(leadIds).slice(0, 10).join(', ')}${leadIds.size > 10 ? '...' : ''}`);
+      }
+      
       return { 
         customerIds: Array.from(customerIds), 
         leadIds: Array.from(leadIds) 
