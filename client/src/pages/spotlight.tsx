@@ -726,6 +726,38 @@ export default function Spotlight() {
     staleTime: 60 * 1000,
   });
 
+  // Derive email for email history query from current task
+  const contactEmail = currentTask?.task?.isLeadTask 
+    ? (currentTask.task.lead?.email || currentTask.task.customer?.email)
+    : currentTask?.task?.customer?.email;
+  const currentLeadId = currentTask?.task?.leadId;
+
+  // Fetch email history for the contact/lead
+  const { data: emailHistory = [] } = useQuery<{ id: number; direction: string; fromEmail: string; fromName: string; toEmail: string; subject: string; snippet: string; sentAt: string }[]>({
+    queryKey: ['/api/customer-activity/emails', contactEmail || customerId || currentLeadId],
+    queryFn: async () => {
+      // Priority: contact email > customerId > leadId
+      if (contactEmail) {
+        const res = await fetch(`/api/customer-activity/emails?contactEmail=${encodeURIComponent(contactEmail)}&limit=10`, { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      }
+      if (currentLeadId) {
+        const res = await fetch(`/api/customer-activity/emails?leadId=${currentLeadId}&limit=10`, { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      }
+      if (customerId) {
+        const res = await fetch(`/api/customer-activity/emails?customerId=${customerId}&limit=10`, { credentials: 'include' });
+        if (!res.ok) return [];
+        return res.json();
+      }
+      return [];
+    },
+    enabled: !!(contactEmail || customerId || currentLeadId),
+    staleTime: 60 * 1000,
+  });
+
   // Helper to get display name from sales rep
   const getSalesRepDisplayName = (rep: { name?: string; email: string; firstName?: string; lastName?: string }) => {
     // Special handling for info@4sgraphics.com
@@ -2302,21 +2334,59 @@ export default function Spotlight() {
               <details className="border-t border-slate-100 pt-4">
                 <summary className="flex items-center gap-2 cursor-pointer select-none">
                   <span className="text-xs font-semibold text-slate-500 uppercase tracking-wide">Notes & Activity</span>
-                  <Badge variant="outline" className="text-xs">{customerNotes.length}</Badge>
+                  <Badge variant="outline" className="text-xs">{customerNotes.length + emailHistory.length}</Badge>
                   <ChevronDown className="w-4 h-4 text-slate-400 ml-auto" />
                 </summary>
                 <div className="space-y-3 mt-3">
-                  {customerNotes.length > 0 ? (
-                    customerNotes.slice(0, 5).map((note) => (
-                      <div key={note.id} className="bg-slate-50 rounded-xl p-3">
-                        <p className="text-xs text-blue-600 mb-1">
-                          {new Date(note.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                  {/* Email History - Show first */}
+                  {emailHistory.length > 0 && (
+                    <div className="space-y-2">
+                      <p className="text-[10px] font-bold text-red-500 uppercase tracking-wide flex items-center gap-1">
+                        <Mail className="w-3 h-3" />
+                        Recent Emails
+                      </p>
+                      {emailHistory.slice(0, 5).map((email) => (
+                        <div key={email.id} className={`rounded-xl p-3 border ${email.direction === 'inbound' ? 'bg-blue-50 border-blue-100' : 'bg-green-50 border-green-100'}`}>
+                          <div className="flex items-center gap-2 mb-1">
+                            <span className={`text-[10px] font-bold uppercase ${email.direction === 'inbound' ? 'text-blue-600' : 'text-green-600'}`}>
+                              {email.direction === 'inbound' ? '← Received' : '→ Sent'}
+                            </span>
+                            <span className="text-[10px] text-slate-400">
+                              {email.sentAt ? new Date(email.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric' }) : ''}
+                            </span>
+                          </div>
+                          <p className="text-xs font-medium text-slate-700 truncate">{email.subject || '(No subject)'}</p>
+                          {email.snippet && (
+                            <p className="text-xs text-slate-500 truncate mt-0.5">{email.snippet}</p>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Activity Notes */}
+                  {customerNotes.length > 0 && (
+                    <div className="space-y-2">
+                      {emailHistory.length > 0 && (
+                        <p className="text-[10px] font-bold text-purple-500 uppercase tracking-wide flex items-center gap-1 mt-3">
+                          <FileText className="w-3 h-3" />
+                          Activity Log
                         </p>
-                        <p className="text-sm text-slate-700">{note.summary}</p>
-                      </div>
-                    ))
-                  ) : (
-                    <p className="text-sm text-slate-400 italic">No notes yet for this customer.</p>
+                      )}
+                      {customerNotes.slice(0, 5).map((note) => (
+                        <div key={note.id} className="bg-slate-50 rounded-xl p-3">
+                          <p className="text-xs text-blue-600 mb-1">
+                            {new Date(note.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                          </p>
+                          <p className="text-sm text-slate-700">{note.summary}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                  
+                  {/* Empty state */}
+                  {customerNotes.length === 0 && emailHistory.length === 0 && (
+                    <p className="text-sm text-slate-400 italic">No activity yet for this contact.</p>
                   )}
                 </div>
               </details>

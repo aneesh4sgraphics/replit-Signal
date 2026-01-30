@@ -10815,6 +10815,92 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get email history for a customer/contact/lead
+  app.get("/api/customer-activity/emails", isAuthenticated, async (req, res) => {
+    try {
+      const { customerId, contactEmail, leadId, limit = '10' } = req.query;
+      
+      if (!customerId && !contactEmail && !leadId) {
+        return res.status(400).json({ error: "customerId, contactEmail, or leadId required" });
+      }
+      
+      const limitNum = Math.min(parseInt(limit as string) || 10, 50);
+      let emails: any[] = [];
+      
+      // Query by email if provided (most accurate for contact-level)
+      if (contactEmail) {
+        const normalizedEmail = (contactEmail as string).toLowerCase().replace(/\s/g, '');
+        emails = await db.select({
+          id: gmailMessages.id,
+          direction: gmailMessages.direction,
+          fromEmail: gmailMessages.fromEmail,
+          fromName: gmailMessages.fromName,
+          toEmail: gmailMessages.toEmail,
+          subject: gmailMessages.subject,
+          snippet: gmailMessages.snippet,
+          sentAt: gmailMessages.sentAt,
+        })
+        .from(gmailMessages)
+        .where(
+          or(
+            eq(gmailMessages.fromEmailNormalized, normalizedEmail),
+            eq(gmailMessages.toEmailNormalized, normalizedEmail)
+          )
+        )
+        .orderBy(desc(gmailMessages.sentAt))
+        .limit(limitNum);
+      }
+      // Query by customer ID 
+      else if (customerId) {
+        emails = await db.select({
+          id: gmailMessages.id,
+          direction: gmailMessages.direction,
+          fromEmail: gmailMessages.fromEmail,
+          fromName: gmailMessages.fromName,
+          toEmail: gmailMessages.toEmail,
+          subject: gmailMessages.subject,
+          snippet: gmailMessages.snippet,
+          sentAt: gmailMessages.sentAt,
+        })
+        .from(gmailMessages)
+        .where(eq(gmailMessages.customerId, customerId as string))
+        .orderBy(desc(gmailMessages.sentAt))
+        .limit(limitNum);
+      }
+      // Query by lead ID - look up lead email first
+      else if (leadId) {
+        const lead = await db.select({ email: leads.email }).from(leads).where(eq(leads.id, parseInt(leadId as string))).limit(1);
+        if (lead.length > 0 && lead[0].email) {
+          const normalizedEmail = lead[0].email.toLowerCase().replace(/\s/g, '');
+          emails = await db.select({
+            id: gmailMessages.id,
+            direction: gmailMessages.direction,
+            fromEmail: gmailMessages.fromEmail,
+            fromName: gmailMessages.fromName,
+            toEmail: gmailMessages.toEmail,
+            subject: gmailMessages.subject,
+            snippet: gmailMessages.snippet,
+            sentAt: gmailMessages.sentAt,
+          })
+          .from(gmailMessages)
+          .where(
+            or(
+              eq(gmailMessages.fromEmailNormalized, normalizedEmail),
+              eq(gmailMessages.toEmailNormalized, normalizedEmail)
+            )
+          )
+          .orderBy(desc(gmailMessages.sentAt))
+          .limit(limitNum);
+        }
+      }
+      
+      res.json(emails);
+    } catch (error) {
+      console.error("Error fetching email history:", error);
+      res.status(500).json({ error: "Failed to fetch email history" });
+    }
+  });
+
   // Create activity event
   app.post("/api/customer-activity/events", isAuthenticated, async (req: any, res) => {
     try {
