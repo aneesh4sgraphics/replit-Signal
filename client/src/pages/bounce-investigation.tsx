@@ -101,10 +101,7 @@ export default function BounceInvestigation() {
 
   const resolveMutation = useMutation({
     mutationFn: async (resolution: 'bad_fit' | 'delete' | 'keep') => {
-      return apiRequest(`/api/bounce-investigation/${bounceId}/resolve`, {
-        method: 'POST',
-        body: JSON.stringify({ resolution }),
-      });
+      return apiRequest('POST', `/api/bounce-investigation/${bounceId}/resolve`, { resolution });
     },
     onSuccess: (_, resolution) => {
       toast({
@@ -125,9 +122,7 @@ export default function BounceInvestigation() {
 
   const regenerateAIMutation = useMutation({
     mutationFn: async () => {
-      return apiRequest(`/api/bounce-investigation/${bounceId}/regenerate-ai`, {
-        method: 'POST',
-      });
+      return apiRequest('POST', `/api/bounce-investigation/${bounceId}/regenerate-ai`);
     },
     onSuccess: () => {
       refetch();
@@ -143,10 +138,7 @@ export default function BounceInvestigation() {
     mutationFn: async ({ name, email }: { name: string; email: string }) => {
       if (!data?.record) throw new Error('No record to update');
       const recordId = data.record.id;
-      return apiRequest(`/api/customers/${recordId}`, {
-        method: 'PUT',
-        body: JSON.stringify({ name, email }),
-      });
+      return apiRequest('PUT', `/api/customers/${recordId}`, { name, email });
     },
     onSuccess: () => {
       toast({
@@ -170,10 +162,7 @@ export default function BounceInvestigation() {
     mutationFn: async ({ name, email, phone, jobFunction }: { name: string; email: string; phone: string; jobFunction: string }) => {
       if (!data?.record) throw new Error('No record to add contact to');
       const customerId = data.record.id;
-      return apiRequest(`/api/odoo/customer/${customerId}/contacts`, {
-        method: 'POST',
-        body: JSON.stringify({ name, email, phone, function: jobFunction }),
-      });
+      return apiRequest('POST', `/api/odoo/customer/${customerId}/contacts`, { name, email, phone, function: jobFunction });
     },
     onSuccess: () => {
       toast({
@@ -200,9 +189,7 @@ export default function BounceInvestigation() {
     mutationFn: async () => {
       if (!data?.record) throw new Error('No record to delete');
       const recordId = data.record.id;
-      return apiRequest(`/api/customers/${recordId}?reason=bounced_email`, {
-        method: 'DELETE',
-      });
+      return apiRequest('DELETE', `/api/customers/${recordId}?reason=bounced_email`);
     },
     onSuccess: () => {
       toast({
