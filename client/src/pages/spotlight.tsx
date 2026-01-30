@@ -1564,8 +1564,8 @@ export default function Spotlight() {
 
   return (
     <div className="spotlight-container min-h-screen p-6">
-      {/* Three-Column Layout - Responsive */}
-      <div className="flex flex-col lg:flex-row gap-6 max-w-7xl mx-auto">
+      {/* Two-Column Layout - Wider Cards */}
+      <div className="flex flex-col lg:flex-row gap-6 max-w-6xl mx-auto">
         
         {/* Left Sidebar - Progress & Stats */}
         <div className="w-full lg:w-72 flex-shrink-0 order-2 lg:order-1">
@@ -2892,68 +2892,67 @@ export default function Spotlight() {
                   </div>
                 </div>
               )}
+
+              {/* Coaching Trays - Collapsible inside card */}
+              <div className="flex gap-3 mt-4">
+                {/* Calling Script Ideas - Collapsible */}
+                <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setCallScriptOpen(!callScriptOpen)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Phone className="w-4 h-4 text-blue-600" />
+                      <span className="text-sm font-semibold text-blue-800">Calling Script Ideas</span>
+                    </div>
+                    {callScriptOpen ? (
+                      <ChevronDown className="w-4 h-4 text-blue-500" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-blue-500" />
+                    )}
+                  </button>
+                  {callScriptOpen && (
+                    <div className="px-4 pb-4 space-y-2 border-t border-blue-200 pt-3">
+                      {callScriptIdeas.map((idea, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                          <p className="text-xs text-blue-700 leading-relaxed">{idea}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+
+                {/* Email Ideas - Collapsible */}
+                <div className="flex-1 bg-purple-50 border border-purple-200 rounded-xl overflow-hidden">
+                  <button
+                    onClick={() => setEmailIdeasOpen(!emailIdeasOpen)}
+                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-100 transition-colors"
+                  >
+                    <div className="flex items-center gap-2">
+                      <Mail className="w-4 h-4 text-purple-600" />
+                      <span className="text-sm font-semibold text-purple-800">Email Ideas</span>
+                    </div>
+                    {emailIdeasOpen ? (
+                      <ChevronDown className="w-4 h-4 text-purple-500" />
+                    ) : (
+                      <ChevronRight className="w-4 h-4 text-purple-500" />
+                    )}
+                  </button>
+                  {emailIdeasOpen && (
+                    <div className="px-4 pb-4 space-y-2 border-t border-purple-200 pt-3">
+                      {emailIdeas.map((idea, idx) => (
+                        <div key={idx} className="flex items-start gap-2">
+                          <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0" />
+                          <p className="text-xs text-purple-700 leading-relaxed">{idea}</p>
+                        </div>
+                      ))}
+                    </div>
+                  )}
+                </div>
+              </div>
             </div>
           </div>
-        </div>
-        
-        {/* Right Sidebar - Coaching Trays */}
-        <div className="w-full lg:w-64 flex-shrink-0 flex flex-col gap-3 order-3">
-          {/* Calling Script Ideas Tray */}
-          <div className="spotlight-tray">
-            <button
-              onClick={() => setCallScriptOpen(!callScriptOpen)}
-              className="spotlight-tray-header w-full px-4 py-3 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Phone className="w-4 h-4 text-blue-500" />
-                <span className="text-sm font-semibold text-slate-800">Calling Script Ideas</span>
-              </div>
-              {callScriptOpen ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              )}
-            </button>
-            {callScriptOpen && (
-              <div className="px-4 pb-4 space-y-2">
-                {callScriptIdeas.map((idea, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                    <p className="text-xs text-slate-500 leading-relaxed">{idea}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-
-          {/* Email Ideas Tray */}
-          <div className="spotlight-tray">
-            <button
-              onClick={() => setEmailIdeasOpen(!emailIdeasOpen)}
-              className="spotlight-tray-header w-full px-4 py-3 flex items-center justify-between"
-            >
-              <div className="flex items-center gap-2">
-                <Mail className="w-4 h-4 text-purple-500" />
-                <span className="text-sm font-semibold text-slate-800">Email Ideas</span>
-              </div>
-              {emailIdeasOpen ? (
-                <ChevronDown className="w-4 h-4 text-slate-400" />
-              ) : (
-                <ChevronRight className="w-4 h-4 text-slate-400" />
-              )}
-            </button>
-            {emailIdeasOpen && (
-              <div className="px-4 pb-4 space-y-2">
-                {emailIdeas.map((idea, idx) => (
-                  <div key={idx} className="flex items-start gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0" />
-                    <p className="text-xs text-slate-500 leading-relaxed">{idea}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </div>
-          
         </div>
       </div>
       
