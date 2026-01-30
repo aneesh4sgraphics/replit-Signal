@@ -3228,8 +3228,8 @@ export default function Spotlight() {
                               <Textarea
                                 value={voicemailNote}
                                 onChange={(e) => setVoicemailNote(e.target.value)}
-                                placeholder="Who did you leave the message for? Who was the receptionist? What did you say?"
-                                className="border-amber-200 bg-amber-50 min-h-[80px] text-sm rounded-xl placeholder:text-amber-400"
+                                placeholder="Who did you leave the message for? Who was the receptionist? What did you say? Did you ask what machines they have?"
+                                className="border-amber-200 bg-amber-50 min-h-[80px] text-sm rounded-xl placeholder:text-amber-700"
                                 autoFocus
                               />
                               <div className="flex gap-2">
