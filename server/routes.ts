@@ -22902,6 +22902,21 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // Allow user to continue working after completing their daily target
+  app.post("/api/spotlight/continue", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+      spotlightEngine.continueAfterComplete(userId);
+      res.json({ success: true, message: "You can continue working - keep up the momentum!" });
+    } catch (error) {
+      console.error("[Spotlight] Error continuing session:", error);
+      res.status(500).json({ error: "Failed to continue session" });
+    }
+  });
+
   app.get("/api/spotlight/efficiency", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;

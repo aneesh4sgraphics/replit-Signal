@@ -150,6 +150,7 @@ export interface SpotlightSession {
   skippedCustomerIds: string[];
   lastTaskAt: Date | null;
   dayComplete: boolean;
+  continueAfterComplete: boolean; // User chose to continue after hitting daily target
   isPaused: boolean;
   pausedAt: Date | null;
   cardsBeforePause: number;
@@ -657,6 +658,7 @@ class SpotlightEngine {
         skippedCustomerIds: [],
         lastTaskAt: null,
         dayComplete: false,
+        continueAfterComplete: false,
         isPaused: false,
         pausedAt: null,
         cardsBeforePause: 0,
@@ -866,6 +868,7 @@ class SpotlightEngine {
         skippedCustomerIds: [],
         lastTaskAt: null,
         dayComplete: false,
+        continueAfterComplete: false,
         isPaused: false,
         pausedAt: null,
         cardsBeforePause: 0,
@@ -1241,6 +1244,28 @@ class SpotlightEngine {
       dayOfWeek: new Date().getDay(),
       hourOfDay: new Date().getHours(),
     }).catch(e => console.error('[Spotlight] Failed to log resume event:', e));
+  }
+
+  // Allow user to continue working after completing their daily target of 50 tasks
+  continueAfterComplete(userId: string): void {
+    const session = this.getSession(userId);
+    session.continueAfterComplete = true;
+    session.dayComplete = false; // Reset dayComplete to allow more tasks
+    session.lastActivityAt = new Date();
+
+    console.log(`[Spotlight] User ${userId} chose to continue after completing ${session.totalCompleted} tasks`);
+
+    db.insert(spotlightEvents).values({
+      eventType: 'continued_after_complete',
+      userId,
+      bucket: 'calls',
+      dayOfWeek: new Date().getDay(),
+      hourOfDay: new Date().getHours(),
+      metadata: {
+        tasksCompletedWhenContinued: session.totalCompleted,
+        totalTarget: session.totalTarget,
+      },
+    }).catch(e => console.error('[Spotlight] Failed to log continue event:', e));
   }
 
   updateActivity(userId: string): void {
@@ -1656,10 +1681,13 @@ class SpotlightEngine {
     
     session.lastActivityAt = new Date();
     
-    if (session.totalCompleted >= session.totalTarget) {
+    // Check if daily target is reached
+    if (session.totalCompleted >= session.totalTarget && !session.continueAfterComplete) {
+      // Target reached and user hasn't chosen to continue - mark day complete
       session.dayComplete = true;
       return { task: null, session, allDone: true };
     }
+    // If continueAfterComplete is true, we keep going past the target
     
     try {
       // Allow forcing a specific bucket for debugging (e.g., ?forceBucket=data_hygiene)

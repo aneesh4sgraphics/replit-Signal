@@ -1554,6 +1554,29 @@ export default function Spotlight() {
     );
   }
 
+  // Mutation to continue working after completion
+  const continueMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/spotlight/continue', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Let's keep going!",
+        description: "You can continue working on more tasks.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/next'] });
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to continue session",
+        variant: "destructive",
+      });
+    },
+  });
+
   if (currentTask?.allDone || currentTask?.session?.dayComplete) {
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
@@ -1563,7 +1586,7 @@ export default function Spotlight() {
           </div>
           <CardTitle className="text-2xl mb-2 text-[#111111]">Day Complete!</CardTitle>
           <CardDescription className="text-[#666666] mb-6 text-base">
-            You've finished your {session?.totalTarget || 30} moments for today. 
+            You've finished your {session?.totalTarget || 50} moments for today. 
             <br />Great work building momentum!
           </CardDescription>
           
@@ -1587,6 +1610,29 @@ export default function Spotlight() {
               })}
             </div>
           )}
+
+          {/* Ask if user wants to continue */}
+          <div className="bg-purple-50 border border-purple-200 rounded-xl p-4 mb-6">
+            <p className="text-sm text-purple-800 font-medium mb-2">Want to keep the momentum going?</p>
+            <p className="text-xs text-purple-600 mb-3">You can continue working on more tasks if you'd like.</p>
+            <Button 
+              onClick={() => continueMutation.mutate()}
+              disabled={continueMutation.isPending}
+              className="w-full bg-purple-600 hover:bg-purple-700 text-white"
+            >
+              {continueMutation.isPending ? (
+                <>
+                  <RefreshCw className="w-4 h-4 mr-2 animate-spin" />
+                  Loading...
+                </>
+              ) : (
+                <>
+                  <Rocket className="w-4 h-4 mr-2" />
+                  Continue Working
+                </>
+              )}
+            </Button>
+          </div>
 
           <div className="flex gap-4 justify-center">
             <Link href="/">
