@@ -640,6 +640,29 @@ export default function Spotlight() {
     },
   });
 
+  // Mutation to continue working after completion
+  const continueMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/spotlight/continue', {});
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: "Let's keep going!",
+        description: "You can continue working on more tasks.",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/next'] });
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to continue session",
+        variant: "destructive",
+      });
+    },
+  });
+
   const { data: salesReps = [] } = useQuery<{ id: string; name: string; email: string }[]>({
     queryKey: ['/api/sales-reps'],
     staleTime: 5 * 60 * 1000,
@@ -1595,29 +1618,6 @@ export default function Spotlight() {
       </div>
     );
   }
-
-  // Mutation to continue working after completion
-  const continueMutation = useMutation({
-    mutationFn: async () => {
-      const res = await apiRequest('POST', '/api/spotlight/continue', {});
-      return res.json();
-    },
-    onSuccess: () => {
-      toast({
-        title: "Let's keep going!",
-        description: "You can continue working on more tasks.",
-      });
-      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/next'] });
-      refetch();
-    },
-    onError: (error: Error) => {
-      toast({
-        title: "Error",
-        description: error.message || "Failed to continue session",
-        variant: "destructive",
-      });
-    },
-  });
 
   if (currentTask?.allDone || currentTask?.session?.dayComplete) {
     return (
