@@ -1938,11 +1938,19 @@ export default function Spotlight() {
 
               {/* Header: Name & Company */}
               <div className="flex items-start gap-4 mb-4 pr-20">
-                <div className="w-12 h-12 rounded-lg bg-gradient-to-br from-blue-100 to-blue-50 flex items-center justify-center border border-blue-200">
-                  <Building2 className="w-6 h-6 text-blue-600" />
+                <div className={`w-12 h-12 rounded-lg flex items-center justify-center border ${task.isLeadTask ? 'bg-gradient-to-br from-emerald-100 to-emerald-50 border-emerald-200' : 'bg-gradient-to-br from-blue-100 to-blue-50 border-blue-200'}`}>
+                  {task.isLeadTask ? (
+                    <UserPlus className="w-6 h-6 text-emerald-600" />
+                  ) : (
+                    <Building2 className="w-6 h-6 text-blue-600" />
+                  )}
                 </div>
                 <div className="flex-1">
                   <div className="flex items-center gap-2">
+                    {/* LEAD or CONTACT badge */}
+                    <span className={`text-[10px] font-bold uppercase tracking-wider px-2 py-0.5 rounded ${task.isLeadTask ? 'bg-emerald-100 text-emerald-700 border border-emerald-200' : 'bg-blue-100 text-blue-700 border border-blue-200'}`}>
+                      {task.isLeadTask ? 'Lead' : 'Contact'}
+                    </span>
                     <h2 className={`text-2xl font-bold ${task.isLeadTask ? 'text-emerald-800' : 'text-slate-800'}`}>
                       {task.isLeadTask 
                         ? (task.lead?.name || customer.company || customerName)
