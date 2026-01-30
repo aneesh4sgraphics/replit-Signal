@@ -1905,8 +1905,10 @@ export default function Spotlight() {
               </div>
             )}
 
-            {/* Main Customer/Lead Card - REDESIGNED FIGMA LAYOUT */}
-            <div className={`spotlight-card p-6 mb-4 relative ${task.isLeadTask ? 'ring-2 ring-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-green-50 shadow-emerald-100' : 'bg-white'}`}>
+            {/* Main Customer/Lead Card - REDESIGNED FIGMA LAYOUT with Vertical Tabs */}
+            <div className="flex items-stretch mb-4">
+              {/* Card Container */}
+              <div className={`spotlight-card p-6 flex-1 relative ${task.isLeadTask ? 'ring-2 ring-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-green-50 shadow-emerald-100' : 'bg-white'} rounded-r-none`}>
               
               {/* Lead/Hot Badge - Top Right Corner */}
               <div className="absolute top-4 right-4">
@@ -2910,65 +2912,90 @@ export default function Spotlight() {
                 </div>
               )}
 
-              {/* Coaching Trays - Collapsible inside card */}
-              <div className="flex gap-3 mt-4">
-                {/* Calling Script Ideas - Collapsible */}
-                <div className="flex-1 bg-blue-50 border border-blue-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setCallScriptOpen(!callScriptOpen)}
-                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-blue-100 transition-colors"
-                  >
-                    <div className="flex items-center gap-2">
-                      <Phone className="w-4 h-4 text-blue-600" />
-                      <span className="text-sm font-semibold text-blue-800">Calling Script Ideas</span>
-                    </div>
-                    {callScriptOpen ? (
-                      <ChevronDown className="w-4 h-4 text-blue-500" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-blue-500" />
-                    )}
-                  </button>
-                  {callScriptOpen && (
-                    <div className="px-4 pb-4 space-y-2 border-t border-blue-200 pt-3">
-                      {callScriptIdeas.map((idea, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
-                          <p className="text-xs text-blue-700 leading-relaxed">{idea}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+              </div>
 
-                {/* Email Ideas - Collapsible */}
-                <div className="flex-1 bg-purple-50 border border-purple-200 rounded-xl overflow-hidden">
-                  <button
-                    onClick={() => setEmailIdeasOpen(!emailIdeasOpen)}
-                    className="w-full px-4 py-3 flex items-center justify-between hover:bg-purple-100 transition-colors"
+              {/* Vertical Tabs - Right Side */}
+              <div className="flex flex-col gap-2 flex-shrink-0">
+                {/* Email Tab */}
+                <button
+                  onClick={() => {
+                    setEmailIdeasOpen(!emailIdeasOpen);
+                    if (!emailIdeasOpen) setCallScriptOpen(false);
+                  }}
+                  className={`w-12 py-6 rounded-r-xl flex flex-col items-center justify-center gap-2 transition-all shadow-md ${
+                    emailIdeasOpen 
+                      ? 'bg-blue-600 text-white shadow-blue-200' 
+                      : 'bg-blue-500 text-white hover:bg-blue-600'
+                  }`}
+                >
+                  <Mail className="w-5 h-5" />
+                  <span 
+                    className="text-xs font-bold tracking-wider uppercase"
+                    style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
                   >
-                    <div className="flex items-center gap-2">
-                      <Mail className="w-4 h-4 text-purple-600" />
-                      <span className="text-sm font-semibold text-purple-800">Email Ideas</span>
-                    </div>
-                    {emailIdeasOpen ? (
-                      <ChevronDown className="w-4 h-4 text-purple-500" />
-                    ) : (
-                      <ChevronRight className="w-4 h-4 text-purple-500" />
-                    )}
-                  </button>
-                  {emailIdeasOpen && (
-                    <div className="px-4 pb-4 space-y-2 border-t border-purple-200 pt-3">
-                      {emailIdeas.map((idea, idx) => (
-                        <div key={idx} className="flex items-start gap-2">
-                          <div className="w-1.5 h-1.5 rounded-full bg-purple-500 mt-1.5 flex-shrink-0" />
-                          <p className="text-xs text-purple-700 leading-relaxed">{idea}</p>
-                        </div>
-                      ))}
-                    </div>
-                  )}
-                </div>
+                    Email
+                  </span>
+                </button>
+                
+                {/* Calls Tab */}
+                <button
+                  onClick={() => {
+                    setCallScriptOpen(!callScriptOpen);
+                    if (!callScriptOpen) setEmailIdeasOpen(false);
+                  }}
+                  className={`w-12 py-6 rounded-r-xl flex flex-col items-center justify-center gap-2 transition-all shadow-md ${
+                    callScriptOpen 
+                      ? 'bg-green-600 text-white shadow-green-200' 
+                      : 'bg-green-500 text-white hover:bg-green-600'
+                  }`}
+                >
+                  <Phone className="w-5 h-5" />
+                  <span 
+                    className="text-xs font-bold tracking-wider uppercase"
+                    style={{ writingMode: 'vertical-rl', textOrientation: 'mixed' }}
+                  >
+                    Calls
+                  </span>
+                </button>
               </div>
             </div>
+
+            {/* Email Ideas Panel - Slides out from tab */}
+            {emailIdeasOpen && (
+              <div className="bg-blue-50 border border-blue-200 rounded-xl p-4 mb-4 animate-in slide-in-from-right-2 duration-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Mail className="w-4 h-4 text-blue-600" />
+                  <span className="text-sm font-semibold text-blue-800">Email Ideas</span>
+                </div>
+                <div className="space-y-2">
+                  {emailIdeas.map((idea, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-blue-500 mt-1.5 flex-shrink-0" />
+                      <p className="text-xs text-blue-700 leading-relaxed">{idea}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Call Script Panel - Slides out from tab */}
+            {callScriptOpen && (
+              <div className="bg-green-50 border border-green-200 rounded-xl p-4 mb-4 animate-in slide-in-from-right-2 duration-200">
+                <div className="flex items-center gap-2 mb-3">
+                  <Phone className="w-4 h-4 text-green-600" />
+                  <span className="text-sm font-semibold text-green-800">Calling Script Ideas</span>
+                </div>
+                <div className="space-y-2">
+                  {callScriptIdeas.map((idea, idx) => (
+                    <div key={idx} className="flex items-start gap-2">
+                      <div className="w-1.5 h-1.5 rounded-full bg-green-500 mt-1.5 flex-shrink-0" />
+                      <p className="text-xs text-green-700 leading-relaxed">{idea}</p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
           </div>
         </div>
       </div>
