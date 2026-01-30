@@ -2032,80 +2032,88 @@ export default function Spotlight() {
               </div>
 
               {/* Pro Tip & Machines Row - V0 Style */}
-              <div className="grid grid-cols-2 gap-3 mb-4">
-                {/* Pro Tip Box - Shows product focus from taxonomy */}
-                <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <Lightbulb className="w-4 h-4 text-amber-600" />
-                    <span className="text-sm font-semibold text-amber-800">Pro Tip</span>
-                  </div>
-                  {task.context?.suggestedProducts && task.context.suggestedProducts.length > 0 ? (
-                    <div>
-                      <p className="text-sm text-amber-700 mb-2">
-                        {task.context.machineContext || `Focus on these products for this customer:`}
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {task.context.suggestedProducts.map((product, idx) => (
-                          <Badge key={idx} className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
-                            {product}
-                          </Badge>
-                        ))}
+              {/* Hide Machines box for resellers - they don't have machines */}
+              {(() => {
+                const isReseller = customer?.customerType === 'reseller' || task.lead?.customerType === 'reseller';
+                return (
+                  <div className={`grid gap-3 mb-4 ${isReseller ? 'grid-cols-1' : 'grid-cols-2'}`}>
+                    {/* Pro Tip Box - Shows product focus from taxonomy */}
+                    <div className="bg-amber-50 border border-amber-200 rounded-xl p-3">
+                      <div className="flex items-center gap-2 mb-1">
+                        <Lightbulb className="w-4 h-4 text-amber-600" />
+                        <span className="text-sm font-semibold text-amber-800">Pro Tip</span>
                       </div>
-                    </div>
-                  ) : (
-                    <p className="text-sm text-amber-700">
-                      {currentTask?.coachTip?.content || task.whyNow || "Lead with value - ask about their current needs."}
-                    </p>
-                  )}
-                </div>
-
-                {/* Machines Box - Only for customers, not leads */}
-                <div className="bg-white border border-slate-200 rounded-xl p-3">
-                  <p className="text-sm font-semibold text-slate-700 mb-2">Machines</p>
-                  <div className="flex flex-wrap gap-1.5">
-                    {task.isLeadTask ? (
-                      <span className="text-xs text-slate-400 italic">Convert to customer to add machines</span>
-                    ) : customerMachines.length > 0 ? (
-                      customerMachines.map((m) => (
-                        <Badge key={m.id} variant="outline" className="text-xs bg-slate-50">
-                          {m.machineFamily}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-xs text-slate-400">No machines on file</span>
-                    )}
-                    {!task.isLeadTask && (
-                      showAddMachine ? (
-                        <Select
-                          onValueChange={(value) => {
-                            addMachineMutation.mutate(value);
-                          }}
-                          disabled={addMachineMutation.isPending}
-                        >
-                          <SelectTrigger className="h-6 w-32 text-xs">
-                            <SelectValue placeholder="Select..." />
-                          </SelectTrigger>
-                          <SelectContent>
-                            {machineTypes.map((mt) => (
-                              <SelectItem key={mt.code} value={mt.code} className="text-xs">
-                                {mt.label}
-                              </SelectItem>
+                      {task.context?.suggestedProducts && task.context.suggestedProducts.length > 0 ? (
+                        <div>
+                          <p className="text-sm text-amber-700 mb-2">
+                            {task.context.machineContext || `Focus on these products for this customer:`}
+                          </p>
+                          <div className="flex flex-wrap gap-1">
+                            {task.context.suggestedProducts.map((product, idx) => (
+                              <Badge key={idx} className="bg-amber-100 text-amber-800 border-amber-300 text-xs">
+                                {product}
+                              </Badge>
                             ))}
-                          </SelectContent>
-                        </Select>
+                          </div>
+                        </div>
                       ) : (
-                        <Badge 
-                          variant="outline" 
-                          className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100"
-                          onClick={() => setShowAddMachine(true)}
-                        >
-                          + Add
-                        </Badge>
-                      )
+                        <p className="text-sm text-amber-700">
+                          {currentTask?.coachTip?.content || task.whyNow || "Lead with value - ask about their current needs."}
+                        </p>
+                      )}
+                    </div>
+
+                    {/* Machines Box - Only for customers/leads that are NOT resellers */}
+                    {!isReseller && (
+                      <div className="bg-white border border-slate-200 rounded-xl p-3">
+                        <p className="text-sm font-semibold text-slate-700 mb-2">Machines</p>
+                        <div className="flex flex-wrap gap-1.5">
+                          {task.isLeadTask ? (
+                            <span className="text-xs text-slate-400 italic">Convert to customer to add machines</span>
+                          ) : customerMachines.length > 0 ? (
+                            customerMachines.map((m) => (
+                              <Badge key={m.id} variant="outline" className="text-xs bg-slate-50">
+                                {m.machineFamily}
+                              </Badge>
+                            ))
+                          ) : (
+                            <span className="text-xs text-slate-400">No machines on file</span>
+                          )}
+                          {!task.isLeadTask && (
+                            showAddMachine ? (
+                              <Select
+                                onValueChange={(value) => {
+                                  addMachineMutation.mutate(value);
+                                }}
+                                disabled={addMachineMutation.isPending}
+                              >
+                                <SelectTrigger className="h-6 w-32 text-xs">
+                                  <SelectValue placeholder="Select..." />
+                                </SelectTrigger>
+                                <SelectContent>
+                                  {machineTypes.map((mt) => (
+                                    <SelectItem key={mt.code} value={mt.code} className="text-xs">
+                                      {mt.label}
+                                    </SelectItem>
+                                  ))}
+                                </SelectContent>
+                              </Select>
+                            ) : (
+                              <Badge 
+                                variant="outline" 
+                                className="text-xs bg-pink-50 text-pink-600 border-pink-200 cursor-pointer hover:bg-pink-100"
+                                onClick={() => setShowAddMachine(true)}
+                              >
+                                + Add
+                              </Badge>
+                            )
+                          )}
+                        </div>
+                      </div>
                     )}
                   </div>
-                </div>
-              </div>
+                );
+              })()}
 
               {/* View Map, Tier Badge, Rep Row */}
               <div className="flex items-center gap-4 mb-4 text-sm">
@@ -2896,23 +2904,25 @@ export default function Spotlight() {
                 )}
               </div>
 
-              {/* Machines */}
-              <div className="space-y-3">
-                <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Machines</h4>
-                <div className="bg-slate-50 rounded-xl p-4">
-                  <div className="flex flex-wrap gap-2">
-                    {customerMachines.length > 0 ? (
-                      customerMachines.map((m) => (
-                        <Badge key={m.id} variant="outline" className="text-xs bg-white">
-                          {m.machineFamily}
-                        </Badge>
-                      ))
-                    ) : (
-                      <span className="text-sm text-slate-400 italic">No machines on file</span>
-                    )}
+              {/* Machines - Hide for resellers */}
+              {customer?.customerType !== 'reseller' && (
+                <div className="space-y-3">
+                  <h4 className="text-sm font-semibold text-slate-500 uppercase tracking-wide">Machines</h4>
+                  <div className="bg-slate-50 rounded-xl p-4">
+                    <div className="flex flex-wrap gap-2">
+                      {customerMachines.length > 0 ? (
+                        customerMachines.map((m) => (
+                          <Badge key={m.id} variant="outline" className="text-xs bg-white">
+                            {m.machineFamily}
+                          </Badge>
+                        ))
+                      ) : (
+                        <span className="text-sm text-slate-400 italic">No machines on file</span>
+                      )}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
 
               {/* Recent Notes */}
               <div className="space-y-3">
