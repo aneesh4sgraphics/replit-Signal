@@ -2773,6 +2773,86 @@ export default function Spotlight() {
                 </div>
               )}
 
+              {/* Odoo Quotation Follow-up */}
+              {task.taskSubtype === 'odoo_quote_followup' && (
+                <div className="space-y-3 mb-4">
+                  <div className="bg-purple-50 border border-purple-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <FileText className="w-5 h-5 text-purple-600 mt-0.5 flex-shrink-0" />
+                      <div className="space-y-2 w-full">
+                        <div className="flex items-center gap-2">
+                          <p className="text-sm font-medium text-purple-800">Pending Odoo Quotation</p>
+                          <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full font-medium">
+                            {(task as any).extraContext?.odooQuoteName}
+                          </span>
+                        </div>
+                        <div className="bg-purple-100 rounded-lg p-3 text-sm space-y-1">
+                          <p className="text-purple-800">
+                            <strong>Amount:</strong> ${Number((task as any).extraContext?.odooQuoteAmount || 0).toFixed(2)}
+                          </p>
+                          {(task as any).extraContext?.odooQuoteDate && (
+                            <p className="text-purple-700">
+                              <strong>Quote Date:</strong> {new Date((task as any).extraContext.odooQuoteDate).toLocaleDateString()}
+                            </p>
+                          )}
+                          {(task as any).extraContext?.daysSinceQuote !== null && (
+                            <p className="text-purple-700">
+                              <strong>Days Since Quote:</strong> {(task as any).extraContext.daysSinceQuote} days
+                            </p>
+                          )}
+                          {(task as any).extraContext?.odooQuoteValidityDate && (
+                            <p className="text-purple-700">
+                              <strong>Valid Until:</strong> {new Date((task as any).extraContext.odooQuoteValidityDate).toLocaleDateString()}
+                            </p>
+                          )}
+                        </div>
+                        <p className="text-sm text-purple-700">
+                          This customer has a pending quotation that hasn't been converted to a sales order. Would you like to follow up?
+                        </p>
+                        <div className="grid grid-cols-2 gap-3 mt-3">
+                          <button
+                            onClick={() => handleOutcome('called')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all"
+                          >
+                            <Phone className="w-6 h-6 text-green-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-green-800">Call Customer</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('email_sent')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <Mail className="w-6 h-6 text-blue-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-blue-800">Send Email</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('order_confirmed')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-emerald-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                          >
+                            <Check className="w-6 h-6 text-emerald-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-emerald-800">Order Confirmed!</p>
+                            </div>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('quote_expired')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-red-200 rounded-xl hover:border-red-400 hover:bg-red-50 transition-all"
+                          >
+                            <X className="w-6 h-6 text-red-600" />
+                            <div className="text-center">
+                              <p className="text-xs font-semibold text-red-800">Quote Expired/Lost</p>
+                            </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
               {/* DRIP Reply Urgent - Call Now UI */}
               {task.taskSubtype === 'drip_reply_urgent' && (
                 <div className="space-y-3 mb-4">

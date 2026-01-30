@@ -1,6 +1,7 @@
 import { db } from "./db";
 import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads, bouncedEmails, dripCampaignStepStatus, dripCampaignAssignments, dripCampaignSteps, dripCampaigns, emailSends } from "@shared/schema";
 import { scanForBouncedEmails } from "./bounce-detector";
+import { odooClient, isOdooConfigured } from "./odoo";
 
 // Generic email domains to deprioritize in data hygiene tasks
 const GENERIC_EMAIL_DOMAINS = [
@@ -2065,6 +2066,135 @@ class SpotlightEngine {
     return null;
   }
 
+  // Find customers with pending Odoo quotations (draft/sent state, not converted to sales order)
+  private async findOdooQuoteFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // Skip if Odoo is not configured
+    if (!isOdooConfigured()) {
+      return null;
+    }
+
+    try {
+      // Get customers with Odoo partner IDs that haven't been skipped
+      let conditions = [
+        isNotNull(customers.odooPartnerId),
+        eq(customers.doNotContact, false),
+        or(
+          isNull(customers.salesRepId),
+          eq(customers.salesRepId, userId)
+        ),
+      ];
+
+      if (skippedIds.length > 0) {
+        conditions.push(notInArray(customers.id, skippedIds));
+      }
+
+      // Get a batch of customers with Odoo partner IDs
+      const customersWithOdoo = await db
+        .select({
+          id: customers.id,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          email: customers.email,
+          phone: customers.phone,
+          address1: customers.address1,
+          address2: customers.address2,
+          city: customers.city,
+          province: customers.province,
+          zip: customers.zip,
+          country: customers.country,
+          website: customers.website,
+          salesRepId: customers.salesRepId,
+          salesRepName: customers.salesRepName,
+          pricingTier: customers.pricingTier,
+          customerType: customers.customerType,
+          odooPartnerId: customers.odooPartnerId,
+          isHotProspect: customers.isHotProspect,
+        })
+        .from(customers)
+        .where(and(...conditions))
+        .orderBy(desc(customers.isHotProspect), desc(customers.updatedAt))
+        .limit(20);
+
+      // Check each customer for pending Odoo quotations
+      for (const customer of customersWithOdoo) {
+        if (!customer.odooPartnerId) continue;
+
+        try {
+          const pendingQuotes = await odooClient.getQuotesByPartner(customer.odooPartnerId);
+          
+          if (pendingQuotes && pendingQuotes.length > 0) {
+            // Found a pending quote! Create a follow-up task
+            const quote = pendingQuotes[0]; // Take the most recent
+            const quoteDate = quote.date_order ? new Date(quote.date_order) : null;
+            const daysSinceQuote = quoteDate 
+              ? Math.floor((Date.now() - quoteDate.getTime()) / (1000 * 60 * 60 * 24))
+              : null;
+
+            return {
+              id: `follow_ups::${customer.id}::odoo_quote_followup`,
+              customerId: customer.id,
+              bucket: 'follow_ups',
+              taskSubtype: 'odoo_quote_followup',
+              priority: 95, // High priority - pending quotes need follow-up
+              whyNow: `Pending Odoo quote ${quote.name} for $${Number(quote.amount_total || 0).toFixed(2)}${daysSinceQuote !== null ? ` (${daysSinceQuote} days ago)` : ''}`,
+              outcomes: [
+                { id: 'called', label: 'Called Customer', icon: 'phone' },
+                { id: 'email_sent', label: 'Sent Follow-up Email', icon: 'mail' },
+                { id: 'order_confirmed', label: 'Order Confirmed!', icon: 'check' },
+                { id: 'quote_expired', label: 'Quote Expired/Lost', icon: 'x' },
+              ],
+              extraContext: {
+                odooQuoteId: quote.id,
+                odooQuoteName: quote.name,
+                odooQuoteState: quote.state,
+                odooQuoteAmount: quote.amount_total,
+                odooQuoteDate: quote.date_order,
+                odooQuoteValidityDate: quote.validity_date,
+                daysSinceQuote,
+                sourceType: 'odoo_quotation',
+              },
+              customer: {
+                id: customer.id,
+                company: customer.company,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+                email: customer.email,
+                phone: customer.phone,
+                address1: customer.address1,
+                address2: customer.address2,
+                city: customer.city,
+                province: customer.province,
+                zip: customer.zip,
+                country: customer.country,
+                website: customer.website,
+                salesRepId: customer.salesRepId,
+                salesRepName: customer.salesRepName,
+                pricingTier: customer.pricingTier,
+              },
+              context: {
+                sourceType: 'odoo_quotation',
+                odooQuoteDetails: {
+                  id: quote.id,
+                  name: quote.name,
+                  amount: quote.amount_total,
+                  date: quote.date_order,
+                  state: quote.state,
+                },
+              },
+            };
+          }
+        } catch (odooErr) {
+          // Log but continue to next customer if Odoo call fails
+          console.error(`[Spotlight] Error fetching Odoo quotes for partner ${customer.odooPartnerId}:`, odooErr);
+        }
+      }
+    } catch (error) {
+      console.error('[Spotlight] Error finding Odoo quote follow-up task:', error);
+    }
+    return null;
+  }
+
   private async findFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
     const now = new Date();
     const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
@@ -2193,6 +2323,12 @@ class SpotlightEngine {
       }
     } catch (err) {
       console.error('[Spotlight] Error fetching Shopify quote tasks:', err);
+    }
+    
+    // PRIORITY 1.5: Odoo pending quotations (draft/sent state, not converted)
+    const odooQuoteTask = await this.findOdooQuoteFollowUpTask(userId, customerSkippedIds);
+    if (odooQuoteTask) {
+      return odooQuoteTask;
     }
     
     // PRIORITY 2: Lead follow-up tasks (leads that need nurturing/follow-up)
