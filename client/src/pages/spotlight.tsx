@@ -2766,10 +2766,9 @@ export default function Spotlight() {
                 </div>
               )}
 
-              {/* Data Hygiene: Bounced Email */}
+              {/* Data Hygiene: Bounced Email - Compact single card with issue + buttons */}
               {task.taskSubtype === 'hygiene_bounced_email' && (
-                <div className="space-y-3 mb-4">
-                  {/* Issue Alert Box */}
+                <div className="mb-4">
                   <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
                       <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
@@ -2783,7 +2782,7 @@ export default function Spotlight() {
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Contact</span>
                           )}
                         </div>
-                        <p className="text-sm text-amber-800">
+                        <p className="text-sm text-amber-800 mb-3">
                           Email to <strong>{(task as any).extraContext?.bouncedEmail || task.customerEmail}</strong> bounced
                           {(task as any).extraContext?.bounceDate && (
                             <> on {new Date((task as any).extraContext.bounceDate).toLocaleDateString()}</>
@@ -2793,28 +2792,27 @@ export default function Spotlight() {
                           )}
                           {' '}The contact may have left the company or the business closed.
                         </p>
+                        {/* Action Buttons inside the issue box */}
+                        <div className="flex gap-3">
+                          <button
+                            onClick={() => setShowDeleteConfirm(true)}
+                            className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                            DELETE
+                          </button>
+                          {(task as any).extraContext?.bounceId && (
+                            <button
+                              onClick={() => setLocation(`/bounce-investigation/${(task as any).extraContext.bounceId}`)}
+                              className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-lg text-sm font-bold transition-all bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg"
+                            >
+                              <Search className="w-4 h-4" />
+                              RESEARCH
+                            </button>
+                          )}
+                        </div>
                       </div>
                     </div>
-                  </div>
-
-                  {/* Action Buttons: DELETE and RESEARCH */}
-                  <div className="flex gap-3">
-                    <button
-                      onClick={() => setShowDeleteConfirm(true)}
-                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg"
-                    >
-                      <Trash2 className="w-5 h-5" />
-                      DELETE
-                    </button>
-                    {(task as any).extraContext?.bounceId && (
-                      <button
-                        onClick={() => setLocation(`/bounce-investigation/${(task as any).extraContext.bounceId}`)}
-                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg"
-                      >
-                        <Search className="w-5 h-5" />
-                        RESEARCH
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
