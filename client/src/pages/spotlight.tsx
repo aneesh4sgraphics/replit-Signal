@@ -2030,9 +2030,37 @@ export default function Spotlight() {
                       </a>
                     </div>
                   )}
+                  {/* Sales Rep - Only show edit dropdown if unassigned */}
                   <div className="flex items-center gap-2.5 text-sm">
                     <User className="w-4 h-4 text-slate-400 flex-shrink-0" />
-                    <span className="text-slate-700">{customer.salesRepName || 'Unassigned'}</span>
+                    {customer.salesRepName ? (
+                      <span className="text-slate-700">{customer.salesRepName}</span>
+                    ) : (
+                      <Select 
+                        onValueChange={(value) => {
+                          const rep = salesReps.find(r => r.id === value);
+                          apiRequest('PUT', `/api/customers/${customer.id}`, { 
+                            salesRepId: value,
+                            salesRepName: rep ? getSalesRepDisplayName(rep) : null
+                          })
+                            .then(() => {
+                              toast({ title: "Sales rep assigned" });
+                              queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
+                            });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-36 text-xs border-amber-300 bg-amber-50 text-amber-700">
+                          <SelectValue placeholder="Assign rep..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {salesReps.map((rep) => (
+                            <SelectItem key={rep.id} value={rep.id} className="text-xs">
+                              {getSalesRepDisplayName(rep)}
+                            </SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
 
@@ -2126,28 +2154,31 @@ export default function Spotlight() {
                     );
                   })()}
 
-                  {/* Pricing Tier */}
+                  {/* Pricing Tier - Only show dropdown if not assigned */}
                   <div className="flex items-center gap-2">
                     <span className="text-sm text-slate-500 w-20">Pricing:</span>
-                    <Select 
-                      value={customer.pricingTier || undefined}
-                      onValueChange={(value) => {
-                        apiRequest('PUT', `/api/customers/${customer.id}`, { pricingTier: value })
-                          .then(() => {
-                            toast({ title: `Pricing set to ${value}` });
-                            queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
-                          });
-                      }}
-                    >
-                      <SelectTrigger className="h-8 w-32 text-xs border-slate-200">
-                        <SelectValue placeholder="Select tier..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {PRICING_TIERS.map((tier) => (
-                          <SelectItem key={tier} value={tier} className="text-xs">{tier}</SelectItem>
-                        ))}
-                      </SelectContent>
-                    </Select>
+                    {customer.pricingTier ? (
+                      <span className="text-sm font-medium text-slate-700">{customer.pricingTier}</span>
+                    ) : (
+                      <Select 
+                        onValueChange={(value) => {
+                          apiRequest('PUT', `/api/customers/${customer.id}`, { pricingTier: value })
+                            .then(() => {
+                              toast({ title: `Pricing set to ${value}` });
+                              queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
+                            });
+                        }}
+                      >
+                        <SelectTrigger className="h-7 w-32 text-xs border-amber-300 bg-amber-50 text-amber-700">
+                          <SelectValue placeholder="Select tier..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          {PRICING_TIERS.map((tier) => (
+                            <SelectItem key={tier} value={tier} className="text-xs">{tier}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                    )}
                   </div>
                 </div>
               </div>
