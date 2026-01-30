@@ -88,6 +88,7 @@ import {
   PhoneOff,
   XCircle,
   MoreHorizontal,
+  ClipboardList,
 } from "lucide-react";
 
 // Progress Ring SVG Component for Pastel & Soft design
@@ -395,6 +396,20 @@ export default function Spotlight() {
     staleTime: 60 * 1000, // Increased from 30s to reduce refetches
     gcTime: 5 * 60 * 1000, // Keep in cache for 5 minutes
   });
+
+  // Fetch "Later Today" scratch pad tasks
+  const { data: remindTodayTasks = [], refetch: refetchRemindToday } = useQuery<Array<{
+    taskId: string;
+    customerId: string;
+    bucket: string;
+    subtype: string;
+    remindedAt: string;
+    displayName: string;
+    isLead: boolean;
+  }>>({
+    queryKey: ['/api/spotlight/remind-today'],
+    staleTime: 30 * 1000,
+  });
   
   const [showWarmup, setShowWarmup] = useState(false);
   const [showMicroCard, setShowMicroCard] = useState(false);
@@ -404,9 +419,10 @@ export default function Spotlight() {
   const [followUpDays, setFollowUpDays] = useState(7);
   
   // V0 Redesign: Coaching tray states
-  const [callScriptOpen, setCallScriptOpen] = useState(true);
+  const [callScriptOpen, setCallScriptOpen] = useState(false);
   const [emailIdeasOpen, setEmailIdeasOpen] = useState(false);
   const [showAddMachine, setShowAddMachine] = useState(false);
+  const [scratchPadOpen, setScratchPadOpen] = useState(false);
   
   // Email composer state
   const [showEmailComposer, setShowEmailComposer] = useState(false);
@@ -801,6 +817,7 @@ export default function Spotlight() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current', forceBucket] });
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/remind-today'] });
       toast({ title: "Reminder set", description: "This will come up again at end of day" });
       setTimeout(() => setIsTransitioning(false), 100);
     },
@@ -4125,6 +4142,75 @@ export default function Spotlight() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      {/* Later Today Scratch Pad - Floating Panel */}
+      {remindTodayTasks.length > 0 && (
+        <div className="fixed bottom-6 right-6 z-50">
+          {scratchPadOpen ? (
+            <div className="bg-white rounded-xl shadow-2xl border border-gray-200 w-80 max-h-96 overflow-hidden animate-in slide-in-from-bottom-2 duration-200">
+              <div className="flex items-center justify-between px-4 py-3 border-b bg-gradient-to-r from-amber-50 to-orange-50">
+                <div className="flex items-center gap-2">
+                  <ClipboardList className="w-4 h-4 text-amber-600" />
+                  <span className="font-semibold text-sm text-amber-900">Later Today</span>
+                  <span className="px-1.5 py-0.5 text-xs font-medium bg-amber-200 text-amber-800 rounded-full">
+                    {remindTodayTasks.length}
+                  </span>
+                </div>
+                <Button
+                  variant="ghost"
+                  size="icon"
+                  className="h-6 w-6"
+                  onClick={() => setScratchPadOpen(false)}
+                >
+                  <X className="w-4 h-4" />
+                </Button>
+              </div>
+              <div className="overflow-y-auto max-h-72 p-2">
+                {remindTodayTasks.map((t, idx) => (
+                  <div
+                    key={t.taskId}
+                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
+                    onClick={() => {
+                      // Navigate to this task by setting force bucket (closest we can get)
+                      setForceBucket(t.bucket as any);
+                      setScratchPadOpen(false);
+                    }}
+                  >
+                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
+                      <span className="text-xs font-medium text-amber-700">{idx + 1}</span>
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 truncate">{t.displayName}</p>
+                      <div className="flex items-center gap-2 mt-0.5">
+                        {t.isLead && (
+                          <span className="px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded">LEAD</span>
+                        )}
+                        <span className="text-xs text-gray-500 capitalize">{t.bucket.replace('_', ' ')}</span>
+                      </div>
+                    </div>
+                    <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-gray-600 flex-shrink-0" />
+                  </div>
+                ))}
+              </div>
+              <div className="px-4 py-2 border-t bg-gray-50">
+                <p className="text-xs text-gray-500 text-center">
+                  Tasks you deferred earlier today
+                </p>
+              </div>
+            </div>
+          ) : (
+            <Button
+              onClick={() => setScratchPadOpen(true)}
+              className="h-12 w-12 rounded-full shadow-lg bg-gradient-to-br from-amber-500 to-orange-500 hover:from-amber-600 hover:to-orange-600 relative"
+            >
+              <ClipboardList className="w-5 h-5 text-white" />
+              <span className="absolute -top-1 -right-1 w-5 h-5 rounded-full bg-red-500 text-white text-xs font-bold flex items-center justify-center">
+                {remindTodayTasks.length}
+              </span>
+            </Button>
+          )}
+        </div>
+      )}
     </div>
   );
 }

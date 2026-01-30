@@ -22359,6 +22359,44 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // Get "Later Today" tasks for scratch pad
+  app.get("/api/spotlight/remind-today", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) {
+        return res.status(401).json({ error: "Not authenticated" });
+      }
+
+      const tasks = spotlightEngine.getRemindTodayTasks(userId);
+      
+      // Enrich with customer/lead names for display
+      const enrichedTasks = await Promise.all(tasks.map(async (t) => {
+        let displayName = 'Unknown';
+        let isLead = t.customerId.startsWith('lead-');
+        
+        if (isLead) {
+          const leadId = t.customerId.replace('lead-', '');
+          const lead = await storage.getLeadById(leadId);
+          displayName = lead?.companyName || lead?.contactName || 'Unknown Lead';
+        } else {
+          const customer = await storage.getCustomer(t.customerId);
+          displayName = customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Unknown';
+        }
+        
+        return {
+          ...t,
+          displayName,
+          isLead,
+        };
+      }));
+      
+      res.json(enrichedTasks);
+    } catch (error) {
+      console.error("[Spotlight] Error getting remind today tasks:", error);
+      res.status(500).json({ error: "Failed to get remind today tasks" });
+    }
+  });
+
   app.get("/api/admin/spotlight/analytics", isAuthenticated, async (req: any, res) => {
     try {
       const isAdmin = req.user?.role === 'admin';

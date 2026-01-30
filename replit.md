@@ -171,6 +171,10 @@ Lead task outcomes automatically update lead records:
 - Button in "What Happened" section allows reps to defer a task to later
 - Task is temporarily skipped but tracked in session.remindTodayTasks
 - Persisted in `spotlight_events` with event_type = 'remind_today' for cross-restart durability
+- **Later Today Scratch Pad**: Floating amber button in bottom-right corner shows count of deferred tasks
+  - Expands to show list of deferred tasks with company/lead names
+  - Click task to navigate to that bucket (uses forceBucket to switch)
+  - API endpoint: `GET /api/spotlight/remind-today` returns enriched task list with display names
 
 **Session State Persistence:**
 - Progress bars and session state survive server restarts/republishing
