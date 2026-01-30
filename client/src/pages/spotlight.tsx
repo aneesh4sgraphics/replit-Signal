@@ -2604,12 +2604,13 @@ export default function Spotlight() {
               {/* Data Hygiene: Bounced Email */}
               {task.taskSubtype === 'hygiene_bounced_email' && (
                 <div className="space-y-3 mb-4">
-                  <div className="bg-red-50 border border-red-200 rounded-xl p-4">
+                  {/* Issue Alert Box */}
+                  <div className="bg-amber-50 border border-amber-200 rounded-xl p-4">
                     <div className="flex items-start gap-3">
-                      <AlertCircle className="w-5 h-5 text-red-500 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <p className="text-sm font-medium text-red-800">Email Bounced</p>
+                      <AlertCircle className="w-5 h-5 text-amber-600 mt-0.5 flex-shrink-0" />
+                      <div className="flex-1">
+                        <div className="flex items-center gap-2 mb-1">
+                          <span className="text-xs font-bold text-amber-700 uppercase">Issue:</span>
                           {(task as any).extraContext?.matchType === 'lead' && (
                             <span className="text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Lead</span>
                           )}
@@ -2617,39 +2618,38 @@ export default function Spotlight() {
                             <span className="text-xs bg-blue-100 text-blue-700 px-2 py-0.5 rounded-full">Contact</span>
                           )}
                         </div>
-                        {(task as any).extraContext?.bouncedEmail && (
-                          <div className="bg-red-100 rounded-lg p-3 text-xs space-y-1">
-                            <p className="text-red-700"><strong>Bounced Email:</strong> {(task as any).extraContext.bouncedEmail}</p>
-                            {(task as any).extraContext.bounceSubject && (
-                              <p className="text-red-600"><strong>Original Subject:</strong> {(task as any).extraContext.bounceSubject}</p>
-                            )}
-                            {(task as any).extraContext.bounceDate && (
-                              <p className="text-red-600"><strong>Bounce Date:</strong> {new Date((task as any).extraContext.bounceDate).toLocaleDateString()}</p>
-                            )}
-                          </div>
-                        )}
-                        <p className="text-sm text-red-700">
-                          This email address is no longer valid. The person may have left the company or the business may have closed.
+                        <p className="text-sm text-amber-800">
+                          Email to <strong>{(task as any).extraContext?.bouncedEmail || task.customerEmail}</strong> bounced
+                          {(task as any).extraContext?.bounceDate && (
+                            <> on {new Date((task as any).extraContext.bounceDate).toLocaleDateString()}</>
+                          )}.
+                          {(task as any).extraContext?.bounceSubject && (
+                            <> Subject: "{(task as any).extraContext.bounceSubject}".</>
+                          )}
+                          {' '}The contact may have left the company or the business closed.
                         </p>
-                        <div className="bg-amber-50 border border-amber-200 rounded-lg p-2 mt-2">
-                          <p className="text-xs text-amber-800 font-medium">What would you like to do?</p>
-                          <ul className="text-xs text-amber-700 mt-1 list-disc pl-4 space-y-1">
-                            <li><strong>Mark as Do Not Contact</strong> - Stop all outreach to this {(task as any).extraContext?.matchType === 'lead' ? 'lead' : 'contact'} (recommended)</li>
-                            <li><strong>Keep Active</strong> - If you believe the bounce was temporary</li>
-                            <li><strong>Keep for Research</strong> - Open AI-powered investigation page to help you decide</li>
-                          </ul>
-                        </div>
-                        {(task as any).extraContext?.bounceId && (
-                          <button
-                            onClick={() => setLocation(`/bounce-investigation/${(task as any).extraContext.bounceId}`)}
-                            className="mt-3 w-full flex items-center justify-center gap-2 bg-purple-600 hover:bg-purple-700 text-white text-sm font-medium py-2 px-4 rounded-lg transition-colors"
-                          >
-                            <Search className="w-4 h-4" />
-                            Keep for Research (AI Analysis)
-                          </button>
-                        )}
                       </div>
                     </div>
+                  </div>
+
+                  {/* Action Buttons: DELETE and RESEARCH */}
+                  <div className="flex gap-3">
+                    <button
+                      onClick={() => setShowDeleteConfirm(true)}
+                      className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-red-500 hover:bg-red-600 text-white shadow-md hover:shadow-lg"
+                    >
+                      <Trash2 className="w-5 h-5" />
+                      DELETE
+                    </button>
+                    {(task as any).extraContext?.bounceId && (
+                      <button
+                        onClick={() => setLocation(`/bounce-investigation/${(task as any).extraContext.bounceId}`)}
+                        className="flex-1 flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-purple-600 hover:bg-purple-700 text-white shadow-md hover:shadow-lg"
+                      >
+                        <Search className="w-5 h-5" />
+                        RESEARCH
+                      </button>
+                    )}
                   </div>
                 </div>
               )}
