@@ -2125,6 +2125,30 @@ export default function Spotlight() {
                   <SkipForward className="w-4 h-4" />
                 </button>
                 
+                {/* Mark as Hot - Only for non-lead customers */}
+                {!task.isLeadTask && (
+                  <button
+                    onClick={() => {
+                      const isCurrentlyHot = optimisticHotProspect ?? customer.isHotProspect;
+                      setOptimisticHotProspect(!isCurrentlyHot);
+                      apiRequest('PUT', `/api/customers/${customer.id}`, { isHotProspect: !isCurrentlyHot })
+                        .then(() => toast({ title: isCurrentlyHot ? "Removed Hot status" : "Marked as Hot Prospect" }))
+                        .catch(() => {
+                          setOptimisticHotProspect(null);
+                          toast({ title: "Error", variant: "destructive" });
+                        });
+                    }}
+                    className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
+                      (optimisticHotProspect ?? customer.isHotProspect) 
+                        ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                        : 'bg-orange-100 text-orange-500 hover:bg-orange-200'
+                    }`}
+                    title={(optimisticHotProspect ?? customer.isHotProspect) ? "Remove Hot Prospect status" : "Mark as Hot Prospect"}
+                  >
+                    <Flame className="w-4 h-4" />
+                  </button>
+                )}
+                
                 {/* Bad Fit */}
                 <button
                   onClick={() => completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' })}
