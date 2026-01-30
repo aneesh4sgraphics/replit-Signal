@@ -2341,6 +2341,23 @@ class SpotlightEngine {
             continue; // Already followed up on this sample order
           }
 
+          // Determine how the sample was identified
+          const clientRef = (customerSampleOrder as any).client_order_ref;
+          const isZeroValue = customerSampleOrder.amount_total === 0;
+          const hasSamplesRef = clientRef && clientRef.toLowerCase().includes('samples');
+          
+          // Build descriptive message based on how sample was identified
+          let proTipMessage = `You sent this Sales Order (${customerSampleOrder.name})`;
+          if (isZeroValue && hasSamplesRef) {
+            proTipMessage += ` with $0.00 value and Customer Reference "${clientRef}"`;
+          } else if (isZeroValue) {
+            proTipMessage += ` with $0.00 value`;
+          } else if (hasSamplesRef) {
+            proTipMessage += ` with Customer Reference "${clientRef}"`;
+          }
+          proTipMessage += daysSinceSample !== null ? ` ${daysSinceSample} days ago` : '';
+          proTipMessage += `. Would you like to follow up with the customer to see how they liked the samples?`;
+
           return {
             id: `follow_ups::${customer.id}::odoo_sample_followup_${customerSampleOrder.id}`,
             customerId: customer.id,
@@ -2380,9 +2397,10 @@ class SpotlightEngine {
               odooOrderId: customerSampleOrder.id,
               odooOrderName: customerSampleOrder.name,
               odooOrderDate: customerSampleOrder.date_order,
+              odooClientRef: clientRef,
               daysSinceSample,
               isProTip: true,
-              proTipMessage: `You sent this Sales Order (${customerSampleOrder.name}) with $0.00 value${daysSinceSample !== null ? ` ${daysSinceSample} days ago` : ''}. Would you like to follow up with the customer to see how they liked the samples?`,
+              proTipMessage,
             },
           };
         }

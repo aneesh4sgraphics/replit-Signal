@@ -51,7 +51,7 @@ This is a full-stack TypeScript sales management application designed for a spec
     - **DRIP Email Integration:** Automatically surfaces urgent replies to drip campaigns and stale drip follow-ups as high-priority tasks.
     - **Differentiated Task Cards:** Visually distinct task cards based on their source (email, drip, lead, Odoo quote/sample) to provide context.
     - **Odoo Quotation Follow-up:** Generates follow-up tasks for pending Odoo quotations with relevant details and actions.
-    - **Odoo Sample Order Follow-up:** Detects $0.00 Odoo sales orders (samples) and prompts follow-up with a "Pro Tip."
+    - **Odoo Sample Order Follow-up:** Detects sample orders from Odoo using two methods: (1) $0.00 sales orders, or (2) orders where Customer Reference field contains "Samples". Creates follow-up tasks with context about how the sample was identified.
     - **Today's Progress Bars:** Five dedicated progress bars tracking daily activity:
       1. **Quotes FollowedUp** (⭐ high priority): Count of Odoo/Shopify quotes followed up via call or email
       2. **SwatchBooks**: Count of swatch books + press test kits sent + $0 sample order follow-ups

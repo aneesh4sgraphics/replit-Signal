@@ -690,15 +690,19 @@ class OdooClient {
   }
 
   async getZeroValueSampleOrders(sinceDate: string = '2026-01-01'): Promise<OdooSaleOrder[]> {
-    // Get $0.00 sales orders (likely samples) since the specified date
-    // These are confirmed orders with zero amount - typically free samples sent to customers
+    // Get sample orders since the specified date
+    // Sample orders are identified by:
+    // 1. $0.00 amount total (free samples)
+    // 2. Customer Reference (client_order_ref) contains "Samples"
     return this.searchRead('sale.order', [
       ['state', 'in', ['sale', 'done']],
+      ['date_order', '>=', sinceDate],
+      '|', // OR condition in Odoo domain
       ['amount_total', '=', 0],
-      ['date_order', '>=', sinceDate]
+      ['client_order_ref', 'ilike', '%samples%']
     ], [
       'id', 'name', 'partner_id', 'state', 'date_order', 'amount_total',
-      'amount_untaxed', 'order_line', 'user_id', 'note',
+      'amount_untaxed', 'order_line', 'user_id', 'note', 'client_order_ref',
     ], { limit: 50, order: 'date_order desc' });
   }
 
