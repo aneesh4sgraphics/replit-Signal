@@ -3410,45 +3410,6 @@ export default function Spotlight() {
                 </div>
               )}
 
-              {/* Data Hygiene outcome buttons - Compact Single Row */}
-              {task.bucket === 'data_hygiene' && task.outcomes.length > 0 && (
-                <div className="space-y-3">
-                  <div className="flex flex-wrap gap-2">
-                    {task.outcomes.map((outcome) => {
-                      const OutcomeIcon = outcome.icon ? OUTCOME_ICONS[outcome.icon] : Check;
-                      return (
-                        <button
-                          key={outcome.id}
-                          className="flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold transition-all border border-slate-200 hover:bg-slate-50"
-                          onClick={() => handleOutcome(outcome.id)}
-                        >
-                          {OutcomeIcon && <OutcomeIcon className="w-4 h-4 text-slate-600" />}
-                          <span className="leading-tight">{outcome.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {/* Default Action Buttons - BAD FIT and SKIP for Data Hygiene */}
-                  <div className="flex gap-3 justify-center pt-3 border-t border-slate-200">
-                    <button 
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 border-red-200 text-red-600 bg-red-50 hover:bg-red-100 hover:border-red-300"
-                      onClick={() => completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' })}
-                      disabled={completeMutation.isPending}
-                    >
-                      <Ban className="w-4 h-4" />
-                      Bad Fit
-                    </button>
-                    <button 
-                      className="flex items-center gap-2 px-5 py-2.5 rounded-xl text-sm font-semibold transition-all border-2 border-slate-200 text-slate-600 bg-slate-50 hover:bg-slate-100 hover:border-slate-300"
-                      onClick={handleSkip}
-                      disabled={skipMutation.isPending}
-                    >
-                      <SkipForward className="w-4 h-4" />
-                      Skip
-                    </button>
-                  </div>
-                </div>
-              )}
 
               </div>
 
