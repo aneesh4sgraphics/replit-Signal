@@ -90,6 +90,7 @@ import {
   MoreHorizontal,
   ClipboardList,
 } from "lucide-react";
+import { SiShopify } from "react-icons/si";
 
 // Progress Ring SVG Component for Pastel & Soft design
 const ProgressRing = ({ progress, size = 120, strokeWidth = 8 }: { progress: number; size?: number; strokeWidth?: number }) => {
@@ -1941,13 +1942,49 @@ export default function Spotlight() {
                   <Building2 className="w-6 h-6 text-blue-600" />
                 </div>
                 <div className="flex-1">
-                  <h2 className={`text-2xl font-bold ${task.isLeadTask ? 'text-emerald-800' : 'text-slate-800'}`}>
-                    {task.isLeadTask 
-                      ? (task.lead?.name || customer.company || customerName)
-                      : (customer.firstName && customer.lastName 
-                          ? `${customer.firstName} ${customer.lastName}` 
-                          : customer.company || customerName)}
-                  </h2>
+                  <div className="flex items-center gap-2">
+                    <h2 className={`text-2xl font-bold ${task.isLeadTask ? 'text-emerald-800' : 'text-slate-800'}`}>
+                      {task.isLeadTask 
+                        ? (task.lead?.name || customer.company || customerName)
+                        : (customer.firstName && customer.lastName 
+                            ? `${customer.firstName} ${customer.lastName}` 
+                            : customer.company || customerName)}
+                    </h2>
+                    {/* Open Detail Page Button */}
+                    <Link 
+                      href={task.isLeadTask && task.leadId 
+                        ? `/leads/${task.leadId}` 
+                        : `/contacts/${customer.id}`}
+                    >
+                      <button 
+                        className="p-1.5 rounded-lg bg-slate-100 hover:bg-slate-200 text-slate-500 hover:text-slate-700 transition-all"
+                        title={task.isLeadTask ? "Open lead detail page" : "Open customer detail page"}
+                      >
+                        <ExternalLink className="w-4 h-4" />
+                      </button>
+                    </Link>
+                    {/* Source Logos */}
+                    {!task.isLeadTask && (
+                      <div className="flex items-center gap-1.5 ml-1">
+                        {(customer.sources?.includes('odoo') || customer.odooPartnerId) && (
+                          <span 
+                            className="flex items-center justify-center w-6 h-6 rounded bg-purple-100 text-purple-600"
+                            title="Customer from Odoo"
+                          >
+                            <span className="text-[10px] font-bold">O</span>
+                          </span>
+                        )}
+                        {(customer.sources?.includes('shopify') || customer.id?.startsWith('shopify_')) && (
+                          <span 
+                            className="flex items-center justify-center w-6 h-6 rounded bg-green-100 text-green-600"
+                            title="Customer from Shopify"
+                          >
+                            <SiShopify className="w-3.5 h-3.5" />
+                          </span>
+                        )}
+                      </div>
+                    )}
+                  </div>
                   <p className="text-base text-slate-600">
                     {task.isLeadTask 
                       ? task.lead?.company 
