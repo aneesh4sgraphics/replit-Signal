@@ -2583,52 +2583,54 @@ export default function Spotlight() {
                   );
                 })()}
 
-                {/* Pro Tip Card - includes data hygiene hints and context-dependent action reason */}
-                <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-yellow-300 rounded-2xl p-4">
-                  {/* Context-dependent action label */}
-                  {task.whyNow && (
-                    <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200">
-                      <Target className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                      <span className="text-xs font-semibold text-blue-600 uppercase">
-                        {task.bucket === 'calls' ? 'Call Reason:' :
-                         task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
-                         task.bucket === 'outreach' ? 'Outreach Opportunity:' :
-                         task.bucket === 'data_hygiene' ? 'Issue:' :
-                         task.bucket === 'enablement' ? 'Materials Needed:' :
-                         'Action Needed:'}
-                      </span>
-                      <span className="text-sm text-slate-700">{task.whyNow}</span>
-                    </div>
-                  )}
-                  {/* Missing field hints displayed */}
-                  {currentTask.hints?.filter(h => h.type === 'missing_field').map((hint, idx) => (
-                    <div key={idx} className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-amber-200">
-                      <div className="flex items-center gap-2 flex-1">
-                        <UserCog className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                        <span className="text-sm text-amber-800">{hint.message}</span>
+                {/* Pro Tip Card - hidden for bounced email tasks (they have their own compact card) */}
+                {task.taskSubtype !== 'hygiene_bounced_email' && (
+                  <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-yellow-300 rounded-2xl p-4">
+                    {/* Context-dependent action label */}
+                    {task.whyNow && (
+                      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200">
+                        <Target className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                        <span className="text-xs font-semibold text-blue-600 uppercase">
+                          {task.bucket === 'calls' ? 'Call Reason:' :
+                           task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
+                           task.bucket === 'outreach' ? 'Outreach Opportunity:' :
+                           task.bucket === 'data_hygiene' ? 'Issue:' :
+                           task.bucket === 'enablement' ? 'Materials Needed:' :
+                           'Action Needed:'}
+                        </span>
+                        <span className="text-sm text-slate-700">{task.whyNow}</span>
                       </div>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        className="text-xs rounded-full border-amber-400 text-amber-700 hover:bg-amber-100"
-                        onClick={() => handleFixData(hint.metadata?.missingFields || [])}
-                      >
-                        {hint.ctaLabel}
-                      </Button>
-                    </div>
-                  ))}
-                  <div className="flex items-start gap-3">
-                    <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0">
-                      <Lightbulb className="w-5 h-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-bold text-red-600 mb-1">PRO Tip!!</p>
-                      <p className="text-sm text-amber-800">
-                        {currentTask?.coachTip?.content || "Follow up within 24 hours for best conversion rates. Consider sending a personalized quote or sample material based on their customer type."}
-                      </p>
+                    )}
+                    {/* Missing field hints displayed */}
+                    {currentTask.hints?.filter(h => h.type === 'missing_field').map((hint, idx) => (
+                      <div key={idx} className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-amber-200">
+                        <div className="flex items-center gap-2 flex-1">
+                          <UserCog className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                          <span className="text-sm text-amber-800">{hint.message}</span>
+                        </div>
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          className="text-xs rounded-full border-amber-400 text-amber-700 hover:bg-amber-100"
+                          onClick={() => handleFixData(hint.metadata?.missingFields || [])}
+                        >
+                          {hint.ctaLabel}
+                        </Button>
+                      </div>
+                    ))}
+                    <div className="flex items-start gap-3">
+                      <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0">
+                        <Lightbulb className="w-5 h-5 text-white" />
+                      </div>
+                      <div>
+                        <p className="text-sm font-bold text-red-600 mb-1">PRO Tip!!</p>
+                        <p className="text-sm text-amber-800">
+                          {currentTask?.coachTip?.content || "Follow up within 24 hours for best conversion rates. Consider sending a personalized quote or sample material based on their customer type."}
+                        </p>
+                      </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
 
               {/* Follow-up context */}
