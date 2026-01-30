@@ -353,6 +353,8 @@ export default function Spotlight() {
   const [fieldValue, setFieldValue] = useState("");
   const [notes, setNotes] = useState("");
   const [showNotes, setShowNotes] = useState(false);
+  const [showVoicemailNote, setShowVoicemailNote] = useState(false);
+  const [voicemailNote, setVoicemailNote] = useState("");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [showIdleModal, setShowIdleModal] = useState(false);
@@ -1273,7 +1275,7 @@ export default function Spotlight() {
     return [...new Set(allEmails.filter(e => e && e.trim()))];
   };
 
-  const handleOutcome = (outcomeId: string, field?: string, value?: string) => {
+  const handleOutcome = (outcomeId: string, field?: string, value?: string, customNotes?: string) => {
     if (!currentTask?.task) return;
     
     // If custom follow-up is selected, show the dialog instead
@@ -1282,12 +1284,15 @@ export default function Spotlight() {
       return;
     }
     
+    // Use custom notes if provided (e.g., from voicemail prompt), otherwise use the general notes field
+    const finalNotes = customNotes?.trim() || notes.trim() || undefined;
+    
     completeMutation.mutate({ 
       taskId: currentTask.task.id, 
       outcomeId,
       field, 
       value,
-      notes: notes.trim() || undefined,
+      notes: finalNotes,
     });
   };
   
@@ -2795,40 +2800,83 @@ export default function Spotlight() {
                       {/* CALLS - Hero button + secondary options */}
                       {task.bucket === 'calls' && (
                         <div className="space-y-3">
-                          <button
-                            onClick={() => handleOutcome('connected')}
-                            disabled={completeMutation.isPending}
-                            className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:shadow-lg hover:from-emerald-600 hover:to-emerald-700"
-                          >
-                            <CheckCircle className="w-5 h-5" />
-                            Connected!
-                          </button>
-                          <div className="flex gap-2">
-                            <button
-                              onClick={() => handleOutcome('voicemail')}
-                              disabled={completeMutation.isPending}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            >
-                              <PhoneCall className="w-3.5 h-3.5" />
-                              Voicemail
-                            </button>
-                            <button
-                              onClick={() => handleOutcome('no_answer')}
-                              disabled={completeMutation.isPending}
-                              className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-slate-100 text-slate-600 hover:bg-slate-200"
-                            >
-                              <PhoneMissed className="w-3.5 h-3.5" />
-                              No Answer
-                            </button>
-                            <button
-                              onClick={() => handleOutcome('bad_number')}
-                              disabled={completeMutation.isPending}
-                              className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-red-50 text-red-600 hover:bg-red-100"
-                            >
-                              <PhoneOff className="w-3.5 h-3.5" />
-                              Bad #
-                            </button>
-                          </div>
+                          {/* Voicemail Note Prompt */}
+                          {showVoicemailNote ? (
+                            <div className="space-y-3">
+                              <div className="flex items-center gap-2 text-amber-600">
+                                <PhoneCall className="w-4 h-4" />
+                                <span className="text-sm font-semibold">Left Voicemail</span>
+                              </div>
+                              <Textarea
+                                value={voicemailNote}
+                                onChange={(e) => setVoicemailNote(e.target.value)}
+                                placeholder="Who did you leave the message for? Who was the receptionist? What did you say?"
+                                className="border-amber-200 bg-amber-50 min-h-[80px] text-sm rounded-xl placeholder:text-amber-400"
+                                autoFocus
+                              />
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => {
+                                    handleOutcome('voicemail', undefined, undefined, voicemailNote);
+                                    setShowVoicemailNote(false);
+                                    setVoicemailNote("");
+                                  }}
+                                  disabled={completeMutation.isPending}
+                                  className="flex-1 flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-bold transition-all bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-md hover:shadow-lg"
+                                >
+                                  <Check className="w-4 h-4" />
+                                  Save & Complete
+                                </button>
+                                <button
+                                  onClick={() => { setShowVoicemailNote(false); setVoicemailNote(""); }}
+                                  className="px-4 py-2.5 rounded-xl text-sm font-medium transition-all bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                >
+                                  Cancel
+                                </button>
+                              </div>
+                            </div>
+                          ) : (
+                            <>
+                              <button
+                                onClick={() => handleOutcome('connected')}
+                                disabled={completeMutation.isPending}
+                                className="w-full flex items-center justify-center gap-2 px-4 py-3 rounded-xl text-sm font-bold transition-all bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-md hover:shadow-lg hover:from-emerald-600 hover:to-emerald-700"
+                                title="You spoke with the contact directly"
+                              >
+                                <CheckCircle className="w-5 h-5" />
+                                Connected!
+                              </button>
+                              <div className="flex gap-2">
+                                <button
+                                  onClick={() => setShowVoicemailNote(true)}
+                                  disabled={completeMutation.isPending}
+                                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-amber-50 text-amber-600 hover:bg-amber-100 border border-amber-200"
+                                  title="You left a voicemail message"
+                                >
+                                  <PhoneCall className="w-3.5 h-3.5" />
+                                  Voicemail
+                                </button>
+                                <button
+                                  onClick={() => handleOutcome('no_answer')}
+                                  disabled={completeMutation.isPending}
+                                  className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-slate-100 text-slate-600 hover:bg-slate-200"
+                                  title="Phone rang but nobody answered"
+                                >
+                                  <PhoneMissed className="w-3.5 h-3.5" />
+                                  No Answer
+                                </button>
+                                <button
+                                  onClick={() => handleOutcome('bad_number')}
+                                  disabled={completeMutation.isPending}
+                                  className="flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-medium transition-all bg-red-50 text-red-600 hover:bg-red-100"
+                                  title="Phone number is incorrect or disconnected"
+                                >
+                                  <PhoneOff className="w-3.5 h-3.5" />
+                                  Bad #
+                                </button>
+                              </div>
+                            </>
+                          )}
                         </div>
                       )}
 
