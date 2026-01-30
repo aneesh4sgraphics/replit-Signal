@@ -22730,14 +22730,12 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         return res.status(400).json({ error: "Invalid bounce ID" });
       }
 
-      // Get bounce record - scoped to the user who detected it
+      // Get bounce record - any authenticated user can view bounces
+      // (bounced emails are data quality issues visible to all users)
       const [bounce] = await db
         .select()
         .from(bouncedEmails)
-        .where(and(
-          eq(bouncedEmails.id, bounceId),
-          eq(bouncedEmails.detectedBy, userId)
-        ))
+        .where(eq(bouncedEmails.id, bounceId))
         .limit(1);
 
       if (!bounce) {
@@ -22906,14 +22904,12 @@ Analyze this bounced email and provide insights in JSON format:
         return res.status(400).json({ error: "Invalid resolution" });
       }
 
-      // Get bounce record - scoped to the user who detected it
+      // Get bounce record - any authenticated user can resolve bounces
+      // (bounced emails are data quality issues visible to all users)
       const [bounce] = await db
         .select()
         .from(bouncedEmails)
-        .where(and(
-          eq(bouncedEmails.id, bounceId),
-          eq(bouncedEmails.detectedBy, userId)
-        ))
+        .where(eq(bouncedEmails.id, bounceId))
         .limit(1);
 
       if (!bounce) {
