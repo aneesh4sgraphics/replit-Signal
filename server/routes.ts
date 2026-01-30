@@ -2613,6 +2613,195 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Today's SPOTLIGHT Progress Bars ---
+  // Comprehensive daily progress tracking for SPOTLIGHT UI
+  app.get("/api/spotlight/today-progress", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      
+      // Get start of today (local time)
+      const today = new Date();
+      today.setHours(0, 0, 0, 0);
+      
+      // 1. SWATCHBOOKS: Count SwatchBooks + Press Test Kits + $0 sample order follow-ups
+      const labelStats = await db.select({
+        labelType: labelPrints.labelType,
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(labelPrints)
+      .where(
+        and(
+          eq(labelPrints.printedByUserId, userId),
+          gte(labelPrints.createdAt, today),
+          or(
+            eq(labelPrints.labelType, 'swatch_book'),
+            eq(labelPrints.labelType, 'press_test_kit')
+          )
+        )
+      )
+      .groupBy(labelPrints.labelType);
+
+      const swatchBookCount = labelStats.find(s => s.labelType === 'swatch_book')?.count || 0;
+      const pressTestKitCount = labelStats.find(s => s.labelType === 'press_test_kit')?.count || 0;
+      
+      // Count $0 sample order follow-ups (called or emailed)
+      const sampleFollowUps = await db.select({
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(spotlightEvents)
+      .where(
+        and(
+          eq(spotlightEvents.userId, userId),
+          eq(spotlightEvents.eventType, 'task_completed'),
+          eq(spotlightEvents.taskSubtype, 'odoo_sample_followup'),
+          or(
+            eq(spotlightEvents.outcomeId, 'called'),
+            eq(spotlightEvents.outcomeId, 'email_sent')
+          ),
+          gte(spotlightEvents.createdAt, today)
+        )
+      );
+      
+      const sampleFollowUpCount = sampleFollowUps[0]?.count || 0;
+      const totalSwatchbooks = swatchBookCount + pressTestKitCount + sampleFollowUpCount;
+      const swatchbookGoal = 3;
+      
+      // 2. CALLS: Count all calls made today (any task with 'called' outcome)
+      const callStats = await db.select({
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(spotlightEvents)
+      .where(
+        and(
+          eq(spotlightEvents.userId, userId),
+          eq(spotlightEvents.eventType, 'task_completed'),
+          eq(spotlightEvents.outcomeId, 'called'),
+          gte(spotlightEvents.createdAt, today)
+        )
+      );
+      
+      const callsCount = callStats[0]?.count || 0;
+      const callsGoal = 10;
+      
+      // 3. EMAILS: Count all emails sent today (any task with email-related outcome)
+      const emailStats = await db.select({
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(spotlightEvents)
+      .where(
+        and(
+          eq(spotlightEvents.userId, userId),
+          eq(spotlightEvents.eventType, 'task_completed'),
+          or(
+            eq(spotlightEvents.outcomeId, 'email_sent'),
+            eq(spotlightEvents.outcomeId, 'send_drip'),
+            eq(spotlightEvents.outcomeId, 'replied')
+          ),
+          gte(spotlightEvents.createdAt, today)
+        )
+      );
+      
+      const emailsCount = emailStats[0]?.count || 0;
+      const emailsGoal = 15;
+      
+      // 4. DATA HYGIENE: Count data hygiene bucket tasks completed
+      // All hygiene tasks (hygiene_sales_rep, hygiene_email, hygiene_bounced_email, etc.) are in the data_hygiene bucket
+      // This also includes bounce research tasks when completed
+      const hygieneStats = await db.select({
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(spotlightEvents)
+      .where(
+        and(
+          eq(spotlightEvents.userId, userId),
+          eq(spotlightEvents.eventType, 'task_completed'),
+          eq(spotlightEvents.bucket, 'data_hygiene'), // All hygiene tasks are in this bucket
+          gte(spotlightEvents.createdAt, today)
+        )
+      );
+      
+      const hygieneCount = hygieneStats[0]?.count || 0;
+      const hygieneGoal = 5;
+      
+      // 5. QUOTES FOLLOWED UP: Count quote follow-ups (Shopify drafts + Odoo quotes)
+      // Only specific quote-related task subtypes, no wildcards
+      const quoteStats = await db.select({
+        count: sql<number>`COUNT(*)::int`,
+      })
+      .from(spotlightEvents)
+      .where(
+        and(
+          eq(spotlightEvents.userId, userId),
+          eq(spotlightEvents.eventType, 'task_completed'),
+          inArray(spotlightEvents.taskSubtype, [
+            'odoo_quote_followup',
+            'shopify_draft_followup', 
+            'shopify_abandoned_cart',
+            'saved_quote_followup' // Internal saved quotes
+          ]),
+          inArray(spotlightEvents.outcomeId, [
+            'called',
+            'email_sent',
+            'contacted',
+            'order_confirmed',
+            'order_placed'
+          ]),
+          gte(spotlightEvents.createdAt, today)
+        )
+      );
+      
+      const quotesFollowedUp = quoteStats[0]?.count || 0;
+      const quotesGoal = 5;
+      
+      res.json({
+        // Swatchbooks (includes press test kits and sample follow-ups)
+        swatchbooks: {
+          count: totalSwatchbooks,
+          goal: swatchbookGoal,
+          progress: Math.min(100, (totalSwatchbooks / swatchbookGoal) * 100),
+          goalMet: totalSwatchbooks >= swatchbookGoal,
+          breakdown: {
+            swatchBooks: swatchBookCount,
+            pressTestKits: pressTestKitCount,
+            sampleFollowUps: sampleFollowUpCount,
+          }
+        },
+        // Calls made
+        calls: {
+          count: callsCount,
+          goal: callsGoal,
+          progress: Math.min(100, (callsCount / callsGoal) * 100),
+          goalMet: callsCount >= callsGoal,
+        },
+        // Emails sent
+        emails: {
+          count: emailsCount,
+          goal: emailsGoal,
+          progress: Math.min(100, (emailsCount / emailsGoal) * 100),
+          goalMet: emailsCount >= emailsGoal,
+        },
+        // Data hygiene + research
+        dataHygiene: {
+          count: hygieneCount,
+          goal: hygieneGoal,
+          progress: Math.min(100, (hygieneCount / hygieneGoal) * 100),
+          goalMet: hygieneCount >= hygieneGoal,
+        },
+        // Quotes followed up (HIGH PRIORITY)
+        quotesFollowedUp: {
+          count: quotesFollowedUp,
+          goal: quotesGoal,
+          progress: Math.min(100, (quotesFollowedUp / quotesGoal) * 100),
+          goalMet: quotesFollowedUp >= quotesGoal,
+          highPriority: true,
+        },
+      });
+    } catch (error) {
+      console.error("Today's SPOTLIGHT progress error:", error);
+      res.status(500).json({ error: "Failed to fetch today's progress" });
+    }
+  });
+
   // --- Comprehensive diagnostics endpoint ---
   app.get('/api/diagnostics', async (_req, res) => {
     try {

@@ -505,21 +505,46 @@ export default function Spotlight() {
     enabled: !!currentTask,
   });
 
-  // Fetch today's kit sending progress for daily goal
-  const { data: todayKits } = useQuery<{
-    swatchBookCount: number;
-    pressTestKitCount: number;
-    totalKitsSentToday: number;
-    dailyGoal: number;
-    goalMet: boolean;
-    remaining: number;
-    progress: number;
-    swatchBookGoal: number;
-    swatchBookGoalMet: boolean;
-    swatchBookRemaining: number;
-    swatchBookProgress: number;
+  // Fetch today's comprehensive progress for all 5 bars
+  const { data: todayProgress } = useQuery<{
+    swatchbooks: {
+      count: number;
+      goal: number;
+      progress: number;
+      goalMet: boolean;
+      breakdown: {
+        swatchBooks: number;
+        pressTestKits: number;
+        sampleFollowUps: number;
+      };
+    };
+    calls: {
+      count: number;
+      goal: number;
+      progress: number;
+      goalMet: boolean;
+    };
+    emails: {
+      count: number;
+      goal: number;
+      progress: number;
+      goalMet: boolean;
+    };
+    dataHygiene: {
+      count: number;
+      goal: number;
+      progress: number;
+      goalMet: boolean;
+    };
+    quotesFollowedUp: {
+      count: number;
+      goal: number;
+      progress: number;
+      goalMet: boolean;
+      highPriority: boolean;
+    };
   }>({
-    queryKey: ['/api/labels/today'],
+    queryKey: ['/api/spotlight/today-progress'],
     staleTime: 30 * 1000, // Refresh every 30 seconds
   });
 
@@ -1660,44 +1685,94 @@ export default function Spotlight() {
               </div>
             </div>
 
-            {/* Bucket Progress Card - V0 Style */}
+            {/* Today's Progress Card - 5 Dedicated Bars */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
               <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide mb-3">Today's Progress</p>
-              <div className="space-y-2">
-                {/* SwatchBooks - Required 3 per day */}
-                <div className="flex items-center gap-2">
-                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+              <div className="space-y-2.5">
+                {/* Quotes Followed Up - HIGH PRIORITY (shown first) */}
+                <div className="flex items-center gap-2" title="Quotes you've called or emailed about today">
+                  <div className="flex-1 h-2 bg-purple-50 rounded-full overflow-hidden border border-purple-200">
                     <div 
-                      className="h-full rounded-full" 
+                      className="h-full rounded-full transition-all duration-300" 
                       style={{ 
-                        width: `${todayKits?.swatchBookProgress || 0}%`, 
-                        backgroundColor: todayKits?.swatchBookGoalMet ? '#22C55E' : '#EAB308' 
+                        width: `${todayProgress?.quotesFollowedUp?.progress || 0}%`, 
+                        backgroundColor: todayProgress?.quotesFollowedUp?.goalMet ? '#22C55E' : '#9333EA' 
                       }}
                     />
                   </div>
-                  <span className="text-xs text-muted-foreground w-20">SwatchBooks</span>
-                  <span className={`text-xs font-medium w-10 text-right ${todayKits?.swatchBookGoalMet ? 'text-green-600' : 'text-amber-600'}`}>
-                    {todayKits?.swatchBookCount || 0}/{todayKits?.swatchBookGoal || 3}
+                  <span className="text-xs text-purple-700 font-medium w-24">Quotes ⭐</span>
+                  <span className={`text-xs font-semibold w-10 text-right ${todayProgress?.quotesFollowedUp?.goalMet ? 'text-green-600' : 'text-purple-600'}`}>
+                    {todayProgress?.quotesFollowedUp?.count || 0}/{todayProgress?.quotesFollowedUp?.goal || 5}
                   </span>
                 </div>
-                {session?.buckets
-                  .filter((b) => ['calls', 'outreach', 'data_hygiene'].includes(b.bucket))
-                  .map((bucket) => {
-                    const info = BUCKET_INFO[bucket.bucket];
-                    const bucketProgress = bucket.target > 0 ? (bucket.completed / bucket.target) * 100 : 0;
-                    return (
-                      <div key={bucket.bucket} className="flex items-center gap-2">
-                        <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
-                          <div 
-                            className="h-full rounded-full" 
-                            style={{ width: `${bucketProgress}%`, backgroundColor: info.color }}
-                          />
-                        </div>
-                        <span className="text-xs text-muted-foreground w-20">{info.label}</span>
-                        <span className="text-xs font-medium text-gray-600 w-10 text-right">{bucket.completed}/{bucket.target}</span>
-                      </div>
-                    );
-                  })}
+                
+                {/* SwatchBooks - includes press test kits and sample follow-ups */}
+                <div className="flex items-center gap-2" title={`Swatch Books: ${todayProgress?.swatchbooks?.breakdown?.swatchBooks || 0}, Press Kits: ${todayProgress?.swatchbooks?.breakdown?.pressTestKits || 0}, Sample Follow-ups: ${todayProgress?.swatchbooks?.breakdown?.sampleFollowUps || 0}`}>
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-300" 
+                      style={{ 
+                        width: `${todayProgress?.swatchbooks?.progress || 0}%`, 
+                        backgroundColor: todayProgress?.swatchbooks?.goalMet ? '#22C55E' : '#EAB308' 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-24">SwatchBooks</span>
+                  <span className={`text-xs font-medium w-10 text-right ${todayProgress?.swatchbooks?.goalMet ? 'text-green-600' : 'text-amber-600'}`}>
+                    {todayProgress?.swatchbooks?.count || 0}/{todayProgress?.swatchbooks?.goal || 3}
+                  </span>
+                </div>
+                
+                {/* Calls Made */}
+                <div className="flex items-center gap-2" title="All calls made today">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-300" 
+                      style={{ 
+                        width: `${todayProgress?.calls?.progress || 0}%`, 
+                        backgroundColor: todayProgress?.calls?.goalMet ? '#22C55E' : '#3B82F6' 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-24">Calls</span>
+                  <span className={`text-xs font-medium w-10 text-right ${todayProgress?.calls?.goalMet ? 'text-green-600' : 'text-blue-600'}`}>
+                    {todayProgress?.calls?.count || 0}/{todayProgress?.calls?.goal || 10}
+                  </span>
+                </div>
+                
+                {/* Emails Sent */}
+                <div className="flex items-center gap-2" title="All emails sent today">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-300" 
+                      style={{ 
+                        width: `${todayProgress?.emails?.progress || 0}%`, 
+                        backgroundColor: todayProgress?.emails?.goalMet ? '#22C55E' : '#F97316' 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-24">Emails</span>
+                  <span className={`text-xs font-medium w-10 text-right ${todayProgress?.emails?.goalMet ? 'text-green-600' : 'text-orange-600'}`}>
+                    {todayProgress?.emails?.count || 0}/{todayProgress?.emails?.goal || 15}
+                  </span>
+                </div>
+                
+                {/* Data Hygiene + Research */}
+                <div className="flex items-center gap-2" title="Data hygiene and research tasks completed">
+                  <div className="flex-1 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                    <div 
+                      className="h-full rounded-full transition-all duration-300" 
+                      style={{ 
+                        width: `${todayProgress?.dataHygiene?.progress || 0}%`, 
+                        backgroundColor: todayProgress?.dataHygiene?.goalMet ? '#22C55E' : '#14B8A6' 
+                      }}
+                    />
+                  </div>
+                  <span className="text-xs text-muted-foreground w-24">Data Hygiene</span>
+                  <span className={`text-xs font-medium w-10 text-right ${todayProgress?.dataHygiene?.goalMet ? 'text-green-600' : 'text-teal-600'}`}>
+                    {todayProgress?.dataHygiene?.count || 0}/{todayProgress?.dataHygiene?.goal || 5}
+                  </span>
+                </div>
               </div>
             </div>
 
