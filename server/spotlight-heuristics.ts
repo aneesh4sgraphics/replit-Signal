@@ -116,7 +116,13 @@ async function checkDuplicate(email: string | null, phone: string | null, custom
     
     if (conditions.length === 0) return null;
     
-    const duplicates = await db.select({ id: customers.id, company: customers.company })
+    const duplicates = await db.select({ 
+      id: customers.id, 
+      company: customers.company,
+      firstName: customers.firstName,
+      lastName: customers.lastName,
+      email: customers.email,
+    })
       .from(customers)
       .where(and(
         sql`${customers.id} != ${customerId}`,
@@ -147,16 +153,24 @@ async function checkDuplicate(email: string | null, phone: string | null, custom
       const filteredDuplicates = duplicates.filter(d => !excludedIds.has(d.id));
       
       if (filteredDuplicates.length > 0) {
-        const duplicateNames = filteredDuplicates.map(d => d.company || 'Unknown').slice(0, 2).join(', ');
+        // Build display name with better fallbacks: company > full name > email
+        const getDisplayName = (d: typeof filteredDuplicates[0]) => {
+          if (d.company && d.company.trim()) return d.company;
+          const fullName = [d.firstName, d.lastName].filter(Boolean).join(' ').trim();
+          if (fullName) return fullName;
+          if (d.email) return d.email;
+          return 'another record';
+        };
+        const duplicateNames = filteredDuplicates.map(getDisplayName).slice(0, 2).join(', ');
         return {
           type: 'duplicate',
           severity: 'medium',
           message: `Possible duplicate of: ${duplicateNames}`,
-          ctaLabel: 'View to Merge',
+          ctaLabel: 'Review & Merge',
           ctaAction: 'view_duplicate',
           metadata: { 
             duplicateIds: filteredDuplicates.map(d => d.id),
-            duplicateNames: filteredDuplicates.map(d => ({ id: d.id, company: d.company })),
+            duplicateNames: filteredDuplicates.map(d => ({ id: d.id, company: d.company, displayName: getDisplayName(d) })),
           },
         };
       }
