@@ -2708,24 +2708,6 @@ export default function Spotlight() {
               </details>
               )}
 
-              {/* Data Hygiene: Sales Rep Assignment */}
-              {task.taskSubtype === 'hygiene_sales_rep' && (
-                <div className="space-y-3 mb-4">
-                  <Label className="text-sm text-slate-600">Assign sales rep:</Label>
-                  <Select onValueChange={(value) => handleOutcome('assigned', 'salesRepId', value)}>
-                    <SelectTrigger className="border-slate-200 rounded-xl">
-                      <SelectValue placeholder="Select sales rep..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {salesReps.map((rep) => (
-                        <SelectItem key={rep.id} value={rep.id}>
-                          {getSalesRepDisplayName(rep)}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
 
               {/* Data Hygiene: Pricing Tier */}
               {task.taskSubtype === 'hygiene_pricing_tier' && (
