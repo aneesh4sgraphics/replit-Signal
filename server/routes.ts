@@ -11014,7 +11014,22 @@ export async function registerRoutes(app: Express): Promise<Server> {
         events = await storage.getRecentActivityEvents(limit ? parseInt(limit as string) : 50);
       }
       
-      res.json(events);
+      // Transform to client-expected format
+      const transformed = events.map(e => ({
+        id: e.id,
+        eventType: e.eventType,
+        summary: e.title + (e.description ? ` - ${e.description}` : ''),
+        occurredAt: e.eventDate?.toISOString() || e.createdAt?.toISOString() || new Date().toISOString(),
+        metadata: {
+          sourceType: e.sourceType,
+          sourceId: e.sourceId,
+          amount: e.amount,
+          productName: e.productName,
+          createdByName: e.createdByName,
+        }
+      }));
+      
+      res.json(transformed);
     } catch (error) {
       console.error("Error fetching activity events:", error);
       res.status(500).json({ error: "Failed to fetch activity events" });

@@ -92,6 +92,7 @@ import {
   Pencil,
   Gift,
   MessageCircle,
+  ShoppingCart,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 
@@ -2688,14 +2689,37 @@ export default function Spotlight() {
                           Activity Log
                         </p>
                       )}
-                      {customerNotes.slice(0, 5).map((note) => (
-                        <div key={note.id} className="bg-slate-50 rounded-xl p-3">
-                          <p className="text-xs text-blue-600 mb-1">
-                            {new Date(note.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
-                          </p>
-                          <p className="text-sm text-slate-700">{note.summary}</p>
-                        </div>
-                      ))}
+                      {customerNotes.slice(0, 5).map((note) => {
+                        const getActivityStyle = (eventType: string) => {
+                          if (eventType.includes('quote')) return { bg: 'bg-purple-50', border: 'border-purple-100', icon: FileText, iconColor: 'text-purple-600' };
+                          if (eventType.includes('sample')) return { bg: 'bg-cyan-50', border: 'border-cyan-100', icon: Package, iconColor: 'text-cyan-600' };
+                          if (eventType.includes('call')) return { bg: 'bg-green-50', border: 'border-green-100', icon: PhoneCall, iconColor: 'text-green-600' };
+                          if (eventType.includes('email')) return { bg: 'bg-blue-50', border: 'border-blue-100', icon: Mail, iconColor: 'text-blue-600' };
+                          if (eventType.includes('price_list')) return { bg: 'bg-amber-50', border: 'border-amber-100', icon: FileText, iconColor: 'text-amber-600' };
+                          if (eventType.includes('order')) return { bg: 'bg-emerald-50', border: 'border-emerald-100', icon: ShoppingCart, iconColor: 'text-emerald-600' };
+                          if (eventType.includes('meeting')) return { bg: 'bg-indigo-50', border: 'border-indigo-100', icon: Calendar, iconColor: 'text-indigo-600' };
+                          return { bg: 'bg-slate-50', border: 'border-slate-100', icon: FileText, iconColor: 'text-slate-600' };
+                        };
+                        const style = getActivityStyle(note.eventType);
+                        const ActivityIcon = style.icon;
+                        return (
+                          <div key={note.id} className={`${style.bg} border ${style.border} rounded-xl p-3`}>
+                            <div className="flex items-center gap-2 mb-1">
+                              <ActivityIcon className={`w-3 h-3 ${style.iconColor}`} />
+                              <span className="text-xs text-slate-500">
+                                {new Date(note.occurredAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                              </span>
+                              {note.metadata?.createdByName && (
+                                <span className="text-[10px] text-slate-400">by {note.metadata.createdByName}</span>
+                              )}
+                            </div>
+                            <p className="text-sm text-slate-700">{note.summary}</p>
+                            {note.metadata?.amount && (
+                              <p className="text-xs text-slate-500 mt-1">Amount: ${Number(note.metadata.amount).toFixed(2)}</p>
+                            )}
+                          </div>
+                        );
+                      })}
                     </div>
                   )}
                   
