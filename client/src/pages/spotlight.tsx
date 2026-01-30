@@ -90,6 +90,7 @@ import {
   MoreHorizontal,
   ClipboardList,
   Pencil,
+  Gift,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 
@@ -2845,6 +2846,79 @@ export default function Spotlight() {
                             <div className="text-center">
                               <p className="text-xs font-semibold text-red-800">Quote Expired/Lost</p>
                             </div>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              )}
+
+              {/* Odoo Sample Order Follow-up - PROTIP Style */}
+              {task.taskSubtype === 'odoo_sample_followup' && (
+                <div className="space-y-3 mb-4">
+                  <div className="bg-gradient-to-br from-emerald-50 to-teal-50 border border-emerald-200 rounded-xl p-4">
+                    <div className="flex items-start gap-3">
+                      <div className="relative">
+                        <Gift className="w-6 h-6 text-emerald-600" />
+                        <span className="absolute -top-1 -right-1 text-xs">✨</span>
+                      </div>
+                      <div className="space-y-3 w-full">
+                        <div className="flex items-center gap-2">
+                          <span className="text-xs bg-emerald-100 text-emerald-700 px-2 py-0.5 rounded-full font-semibold uppercase tracking-wide">
+                            Pro Tip
+                          </span>
+                          <span className="text-xs text-emerald-600 font-medium">
+                            {(task as any).extraContext?.odooOrderName}
+                          </span>
+                        </div>
+                        <p className="text-sm text-emerald-800 leading-relaxed">
+                          {(task as any).extraContext?.proTipMessage || 
+                           `You sent samples to this customer. Would you like to follow up to see how they liked them?`}
+                        </p>
+                        {(task as any).extraContext?.odooOrderDate && (
+                          <p className="text-xs text-emerald-600">
+                            Sent on: {new Date((task as any).extraContext.odooOrderDate).toLocaleDateString()}
+                            {(task as any).extraContext?.daysSinceSample !== null && (
+                              <span className="ml-2">({(task as any).extraContext.daysSinceSample} days ago)</span>
+                            )}
+                          </p>
+                        )}
+                        <div className="grid grid-cols-2 md:grid-cols-3 gap-3 mt-3">
+                          <button
+                            onClick={() => handleOutcome('called')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-green-200 rounded-xl hover:border-green-400 hover:bg-green-50 transition-all"
+                          >
+                            <Phone className="w-6 h-6 text-green-600" />
+                            <p className="text-xs font-semibold text-green-800">Call Customer</p>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('email_sent')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
+                          >
+                            <Mail className="w-6 h-6 text-blue-600" />
+                            <p className="text-xs font-semibold text-blue-800">Send Email</p>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('order_placed')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-emerald-200 rounded-xl hover:border-emerald-400 hover:bg-emerald-50 transition-all"
+                          >
+                            <Check className="w-6 h-6 text-emerald-600" />
+                            <p className="text-xs font-semibold text-emerald-800">They Ordered!</p>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('not_interested')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-orange-200 rounded-xl hover:border-orange-400 hover:bg-orange-50 transition-all"
+                          >
+                            <X className="w-6 h-6 text-orange-600" />
+                            <p className="text-xs font-semibold text-orange-800">Not Interested</p>
+                          </button>
+                          <button
+                            onClick={() => handleOutcome('skip')}
+                            className="flex flex-col items-center gap-2 p-3 bg-white border-2 border-gray-200 rounded-xl hover:border-gray-400 hover:bg-gray-50 transition-all col-span-2 md:col-span-1"
+                          >
+                            <Clock className="w-6 h-6 text-gray-500" />
+                            <p className="text-xs font-semibold text-gray-600">Skip for Now</p>
                           </button>
                         </div>
                       </div>

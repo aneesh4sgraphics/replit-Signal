@@ -2195,6 +2195,156 @@ class SpotlightEngine {
     return null;
   }
 
+  // Find customers who received $0.00 sample orders and may need follow-up
+  private async findOdooSampleOrderFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    // Skip if Odoo is not configured
+    if (!isOdooConfigured()) {
+      return null;
+    }
+
+    try {
+      // Get $0.00 sample orders from Odoo (since Jan 1st 2026)
+      const sampleOrders = await odooClient.getZeroValueSampleOrders('2026-01-01');
+      
+      if (!sampleOrders || sampleOrders.length === 0) {
+        return null;
+      }
+
+      // Get partner IDs from sample orders
+      const partnerIds = sampleOrders
+        .filter(order => order.partner_id)
+        .map(order => Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id);
+      
+      if (partnerIds.length === 0) {
+        return null;
+      }
+
+      // Find matching customers - filter by odooPartnerId from sample orders
+      let conditions = [
+        inArray(customers.odooPartnerId, partnerIds), // Only customers with sample orders
+        eq(customers.doNotContact, false),
+        or(
+          isNull(customers.salesRepId),
+          eq(customers.salesRepId, userId)
+        ),
+      ];
+
+      if (skippedIds.length > 0) {
+        conditions.push(notInArray(customers.id, skippedIds));
+      }
+
+      const matchingCustomers = await db
+        .select({
+          id: customers.id,
+          company: customers.company,
+          firstName: customers.firstName,
+          lastName: customers.lastName,
+          email: customers.email,
+          phone: customers.phone,
+          address1: customers.address1,
+          address2: customers.address2,
+          city: customers.city,
+          province: customers.province,
+          zip: customers.zip,
+          country: customers.country,
+          website: customers.website,
+          salesRepId: customers.salesRepId,
+          salesRepName: customers.salesRepName,
+          pricingTier: customers.pricingTier,
+          odooPartnerId: customers.odooPartnerId,
+        })
+        .from(customers)
+        .where(and(...conditions)); // Removed limit - we want all matches
+
+      // Log if sample orders exist but no matching customers found
+      if (matchingCustomers.length === 0 && sampleOrders.length > 0) {
+        console.log(`[Spotlight] Found ${sampleOrders.length} $0.00 sample orders but no matching customers in database`);
+        return null;
+      }
+
+      // Match customers to sample orders
+      for (const customer of matchingCustomers) {
+        if (!customer.odooPartnerId) continue;
+
+        const customerSampleOrder = sampleOrders.find(order => {
+          const partnerId = Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id;
+          return partnerId === customer.odooPartnerId;
+        });
+
+        if (customerSampleOrder) {
+          const orderDate = customerSampleOrder.date_order ? new Date(customerSampleOrder.date_order) : null;
+          const daysSinceSample = orderDate 
+            ? Math.floor((Date.now() - orderDate.getTime()) / (1000 * 60 * 60 * 24))
+            : null;
+
+          // Check if we already followed up on this sample order
+          const alreadyHandled = await db
+            .select({ id: spotlightEvents.id })
+            .from(spotlightEvents)
+            .where(and(
+              eq(spotlightEvents.customerId, customer.id),
+              eq(spotlightEvents.eventType, 'task_completed'),
+              sql`${spotlightEvents.details}->>'taskSubtype' = 'odoo_sample_followup'`,
+              sql`${spotlightEvents.details}->>'odooOrderId' = ${String(customerSampleOrder.id)}`
+            ))
+            .limit(1);
+
+          if (alreadyHandled.length > 0) {
+            continue; // Already followed up on this sample order
+          }
+
+          return {
+            id: `follow_ups::${customer.id}::odoo_sample_followup_${customerSampleOrder.id}`,
+            customerId: customer.id,
+            bucket: 'follow_ups',
+            taskSubtype: 'odoo_sample_followup',
+            priority: 90, // High priority for sample follow-ups
+            whyNow: `🎁 Samples sent (${customerSampleOrder.name}) - Follow up to see if they liked the product!`,
+            outcomes: [
+              { id: 'called', label: 'Called Customer', icon: 'phone' },
+              { id: 'email_sent', label: 'Sent Follow-up Email', icon: 'mail' },
+              { id: 'order_placed', label: 'They Ordered!', icon: 'check' },
+              { id: 'not_interested', label: 'Not Interested', icon: 'x' },
+              { id: 'skip', label: 'Skip for Now', icon: 'clock' },
+            ],
+            customer: {
+              id: customer.id,
+              company: customer.company,
+              firstName: customer.firstName,
+              lastName: customer.lastName,
+              email: customer.email,
+              phone: customer.phone,
+              address1: customer.address1,
+              address2: customer.address2,
+              city: customer.city,
+              province: customer.province,
+              zip: customer.zip,
+              country: customer.country,
+              website: customer.website,
+              salesRepId: customer.salesRepId,
+              salesRepName: customer.salesRepName,
+              pricingTier: customer.pricingTier,
+            },
+            context: {
+              sourceType: 'odoo_sample_order',
+            },
+            extraContext: {
+              odooOrderId: customerSampleOrder.id,
+              odooOrderName: customerSampleOrder.name,
+              odooOrderDate: customerSampleOrder.date_order,
+              daysSinceSample,
+              isProTip: true,
+              proTipMessage: `You sent this Sales Order (${customerSampleOrder.name}) with $0.00 value${daysSinceSample !== null ? ` ${daysSinceSample} days ago` : ''}. Would you like to follow up with the customer to see how they liked the samples?`,
+            },
+          };
+        }
+      }
+    } catch (error) {
+      console.error('[Spotlight] Error finding Odoo sample order follow-up task:', error);
+    }
+    return null;
+  }
+
   private async findFollowUpTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
     const now = new Date();
     const customerSkippedIds = skippedIds.filter(id => !id.startsWith('lead-'));
@@ -2329,6 +2479,12 @@ class SpotlightEngine {
     const odooQuoteTask = await this.findOdooQuoteFollowUpTask(userId, customerSkippedIds);
     if (odooQuoteTask) {
       return odooQuoteTask;
+    }
+    
+    // PRIORITY 1.6: Odoo $0.00 sample orders - follow up on samples sent
+    const sampleOrderTask = await this.findOdooSampleOrderFollowUpTask(userId, customerSkippedIds);
+    if (sampleOrderTask) {
+      return sampleOrderTask;
     }
     
     // PRIORITY 2: Lead follow-up tasks (leads that need nurturing/follow-up)

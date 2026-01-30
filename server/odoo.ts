@@ -689,6 +689,19 @@ class OdooClient {
     ], { limit: 100, order: 'date_order desc' });
   }
 
+  async getZeroValueSampleOrders(sinceDate: string = '2026-01-01'): Promise<OdooSaleOrder[]> {
+    // Get $0.00 sales orders (likely samples) since the specified date
+    // These are confirmed orders with zero amount - typically free samples sent to customers
+    return this.searchRead('sale.order', [
+      ['state', 'in', ['sale', 'done']],
+      ['amount_total', '=', 0],
+      ['date_order', '>=', sinceDate]
+    ], [
+      'id', 'name', 'partner_id', 'state', 'date_order', 'amount_total',
+      'amount_untaxed', 'order_line', 'user_id', 'note',
+    ], { limit: 50, order: 'date_order desc' });
+  }
+
   async getInvoicesByPartner(partnerId: number): Promise<any[]> {
     // Get customer invoices from account.move
     return this.searchRead('account.move', [
