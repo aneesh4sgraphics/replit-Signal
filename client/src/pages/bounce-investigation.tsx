@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useParams, useLocation } from "wouter";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
@@ -6,6 +7,9 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Badge } from "@/components/ui/badge";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { 
   AlertTriangle, 
   Mail, 
@@ -22,7 +26,11 @@ import {
   ArrowLeft,
   RefreshCw,
   Phone,
-  MapPin
+  MapPin,
+  Pencil,
+  Save,
+  X,
+  UserPlus
 } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 
@@ -71,6 +79,18 @@ export default function BounceInvestigation() {
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  // Edit mode state
+  const [isEditing, setIsEditing] = useState(false);
+  const [editName, setEditName] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  
+  // Add contact dialog state
+  const [showAddContact, setShowAddContact] = useState(false);
+  const [newContactName, setNewContactName] = useState('');
+  const [newContactEmail, setNewContactEmail] = useState('');
+  const [newContactPhone, setNewContactPhone] = useState('');
+  const [newContactTitle, setNewContactTitle] = useState('');
+
   const { data, isLoading, error, refetch } = useQuery<BounceInvestigation>({
     queryKey: ['/api/bounce-investigation', bounceId],
     enabled: !!bounceId,
@@ -114,6 +134,84 @@ export default function BounceInvestigation() {
       });
     },
   });
+
+  // Mutation to update contact details
+  const updateContactMutation = useMutation({
+    mutationFn: async ({ name, email }: { name: string; email: string }) => {
+      if (!data?.record) throw new Error('No record to update');
+      const recordId = data.record.id;
+      return apiRequest(`/api/customers/${recordId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ name, email }),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Contact Updated',
+        description: 'Name and email have been saved.',
+      });
+      setIsEditing(false);
+      refetch();
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Mutation to add new contact to company in Odoo
+  const addContactMutation = useMutation({
+    mutationFn: async ({ name, email, phone, jobFunction }: { name: string; email: string; phone: string; jobFunction: string }) => {
+      if (!data?.record) throw new Error('No record to add contact to');
+      const customerId = data.record.id;
+      return apiRequest(`/api/odoo/customer/${customerId}/contacts`, {
+        method: 'POST',
+        body: JSON.stringify({ name, email, phone, function: jobFunction }),
+      });
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Contact Added',
+        description: 'New contact has been created in Odoo.',
+      });
+      setShowAddContact(false);
+      setNewContactName('');
+      setNewContactEmail('');
+      setNewContactPhone('');
+      setNewContactTitle('');
+    },
+    onError: (error: Error) => {
+      toast({
+        title: 'Error',
+        description: error.message,
+        variant: 'destructive',
+      });
+    },
+  });
+
+  // Start editing with current values
+  const startEditing = () => {
+    if (data?.record) {
+      setEditName(data.record.name || '');
+      setEditEmail(data.record.email || '');
+      setIsEditing(true);
+    }
+  };
+
+  const cancelEditing = () => {
+    setIsEditing(false);
+    setEditName('');
+    setEditEmail('');
+  };
+
+  const saveEdits = () => {
+    if (editName.trim()) {
+      updateContactMutation.mutate({ name: editName.trim(), email: editEmail.trim() });
+    }
+  };
 
   if (isLoading) {
     return (
@@ -215,48 +313,116 @@ export default function BounceInvestigation() {
           {record && (
             <Card className="bg-white/80 backdrop-blur">
               <CardHeader className="pb-3">
-                <CardTitle className="flex items-center gap-2">
-                  {record.type === 'lead' ? (
-                    <User className="h-5 w-5 text-purple-600" />
-                  ) : (
-                    <Building2 className="h-5 w-5 text-blue-600" />
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    {record.type === 'lead' ? (
+                      <User className="h-5 w-5 text-purple-600" />
+                    ) : (
+                      <Building2 className="h-5 w-5 text-blue-600" />
+                    )}
+                    {record.type === 'lead' ? 'Lead' : 'Contact'} Details
+                  </CardTitle>
+                  {!isEditing && (
+                    <Button variant="ghost" size="sm" onClick={startEditing}>
+                      <Pencil className="h-4 w-4" />
+                    </Button>
                   )}
-                  {record.type === 'lead' ? 'Lead' : 'Contact'} Details
-                </CardTitle>
+                </div>
               </CardHeader>
               <CardContent className="space-y-3">
-                <div>
-                  <p className="font-semibold text-lg">{record.name}</p>
-                  {record.title && <p className="text-sm text-gray-500">{record.title}</p>}
-                </div>
-                {record.companyName && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Building2 className="h-4 w-4 text-gray-400" />
-                    <span>{record.companyName}</span>
+                {isEditing ? (
+                  <div className="space-y-4">
+                    <div className="space-y-2">
+                      <Label htmlFor="editName">Name</Label>
+                      <Input 
+                        id="editName"
+                        value={editName} 
+                        onChange={(e) => setEditName(e.target.value)}
+                        placeholder="Contact name"
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label htmlFor="editEmail">Email</Label>
+                      <Input 
+                        id="editEmail"
+                        type="email"
+                        value={editEmail} 
+                        onChange={(e) => setEditEmail(e.target.value)}
+                        placeholder="Email address"
+                      />
+                    </div>
+                    <div className="flex gap-2">
+                      <Button 
+                        size="sm" 
+                        onClick={saveEdits}
+                        disabled={updateContactMutation.isPending || !editName.trim()}
+                      >
+                        <Save className="h-4 w-4 mr-1" />
+                        Save
+                      </Button>
+                      <Button 
+                        size="sm" 
+                        variant="outline" 
+                        onClick={cancelEditing}
+                        disabled={updateContactMutation.isPending}
+                      >
+                        <X className="h-4 w-4 mr-1" />
+                        Cancel
+                      </Button>
+                    </div>
                   </div>
-                )}
-                {record.phone && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <Phone className="h-4 w-4 text-gray-400" />
-                    <span>{record.phone}</span>
-                  </div>
-                )}
-                {(record.city || record.state) && (
-                  <div className="flex items-center gap-2 text-sm">
-                    <MapPin className="h-4 w-4 text-gray-400" />
-                    <span>{[record.city, record.state].filter(Boolean).join(', ')}</span>
-                  </div>
-                )}
-                {record.stage && (
-                  <Badge variant="outline" className="capitalize">{record.stage}</Badge>
-                )}
-                {record.source && (
-                  <p className="text-xs text-gray-500">Source: {record.source}</p>
-                )}
-                {record.lastContactAt && (
-                  <p className="text-xs text-gray-500">
-                    Last Contact: {new Date(record.lastContactAt).toLocaleDateString()}
-                  </p>
+                ) : (
+                  <>
+                    <div>
+                      <p className="font-semibold text-lg">{record.name}</p>
+                      {record.title && <p className="text-sm text-gray-500">{record.title}</p>}
+                    </div>
+                    <div className="flex items-center gap-2 text-sm">
+                      <Mail className="h-4 w-4 text-gray-400" />
+                      <span>{record.email}</span>
+                    </div>
+                    {record.companyName && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Building2 className="h-4 w-4 text-gray-400" />
+                        <span>{record.companyName}</span>
+                      </div>
+                    )}
+                    {record.phone && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <Phone className="h-4 w-4 text-gray-400" />
+                        <span>{record.phone}</span>
+                      </div>
+                    )}
+                    {(record.city || record.state) && (
+                      <div className="flex items-center gap-2 text-sm">
+                        <MapPin className="h-4 w-4 text-gray-400" />
+                        <span>{[record.city, record.state].filter(Boolean).join(', ')}</span>
+                      </div>
+                    )}
+                    {record.stage && (
+                      <Badge variant="outline" className="capitalize">{record.stage}</Badge>
+                    )}
+                    {record.source && (
+                      <p className="text-xs text-gray-500">Source: {record.source}</p>
+                    )}
+                    {record.lastContactAt && (
+                      <p className="text-xs text-gray-500">
+                        Last Contact: {new Date(record.lastContactAt).toLocaleDateString()}
+                      </p>
+                    )}
+                    
+                    <div className="pt-3 border-t">
+                      <Button 
+                        variant="outline" 
+                        size="sm"
+                        onClick={() => setShowAddContact(true)}
+                        className="w-full"
+                      >
+                        <UserPlus className="h-4 w-4 mr-2" />
+                        Add New Contact to Company
+                      </Button>
+                    </div>
+                  </>
                 )}
               </CardContent>
             </Card>
@@ -415,6 +581,81 @@ export default function BounceInvestigation() {
           </CardContent>
         </Card>
       </div>
+
+      {/* Add New Contact Dialog */}
+      <Dialog open={showAddContact} onOpenChange={setShowAddContact}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2">
+              <UserPlus className="h-5 w-5 text-blue-600" />
+              Add New Contact
+            </DialogTitle>
+            <DialogDescription>
+              Add a new contact to this company. They will be created in Odoo.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="newContactName">Name *</Label>
+              <Input 
+                id="newContactName"
+                value={newContactName} 
+                onChange={(e) => setNewContactName(e.target.value)}
+                placeholder="Full name"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newContactEmail">Email</Label>
+              <Input 
+                id="newContactEmail"
+                type="email"
+                value={newContactEmail} 
+                onChange={(e) => setNewContactEmail(e.target.value)}
+                placeholder="email@example.com"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newContactPhone">Phone</Label>
+              <Input 
+                id="newContactPhone"
+                type="tel"
+                value={newContactPhone} 
+                onChange={(e) => setNewContactPhone(e.target.value)}
+                placeholder="Phone number"
+              />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="newContactTitle">Job Title</Label>
+              <Input 
+                id="newContactTitle"
+                value={newContactTitle} 
+                onChange={(e) => setNewContactTitle(e.target.value)}
+                placeholder="e.g., Sales Manager"
+              />
+            </div>
+          </div>
+          <DialogFooter>
+            <Button 
+              variant="outline" 
+              onClick={() => setShowAddContact(false)}
+              disabled={addContactMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button 
+              onClick={() => addContactMutation.mutate({
+                name: newContactName,
+                email: newContactEmail,
+                phone: newContactPhone,
+                jobFunction: newContactTitle,
+              })}
+              disabled={addContactMutation.isPending || !newContactName.trim()}
+            >
+              {addContactMutation.isPending ? 'Creating...' : 'Create Contact'}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </OdooLayout>
   );
 }
