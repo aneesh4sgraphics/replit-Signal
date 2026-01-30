@@ -587,7 +587,7 @@ export default function Spotlight() {
 
   // Check if user is avoiding calls and show coaching popup
   useEffect(() => {
-    const tasksCompleted = session?.totalCompleted || 0;
+    const tasksCompleted = currentTask?.session?.totalCompleted || 0;
     const callsMade = todayProgress?.calls?.count || 0;
     
     // Show coaching popup if:
@@ -598,7 +598,7 @@ export default function Spotlight() {
     if (tasksCompleted >= 10 && callsMade === 0 && !callCoachingDismissedToday && !showCallCoachingModal) {
       setShowCallCoachingModal(true);
     }
-  }, [session?.totalCompleted, todayProgress?.calls?.count, callCoachingDismissedToday, showCallCoachingModal]);
+  }, [currentTask?.session?.totalCompleted, todayProgress?.calls?.count, callCoachingDismissedToday, showCallCoachingModal]);
 
   const pauseMutation = useMutation({
     mutationFn: async () => {
