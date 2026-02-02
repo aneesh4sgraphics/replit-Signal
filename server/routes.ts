@@ -2619,9 +2619,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const userId = req.user?.id;
       
-      // Get start of today (local time)
-      const today = new Date();
-      today.setHours(0, 0, 0, 0);
+      // Use consistent date logic with SPOTLIGHT session (6pm cutoff)
+      // This ensures progress bars survive server restarts and match session state
+      const now = new Date();
+      const hour = now.getHours();
+      let today: Date;
+      if (hour >= 18) {
+        // After 6pm, session is for "tomorrow" - count from 6pm today
+        today = new Date(now);
+        today.setHours(18, 0, 0, 0);
+      } else {
+        // Before 6pm, session is for "today" - count from 6pm yesterday
+        today = new Date(now);
+        today.setDate(today.getDate() - 1);
+        today.setHours(18, 0, 0, 0);
+      }
       
       // 1. SWATCHBOOKS: Count SwatchBooks + Press Test Kits + $0 sample order follow-ups
       const labelStats = await db.select({
