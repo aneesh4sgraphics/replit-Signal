@@ -2419,13 +2419,22 @@ export default function Spotlight() {
                   </div>
                   {/* Email - always show with placeholder */}
                   <div className="flex items-center gap-2.5 text-sm">
-                    <Mail className="w-4 h-4 text-blue-500 flex-shrink-0" />
                     {(customer.email || task.lead?.email) ? (
-                      <a href={`mailto:${customer.email || task.lead?.email}`} className="text-slate-700 hover:text-blue-600">
-                        {customer.email || task.lead?.email}
-                      </a>
+                      <>
+                        <button
+                          onClick={handleOpenEmailComposer}
+                          className="p-0.5 rounded hover:bg-blue-100 text-blue-500 hover:text-blue-600 transition-colors"
+                          title="Compose email"
+                        >
+                          <Mail className="w-4 h-4" />
+                        </button>
+                        <span className="text-slate-700">
+                          {customer.email || task.lead?.email}
+                        </span>
+                      </>
                     ) : (
                       <>
+                        <Mail className="w-4 h-4 text-slate-300 flex-shrink-0" />
                         <span className="text-slate-400 italic">No email available</span>
                         <button
                           onClick={() => setShowProfilePanel(true)}
