@@ -4559,6 +4559,9 @@ class SpotlightEngine {
     
     // Persist session state to database (survives server restarts)
     await this.persistSessionState(userId, session);
+    
+    // Remove from remind-today list if this task was in it
+    await this.removeRemindTodayTask(userId, customerId);
 
     console.log(`[Spotlight] Task completed for customer ${customerId}, bucket ${bucket}, outcome ${outcomeId}`);
 
@@ -4724,11 +4727,78 @@ class SpotlightEngine {
 
   /**
    * Get tasks that were marked "Remind Me Again Today" - for EOD surfacing
-   * Returns tasks that should reappear at end of current session
+   * Returns tasks from current session AND uncompleted tasks from previous days (carryover)
    */
-  async getRemindTodayTasks(userId: string): Promise<Array<{taskId: string; customerId: string; bucket: TaskBucket; subtype: string; remindedAt: Date}>> {
+  async getRemindTodayTasks(userId: string): Promise<Array<{taskId: string; customerId: string; bucket: TaskBucket; subtype: string; remindedAt: Date; isCarryover?: boolean}>> {
     const session = await this.getSessionAsync(userId);
-    return session.remindTodayTasks || [];
+    const sessionTasks = session.remindTodayTasks || [];
+    
+    // Also load uncompleted remind_today tasks from DB (includes previous days' carryover)
+    try {
+      // Get all remind_today events for this user
+      const remindEvents = await db.select()
+        .from(spotlightEvents)
+        .where(
+          and(
+            eq(spotlightEvents.userId, userId),
+            eq(spotlightEvents.eventType, 'remind_today')
+          )
+        )
+        .orderBy(desc(spotlightEvents.createdAt));
+      
+      // Get all completed events for this user to filter out completed tasks
+      const completedEvents = await db.select({ customerId: spotlightEvents.customerId })
+        .from(spotlightEvents)
+        .where(
+          and(
+            eq(spotlightEvents.userId, userId),
+            eq(spotlightEvents.eventType, 'completed')
+          )
+        );
+      
+      const completedCustomerIds = new Set(completedEvents.map(e => e.customerId).filter(Boolean));
+      
+      // Filter out remind_today tasks that have been completed
+      const pendingRemindTasks = remindEvents
+        .filter(e => e.customerId && !completedCustomerIds.has(e.customerId))
+        .map(e => ({
+          taskId: `${e.bucket}::${e.customerId?.startsWith('lead-') ? 'lead::' + e.customerId.replace('lead-', '') : e.customerId}::${e.taskSubtype || 'general'}`,
+          customerId: e.customerId!,
+          bucket: e.bucket as TaskBucket,
+          subtype: e.taskSubtype || 'general',
+          remindedAt: e.createdAt!,
+          isCarryover: e.skipReason?.includes('remind_today::') && !e.skipReason?.includes(this.getTodayKey()),
+        }));
+      
+      // Merge with session tasks, avoiding duplicates
+      const seenCustomerIds = new Set(sessionTasks.map(t => t.customerId));
+      const mergedTasks = [...sessionTasks];
+      
+      for (const task of pendingRemindTasks) {
+        if (!seenCustomerIds.has(task.customerId)) {
+          seenCustomerIds.add(task.customerId);
+          mergedTasks.push(task);
+        }
+      }
+      
+      return mergedTasks;
+    } catch (e) {
+      console.error('[Spotlight] Error loading remind_today tasks from DB:', e);
+      return sessionTasks;
+    }
+  }
+  
+  /**
+   * Remove a task from the remind-today list when completed
+   */
+  async removeRemindTodayTask(userId: string, customerId: string): Promise<void> {
+    const session = await this.getSessionAsync(userId);
+    if (session.remindTodayTasks) {
+      session.remindTodayTasks = session.remindTodayTasks.filter(t => t.customerId !== customerId);
+    }
+    
+    // Also mark as completed in DB so it won't appear in carryover
+    // The completed event is already logged by completeTask, so no additional action needed here
   }
 
   /**

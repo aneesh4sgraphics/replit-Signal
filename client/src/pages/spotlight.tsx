@@ -419,7 +419,7 @@ export default function Spotlight() {
   });
 
   // Fetch "Later Today" scratch pad tasks
-  const { data: remindTodayTasks = [], refetch: refetchRemindToday } = useQuery<Array<{
+  const { data: remindTodayTasksRaw = [], refetch: refetchRemindToday } = useQuery<Array<{
     taskId: string;
     customerId: string;
     bucket: string;
@@ -427,9 +427,17 @@ export default function Spotlight() {
     remindedAt: string;
     displayName: string;
     isLead: boolean;
+    isCarryover?: boolean;
   }>>({
     queryKey: ['/api/spotlight/remind-today'],
     staleTime: 30 * 1000,
+  });
+  
+  // Sort tasks: carryover tasks first, then today's tasks
+  const remindTodayTasks = [...remindTodayTasksRaw].sort((a, b) => {
+    if (a.isCarryover && !b.isCarryover) return -1;
+    if (!a.isCarryover && b.isCarryover) return 1;
+    return 0;
   });
   
   const [showWarmup, setShowWarmup] = useState(false);
@@ -443,7 +451,19 @@ export default function Spotlight() {
   const [callScriptOpen, setCallScriptOpen] = useState(false);
   const [emailIdeasOpen, setEmailIdeasOpen] = useState(false);
   const [showAddMachine, setShowAddMachine] = useState(false);
-  const [scratchPadOpen, setScratchPadOpen] = useState(false);
+  // Persist scratchPad open state in localStorage so it stays open till end of day
+  const [scratchPadOpen, setScratchPadOpen] = useState(() => {
+    try {
+      return localStorage.getItem('spotlight_scratchpad_open') === 'true';
+    } catch { return false; }
+  });
+  
+  // Sync scratchPad state to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('spotlight_scratchpad_open', scratchPadOpen ? 'true' : 'false');
+    } catch {}
+  }, [scratchPadOpen]);
   
   // Email composer state
   const [showEmailComposer, setShowEmailComposer] = useState(false);
@@ -5170,19 +5190,22 @@ export default function Spotlight() {
                 {remindTodayTasks.map((t, idx) => (
                   <div
                     key={t.taskId}
-                    className="flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group"
+                    className={`flex items-center gap-3 p-2 rounded-lg hover:bg-gray-50 cursor-pointer transition-colors group ${t.isCarryover ? 'border-l-2 border-red-400 bg-red-50/50' : ''}`}
                     onClick={() => {
                       // Navigate to this bucket via URL param
                       window.location.href = `/spotlight?forceBucket=${t.bucket}`;
                       setScratchPadOpen(false);
                     }}
                   >
-                    <div className="flex-shrink-0 w-6 h-6 rounded-full bg-amber-100 flex items-center justify-center">
-                      <span className="text-xs font-medium text-amber-700">{idx + 1}</span>
+                    <div className={`flex-shrink-0 w-6 h-6 rounded-full flex items-center justify-center ${t.isCarryover ? 'bg-red-100' : 'bg-amber-100'}`}>
+                      <span className={`text-xs font-medium ${t.isCarryover ? 'text-red-700' : 'text-amber-700'}`}>{idx + 1}</span>
                     </div>
                     <div className="flex-1 min-w-0">
                       <p className="text-sm font-medium text-gray-900 truncate">{t.displayName}</p>
                       <div className="flex items-center gap-2 mt-0.5">
+                        {t.isCarryover && (
+                          <span className="px-1.5 py-0.5 text-xs font-medium bg-red-100 text-red-700 rounded">FROM YESTERDAY</span>
+                        )}
                         {t.isLead && (
                           <span className="px-1.5 py-0.5 text-xs font-medium bg-emerald-100 text-emerald-700 rounded">LEAD</span>
                         )}
@@ -5195,7 +5218,9 @@ export default function Spotlight() {
               </div>
               <div className="px-4 py-2 border-t bg-gray-50">
                 <p className="text-xs text-gray-500 text-center">
-                  Tasks you deferred earlier today
+                  {remindTodayTasks.some(t => t.isCarryover) 
+                    ? 'Includes tasks from previous days - complete or they carry over!'
+                    : 'Tasks you deferred - complete by end of day'}
                 </p>
               </div>
             </div>
