@@ -1649,22 +1649,44 @@ export default function OdooCompanyDetail() {
                           key={note.id}
                           className="p-3 bg-amber-50 rounded-lg border border-amber-100"
                         >
-                          <p className="text-sm text-gray-800 whitespace-pre-wrap">{note.description}</p>
-                          <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
-                            <Calendar className="w-3 h-3" />
-                            {new Date(note.createdAt).toLocaleDateString('en-US', {
-                              month: 'short',
-                              day: 'numeric',
-                              year: 'numeric',
-                              hour: 'numeric',
-                              minute: '2-digit'
-                            })}
-                            {note.createdByName && (
-                              <>
-                                <span>•</span>
-                                <span>{note.createdByName}</span>
-                              </>
-                            )}
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="flex-1 min-w-0">
+                              <p className="text-sm text-gray-800 line-clamp-2">{note.description || note.title || 'No content'}</p>
+                              <div className="flex items-center gap-2 mt-2 text-xs text-gray-500">
+                                <Calendar className="w-3 h-3" />
+                                {note.createdAt ? new Date(note.createdAt).toLocaleDateString('en-US', {
+                                  month: 'short',
+                                  day: 'numeric',
+                                  year: 'numeric',
+                                  hour: 'numeric',
+                                  minute: '2-digit'
+                                }) : 'Unknown date'}
+                                {note.createdByName && (
+                                  <>
+                                    <span>•</span>
+                                    <span>{note.createdByName}</span>
+                                  </>
+                                )}
+                              </div>
+                            </div>
+                            <Button
+                              variant="ghost"
+                              size="sm"
+                              className="h-7 w-7 p-0 text-red-500 hover:text-red-700 hover:bg-red-50 flex-shrink-0"
+                              onClick={async () => {
+                                if (confirm('Delete this note?')) {
+                                  try {
+                                    await apiRequest('DELETE', `/api/customer-activity/events/${note.id}`);
+                                    queryClient.invalidateQueries({ queryKey: ['/api/customer-activity/events', companyId] });
+                                    toast({ title: 'Note deleted' });
+                                  } catch (e) {
+                                    toast({ title: 'Failed to delete note', variant: 'destructive' });
+                                  }
+                                }
+                              }}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </Button>
                           </div>
                         </div>
                       ))}
@@ -1752,13 +1774,13 @@ export default function OdooCompanyDetail() {
                             )}
                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
                               <Calendar className="w-3 h-3" />
-                              {new Date(event.createdAt).toLocaleDateString('en-US', {
+                              {event.createdAt ? new Date(event.createdAt).toLocaleDateString('en-US', {
                                 month: 'short',
                                 day: 'numeric',
                                 year: 'numeric',
                                 hour: 'numeric',
                                 minute: '2-digit'
-                              })}
+                              }) : 'Unknown date'}
                             </div>
                           </div>
                         </div>

@@ -11026,19 +11026,18 @@ export async function registerRoutes(app: Express): Promise<Server> {
         events = await storage.getRecentActivityEvents(limit ? parseInt(limit as string) : 50);
       }
       
-      // Transform to client-expected format
+      // Return fields that frontend expects: id, eventType, title, description, createdAt, createdByName
       const transformed = events.map(e => ({
         id: e.id,
         eventType: e.eventType,
-        summary: e.title + (e.description ? ` - ${e.description}` : ''),
-        occurredAt: e.eventDate?.toISOString() || e.createdAt?.toISOString() || new Date().toISOString(),
-        metadata: {
-          sourceType: e.sourceType,
-          sourceId: e.sourceId,
-          amount: e.amount,
-          productName: e.productName,
-          createdByName: e.createdByName,
-        }
+        title: e.title || '',
+        description: e.description || '',
+        createdAt: e.eventDate?.toISOString() || e.createdAt?.toISOString() || new Date().toISOString(),
+        createdByName: e.createdByName || null,
+        sourceType: e.sourceType,
+        sourceId: e.sourceId,
+        amount: e.amount,
+        productName: e.productName,
       }));
       
       res.json(transformed);
@@ -11146,6 +11145,21 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error creating activity event:", error);
       res.status(500).json({ error: "Failed to create activity event" });
+    }
+  });
+
+  // Delete activity event (notes)
+  app.delete("/api/customer-activity/events/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const eventId = parseInt(req.params.id);
+      if (isNaN(eventId)) {
+        return res.status(400).json({ error: "Invalid event ID" });
+      }
+      await db.delete(activityEvents).where(eq(activityEvents.id, eventId));
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error deleting activity event:", error);
+      res.status(500).json({ error: "Failed to delete activity event" });
     }
   });
 
