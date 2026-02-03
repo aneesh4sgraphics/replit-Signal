@@ -1839,8 +1839,70 @@ class SpotlightEngine {
   // Find bounced email tasks specifically
   private async findBouncedEmailTask(userId: string, excludeIds: string[]): Promise<SpotlightTask | null> {
     try {
-      // Find unresolved bounced emails - scoped to user's territory (salesRepId matches or is null)
-      // Use raw SQL subquery to filter by customer territory without join issues
+      // Find unresolved bounced emails in two categories:
+      // 1. Orphaned bounced emails (no customer linked) - shown to all users for investigation
+      // 2. Bounced emails with customers - only if customer is in user's territory
+      
+      // First, try to find orphaned bounced emails (no customer_id) - these need investigation
+      const orphanedResults = await db
+        .select({
+          id: bouncedEmails.id,
+          customerId: bouncedEmails.customerId,
+          bouncedEmail: bouncedEmails.bouncedEmail,
+          bounceSubject: bouncedEmails.bounceSubject,
+          bounceDate: bouncedEmails.bounceDate
+        })
+        .from(bouncedEmails)
+        .where(and(
+          eq(bouncedEmails.status, 'pending'),
+          isNull(bouncedEmails.customerId)
+        ))
+        .orderBy(desc(bouncedEmails.bounceDate))
+        .limit(1);
+      
+      if (orphanedResults.length > 0) {
+        const bounced = orphanedResults[0];
+        return {
+          id: `bounced-${bounced.id}`,
+          customerId: `orphaned-bounce-${bounced.id}`,
+          bucket: 'data_hygiene',
+          taskSubtype: 'hygiene_bounced_email',
+          priority: 95,
+          whyNow: `Bounced email needs investigation: ${bounced.bouncedEmail}`,
+          outcomes: [
+            { id: 'linked_customer', label: 'Linked to Customer', icon: 'link' },
+            { id: 'mark_dnc', label: 'Mark Do Not Contact', icon: 'ban' },
+            { id: 'delete_record', label: 'Delete Record', icon: 'trash' },
+            { id: 'skip', label: 'Investigate Later', icon: 'clock' },
+          ],
+          customer: {
+            id: `orphaned-bounce-${bounced.id}`,
+            company: null,
+            firstName: null,
+            lastName: null,
+            email: bounced.bouncedEmail,
+            phone: null,
+            address1: null,
+            address2: null,
+            city: null,
+            province: null,
+            zip: null,
+            country: null,
+            website: null,
+            salesRepId: null,
+            salesRepName: null,
+            pricingTier: null
+          },
+          extraContext: {
+            bouncedEmail: bounced.bouncedEmail,
+            bounceSubject: bounced.bounceSubject,
+            bounceDate: bounced.bounceDate?.toISOString(),
+            isOrphaned: true
+          }
+        };
+      }
+      
+      // Next, find bounced emails with customers in user's territory
       const bouncedResults = await db
         .select({
           id: bouncedEmails.id,
@@ -1883,7 +1945,12 @@ class SpotlightEngine {
               taskSubtype: 'hygiene_bounced_email',
               priority: 95,
               whyNow: `Bounced email detected: ${bounced.bouncedEmail}`,
-              outcomes: OUTCOME_TEMPLATES.hygiene_bounced_email,
+              outcomes: [
+                { id: 'updated_email', label: 'Updated Email Address', icon: 'mail' },
+                { id: 'mark_dnc', label: 'Mark Do Not Contact', icon: 'ban' },
+                { id: 'delete_record', label: 'Delete Record', icon: 'trash' },
+                { id: 'skip', label: 'Investigate Later', icon: 'clock' },
+              ],
               customer: {
                 id: customer.id,
                 company: customer.company,
