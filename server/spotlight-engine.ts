@@ -1692,7 +1692,7 @@ class SpotlightEngine {
     }
   }
 
-  async getNextTask(userId: string, forceBucket?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
+  async getNextTask(userId: string, forceBucket?: string, workType?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
     const session = await this.getSessionAsync(userId);
     
     if (session.isPaused) {
@@ -1710,13 +1710,6 @@ class SpotlightEngine {
     // If continueAfterComplete is true, we keep going past the target
     
     try {
-      // Allow forcing a specific bucket for debugging (e.g., ?forceBucket=data_hygiene)
-      const nextBucket = forceBucket as BucketType || this.getNextBucket(session);
-      if (!nextBucket) {
-        session.dayComplete = true;
-        return { task: null, session, allDone: true };
-      }
-
       // PERFORMANCE: Parallelize exclusion queries
       // Apply TODAY's contacts exclusion to ALL buckets to prevent duplicate outreach across users
       const [claimedByOthers, recentlyContacted, todayContacted, territorySkipped] = await Promise.all([
@@ -1735,6 +1728,33 @@ class SpotlightEngine {
       }
 
       let task: SpotlightTask | null = null;
+      
+      // Work type focus mode - user selects what they want to work on
+      if (workType) {
+        task = await this.findTaskByWorkType(userId, excludeIds, workType);
+        if (task) {
+          // Claim this customer so other users won't get the same task
+          const claimSuccess = await this.claimCustomer(userId, task.customerId);
+          if (!claimSuccess) {
+            console.log(`[Spotlight] Claim failed for customer ${task.customerId}, retrying with different task`);
+            excludeIds.push(task.customerId);
+            session.skippedCustomerIds.push(task.customerId);
+            return this.getNextTask(userId, forceBucket, workType);
+          }
+          return { task, session, allDone: false };
+        }
+        // No tasks for this work type - return null but DON'T mark day complete
+        // This just means no tasks available for selected focus, not that the day is done
+        return { task: null, session, allDone: false, noTasksForWorkType: true } as any;
+      }
+      
+      // Normal sequenced bucket mode
+      // Allow forcing a specific bucket for debugging (e.g., ?forceBucket=data_hygiene)
+      const nextBucket = forceBucket as BucketType || this.getNextBucket(session);
+      if (!nextBucket) {
+        session.dayComplete = true;
+        return { task: null, session, allDone: true };
+      }
       
       switch (nextBucket) {
         case 'calls':
@@ -1784,6 +1804,138 @@ class SpotlightEngine {
       console.error('[Spotlight] Error getting next task:', error);
       return { task: null, session, allDone: true };
     }
+  }
+  
+  // Find tasks based on user-selected work type focus
+  private async findTaskByWorkType(userId: string, excludeIds: string[], workType: string): Promise<SpotlightTask | null> {
+    const customerExcludeIds = excludeIds.filter(id => !id.startsWith('lead-'));
+    
+    switch (workType) {
+      case 'bounced_email':
+        // Only return bounced email hygiene tasks
+        return await this.findBouncedEmailTask(userId, customerExcludeIds);
+        
+      case 'data_hygiene':
+        // Return data hygiene tasks (name, phone, address missing, etc.) - excluding bounced emails
+        return await this.findDataHygieneTask(userId, customerExcludeIds);
+        
+      case 'samples':
+        // Return enablement tasks (swatchbooks, samples, press test kits)
+        return await this.findEnablementTask(userId, customerExcludeIds);
+        
+      case 'quotes':
+        // Return quote follow-up tasks
+        return await this.findQuoteTask(userId, customerExcludeIds);
+        
+      case 'calls':
+        // Return call tasks for best returns
+        return await this.findCallTask(userId, excludeIds);
+        
+      default:
+        return null;
+    }
+  }
+  
+  // Find bounced email tasks specifically
+  private async findBouncedEmailTask(userId: string, excludeIds: string[]): Promise<SpotlightTask | null> {
+    try {
+      // Find unresolved bounced emails - scoped to user's territory (salesRepId matches or is null)
+      const bouncedResults = await db
+        .select({
+          id: bouncedEmails.id,
+          customerId: bouncedEmails.customerId,
+          bouncedEmail: bouncedEmails.originalRecipient,
+          bounceSubject: bouncedEmails.subject,
+          bounceDate: bouncedEmails.detectedAt
+        })
+        .from(bouncedEmails)
+        .innerJoin(customers, eq(bouncedEmails.customerId, customers.id))
+        .where(and(
+          eq(bouncedEmails.resolved, false),
+          isNotNull(bouncedEmails.customerId),
+          // Scope to user's territory - matches user or unassigned
+          or(
+            isNull(customers.salesRepId),
+            eq(customers.salesRepId, userId)
+          ),
+          eq(customers.doNotContact, false),
+          excludeIds.length > 0 ? notInArray(bouncedEmails.customerId, excludeIds) : sql`1=1`
+        ))
+        .orderBy(desc(bouncedEmails.detectedAt))
+        .limit(1);
+      
+      if (bouncedResults.length > 0) {
+        const bounced = bouncedResults[0];
+        if (bounced.customerId) {
+          // Get customer details
+          const [customer] = await db
+            .select()
+            .from(customers)
+            .where(eq(customers.id, bounced.customerId))
+            .limit(1);
+          
+          if (customer) {
+            return {
+              id: `bounced-${bounced.id}`,
+              customerId: customer.id,
+              bucket: 'data_hygiene',
+              taskSubtype: 'hygiene_bounced_email',
+              priority: 95,
+              whyNow: `Bounced email detected: ${bounced.bouncedEmail}`,
+              outcomes: OUTCOME_TEMPLATES.hygiene_bounced_email,
+              customer: {
+                id: customer.id,
+                company: customer.company,
+                firstName: customer.firstName,
+                lastName: customer.lastName,
+                email: customer.email,
+                phone: customer.phone,
+                address1: customer.address1,
+                address2: customer.address2,
+                city: customer.city,
+                province: customer.province,
+                zip: customer.zip,
+                country: customer.country,
+                website: customer.website,
+                salesRepId: customer.salesRepId,
+                salesRepName: null,
+                pricingTier: customer.pricingTier
+              },
+              extraContext: {
+                bouncedEmail: bounced.bouncedEmail,
+                bounceSubject: bounced.bounceSubject,
+                bounceDate: bounced.bounceDate?.toISOString()
+              }
+            };
+          }
+        }
+      }
+      return null;
+    } catch (error) {
+      console.error('[Spotlight] Error finding bounced email task:', error);
+      return null;
+    }
+  }
+  
+  // Find data hygiene tasks (excluding bounced emails)
+  private async findDataHygieneTask(userId: string, excludeIds: string[]): Promise<SpotlightTask | null> {
+    // Use the existing hygiene task finder but exclude bounced email tasks
+    const task = await this.findHygieneTask(userId, excludeIds);
+    if (task && task.taskSubtype !== 'hygiene_bounced_email') {
+      return task;
+    }
+    // If we got a bounced email task, try again to get a different hygiene task
+    if (task && task.taskSubtype === 'hygiene_bounced_email') {
+      const newExcludeIds = [...excludeIds, task.customerId];
+      return await this.findDataHygieneTask(userId, newExcludeIds);
+    }
+    return null;
+  }
+  
+  // Find quote follow-up tasks specifically
+  private async findQuoteTask(userId: string, excludeIds: string[]): Promise<SpotlightTask | null> {
+    // Use the existing follow-up task finder which includes quote follow-ups
+    return await this.findFollowUpTask(userId, excludeIds);
   }
 
   private async findCallTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {

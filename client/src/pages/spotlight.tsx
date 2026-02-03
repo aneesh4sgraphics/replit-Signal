@@ -311,6 +311,18 @@ const BUCKET_INFO: Record<TaskBucket, { label: string; icon: any; color: string 
   enablement: { label: 'Enablement', icon: Package, color: '#06B6D4' },
 };
 
+// Work type focus options for user to select what they want to work on
+type WorkTypeFocus = 'all' | 'bounced_email' | 'data_hygiene' | 'samples' | 'quotes' | 'calls';
+
+const WORK_TYPE_OPTIONS: { value: WorkTypeFocus; label: string; icon: any; description: string }[] = [
+  { value: 'all', label: 'All Tasks', icon: ClipboardList, description: 'Show all task types in sequenced order' },
+  { value: 'bounced_email', label: 'Bounced Emails', icon: AlertTriangle, description: 'Handle bounced email issues from inbox' },
+  { value: 'data_hygiene', label: 'Data Hygiene', icon: UserCog, description: 'Fix missing names, addresses, phone numbers' },
+  { value: 'samples', label: 'Samples & SwatchBooks', icon: Package, description: 'Send samples, press test kits, swatchbooks' },
+  { value: 'quotes', label: 'Quotes', icon: FileText, description: 'Follow up on quotes and pricing' },
+  { value: 'calls', label: 'Calls', icon: PhoneCall, description: 'Make calls for best returns' },
+];
+
 const OUTCOME_ICONS: Record<string, any> = {
   'check': Check,
   'user-check': CheckCircle,
@@ -390,12 +402,32 @@ export default function Spotlight() {
   const lastActivityRef = useRef(Date.now());
   const idleTimerRef = useRef<NodeJS.Timeout | null>(null);
   
+  // Work type focus - what the user wants to work on right now
+  const [workTypeFocus, setWorkTypeFocus] = useState<WorkTypeFocus>(() => {
+    try {
+      return (localStorage.getItem('spotlight_work_type_focus') as WorkTypeFocus) || 'all';
+    } catch { return 'all'; }
+  });
+  
+  // Persist work type focus to localStorage
+  useEffect(() => {
+    try {
+      localStorage.setItem('spotlight_work_type_focus', workTypeFocus);
+    } catch {}
+  }, [workTypeFocus]);
+  
   // Debug: allow forcing a specific bucket via URL param (e.g., ?forceBucket=data_hygiene)
   const urlParams = new URLSearchParams(window.location.search);
   const forceBucket = urlParams.get('forceBucket');
-  const spotlightApiUrl = forceBucket 
-    ? `/api/spotlight/current?forceBucket=${forceBucket}` 
-    : '/api/spotlight/current';
+  
+  // Build API URL with work type focus filter
+  const spotlightApiUrl = (() => {
+    const params = new URLSearchParams();
+    if (forceBucket) params.set('forceBucket', forceBucket);
+    if (workTypeFocus !== 'all') params.set('workType', workTypeFocus);
+    const queryString = params.toString();
+    return queryString ? `/api/spotlight/current?${queryString}` : '/api/spotlight/current';
+  })();
 
   const { data: currentTask, isLoading, isFetching, refetch } = useQuery<{ 
     task: SpotlightTask | null; 
@@ -407,7 +439,7 @@ export default function Spotlight() {
     microCard?: MicroCoachingCard | null;
     coachTip?: CoachTip | null;
   }>({
-    queryKey: ['/api/spotlight/current', forceBucket],
+    queryKey: ['/api/spotlight/current', forceBucket, workTypeFocus],
     queryFn: async () => {
       const res = await fetch(spotlightApiUrl, { credentials: 'include' });
       if (!res.ok) throw new Error('Failed to fetch spotlight');
@@ -1742,24 +1774,41 @@ export default function Spotlight() {
   }
 
   if (!currentTask?.task) {
+    // Check if this is a work type filter with no tasks (not day complete)
+    const isWorkTypeEmpty = currentTask?.noTasksForWorkType && workTypeFocus !== 'all';
+    const currentFocusLabel = WORK_TYPE_OPTIONS.find(o => o.value === workTypeFocus)?.label || workTypeFocus;
+    
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA] bg-white">
           <div className="w-20 h-20 rounded-full bg-[#F2F2F2] flex items-center justify-center mx-auto mb-6">
             <Target className="w-10 h-10 text-[#999999]" />
           </div>
-          <CardTitle className="text-xl mb-2 text-[#111111]">No Tasks Available</CardTitle>
+          <CardTitle className="text-xl mb-2 text-[#111111]">
+            {isWorkTypeEmpty ? `No ${currentFocusLabel} Tasks` : 'No Tasks Available'}
+          </CardTitle>
           <CardDescription className="text-[#666666] mb-6">
-            Check back later or refresh to find new moments.
+            {isWorkTypeEmpty 
+              ? `All ${currentFocusLabel.toLowerCase()} tasks are complete! Try a different focus or view all tasks.`
+              : 'Check back later or refresh to find new moments.'}
           </CardDescription>
-          <div className="flex gap-4 justify-center">
+          <div className="flex gap-4 justify-center flex-wrap">
+            {isWorkTypeEmpty && (
+              <Button 
+                onClick={() => setWorkTypeFocus('all')}
+                className="bg-blue-600 hover:bg-blue-700 text-white"
+              >
+                <Layers className="w-4 h-4 mr-2" />
+                Show All Tasks
+              </Button>
+            )}
             <Link href="/">
               <Button variant="outline" className="border-[#EAEAEA]">
                 <ArrowLeft className="w-4 h-4 mr-2" />
                 Dashboard
               </Button>
             </Link>
-            <Button onClick={() => refetch()} className="bg-[#111111] hover:bg-[#333333] text-white">
+            <Button onClick={() => refetch()} variant="outline" className="border-[#EAEAEA]">
               <RefreshCw className="w-4 h-4 mr-2" />
               Refresh
             </Button>
@@ -1939,6 +1988,44 @@ export default function Spotlight() {
         
         {/* Center - Main Task Card */}
         <div className="flex-1 min-w-0 order-1 lg:order-2">
+          {/* Work Type Focus Selector */}
+          <div className="mb-4 bg-white rounded-xl shadow-sm p-4">
+            <div className="flex items-center justify-between mb-3">
+              <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">What do you want to work on?</p>
+              {workTypeFocus !== 'all' && (
+                <Button 
+                  variant="ghost" 
+                  size="sm" 
+                  onClick={() => setWorkTypeFocus('all')}
+                  className="text-xs text-blue-600 hover:text-blue-700 h-6 px-2"
+                >
+                  Show All Tasks
+                </Button>
+              )}
+            </div>
+            <div className="flex flex-wrap gap-2">
+              {WORK_TYPE_OPTIONS.map((option) => {
+                const Icon = option.icon;
+                const isSelected = workTypeFocus === option.value;
+                return (
+                  <button
+                    key={option.value}
+                    onClick={() => setWorkTypeFocus(option.value)}
+                    className={`flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all ${
+                      isSelected 
+                        ? 'bg-blue-600 text-white shadow-sm' 
+                        : 'bg-gray-100 text-gray-700 hover:bg-gray-200'
+                    }`}
+                    title={option.description}
+                  >
+                    <Icon className="w-4 h-4" />
+                    {option.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+          
           {/* Success Overlay */}
           {showSuccess && (
             <div className="fixed inset-0 flex items-center justify-center z-50 pointer-events-none">

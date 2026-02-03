@@ -22529,7 +22529,11 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
 
       // Debug: force a specific bucket type with ?forceBucket=data_hygiene
       const forceBucket = req.query.forceBucket as string | undefined;
-      const { task, session, allDone } = await spotlightEngine.getNextTask(userId, forceBucket);
+      // Work type focus filter: bounced_email, data_hygiene, samples, quotes, calls
+      const workType = req.query.workType as string | undefined;
+      const result = await spotlightEngine.getNextTask(userId, forceBucket, workType);
+      const { task, session, allDone } = result;
+      const noTasksForWorkType = (result as any).noTasksForWorkType || false;
       
       // PERFORMANCE: Parallelize secondary data fetching
       const gamification = spotlightEngine.getGamificationState(session as any);
@@ -22573,6 +22577,7 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         coachTip,
         allDone,
         hints,
+        noTasksForWorkType,
       });
     } catch (error: any) {
       console.error("[Spotlight] Error getting current task:", error);
