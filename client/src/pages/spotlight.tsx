@@ -158,6 +158,7 @@ interface SpotlightTask {
   taskSubtype: string;
   priority: number;
   whyNow: string;
+  emailCount?: number;
   outcomes: TaskOutcome[];
   customer: {
     id: string;
@@ -2323,8 +2324,20 @@ export default function Spotlight() {
               {/* Card Container */}
               <div className={`spotlight-card p-6 flex-1 relative ${task.isLeadTask ? 'ring-2 ring-emerald-500 bg-gradient-to-br from-emerald-50 via-white to-green-50 shadow-emerald-100' : 'bg-white'} rounded-l-none`}>
               
-              {/* Lead/Hot Badge - Top Right Corner */}
-              <div className="absolute top-4 right-4">
+              {/* Email Count + Lead/Hot Badge - Top Right Corner */}
+              <div className="absolute top-4 right-4 flex items-start gap-3">
+                {/* Email Count Circle - shows how many emails sent to this contact */}
+                {(task.emailCount ?? 0) > 0 && (
+                  <div className="flex flex-col items-center gap-1" title={`${task.emailCount} email${task.emailCount === 1 ? '' : 's'} sent from this app`}>
+                    <div className="w-10 h-10 rounded-full bg-indigo-100 border-2 border-indigo-300 flex items-center justify-center shadow-sm">
+                      <div className="flex flex-col items-center">
+                        <Mail className="w-4 h-4 text-indigo-600" />
+                        <span className="text-[10px] font-bold text-indigo-700 -mt-0.5">{task.emailCount}</span>
+                      </div>
+                    </div>
+                  </div>
+                )}
+                
                 {task.isLeadTask ? (
                   <div className="flex flex-col items-center gap-1">
                     <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shadow-lg">

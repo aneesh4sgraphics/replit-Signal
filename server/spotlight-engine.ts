@@ -73,6 +73,7 @@ export interface SpotlightTask {
   taskSubtype: string;
   priority: number;
   whyNow: string;
+  emailCount?: number; // Number of emails sent from this app to this contact
   outcomes: TaskOutcome[];
   customer: {
     id: string;
@@ -1749,7 +1750,9 @@ class SpotlightEngine {
             session.skippedCustomerIds.push(task.customerId);
             return this.getNextTask(userId, forceBucket, workType);
           }
-          return { task, session, allDone: false };
+          // Enrich with email count
+          const enrichedTask = await this.enrichTaskWithEmailCount(task);
+          return { task: enrichedTask, session, allDone: false };
         }
         // No tasks for this work type - return null but DON'T mark day complete
         // This just means no tasks available for selected focus, not that the day is done
@@ -1807,7 +1810,9 @@ class SpotlightEngine {
         return this.getNextTask(userId);
       }
       
-      return { task, session, allDone: false };
+      // Enrich with email count
+      const enrichedTask = await this.enrichTaskWithEmailCount(task);
+      return { task: enrichedTask, session, allDone: false };
     } catch (error) {
       console.error('[Spotlight] Error getting next task:', error);
       return { task: null, session, allDone: true };
@@ -5134,6 +5139,43 @@ class SpotlightEngine {
       bucket, 
       newProgress: { completed: bucketData.completed, target: bucketData.target } 
     };
+  }
+
+
+  /**
+   * Get the count of emails sent from this app to a customer or lead
+   */
+  private async getEmailCountForCustomer(customerId: string): Promise<number> {
+    try {
+      // Handle lead IDs (format: "lead-123")
+      const isLead = customerId.startsWith('lead-');
+      
+      // Count from spotlightEvents where outcomeId was email-related
+      const emailOutcomes = ['email_sent', 'sent_email', 'compose_email', 'send_drip', 'replied'];
+      
+      const result = await db
+        .select({ count: count() })
+        .from(spotlightEvents)
+        .where(
+          and(
+            eq(spotlightEvents.customerId, customerId),
+            inArray(spotlightEvents.outcomeId, emailOutcomes)
+          )
+        );
+      
+      return result[0]?.count || 0;
+    } catch (e) {
+      console.error('[Spotlight] Error getting email count:', e);
+      return 0;
+    }
+  }
+
+  /**
+   * Enrich a task with email count data
+   */
+  private async enrichTaskWithEmailCount(task: SpotlightTask): Promise<SpotlightTask> {
+    const emailCount = await this.getEmailCountForCustomer(task.customerId);
+    return { ...task, emailCount };
   }
 }
 
