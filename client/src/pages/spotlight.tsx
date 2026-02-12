@@ -383,8 +383,9 @@ export default function Spotlight() {
   const [showCallCoachingModal, setShowCallCoachingModal] = useState(false);
   const [callCoachingDismissedToday, setCallCoachingDismissedToday] = useState(false);
   const [showFixDataModal, setShowFixDataModal] = useState(false);
-  const [fixDataFields, setFixDataFields] = useState<{ email: string; pricingTier: string; salesRepId: string }>({ email: '', pricingTier: '', salesRepId: '' });
+  const [fixDataFields, setFixDataFields] = useState<{ firstName: string; lastName: string; company: string; phone: string; email: string; pricingTier: string; salesRepId: string; customerType: string }>({ firstName: '', lastName: '', company: '', phone: '', email: '', pricingTier: '', salesRepId: '', customerType: '' });
   const [missingFieldsToFix, setMissingFieldsToFix] = useState<string[]>([]);
+  const [fixDataAutoComplete, setFixDataAutoComplete] = useState(false);
   const [availableEmails, setAvailableEmails] = useState<string[]>([]);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeData, setMergeData] = useState<{ sourceCustomer: any; targetCustomer: any; duplicateIds: string[] } | null>(null);
@@ -1145,14 +1146,14 @@ export default function Spotlight() {
     },
   });
 
-  const handleFixData = async (missingFields: string[]) => {
+  const handleFixData = async (missingFields: string[], autoComplete = false) => {
     setMissingFieldsToFix(missingFields);
+    setFixDataAutoComplete(autoComplete);
     const customer = currentTask?.task?.customer;
     const lead = currentTask?.task?.lead;
     const customerId = currentTask?.task?.customerId;
     const isLeadTask = currentTask?.task?.isLeadTask || customerId?.startsWith('lead-');
     
-    // Collect emails from customer or lead
     const emails: string[] = [];
     if (isLeadTask && lead?.email) {
       emails.push(lead.email);
@@ -1160,7 +1161,6 @@ export default function Spotlight() {
       emails.push(customer.email);
     }
     
-    // Fetch contacts to get additional emails (only for customers, not leads)
     if (customerId && !isLeadTask) {
       try {
         const res = await fetch(`/api/customers/${customerId}/contacts`);
@@ -1178,18 +1178,28 @@ export default function Spotlight() {
     }
     
     setAvailableEmails(emails);
-    // Use lead data for lead tasks, customer data for customer tasks
     if (isLeadTask && lead) {
+      const leadNameParts = (lead.name || '').split(' ');
       setFixDataFields({
+        firstName: leadNameParts[0] || '',
+        lastName: leadNameParts.slice(1).join(' ') || '',
+        company: lead.company || '',
+        phone: lead.phone || lead.mobile || '',
         email: lead.email || '',
-        pricingTier: lead.pricingTier || '',
+        pricingTier: '',
         salesRepId: lead.salesRepId || '',
+        customerType: lead.customerType || '',
       });
     } else {
       setFixDataFields({
+        firstName: customer?.firstName || '',
+        lastName: customer?.lastName || '',
+        company: customer?.company || '',
+        phone: customer?.phone || '',
         email: customer?.email || '',
         pricingTier: customer?.pricingTier || '',
         salesRepId: customer?.salesRepId || '',
+        customerType: customer?.customerType || '',
       });
     }
     setShowFixDataModal(true);
@@ -1197,29 +1207,92 @@ export default function Spotlight() {
 
   const submitFixData = () => {
     if (!currentTask?.task) return;
+    const isLeadTask = currentTask.task.isLeadTask || currentTask.task.customerId?.startsWith('lead-');
+    const lead = currentTask.task.lead;
+    const cust = currentTask.task.customer;
     const updates: Record<string, string> = {};
-    if (missingFieldsToFix.includes('email') && fixDataFields.email.trim()) {
-      updates.email = fixDataFields.email.trim();
-    }
-    if (missingFieldsToFix.includes('pricing tier') && fixDataFields.pricingTier) {
-      updates.pricingTier = fixDataFields.pricingTier;
-    }
-    if (missingFieldsToFix.includes('sales rep') && fixDataFields.salesRepId) {
-      updates.salesRepId = fixDataFields.salesRepId;
-      // Also set salesRepName using the helper
-      const rep = salesReps.find(r => r.id === fixDataFields.salesRepId);
-      if (rep) {
-        updates.salesRepName = getSalesRepDisplayName(rep);
+
+    if (isLeadTask && lead) {
+      const leadNameParts = (lead.name || '').split(' ');
+      const origFirst = leadNameParts[0] || '';
+      const origLast = leadNameParts.slice(1).join(' ') || '';
+      if (fixDataFields.firstName.trim() && fixDataFields.firstName.trim() !== origFirst) {
+        updates.firstName = fixDataFields.firstName.trim();
+      }
+      if (fixDataFields.lastName.trim() && fixDataFields.lastName.trim() !== origLast) {
+        updates.lastName = fixDataFields.lastName.trim();
+      }
+      if (fixDataFields.firstName.trim() || fixDataFields.lastName.trim()) {
+        updates.name = [fixDataFields.firstName.trim(), fixDataFields.lastName.trim()].filter(Boolean).join(' ');
+      }
+      if (fixDataFields.company.trim() && fixDataFields.company.trim() !== (lead.company || '')) {
+        updates.company = fixDataFields.company.trim();
+      }
+      if (fixDataFields.phone.trim() && fixDataFields.phone.trim() !== (lead.phone || '')) {
+        updates.phone = fixDataFields.phone.trim();
+      }
+      if (fixDataFields.email.trim() && fixDataFields.email.trim() !== (lead.email || '')) {
+        updates.email = fixDataFields.email.trim();
+      }
+      if (fixDataFields.customerType && fixDataFields.customerType !== (lead.customerType || '')) {
+        updates.customerType = fixDataFields.customerType;
+      }
+      if (fixDataFields.salesRepId && fixDataFields.salesRepId !== (lead.salesRepId || '')) {
+        updates.salesRepId = fixDataFields.salesRepId;
+        const rep = salesReps.find(r => r.id === fixDataFields.salesRepId);
+        if (rep) {
+          updates.salesRepName = getSalesRepDisplayName(rep);
+        }
+      }
+    } else {
+      if (fixDataFields.firstName.trim() && fixDataFields.firstName.trim() !== (cust?.firstName || '')) {
+        updates.firstName = fixDataFields.firstName.trim();
+      }
+      if (fixDataFields.lastName.trim() && fixDataFields.lastName.trim() !== (cust?.lastName || '')) {
+        updates.lastName = fixDataFields.lastName.trim();
+      }
+      if (fixDataFields.company.trim() && fixDataFields.company.trim() !== (cust?.company || '')) {
+        updates.company = fixDataFields.company.trim();
+      }
+      if (fixDataFields.phone.trim() && fixDataFields.phone.trim() !== (cust?.phone || '')) {
+        updates.phone = fixDataFields.phone.trim();
+      }
+      if (fixDataFields.email.trim() && fixDataFields.email.trim() !== (cust?.email || '')) {
+        updates.email = fixDataFields.email.trim();
+      }
+      if (fixDataFields.pricingTier && fixDataFields.pricingTier !== (cust?.pricingTier || '')) {
+        updates.pricingTier = fixDataFields.pricingTier;
+      }
+      if (fixDataFields.customerType && fixDataFields.customerType !== (cust?.customerType || '')) {
+        updates.customerType = fixDataFields.customerType;
+      }
+      if (fixDataFields.salesRepId && fixDataFields.salesRepId !== (cust?.salesRepId || '')) {
+        updates.salesRepId = fixDataFields.salesRepId;
+        const rep = salesReps.find(r => r.id === fixDataFields.salesRepId);
+        if (rep) {
+          updates.salesRepName = getSalesRepDisplayName(rep);
+        }
       }
     }
+
+    const onSaveSuccess = () => {
+      setShowFixDataModal(false);
+      if (fixDataAutoComplete && currentTask.task) {
+        completeMutation.mutate({ taskId: currentTask.task.id, outcomeId: 'found' });
+      }
+    };
+
     if (Object.keys(updates).length > 0) {
-      // For lead tasks, update the lead instead of the customer
-      const isLeadTask = currentTask.task.isLeadTask || currentTask.task.customerId?.startsWith('lead-');
       if (isLeadTask && currentTask.task.leadId) {
-        fixDataMutation.mutate({ leadId: currentTask.task.leadId, updates });
+        fixDataMutation.mutate({ leadId: currentTask.task.leadId, updates }, { onSuccess: onSaveSuccess });
       } else if (!isLeadTask && currentTask.task.customerId) {
-        fixDataMutation.mutate({ customerId: currentTask.task.customerId, updates });
+        fixDataMutation.mutate({ customerId: currentTask.task.customerId, updates }, { onSuccess: onSaveSuccess });
       }
+    } else if (fixDataAutoComplete && currentTask.task) {
+      completeMutation.mutate({ taskId: currentTask.task.id, outcomeId: 'found' });
+      setShowFixDataModal(false);
+    } else {
+      setShowFixDataModal(false);
     }
   };
 
@@ -3129,46 +3202,40 @@ export default function Spotlight() {
               )}
 
 
-              {/* Data Hygiene: Pricing Tier */}
-              {task.taskSubtype === 'hygiene_pricing_tier' && (
-                <div className="space-y-3 mb-4">
-                  <Label className="text-sm text-slate-600">Assign pricing tier:</Label>
-                  <Select onValueChange={(value) => handleOutcome('assigned', 'pricingTier', value)}>
-                    <SelectTrigger className="border-slate-200 rounded-xl">
-                      <SelectValue placeholder="Select pricing tier..." />
-                    </SelectTrigger>
-                    <SelectContent>
-                      {PRICING_TIERS.map((tier) => (
-                        <SelectItem key={tier} value={tier}>
-                          {tier}
-                        </SelectItem>
-                      ))}
-                    </SelectContent>
-                  </Select>
-                </div>
-              )}
-
-              {/* Data Hygiene: Email */}
-              {task.taskSubtype === 'hygiene_email' && (
-                <div className="space-y-3 mb-4">
-                  <Label className="text-sm text-slate-600">Enter primary email:</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="email"
-                      value={fieldValue}
-                      onChange={(e) => setFieldValue(e.target.value)}
-                      placeholder="email@company.com"
-                      className="border-slate-200 rounded-xl"
-                      onKeyDown={(e) => e.key === 'Enter' && fieldValue.trim() && handleOutcome('found', 'email', fieldValue.trim())}
-                    />
-                    <Button 
-                      onClick={() => handleOutcome('found', 'email', fieldValue.trim())}
-                      className="spotlight-btn-primary px-6"
-                      disabled={!fieldValue.trim()}
-                    >
-                      Save
-                    </Button>
-                  </div>
+              {/* Data Hygiene: Fix Data First Button (replaces individual field editors) */}
+              {(task.taskSubtype === 'hygiene_pricing_tier' || task.taskSubtype === 'hygiene_email' || task.taskSubtype === 'hygiene_name' || task.taskSubtype === 'hygiene_company' || task.taskSubtype === 'hygiene_phone' || task.taskSubtype === 'hygiene_sales_rep' || task.taskSubtype === 'hygiene_customer_type' || task.taskSubtype === 'hygiene_machines') && (
+                <div className="mb-4">
+                  <button
+                    onClick={() => {
+                      const allMissing: string[] = [];
+                      const isLead = task.isLeadTask || task.customerId?.startsWith('lead-');
+                      if (isLead && task.lead) {
+                        if (!task.lead.name) allMissing.push('name');
+                        if (!task.lead.company) allMissing.push('company');
+                        if (!task.lead.email) allMissing.push('email');
+                        if (!task.lead.phone) allMissing.push('phone');
+                        if (!task.lead.salesRepId) allMissing.push('sales rep');
+                        if (!task.lead.customerType) allMissing.push('customer type');
+                      } else if (customer) {
+                        if (!customer.firstName && !customer.lastName) allMissing.push('name');
+                        if (!customer.company) allMissing.push('company');
+                        if (!customer.email) allMissing.push('email');
+                        if (!customer.phone) allMissing.push('phone');
+                        if (!customer.pricingTier) allMissing.push('pricing tier');
+                        if (!customer.salesRepId) allMissing.push('sales rep');
+                        if (!customer.customerType) allMissing.push('customer type');
+                      }
+                      if (allMissing.length === 0) allMissing.push('all');
+                      handleFixData(allMissing, true);
+                    }}
+                    className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-base font-bold transition-all bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                  >
+                    <UserCog className="w-5 h-5" />
+                    Fix Data First
+                  </button>
+                  <p className="text-xs text-slate-400 text-center mt-2">
+                    Open the contact editor to fix all missing details at once
+                  </p>
                 </div>
               )}
 
@@ -3247,44 +3314,6 @@ export default function Spotlight() {
                 </div>
               )}
 
-              {/* Data Hygiene: Customer Type */}
-              {task.taskSubtype === 'hygiene_customer_type' && (
-                <div className="space-y-3 mb-4">
-                  <div className="bg-blue-50 border border-blue-200 rounded-xl p-4">
-                    <div className="flex items-start gap-3">
-                      <HelpCircle className="w-5 h-5 text-blue-500 mt-0.5 flex-shrink-0" />
-                      <div className="space-y-2 w-full">
-                        <p className="text-sm font-medium text-blue-800">What type of customer is this?</p>
-                        <p className="text-sm text-blue-700">
-                          This helps us know what information to collect.
-                        </p>
-                        <div className="grid grid-cols-2 gap-3 mt-3">
-                          <button
-                            onClick={() => handleOutcome('printer')}
-                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
-                          >
-                            <span className="text-3xl">🖨️</span>
-                            <div className="text-center">
-                              <p className="text-sm font-semibold text-blue-800">Printing Company</p>
-                              <p className="text-xs text-blue-600 mt-1">Has printing equipment</p>
-                            </div>
-                          </button>
-                          <button
-                            onClick={() => handleOutcome('reseller')}
-                            className="flex flex-col items-center gap-2 p-4 bg-white border-2 border-blue-200 rounded-xl hover:border-blue-400 hover:bg-blue-50 transition-all"
-                          >
-                            <span className="text-3xl">🚚</span>
-                            <div className="text-center">
-                              <p className="text-sm font-semibold text-blue-800">Reseller</p>
-                              <p className="text-xs text-blue-600 mt-1">Buys to resell</p>
-                            </div>
-                          </button>
-                        </div>
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              )}
 
               {/* DRIP Stale Followup - Creative Options */}
               {task.taskSubtype === 'drip_stale_followup' && (
@@ -3573,46 +3602,6 @@ export default function Spotlight() {
                 </div>
               )}
 
-              {/* Data Hygiene: Name, Company, Phone */}
-              {(task.taskSubtype === 'hygiene_name' || task.taskSubtype === 'hygiene_company' || task.taskSubtype === 'hygiene_phone') && (
-                <div className="space-y-3 mb-4">
-                  <Label className="text-sm text-slate-600">
-                    {task.taskSubtype === 'hygiene_name' && 'Enter contact name:'}
-                    {task.taskSubtype === 'hygiene_company' && 'Enter company name:'}
-                    {task.taskSubtype === 'hygiene_phone' && 'Enter phone number:'}
-                  </Label>
-                  <div className="flex gap-2">
-                    <Input
-                      value={fieldValue}
-                      onChange={(e) => setFieldValue(e.target.value)}
-                      placeholder={
-                        task.taskSubtype === 'hygiene_name' ? 'First Last' :
-                        task.taskSubtype === 'hygiene_company' ? 'Company Name' : 
-                        '(555) 555-5555'
-                      }
-                      className="border-slate-200 rounded-xl"
-                      onKeyDown={(e) => {
-                        if (e.key === 'Enter' && fieldValue.trim()) {
-                          const field = task.taskSubtype === 'hygiene_name' ? 'firstName' :
-                                        task.taskSubtype === 'hygiene_company' ? 'company' : 'phone';
-                          handleOutcome('found', field, fieldValue.trim());
-                        }
-                      }}
-                    />
-                    <Button 
-                      onClick={() => {
-                        const field = task.taskSubtype === 'hygiene_name' ? 'firstName' :
-                                      task.taskSubtype === 'hygiene_company' ? 'company' : 'phone';
-                        handleOutcome('found', field, fieldValue.trim());
-                      }}
-                      className="spotlight-btn-primary px-6"
-                      disabled={!fieldValue.trim()}
-                    >
-                      Save
-                    </Button>
-                  </div>
-                </div>
-              )}
 
               {/* Pricing Feedback Icons for Quote-Related Tasks */}
               {(task.taskSubtype === 'sales_quote_follow_up' || 
@@ -4450,116 +4439,159 @@ export default function Spotlight() {
 
       {/* Fix Data Modal */}
       <Dialog open={showFixDataModal} onOpenChange={setShowFixDataModal}>
-        <DialogContent className="sm:max-w-md">
+        <DialogContent className="sm:max-w-lg max-h-[85vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
-              <UserCog className="w-5 h-5 text-blue-500" />
-              Update Missing Data
+              <UserCog className="w-5 h-5 text-indigo-500" />
+              Fix Contact Data
             </DialogTitle>
             <DialogDescription asChild>
               <div className="space-y-1">
                 <span className="font-medium text-gray-900 block">
-                  {customer?.company || customer?.firstName || 'Unknown'}
+                  {customer?.company || [customer?.firstName, customer?.lastName].filter(Boolean).join(' ') || 'Unknown'}
                 </span>
-                {customer?.email && (
-                  <a 
-                    href={`mailto:${customer.email}`}
-                    className="text-sm text-primary hover:underline block"
-                  >
-                    {customer.email}
-                  </a>
-                )}
-                <span className="text-gray-400 mt-1 block">Fill in the missing information to improve data quality.</span>
+                <span className="text-gray-400 mt-1 block">Update the fields below and save to fix this contact's record.</span>
               </div>
             </DialogDescription>
           </DialogHeader>
           
           <div className="py-4 space-y-4">
-            {missingFieldsToFix.includes('email') && (
-              <div className="space-y-2">
-                <Label htmlFor="fix-email" className="text-sm font-medium">Email Address</Label>
-                {availableEmails.length > 0 ? (
-                  <div className="space-y-2">
-                    <Select 
-                      value={fixDataFields.email} 
-                      onValueChange={(value) => setFixDataFields(prev => ({ ...prev, email: value === '__new__' ? '' : value }))}
-                    >
-                      <SelectTrigger className="border-[#EAEAEA]">
-                        <SelectValue placeholder="Select an email..." />
-                      </SelectTrigger>
-                      <SelectContent>
-                        {availableEmails.map((email) => (
-                          <SelectItem key={email} value={email}>
-                            {email}
-                          </SelectItem>
-                        ))}
-                        <SelectItem value="__new__">
-                          <span className="text-blue-600">+ Enter new email</span>
-                        </SelectItem>
-                      </SelectContent>
-                    </Select>
-                    {fixDataFields.email === '' && (
-                      <Input
-                        type="email"
-                        value={fixDataFields.email}
-                        onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
-                        placeholder="Enter new email address..."
-                        className="border-[#EAEAEA]"
-                      />
-                    )}
-                  </div>
-                ) : (
-                  <Input
-                    id="fix-email"
-                    type="email"
-                    value={fixDataFields.email}
-                    onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
-                    placeholder="customer@example.com"
-                    className="border-[#EAEAEA]"
-                  />
-                )}
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-500">First Name</Label>
+                <Input
+                  value={fixDataFields.firstName}
+                  onChange={(e) => setFixDataFields(prev => ({ ...prev, firstName: e.target.value }))}
+                  placeholder="First name"
+                  className={`border-slate-200 ${!fixDataFields.firstName ? 'border-amber-300 bg-amber-50/50' : ''}`}
+                />
               </div>
-            )}
-            {missingFieldsToFix.includes('pricing tier') && (
-              <div className="space-y-2">
-                <Label htmlFor="fix-pricing" className="text-sm font-medium">Pricing Tier</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-500">Last Name</Label>
+                <Input
+                  value={fixDataFields.lastName}
+                  onChange={(e) => setFixDataFields(prev => ({ ...prev, lastName: e.target.value }))}
+                  placeholder="Last name"
+                  className={`border-slate-200 ${!fixDataFields.lastName ? 'border-amber-300 bg-amber-50/50' : ''}`}
+                />
+              </div>
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500">Company</Label>
+              <Input
+                value={fixDataFields.company}
+                onChange={(e) => setFixDataFields(prev => ({ ...prev, company: e.target.value }))}
+                placeholder="Company name"
+                className={`border-slate-200 ${!fixDataFields.company ? 'border-amber-300 bg-amber-50/50' : ''}`}
+              />
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500">Email</Label>
+              {availableEmails.length > 1 ? (
+                <div className="space-y-2">
+                  <Select 
+                    value={fixDataFields.email} 
+                    onValueChange={(value) => setFixDataFields(prev => ({ ...prev, email: value === '__new__' ? '' : value }))}
+                  >
+                    <SelectTrigger className={`border-slate-200 ${!fixDataFields.email ? 'border-amber-300 bg-amber-50/50' : ''}`}>
+                      <SelectValue placeholder="Select an email..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {availableEmails.map((email) => (
+                        <SelectItem key={email} value={email}>{email}</SelectItem>
+                      ))}
+                      <SelectItem value="__new__">
+                        <span className="text-blue-600">+ Enter new email</span>
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  {fixDataFields.email === '' && (
+                    <Input
+                      type="email"
+                      value={fixDataFields.email}
+                      onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
+                      placeholder="Enter new email address..."
+                      className="border-slate-200"
+                    />
+                  )}
+                </div>
+              ) : (
+                <Input
+                  type="email"
+                  value={fixDataFields.email}
+                  onChange={(e) => setFixDataFields(prev => ({ ...prev, email: e.target.value }))}
+                  placeholder="email@company.com"
+                  className={`border-slate-200 ${!fixDataFields.email ? 'border-amber-300 bg-amber-50/50' : ''}`}
+                />
+              )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500">Phone</Label>
+              <Input
+                value={fixDataFields.phone}
+                onChange={(e) => setFixDataFields(prev => ({ ...prev, phone: e.target.value }))}
+                placeholder="(555) 555-5555"
+                className={`border-slate-200 ${!fixDataFields.phone ? 'border-amber-300 bg-amber-50/50' : ''}`}
+              />
+            </div>
+
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-500">Pricing Tier</Label>
                 <Select 
                   value={fixDataFields.pricingTier} 
                   onValueChange={(value) => setFixDataFields(prev => ({ ...prev, pricingTier: value }))}
                 >
-                  <SelectTrigger className="border-[#EAEAEA]">
-                    <SelectValue placeholder="Select pricing tier..." />
+                  <SelectTrigger className={`border-slate-200 ${!fixDataFields.pricingTier ? 'border-amber-300 bg-amber-50/50' : ''}`}>
+                    <SelectValue placeholder="Select tier..." />
                   </SelectTrigger>
                   <SelectContent>
                     {PRICING_TIERS.map((tier) => (
-                      <SelectItem key={tier} value={tier}>
-                        {tier}
-                      </SelectItem>
+                      <SelectItem key={tier} value={tier}>{tier}</SelectItem>
                     ))}
                   </SelectContent>
                 </Select>
               </div>
-            )}
-            {missingFieldsToFix.includes('sales rep') && (
-              <div className="space-y-2">
-                <Label htmlFor="fix-salesrep" className="text-sm font-medium">Sales Rep</Label>
+              <div className="space-y-1.5">
+                <Label className="text-xs font-medium text-slate-500">Customer Type</Label>
                 <Select 
-                  value={fixDataFields.salesRepId} 
-                  onValueChange={(value) => setFixDataFields(prev => ({ ...prev, salesRepId: value }))}
+                  value={fixDataFields.customerType} 
+                  onValueChange={(value) => setFixDataFields(prev => ({ ...prev, customerType: value }))}
                 >
-                  <SelectTrigger className="border-[#EAEAEA]">
-                    <SelectValue placeholder="Select sales rep..." />
+                  <SelectTrigger className={`border-slate-200 ${!fixDataFields.customerType ? 'border-amber-300 bg-amber-50/50' : ''}`}>
+                    <SelectValue placeholder="Select type..." />
                   </SelectTrigger>
                   <SelectContent>
-                    {salesReps.map((rep) => (
-                      <SelectItem key={rep.id} value={rep.id}>
-                        {getSalesRepDisplayName(rep)}
-                      </SelectItem>
-                    ))}
+                    <SelectItem value="Printing Company">Printing Company</SelectItem>
+                    <SelectItem value="Reseller">Reseller</SelectItem>
+                    <SelectItem value="End User">End User</SelectItem>
+                    <SelectItem value="Other">Other</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
-            )}
+            </div>
+
+            <div className="space-y-1.5">
+              <Label className="text-xs font-medium text-slate-500">Sales Rep</Label>
+              <Select 
+                value={fixDataFields.salesRepId} 
+                onValueChange={(value) => setFixDataFields(prev => ({ ...prev, salesRepId: value }))}
+              >
+                <SelectTrigger className={`border-slate-200 ${!fixDataFields.salesRepId ? 'border-amber-300 bg-amber-50/50' : ''}`}>
+                  <SelectValue placeholder="Select sales rep..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {salesReps.map((rep) => (
+                    <SelectItem key={rep.id} value={rep.id}>
+                      {getSalesRepDisplayName(rep)}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
           </div>
 
           <DialogFooter className="flex gap-2 sm:gap-2">
@@ -4572,10 +4604,10 @@ export default function Spotlight() {
             </Button>
             <Button
               onClick={submitFixData}
-              disabled={fixDataMutation.isPending}
-              className="flex-1 bg-[#111111] hover:bg-[#333333]"
+              disabled={fixDataMutation.isPending || completeMutation.isPending}
+              className="flex-1 bg-gradient-to-r from-indigo-500 to-purple-600 hover:from-indigo-600 hover:to-purple-700 text-white"
             >
-              {fixDataMutation.isPending ? 'Saving...' : 'Save Changes'}
+              {fixDataMutation.isPending || completeMutation.isPending ? 'Saving...' : 'Save & Continue'}
             </Button>
           </DialogFooter>
         </DialogContent>
