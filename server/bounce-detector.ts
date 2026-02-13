@@ -10,6 +10,7 @@ import {
   InsertBouncedEmail 
 } from '@shared/schema';
 import { normalizeEmail } from '@shared/email-normalizer';
+import { getGmailClientForUser as getOAuthGmailClient } from './user-gmail-oauth';
 
 const BOUNCE_SENDERS = [
   'mailer-daemon@',
@@ -177,29 +178,48 @@ async function matchEmailToRecord(email: string): Promise<MatchResult> {
 async function getGmailClientForUser(userId: string): Promise<{ gmail: gmail_v1.Gmail; email: string } | null> {
   console.log(`[Bounce Detector] Looking for Gmail connection for user ${userId}`);
   
-  const connection = await db.select()
-    .from(userGmailConnections)
-    .where(and(
-      eq(userGmailConnections.userId, userId),
-      eq(userGmailConnections.isActive, true)
-    ))
-    .limit(1);
-  
-  if (connection.length === 0 || !connection[0].accessToken) {
-    console.log(`[Bounce Detector] No active Gmail connection found for user ${userId}`);
+  try {
+    const gmail = await getOAuthGmailClient(userId);
+    const connection = await db.select()
+      .from(userGmailConnections)
+      .where(and(
+        eq(userGmailConnections.userId, userId),
+        eq(userGmailConnections.isActive, true)
+      ))
+      .limit(1);
+    
+    const email = connection[0]?.gmailAddress || connection[0]?.email || '';
+    console.log(`[Bounce Detector] Found Gmail connection for ${email}`);
+    return { gmail, email };
+  } catch (error: any) {
+    console.log(`[Bounce Detector] No active Gmail connection for user ${userId}: ${error.message}`);
     return null;
   }
-  
-  console.log(`[Bounce Detector] Found Gmail connection for ${connection[0].gmailAddress}`);
-  
-  
-  const oauth2Client = new google.auth.OAuth2();
-  oauth2Client.setCredentials({ access_token: connection[0].accessToken });
-  
-  return {
-    gmail: google.gmail({ version: 'v1', auth: oauth2Client }),
-    email: connection[0].email,
-  };
+}
+
+async function getAnyActiveGmailClient(): Promise<{ gmail: gmail_v1.Gmail; email: string } | null> {
+  try {
+    const activeConnections = await db.select()
+      .from(userGmailConnections)
+      .where(eq(userGmailConnections.isActive, true))
+      .limit(5);
+    
+    for (const conn of activeConnections) {
+      try {
+        const gmail = await getOAuthGmailClient(conn.userId);
+        console.log(`[Bounce Detector] Using Gmail connection from ${conn.gmailAddress} (user ${conn.userId})`);
+        return { gmail, email: conn.gmailAddress || conn.email };
+      } catch {
+        continue;
+      }
+    }
+    
+    console.log('[Bounce Detector] No working Gmail connections found across any users');
+    return null;
+  } catch (error) {
+    console.error('[Bounce Detector] Error finding active Gmail connections:', error);
+    return null;
+  }
 }
 
 async function getSharedGmailClient(): Promise<{ gmail: gmail_v1.Gmail; email: string } | null> {
@@ -251,6 +271,9 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
   console.log(`[Bounce Detector] Scanning for bounced emails for user ${userId}`);
   
   let client = await getGmailClientForUser(userId);
+  if (!client) {
+    client = await getAnyActiveGmailClient();
+  }
   if (!client) {
     client = await getSharedGmailClient();
   }
