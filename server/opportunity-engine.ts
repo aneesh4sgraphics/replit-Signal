@@ -6,7 +6,7 @@ import {
   UPS_GROUND_TRANSIT_DAYS,
   type OpportunitySignal, type OpportunityType, type FollowUpEntry,
 } from "@shared/schema";
-import { eq, and, or, isNull, isNotNull, sql, desc, gte, lt, inArray, count } from "drizzle-orm";
+import { eq, and, or, isNull, isNotNull, sql, desc, gte, lt, lte, ne, inArray, count } from "drizzle-orm";
 import { odooClient, isOdooConfigured } from "./odoo";
 
 const STATE_ABBREVIATIONS: Record<string, string> = {
@@ -97,18 +97,34 @@ export class OpportunityEngine {
       opportunityTypes.push('machine_match');
     }
 
-    const hasSamples = customerData.swatchbookSentAt || customerData.pressTestSentAt;
-    const hasOrders = customerData.totalOrders && customerData.totalOrders > 0;
+    // SAMPLES SENT: Check multiple sources
+    // 1. Swatch books / press test kits sent from CRM
+    const hasCrmSamples = customerData.swatchbookSentAt || customerData.pressTestSentAt;
+    // 2. Sample shipments table (Odoo $0 orders, label prints)
+    const [sampleShipmentCount] = await db
+      .select({ cnt: count() })
+      .from(sampleShipments)
+      .where(eq(sampleShipments.customerId, customerId));
+    const hasSampleShipments = (sampleShipmentCount?.cnt || 0) > 0;
+    
+    const hasSamples = hasCrmSamples || hasSampleShipments;
+    const totalSpent = parseFloat(customerData.totalSpent || '0');
+    const hasOrders = customerData.totalOrders && customerData.totalOrders > 0 && totalSpent > 10;
+    
     if (hasSamples && !hasOrders) {
+      const sampleSources: string[] = [];
+      if (hasCrmSamples) sampleSources.push('swatch book/press test kit');
+      if (hasSampleShipments) sampleSources.push('sample order');
       signals.push({
         signal: 'sample_sent_no_order',
         points: OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder,
-        detail: 'Received samples but hasn\'t ordered yet',
+        detail: `Received ${sampleSources.join(' & ')} but hasn't placed a paid order yet`,
       });
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder;
       opportunityTypes.push('sample_no_order');
     }
 
+    // EMAIL ENGAGEMENT
     const [emailActivity] = await db
       .select({ count: count() })
       .from(gmailMessages)
@@ -126,6 +142,7 @@ export class OpportunityEngine {
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.emailEngagement;
     }
 
+    // HIGH PERFORMING REGION
     const stateAbbrev = normalizeStateToAbbreviation(customerData.province);
     if (stateAbbrev && HIGH_PERFORMING_REGIONS.includes(stateAbbrev as any)) {
       signals.push({
@@ -136,30 +153,57 @@ export class OpportunityEngine {
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion;
     }
 
-    const totalSpent = parseFloat(customerData.totalSpent || '0');
-    if (hasOrders && totalSpent > 0 && totalSpent < 500) {
-      signals.push({
-        signal: 'small_order_upsell',
-        points: OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell,
-        detail: `Placed ${customerData.totalOrders} order(s) totaling $${totalSpent.toFixed(2)} — room to grow`,
-      });
-      totalScore += OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell;
-      opportunityTypes.push('upsell_potential');
-    }
-
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    // WENT QUIET: Customer replied at least once but no contact from us in 7+ days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const hasInboundReplies = (emailActivity?.count ?? 0) > 0;
     const lastOutbound = customerData.lastOutboundEmailAt;
-    if (lastOutbound && lastOutbound < thirtyDaysAgo && (emailActivity?.count ?? 0) > 0) {
+    const noRecentContact = !lastOutbound || lastOutbound < sevenDaysAgo;
+    
+    if (hasInboundReplies && noRecentContact) {
+      const daysSinceContact = lastOutbound 
+        ? Math.floor((Date.now() - lastOutbound.getTime()) / (1000 * 60 * 60 * 24))
+        : null;
       signals.push({
         signal: 'went_quiet',
         points: OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest,
-        detail: 'Was engaged but went quiet — worth a check-in',
+        detail: daysSinceContact 
+          ? `Replied to our emails but no contact in ${daysSinceContact} days`
+          : 'Replied to our emails but never followed up',
       });
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest;
       opportunityTypes.push('went_quiet');
     }
 
+    // UPSELL: Customer has purchased over $2000 (from Odoo or Shopify)
+    if (hasOrders && totalSpent > 2000) {
+      signals.push({
+        signal: 'small_order_upsell',
+        points: OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell,
+        detail: `Strong buyer — ${customerData.totalOrders} order(s) totaling $${totalSpent.toFixed(2)}. Upsell opportunity.`,
+      });
+      totalScore += OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell;
+      opportunityTypes.push('upsell_potential');
+    }
+
+    // GREAT FIT: Monthly buyer with regular ordering pattern
+    // Criteria: 3+ orders AND last order within 90 days AND needs regular contact
+    if (customerData.totalOrders && customerData.totalOrders >= 3 && totalSpent > 0) {
+      const daysSinceLastOrder = customerData.daysSinceLastOrder;
+      if (daysSinceLastOrder !== null && daysSinceLastOrder !== undefined && daysSinceLastOrder < 90) {
+        const points = 15;
+        const contactNeeded = noRecentContact ? ' — needs follow-up!' : '';
+        signals.push({
+          signal: 'regular_buyer',
+          points,
+          detail: `Monthly buyer — ${customerData.totalOrders} orders, $${totalSpent.toFixed(2)} total, last order ${daysSinceLastOrder} days ago${contactNeeded}`,
+        });
+        totalScore += points;
+        opportunityTypes.push('new_fit');
+      }
+    }
+
+    // Website bonus
     if (customerData.website) {
       signals.push({
         signal: 'has_website',
@@ -167,10 +211,6 @@ export class OpportunityEngine {
         detail: 'Has a website — can research their business',
       });
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.hasWebsite;
-    }
-
-    if (opportunityTypes.length === 0 && totalScore >= 30) {
-      opportunityTypes.push('new_fit');
     }
 
     return { score: Math.min(totalScore, 100), signals, opportunityTypes };
@@ -237,13 +277,15 @@ export class OpportunityEngine {
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion;
     }
 
-    const thirtyDaysAgo = new Date();
-    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
-    if (leadData.lastContactAt && leadData.lastContactAt < thirtyDaysAgo && (leadData.totalTouchpoints ?? 0) > 2) {
+    // Went quiet for leads: had contact but nothing in 7+ days
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    if (leadData.lastContactAt && leadData.lastContactAt < sevenDaysAgo && (leadData.totalTouchpoints ?? 0) > 1) {
+      const daysSince = Math.floor((Date.now() - leadData.lastContactAt.getTime()) / (1000 * 60 * 60 * 24));
       signals.push({
         signal: 'went_quiet',
         points: OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest,
-        detail: `${leadData.totalTouchpoints} touchpoints but no contact in 30+ days`,
+        detail: `${leadData.totalTouchpoints} touchpoints but no contact in ${daysSince} days`,
       });
       totalScore += OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest;
       opportunityTypes.push('went_quiet');
@@ -578,7 +620,7 @@ export class OpportunityEngine {
 
     if (isOdooConfigured()) {
       try {
-        const sampleOrders = await odooClient.getZeroValueSampleOrders('2026-01-01');
+        const sampleOrders = await odooClient.getZeroValueSampleOrders('2025-01-01');
         if (sampleOrders && sampleOrders.length > 0) {
           for (const order of sampleOrders) {
             const partnerId = Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id;
@@ -619,55 +661,127 @@ export class OpportunityEngine {
               estimatedTransitDays: transitDays,
               followUpStatus: 'pending',
               followUpStep: 0,
-              orderAmount: String(order.amount_total || 0),
-              clientRef: (order as any).client_order_ref || null,
             });
-
             detected++;
           }
         }
-      } catch (error) {
-        console.error('[OpportunityEngine] Error detecting Odoo sample shipments:', error);
+      } catch (error: any) {
+        console.error("[OpportunityEngine] Error detecting Odoo samples:", error.message);
+      }
+
+      // Also detect orders where customer_reference contains "Samples"
+      try {
+        const sampleRefOrders = await odooClient.searchRead('sale.order', [
+          ['client_order_ref', 'ilike', 'sample'],
+          ['state', 'in', ['sale', 'done']],
+          ['date_order', '>=', '2025-01-01'],
+        ], ['id', 'name', 'partner_id', 'date_order', 'client_order_ref', 'amount_total'], { limit: 200 });
+
+        if (sampleRefOrders && sampleRefOrders.length > 0) {
+          for (const order of sampleRefOrders) {
+            const partnerId = Array.isArray(order.partner_id) ? order.partner_id[0] : order.partner_id;
+            if (!partnerId) continue;
+
+            const existing = await db
+              .select({ id: sampleShipments.id })
+              .from(sampleShipments)
+              .where(and(
+                eq(sampleShipments.source, 'odoo'),
+                eq(sampleShipments.sourceOrderId, String(order.id)),
+              ))
+              .limit(1);
+
+            if (existing.length > 0) continue;
+
+            const [matchedCustomer] = await db
+              .select({ id: customers.id, province: customers.province })
+              .from(customers)
+              .where(eq(customers.odooPartnerId, partnerId))
+              .limit(1);
+
+            if (!matchedCustomer) continue;
+
+            const shippedAt = order.date_order ? new Date(order.date_order) : new Date();
+            const transitDays = estimateTransitDays(matchedCustomer.province);
+            const estimatedDelivery = new Date(shippedAt);
+            estimatedDelivery.setDate(estimatedDelivery.getDate() + transitDays);
+
+            await db.insert(sampleShipments).values({
+              customerId: matchedCustomer.id,
+              source: 'odoo',
+              sourceOrderId: String(order.id),
+              sourceOrderName: `${order.name} (Ref: ${order.client_order_ref})`,
+              shippedAt,
+              estimatedDeliveryAt: estimatedDelivery,
+              deliveryState: normalizeStateToAbbreviation(matchedCustomer.province),
+              estimatedTransitDays: transitDays,
+              followUpStatus: 'pending',
+              followUpStep: 0,
+            });
+            detected++;
+          }
+        }
+      } catch (error: any) {
+        console.error("[OpportunityEngine] Error detecting Odoo sample-reference orders:", error.message);
       }
     }
 
-    const recentLabels = await db
-      .select()
-      .from(labelPrints)
-      .where(gte(labelPrints.createdAt, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000)));
-
-    for (const label of recentLabels) {
-      const existing = await db
-        .select({ id: sampleShipments.id })
-        .from(sampleShipments)
+    // Detect label prints (swatch books, press test kits) from label_prints table
+    try {
+      const recentLabels = await db
+        .select({
+          id: labelPrints.id,
+          customerId: labelPrints.customerId,
+          labelType: labelPrints.labelType,
+          createdAt: labelPrints.createdAt,
+        })
+        .from(labelPrints)
         .where(and(
-          eq(sampleShipments.source, 'label_print'),
-          eq(sampleShipments.sourceOrderId, String(label.id)),
-        ))
-        .limit(1);
+          isNotNull(labelPrints.customerId),
+          sql`${labelPrints.labelType} IN ('swatch_book', 'press_test_kit')`,
+        ));
 
-      if (existing.length > 0) continue;
+      for (const label of recentLabels) {
+        if (!label.customerId) continue;
 
-      const transitDays = estimateTransitDays(label.province);
-      const shippedAt = label.createdAt || new Date();
-      const estimatedDelivery = new Date(shippedAt);
-      estimatedDelivery.setDate(estimatedDelivery.getDate() + transitDays);
+        const existing = await db
+          .select({ id: sampleShipments.id })
+          .from(sampleShipments)
+          .where(and(
+            eq(sampleShipments.source, 'label_print'),
+            eq(sampleShipments.sourceOrderId, String(label.id)),
+          ))
+          .limit(1);
 
-      await db.insert(sampleShipments).values({
-        customerId: label.customerId,
-        source: 'label_print',
-        sourceOrderId: String(label.id),
-        sourceOrderName: `${label.labelType} label print`,
-        shippedAt,
-        estimatedDeliveryAt: estimatedDelivery,
-        deliveryState: normalizeStateToAbbreviation(label.province),
-        estimatedTransitDays: transitDays,
-        followUpStatus: 'pending',
-        followUpStep: 0,
-        orderAmount: '0',
-      });
+        if (existing.length > 0) continue;
 
-      detected++;
+        const [cust] = await db
+          .select({ province: customers.province })
+          .from(customers)
+          .where(eq(customers.id, label.customerId))
+          .limit(1);
+
+        const shippedAt = label.createdAt || new Date();
+        const transitDays = estimateTransitDays(cust?.province || null);
+        const estimatedDelivery = new Date(shippedAt);
+        estimatedDelivery.setDate(estimatedDelivery.getDate() + transitDays);
+
+        await db.insert(sampleShipments).values({
+          customerId: label.customerId,
+          source: 'label_print',
+          sourceOrderId: String(label.id),
+          sourceOrderName: `${label.labelType?.replace(/_/g, ' ')} label print`,
+          shippedAt,
+          estimatedDeliveryAt: estimatedDelivery,
+          deliveryState: normalizeStateToAbbreviation(cust?.province || null),
+          estimatedTransitDays: transitDays,
+          followUpStatus: 'pending',
+          followUpStep: 0,
+        });
+        detected++;
+      }
+    } catch (error: any) {
+      console.error("[OpportunityEngine] Error detecting label print samples:", error.message);
     }
 
     console.log(`[OpportunityEngine] Detected ${detected} new sample shipments`);
@@ -675,9 +789,7 @@ export class OpportunityEngine {
   }
 
   async getSampleShipmentsNeedingFollowUp(): Promise<any[]> {
-    const now = new Date();
-
-    const shipments = await db
+    const results = await db
       .select({
         shipment: sampleShipments,
         customerFirstName: customers.firstName,
@@ -685,21 +797,25 @@ export class OpportunityEngine {
         customerCompany: customers.company,
         customerEmail: customers.email,
         customerPhone: customers.phone,
-        customerProvince: customers.province,
       })
       .from(sampleShipments)
       .leftJoin(customers, eq(sampleShipments.customerId, customers.id))
       .where(and(
         eq(sampleShipments.followUpStatus, 'pending'),
-        sql`${sampleShipments.estimatedDeliveryAt} <= ${now}`,
-        lt(sampleShipments.followUpStep, 3),
+        lte(sampleShipments.estimatedDeliveryAt, new Date()),
       ))
-      .orderBy(sampleShipments.estimatedDeliveryAt);
+      .orderBy(desc(sampleShipments.shippedAt))
+      .limit(50);
 
-    return shipments;
+    return results.map(r => ({
+      ...r.shipment,
+      customerName: [r.customerFirstName, r.customerLastName].filter(Boolean).join(' ') || r.customerCompany || 'Unknown',
+      customerEmail: r.customerEmail,
+      customerPhone: r.customerPhone,
+    }));
   }
 
-  async recordFollowUp(shipmentId: number, type: 'call' | 'email' | 'other', userId: string, outcome?: string): Promise<void> {
+  async recordFollowUp(shipmentId: number, type: string, userId: string, outcome?: string): Promise<void> {
     const [shipment] = await db
       .select()
       .from(sampleShipments)
@@ -708,33 +824,23 @@ export class OpportunityEngine {
 
     if (!shipment) return;
 
-    const currentStep = (shipment.followUpStep || 0) + 1;
-    const history = (shipment.followUpHistory || []) as FollowUpEntry[];
-    history.push({
-      step: currentStep,
-      type,
+    const newStep = (shipment.followUpStep || 0) + 1;
+    const followUpHistory = (shipment.followUpHistory || []) as FollowUpEntry[];
+    followUpHistory.push({
+      step: newStep,
+      type: type as any,
       date: new Date().toISOString(),
-      outcome,
       userId,
+      outcome: outcome || undefined,
     });
-
-    const isComplete = currentStep >= 3;
-    const hasCall = history.some(h => h.type === 'call');
-
-    let nextFollowUpDays = 3;
-    if (currentStep === 1) nextFollowUpDays = 3;
-    else if (currentStep === 2) nextFollowUpDays = 5;
-
-    const nextFollowUp = new Date();
-    nextFollowUp.setDate(nextFollowUp.getDate() + nextFollowUpDays);
 
     await db.update(sampleShipments)
       .set({
-        followUpStep: currentStep,
+        followUpStep: newStep,
+        followUpStatus: outcome === 'ordered' ? 'converted' : outcome === 'not_interested' ? 'closed' : 'in_progress',
+        followUpHistory,
         lastFollowUpAt: new Date(),
-        followUpHistory: history,
-        followUpStatus: isComplete ? 'completed' : 'pending',
-        updatedAt: new Date(),
+        lastFollowUpType: type,
       })
       .where(eq(sampleShipments.id, shipmentId));
   }

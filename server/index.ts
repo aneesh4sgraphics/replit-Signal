@@ -330,6 +330,23 @@ app.use((req, res, next) => {
       } else {
         console.log('[Workers] Odoo sync worker disabled via ENABLE_ODOO_SYNC=false');
       }
+      
+      let opportunityRecalcRunning = false;
+      setTimeout(async () => {
+        if (opportunityRecalcRunning) return;
+        opportunityRecalcRunning = true;
+        try {
+          console.log('[Opportunities] Starting background score recalculation...');
+          const { opportunityEngine } = await import("./opportunity-engine");
+          await opportunityEngine.detectSampleShipments();
+          const result = await opportunityEngine.calculateAndStoreScores();
+          console.log(`[Opportunities] Recalculation complete: ${result.scored} scored from ${result.processed} entities`);
+        } catch (err: any) {
+          console.error('[Opportunities] Background recalculation failed:', err.message);
+        } finally {
+          opportunityRecalcRunning = false;
+        }
+      }, 15000);
     } else {
       console.log('[Workers] All background workers disabled via ENABLE_WORKERS=false');
     }
