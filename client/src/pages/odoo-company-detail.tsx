@@ -55,6 +55,7 @@ import {
   Truck,
   Star,
   Target,
+  Eye,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -145,6 +146,7 @@ export default function OdooCompanyDetail() {
   const [paymentTermsSaveSuccess, setPaymentTermsSaveSuccess] = useState(false);
   const [salesPersonSaveSuccess, setSalesPersonSaveSuccess] = useState(false);
   const [isCreateOdooDialogOpen, setIsCreateOdooDialogOpen] = useState(false);
+  const [emailPreview, setEmailPreview] = useState<{ subject: string; body: string; recipientEmail: string; sentAt: string } | null>(null);
   const [duplicatePartners, setDuplicatePartners] = useState<Array<{ id: number; name: string; email: string; isCompany: boolean }>>([]);
   const [isPrintLabelOpen, setIsPrintLabelOpen] = useState(false);
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
@@ -1814,6 +1816,8 @@ export default function OdooCompanyDetail() {
                         return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                       };
 
+                      const isEmailEvent = event.description?.includes('email_sent') || event.description?.includes('Email sent');
+
                       return (
                         <div
                           key={event.id}
@@ -1828,6 +1832,44 @@ export default function OdooCompanyDetail() {
                               <Badge variant="secondary" className={`text-xs ${getEventBadgeColor(event.eventType)}`}>
                                 {formatEventType(event.eventType)}
                               </Badge>
+                              {isEmailEvent && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-6 px-2 text-xs text-blue-600 hover:text-blue-800 hover:bg-blue-50"
+                                  onClick={async () => {
+                                    try {
+                                      const res = await fetch(`/api/email/sends?customerId=${companyId}`, { credentials: 'include' });
+                                      if (res.ok) {
+                                        const sends = await res.json();
+                                        const eventDate = event.createdAt ? new Date(event.createdAt) : null;
+                                        let matchedEmail = null;
+                                        if (eventDate && sends.length > 0) {
+                                          matchedEmail = sends.reduce((closest: any, send: any) => {
+                                            const sendDate = new Date(send.sentAt);
+                                            const diff = Math.abs(sendDate.getTime() - eventDate.getTime());
+                                            const closestDiff = closest ? Math.abs(new Date(closest.sentAt).getTime() - eventDate.getTime()) : Infinity;
+                                            return diff < closestDiff ? send : closest;
+                                          }, null);
+                                        }
+                                        if (matchedEmail) {
+                                          setEmailPreview({
+                                            subject: matchedEmail.subject || 'No subject',
+                                            body: matchedEmail.body || '',
+                                            recipientEmail: matchedEmail.recipientEmail || '',
+                                            sentAt: matchedEmail.sentAt || '',
+                                          });
+                                        }
+                                      }
+                                    } catch (err) {
+                                      console.error('Failed to fetch email preview:', err);
+                                    }
+                                  }}
+                                >
+                                  <Eye className="w-3 h-3 mr-1" />
+                                  Preview
+                                </Button>
+                              )}
                             </div>
                             {event.description && (
                               <p className="text-xs text-gray-600 line-clamp-2">{event.description}</p>
@@ -1861,6 +1903,32 @@ export default function OdooCompanyDetail() {
                 )}
               </CardContent>
             </Card>
+
+            <Dialog open={!!emailPreview} onOpenChange={(open) => { if (!open) setEmailPreview(null); }}>
+              <DialogContent className="max-w-2xl max-h-[80vh] overflow-y-auto">
+                <DialogHeader>
+                  <DialogTitle className="flex items-center gap-2">
+                    <Mail className="w-5 h-5 text-blue-500" />
+                    Email Preview
+                  </DialogTitle>
+                  <DialogDescription>
+                    Sent to {emailPreview?.recipientEmail} on {emailPreview?.sentAt ? new Date(emailPreview.sentAt).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : ''}
+                  </DialogDescription>
+                </DialogHeader>
+                <div className="space-y-3">
+                  <div className="flex items-center gap-2 p-3 bg-gray-50 rounded-lg">
+                    <span className="text-sm font-medium text-gray-500">Subject:</span>
+                    <span className="text-sm font-semibold text-gray-900">{emailPreview?.subject}</span>
+                  </div>
+                  <div className="border rounded-lg p-4 bg-white">
+                    <div
+                      className="prose prose-sm max-w-none"
+                      dangerouslySetInnerHTML={{ __html: emailPreview?.body || '' }}
+                    />
+                  </div>
+                </div>
+              </DialogContent>
+            </Dialog>
           </div>
 
           <div className="space-y-6">
