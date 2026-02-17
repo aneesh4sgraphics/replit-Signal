@@ -4304,6 +4304,37 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
+      // EMAIL DOMAIN PROPAGATION: When pricing tier is set, propagate to all contacts sharing the same email domain
+      if (newPricingTier && newPricingTier !== oldPricingTier && customer.email) {
+        try {
+          const emailDomain = customer.email.split('@')[1]?.toLowerCase();
+          const genericDomains = ['gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'mail.com', 'msn.com', 'live.com', 'ymail.com', 'protonmail.com', 'zoho.com', 'comcast.net', 'att.net', 'verizon.net', 'sbcglobal.net', 'cox.net', 'charter.net', 'earthlink.net'];
+          
+          if (emailDomain && !genericDomains.includes(emailDomain)) {
+            const domainContacts = await db.select({ id: customers.id, pricingTier: customers.pricingTier })
+              .from(customers)
+              .where(and(
+                sql`LOWER(SPLIT_PART(${customers.email}, '@', 2)) = ${emailDomain}`,
+                ne(customers.id, customerId),
+                isNull(customers.pricingTier)
+              ));
+            
+            if (domainContacts.length > 0) {
+              await db.update(customers)
+                .set({ pricingTier: newPricingTier })
+                .where(and(
+                  sql`LOWER(SPLIT_PART(${customers.email}, '@', 2)) = ${emailDomain}`,
+                  ne(customers.id, customerId),
+                  isNull(customers.pricingTier)
+                ));
+              console.log(`[Domain Pricing Propagation] Set ${newPricingTier} on ${domainContacts.length} contacts sharing @${emailDomain}`);
+            }
+          }
+        } catch (domainPropError) {
+          console.error('[Domain Pricing Propagation] Error:', domainPropError);
+        }
+      }
+
       // Clear cache to ensure fresh data
       setCachedData("customers", null);
       
