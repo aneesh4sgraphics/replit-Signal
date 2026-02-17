@@ -75,6 +75,7 @@ export default function EmailApp() {
   const [productSearch, setProductSearch] = useState("");
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
+  const [templateToDelete, setTemplateToDelete] = useState<EmailTemplate | null>(null);
   const [templateForm, setTemplateForm] = useState({
     name: "",
     description: "",
@@ -181,6 +182,10 @@ export default function EmailApp() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["/api/email/templates"] });
+      setTemplateToDelete(null);
+      if (selectedTemplate && selectedTemplate.id === templateToDelete?.id) {
+        setSelectedTemplate(null);
+      }
       toast({ title: "Template deleted" });
     },
     onError: () => {
@@ -441,9 +446,29 @@ export default function EmailApp() {
                     >
                       <div className="flex items-center justify-between mb-1">
                         <span className="font-medium text-sm">{template.name}</span>
-                        {selectedTemplate?.id === template.id && (
-                          <CheckCircle className="h-4 w-4 text-purple-600" />
-                        )}
+                        <div className="flex items-center gap-1">
+                          {(isAdmin || template.createdBy === user?.id) && (
+                            <>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); openEditTemplate(template); }}
+                                className="p-1 rounded hover:bg-purple-100 text-gray-400 hover:text-purple-600 transition-colors"
+                                title="Edit template"
+                              >
+                                <Edit2 className="h-3.5 w-3.5" />
+                              </button>
+                              <button
+                                onClick={(e) => { e.stopPropagation(); setTemplateToDelete(template); }}
+                                className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-600 transition-colors"
+                                title="Delete template"
+                              >
+                                <Trash2 className="h-3.5 w-3.5" />
+                              </button>
+                            </>
+                          )}
+                          {selectedTemplate?.id === template.id && (
+                            <CheckCircle className="h-4 w-4 text-purple-600" />
+                          )}
+                        </div>
                       </div>
                       <Badge variant="secondary" className="text-xs">
                         {TEMPLATE_CATEGORIES.find(c => c.value === template.category)?.label || template.category}
@@ -698,6 +723,7 @@ export default function EmailApp() {
                           variant="ghost"
                           size="sm"
                           onClick={() => openEditTemplate(template)}
+                          className="text-gray-500 hover:text-purple-600 hover:bg-purple-50"
                           data-testid={`button-edit-template-${template.id}`}
                         >
                           <Edit2 className="h-4 w-4" />
@@ -705,8 +731,8 @@ export default function EmailApp() {
                         <Button
                           variant="ghost"
                           size="sm"
-                          onClick={() => deleteTemplateMutation.mutate(template.id)}
-                          className="text-red-600 hover:text-red-700"
+                          onClick={() => setTemplateToDelete(template)}
+                          className="text-gray-500 hover:text-red-600 hover:bg-red-50"
                           data-testid={`button-delete-template-${template.id}`}
                         >
                           <Trash2 className="h-4 w-4" />
@@ -955,6 +981,40 @@ Start typing your email content here. Use the toolbar above to format text, add 
                 {editingTemplate ? "Update Template" : "Create Template"}
               </Button>
             </div>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      <Dialog open={!!templateToDelete} onOpenChange={(open) => { if (!open) setTemplateToDelete(null); }}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="flex items-center gap-2 text-red-600">
+              <Trash2 className="h-5 w-5" />
+              Delete Template
+            </DialogTitle>
+            <DialogDescription>
+              Are you sure you want to delete "<strong>{templateToDelete?.name}</strong>"? This action cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-3 mt-4">
+            <Button
+              variant="outline"
+              onClick={() => setTemplateToDelete(null)}
+              disabled={deleteTemplateMutation.isPending}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="destructive"
+              onClick={() => templateToDelete && deleteTemplateMutation.mutate(templateToDelete.id)}
+              disabled={deleteTemplateMutation.isPending}
+            >
+              {deleteTemplateMutation.isPending ? (
+                <><Loader2 className="h-4 w-4 mr-2 animate-spin" />Deleting...</>
+              ) : (
+                <><Trash2 className="h-4 w-4 mr-2" />Delete Template</>
+              )}
+            </Button>
           </div>
         </DialogContent>
       </Dialog>
