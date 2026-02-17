@@ -445,6 +445,9 @@ export default function Spotlight() {
     gamification?: GamificationState;
     microCard?: MicroCoachingCard | null;
     coachTip?: CoachTip | null;
+    noTasksForWorkType?: boolean;
+    emptyReason?: string;
+    emptyDetail?: string;
   }>({
     queryKey: ['/api/spotlight/current', forceBucket, workTypeFocus],
     queryFn: async () => {
@@ -1799,8 +1802,8 @@ export default function Spotlight() {
           </div>
           <CardTitle className="text-2xl mb-2 text-[#111111]">Day Complete!</CardTitle>
           <CardDescription className="text-[#666666] mb-6 text-base">
-            You've finished your {session?.totalTarget || 50} moments for today. 
-            <br />Great work building momentum!
+            {currentTask?.emptyDetail || `You've finished your ${session?.totalTarget || 50} moments for today.`}
+            {!currentTask?.emptyDetail && <><br />Great work building momentum!</>}
           </CardDescription>
           
           {session && (
@@ -1861,24 +1864,42 @@ export default function Spotlight() {
   }
 
   if (!currentTask?.task) {
-    // Check if this is a work type filter with no tasks (not day complete)
     const isWorkTypeEmpty = currentTask?.noTasksForWorkType && workTypeFocus !== 'all';
     const currentFocusLabel = WORK_TYPE_OPTIONS.find(o => o.value === workTypeFocus)?.label || workTypeFocus;
+    const reason = currentTask?.emptyReason;
+    const detail = currentTask?.emptyDetail;
+
+    const reasonConfig: Record<string, { title: string; icon: typeof Target; iconBg: string; iconColor: string }> = {
+      'NO_ELIGIBLE_CUSTOMERS': { title: 'No Customers Yet', icon: Users, iconBg: 'bg-amber-100', iconColor: 'text-amber-600' },
+      'NO_ASSIGNED_CUSTOMERS': { title: 'No Customers Assigned', icon: Users, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
+      'MISSING_CONTACT_INFO': { title: 'Missing Contact Info', icon: AlertCircle, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
+      'MISSING_PRIMARY_EMAILS': { title: 'Missing Email Addresses', icon: Mail, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
+      'ALL_CONTACTED_TODAY': { title: 'Everyone Reached Today', icon: CheckCircle, iconBg: 'bg-green-100', iconColor: 'text-green-600' },
+      'FILTERS_TOO_STRICT': { title: `No ${currentFocusLabel} Tasks`, icon: Target, iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
+    };
+
+    const cfg = reason ? reasonConfig[reason] : null;
+    const EmptyIcon = cfg?.icon || Target;
+    const emptyTitle = isWorkTypeEmpty ? `No ${currentFocusLabel} Tasks` : (cfg?.title || 'No Tasks Available');
+    const emptyDescription = detail || (isWorkTypeEmpty 
+      ? `All ${currentFocusLabel.toLowerCase()} tasks are complete! Try a different focus or view all tasks.`
+      : 'Check back later or refresh to find new moments.');
     
     return (
       <div className="min-h-screen bg-[#FAFAFA] flex items-center justify-center p-4">
         <Card className="max-w-md w-full text-center p-8 border-[#EAEAEA] bg-white">
-          <div className="w-20 h-20 rounded-full bg-[#F2F2F2] flex items-center justify-center mx-auto mb-6">
-            <Target className="w-10 h-10 text-[#999999]" />
+          <div className={`w-20 h-20 rounded-full ${cfg?.iconBg || 'bg-[#F2F2F2]'} flex items-center justify-center mx-auto mb-6`}>
+            <EmptyIcon className={`w-10 h-10 ${cfg?.iconColor || 'text-[#999999]'}`} />
           </div>
-          <CardTitle className="text-xl mb-2 text-[#111111]">
-            {isWorkTypeEmpty ? `No ${currentFocusLabel} Tasks` : 'No Tasks Available'}
-          </CardTitle>
-          <CardDescription className="text-[#666666] mb-6">
-            {isWorkTypeEmpty 
-              ? `All ${currentFocusLabel.toLowerCase()} tasks are complete! Try a different focus or view all tasks.`
-              : 'Check back later or refresh to find new moments.'}
-          </CardDescription>
+          <CardTitle className="text-xl mb-2 text-[#111111]">{emptyTitle}</CardTitle>
+          <CardDescription className="text-[#666666] mb-6">{emptyDescription}</CardDescription>
+
+          {reason && (
+            <div className="bg-[#F7F7F7] rounded-lg px-3 py-2 mb-6 inline-block">
+              <span className="text-xs font-mono text-[#999999]">{reason}</span>
+            </div>
+          )}
+
           <div className="flex gap-4 justify-center flex-wrap">
             {isWorkTypeEmpty && (
               <Button 

@@ -1703,7 +1703,7 @@ class SpotlightEngine {
     }
   }
 
-  async getNextTask(userId: string, forceBucket?: string, workType?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean }> {
+  async getNextTask(userId: string, forceBucket?: string, workType?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean; emptyReason?: string; emptyDetail?: string }> {
     const session = await this.getSessionAsync(userId);
     
     if (session.isPaused) {
@@ -1714,37 +1714,28 @@ class SpotlightEngine {
     
     // Check if daily target is reached
     if (session.totalCompleted >= session.totalTarget && !session.continueAfterComplete) {
-      // Target reached and user hasn't chosen to continue - mark day complete
       session.dayComplete = true;
-      return { task: null, session, allDone: true };
+      return { task: null, session, allDone: true, emptyReason: 'ALL_DONE_TODAY', emptyDetail: `You completed ${session.totalCompleted} of ${session.totalTarget} tasks today.` };
     }
-    // If continueAfterComplete is true, we keep going past the target
     
     try {
-      // PERFORMANCE: Parallelize exclusion queries
-      // Apply TODAY's contacts exclusion to ALL buckets to prevent duplicate outreach across users
       const [claimedByOthers, recentlyContacted, todayContacted, territorySkipped] = await Promise.all([
         this.getClaimedCustomerIds(userId),
         this.getRecentlyContactedIds(7),
         this.getTodayContactedByAnyUser(),
-        this.getUserTerritorySkippedIds(userId) // Persist "not my territory" skips across sessions
+        this.getUserTerritorySkippedIds(userId)
       ]);
       
-      // Merge all customer IDs to exclude (includes today's contacted to prevent duplicate outreach)
-      // territorySkipped ensures users don't see customers they've already marked as "not my territory"
       let excludeIds = [...session.skippedCustomerIds, ...claimedByOthers, ...recentlyContacted, ...todayContacted.customerIds, ...territorySkipped];
-      // Add lead IDs contacted today as 'lead-{id}' format for lead task filtering
       for (const leadId of todayContacted.leadIds) {
         excludeIds.push(`lead-${leadId}`);
       }
 
       let task: SpotlightTask | null = null;
       
-      // Work type focus mode - user selects what they want to work on
       if (workType) {
         task = await this.findTaskByWorkType(userId, excludeIds, workType);
         if (task) {
-          // Claim this customer so other users won't get the same task
           const claimSuccess = await this.claimCustomer(userId, task.customerId);
           if (!claimSuccess) {
             console.log(`[Spotlight] Claim failed for customer ${task.customerId}, retrying with different task`);
@@ -1752,21 +1743,16 @@ class SpotlightEngine {
             session.skippedCustomerIds.push(task.customerId);
             return this.getNextTask(userId, forceBucket, workType);
           }
-          // Enrich with email count, sample count, and sources
           const enrichedTask = await this.enrichTaskWithCounts(task);
           return { task: enrichedTask, session, allDone: false };
         }
-        // No tasks for this work type - return null but DON'T mark day complete
-        // This just means no tasks available for selected focus, not that the day is done
-        return { task: null, session, allDone: false, noTasksForWorkType: true } as any;
+        return { task: null, session, allDone: false, noTasksForWorkType: true, emptyReason: 'FILTERS_TOO_STRICT', emptyDetail: `No tasks match the "${workType}" focus right now. Try a different focus or view all tasks.` } as any;
       }
       
-      // Normal sequenced bucket mode
-      // Allow forcing a specific bucket for debugging (e.g., ?forceBucket=data_hygiene)
       const nextBucket = forceBucket as BucketType || this.getNextBucket(session);
       if (!nextBucket) {
         session.dayComplete = true;
-        return { task: null, session, allDone: true };
+        return { task: null, session, allDone: true, emptyReason: 'ALL_DONE_TODAY', emptyDetail: `All task buckets are complete for today.` };
       }
       
       switch (nextBucket) {
@@ -1788,11 +1774,9 @@ class SpotlightEngine {
       }
 
       if (!task) {
-        // Try fallback light task before marking bucket as complete
         task = await this.findFallbackTask(nextBucket, userId, excludeIds);
         
         if (!task) {
-          // Truly no tasks available - mark bucket as complete
           const bucketData = session.buckets.find(b => b.bucket === nextBucket);
           if (bucketData) {
             bucketData.completed = bucketData.target;
@@ -1801,23 +1785,79 @@ class SpotlightEngine {
         }
       }
       
-      // Claim this customer so other users won't get the same task
       const claimSuccess = await this.claimCustomer(userId, task.customerId);
       
       if (!claimSuccess) {
-        // Another user claimed this customer - add to skipped and retry
         console.log(`[Spotlight] Claim failed for customer ${task.customerId}, retrying with different task`);
         excludeIds.push(task.customerId);
         session.skippedCustomerIds.push(task.customerId);
         return this.getNextTask(userId);
       }
       
-      // Enrich with email count, sample count, and sources
       const enrichedTask = await this.enrichTaskWithCounts(task);
       return { task: enrichedTask, session, allDone: false };
     } catch (error) {
       console.error('[Spotlight] Error getting next task:', error);
-      return { task: null, session, allDone: true };
+      const emptyReason = await this.diagnoseEmptyReason(userId);
+      return { task: null, session, allDone: true, ...emptyReason };
+    }
+  }
+
+  private async diagnoseEmptyReason(userId: string): Promise<{ emptyReason: string; emptyDetail: string }> {
+    try {
+      const totalCustomers = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(eq(customers.doNotContact, false));
+      const total = Number(totalCustomers[0]?.count || 0);
+
+      if (total === 0) {
+        return { emptyReason: 'NO_ELIGIBLE_CUSTOMERS', emptyDetail: 'No active customers in the system. Import customers from Odoo or add them manually to get started.' };
+      }
+
+      const assigned = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(and(
+          eq(customers.doNotContact, false),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId))
+        ));
+      const assignedCount = Number(assigned[0]?.count || 0);
+
+      if (assignedCount === 0) {
+        return { emptyReason: 'NO_ASSIGNED_CUSTOMERS', emptyDetail: 'You have no customers assigned to you. Ask your admin to assign customers or check your territory settings.' };
+      }
+
+      const withEmail = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(and(
+          eq(customers.doNotContact, false),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+          isNotNull(customers.email),
+          sql`${customers.email} != ''`
+        ));
+      const emailCount = Number(withEmail[0]?.count || 0);
+
+      const withPhone = await db.select({ count: sql<number>`count(*)` })
+        .from(customers)
+        .where(and(
+          eq(customers.doNotContact, false),
+          or(isNull(customers.salesRepId), eq(customers.salesRepId, userId)),
+          isNotNull(customers.phone),
+          sql`${customers.phone} != ''`
+        ));
+      const phoneCount = Number(withPhone[0]?.count || 0);
+
+      if (emailCount === 0 && phoneCount === 0) {
+        return { emptyReason: 'MISSING_CONTACT_INFO', emptyDetail: `You have ${assignedCount} customers but none have email or phone numbers. Update customer records to enable outreach tasks.` };
+      }
+
+      if (emailCount === 0) {
+        return { emptyReason: 'MISSING_PRIMARY_EMAILS', emptyDetail: `You have ${assignedCount} customers but none have email addresses. Add emails to enable email-based tasks.` };
+      }
+
+      return { emptyReason: 'ALL_CONTACTED_TODAY', emptyDetail: `All eligible customers have already been contacted or claimed by another rep today. Check back tomorrow or import new customers.` };
+    } catch (err) {
+      console.error('[Spotlight] Error diagnosing empty reason:', err);
+      return { emptyReason: 'UNKNOWN', emptyDetail: 'Unable to determine why no tasks are available. Try refreshing.' };
     }
   }
   

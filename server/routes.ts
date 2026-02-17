@@ -22798,6 +22798,8 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
       const result = await spotlightEngine.getNextTask(userId, forceBucket, workType);
       const { task, session, allDone } = result;
       const noTasksForWorkType = (result as any).noTasksForWorkType || false;
+      const emptyReason = (result as any).emptyReason || null;
+      const emptyDetail = (result as any).emptyDetail || null;
       
       // PERFORMANCE: Parallelize secondary data fetching
       const gamification = spotlightEngine.getGamificationState(session as any);
@@ -22842,6 +22844,8 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
         allDone,
         hints,
         noTasksForWorkType,
+        emptyReason,
+        emptyDetail,
       });
     } catch (error: any) {
       console.error("[Spotlight] Error getting current task:", error);
