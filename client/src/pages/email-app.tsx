@@ -15,7 +15,8 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useToast } from "@/hooks/use-toast";
 import { 
   Mail, Plus, Edit2, Trash2, Send, Eye, Copy, Search, Users, 
-  FileText, Variable, ChevronRight, CheckCircle, AlertCircle, Clock, Zap, PenTool, Save, Loader2
+  FileText, Variable, ChevronRight, CheckCircle, AlertCircle, Clock, Zap, PenTool, Save, Loader2,
+  Smartphone, Monitor, Sun, Moon
 } from "lucide-react";
 import type { EmailTemplate, Customer, ProductPricingMaster, EmailSignature } from "@shared/schema";
 import { EMAIL_TEMPLATE_VARIABLES } from "@shared/schema";
@@ -76,6 +77,8 @@ export default function EmailApp() {
   const [showTemplateEditor, setShowTemplateEditor] = useState(false);
   const [editingTemplate, setEditingTemplate] = useState<EmailTemplate | null>(null);
   const [templateToDelete, setTemplateToDelete] = useState<EmailTemplate | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewTheme, setPreviewTheme] = useState<'light' | 'dark'>('light');
   const [templateForm, setTemplateForm] = useState({
     name: "",
     description: "",
@@ -641,32 +644,161 @@ export default function EmailApp() {
             {/* Preview */}
             <Card>
               <CardHeader className="pb-3">
-                <CardTitle className="text-lg flex items-center gap-2">
-                  <Eye className="h-5 w-5 text-orange-600" />
-                  3. Preview & Send
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="text-lg flex items-center gap-2">
+                    <Eye className="h-5 w-5 text-orange-600" />
+                    3. Preview & Send
+                  </CardTitle>
+                  {selectedTemplate && (
+                    <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5">
+                      <button
+                        onClick={() => setPreviewDevice('mobile')}
+                        className={`p-1.5 rounded-md transition-all ${previewDevice === 'mobile' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Mobile preview"
+                      >
+                        <Smartphone className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setPreviewDevice('desktop')}
+                        className={`p-1.5 rounded-md transition-all ${previewDevice === 'desktop' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Desktop preview"
+                      >
+                        <Monitor className="h-4 w-4" />
+                      </button>
+                      <div className="w-px h-5 bg-gray-300 mx-0.5" />
+                      <button
+                        onClick={() => setPreviewTheme('light')}
+                        className={`p-1.5 rounded-md transition-all ${previewTheme === 'light' ? 'bg-white shadow-sm text-amber-500' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Light mode"
+                      >
+                        <Sun className="h-4 w-4" />
+                      </button>
+                      <button
+                        onClick={() => setPreviewTheme('dark')}
+                        className={`p-1.5 rounded-md transition-all ${previewTheme === 'dark' ? 'bg-gray-700 shadow-sm text-blue-300' : 'text-gray-400 hover:text-gray-600'}`}
+                        title="Dark mode"
+                      >
+                        <Moon className="h-4 w-4" />
+                      </button>
+                    </div>
+                  )}
+                </div>
               </CardHeader>
               <CardContent className="space-y-4">
                 {selectedTemplate ? (
                   <>
-                    {!selectedCustomer && (
+                    {!selectedCustomer && !manualRecipient && (
                       <div className="flex items-center gap-2 p-2 bg-yellow-50 border border-yellow-200 rounded-lg">
                         <AlertCircle className="h-4 w-4 text-yellow-600" />
                         <span className="text-sm text-yellow-700">Select a recipient to continue</span>
                       </div>
                     )}
-                    
-                    <div className="space-y-2">
-                      <Label className="text-xs text-gray-500">SUBJECT</Label>
-                      <div className="p-2 bg-gray-50 rounded border text-sm">
-                        {renderTemplate(selectedTemplate).subject}
-                      </div>
-                    </div>
-                    
-                    <div className="space-y-2">
-                      <Label className="text-xs text-gray-500">BODY</Label>
-                      <div className="p-3 bg-gray-50 rounded border text-sm whitespace-pre-wrap max-h-48 overflow-y-auto">
-                        {renderTemplate(selectedTemplate).body}
+
+                    <div className="flex justify-center">
+                      <div
+                        className={`relative transition-all duration-300 ${
+                          previewDevice === 'mobile' ? 'w-[320px]' : 'w-full max-w-[600px]'
+                        }`}
+                      >
+                        {previewDevice === 'mobile' && (
+                          <div className={`rounded-[2.5rem] border-[6px] p-1 shadow-xl ${
+                            previewTheme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-100'
+                          }`}>
+                            <div className={`w-12 h-1.5 rounded-full mx-auto mt-1 mb-2 ${
+                              previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'
+                            }`} />
+                            <div className={`rounded-[1.8rem] overflow-hidden ${
+                              previewTheme === 'dark' ? 'bg-gray-900' : 'bg-white'
+                            }`}>
+                              <div className={`px-4 py-2.5 border-b ${
+                                previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+                              }`}>
+                                <div className="flex items-center gap-2 mb-1.5">
+                                  <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${
+                                    previewTheme === 'dark' ? 'bg-purple-800 text-purple-200' : 'bg-purple-100 text-purple-600'
+                                  }`}>
+                                    {(user as any)?.email?.[0]?.toUpperCase() || 'Y'}
+                                  </div>
+                                  <div className="flex-1 min-w-0">
+                                    <p className={`text-xs font-semibold truncate ${
+                                      previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                                    }`}>
+                                      {(user as any)?.email || 'You'}
+                                    </p>
+                                    <p className={`text-[10px] truncate ${
+                                      previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                    }`}>
+                                      to {selectedCustomer?.email || manualRecipient?.email || 'recipient'}
+                                    </p>
+                                  </div>
+                                  <span className={`text-[10px] ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Now</span>
+                                </div>
+                                <p className={`text-sm font-semibold truncate ${
+                                  previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                                }`}>
+                                  {renderTemplate(selectedTemplate).subject}
+                                </p>
+                              </div>
+                              <div
+                                className={`px-4 py-3 text-sm overflow-y-auto prose prose-sm max-w-none ${
+                                  previewTheme === 'dark'
+                                    ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100'
+                                    : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
+                                }`}
+                                style={{ maxHeight: '360px', fontSize: '13px', lineHeight: '1.5' }}
+                                dangerouslySetInnerHTML={{ __html: renderTemplate(selectedTemplate).body }}
+                              />
+                            </div>
+                            <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${
+                              previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'
+                            }`} />
+                          </div>
+                        )}
+
+                        {previewDevice === 'desktop' && (
+                          <div className={`rounded-xl border shadow-lg overflow-hidden ${
+                            previewTheme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'
+                          }`}>
+                            <div className={`px-4 py-3 border-b ${
+                              previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'
+                            }`}>
+                              <div className="flex items-center gap-2 mb-2">
+                                <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${
+                                  previewTheme === 'dark' ? 'bg-purple-800 text-purple-200' : 'bg-purple-100 text-purple-600'
+                                }`}>
+                                  {(user as any)?.email?.[0]?.toUpperCase() || 'Y'}
+                                </div>
+                                <div className="flex-1 min-w-0">
+                                  <p className={`text-sm font-semibold ${
+                                    previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                                  }`}>
+                                    {(user as any)?.email || 'You'}
+                                  </p>
+                                  <p className={`text-xs ${
+                                    previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'
+                                  }`}>
+                                    to {selectedCustomer?.email || manualRecipient?.email || 'recipient'}
+                                  </p>
+                                </div>
+                                <span className={`text-xs ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Just now</span>
+                              </div>
+                              <p className={`text-base font-semibold ${
+                                previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'
+                              }`}>
+                                {renderTemplate(selectedTemplate).subject}
+                              </p>
+                            </div>
+                            <div
+                              className={`px-6 py-4 text-sm overflow-y-auto prose max-w-none ${
+                                previewTheme === 'dark'
+                                  ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100'
+                                  : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
+                              }`}
+                              style={{ maxHeight: '400px' }}
+                              dangerouslySetInnerHTML={{ __html: renderTemplate(selectedTemplate).body }}
+                            />
+                          </div>
+                        )}
                       </div>
                     </div>
 
