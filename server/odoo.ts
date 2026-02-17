@@ -1306,8 +1306,46 @@ ${plainTextBody}`;
       };
 
       for (const [crmField, value] of Object.entries(values)) {
+        if (crmField === 'country') {
+          if (value) {
+            const countries = await this.getCountries();
+            const country = countries.find(c => 
+              c.name.toLowerCase() === String(value).toLowerCase() ||
+              c.code.toLowerCase() === String(value).toLowerCase()
+            );
+            if (country) {
+              odooValues['country_id'] = country.id;
+            }
+          } else {
+            odooValues['country_id'] = false;
+          }
+          continue;
+        }
+        if (crmField === 'province') {
+          if (value) {
+            let countryIdForState = odooValues['country_id'];
+            if (!countryIdForState) {
+              const partner = await this.searchRead('res.partner', [['id', '=', partnerId]], ['country_id'], { limit: 1 });
+              if (partner?.[0]?.country_id?.[0]) {
+                countryIdForState = partner[0].country_id[0];
+              }
+            }
+            if (countryIdForState) {
+              const states = await this.getStates(countryIdForState);
+              const state = states.find(s => 
+                s.name.toLowerCase() === String(value).toLowerCase() ||
+                s.code.toLowerCase() === String(value).toLowerCase()
+              );
+              if (state) {
+                odooValues['state_id'] = state.id;
+              }
+            }
+          } else {
+            odooValues['state_id'] = false;
+          }
+          continue;
+        }
         const odooField = fieldMapping[crmField] || crmField;
-        // Skip unsupported fields
         if (UNSUPPORTED_PARTNER_FIELDS.includes(odooField)) {
           continue;
         }
