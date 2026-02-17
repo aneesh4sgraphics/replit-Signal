@@ -257,12 +257,10 @@ export default function QuoteCalculator() {
   const userAllowedTiers = (user as any)?.allowedTiers as string[] | null | undefined;
   
   // Filter tiers based on user's allowed tiers if set, otherwise use role-based access
-  const pricingTiers = allPricingTiers.filter(tier => {
-    // If user has specific allowed tiers set, use those
+  const basePricingTiers = allPricingTiers.filter(tier => {
     if (userAllowedTiers && userAllowedTiers.length > 0) {
       return userAllowedTiers.includes(tier.key);
     }
-    // Otherwise use role-based tier access
     return canAccessTier(tier.label, userRole);
   });
 
@@ -333,6 +331,23 @@ export default function QuoteCalculator() {
   // Get the tier to highlight (tag match takes priority, then prediction)
   const matchingTier = getMatchingTierFromTags();
   const suggestedTier = !matchingTier ? getSuggestedTier() : null;
+
+  const pricingTiers = useMemo(() => {
+    if (!matchingTier) return basePricingTiers;
+    const alreadyIncluded = basePricingTiers.some(t => t.key === matchingTier);
+    if (alreadyIncluded) return basePricingTiers;
+    const customerTierDef = allPricingTiers.find(t => t.key === matchingTier);
+    if (!customerTierDef) return basePricingTiers;
+    const insertIndex = allPricingTiers.indexOf(customerTierDef);
+    const result = [...basePricingTiers];
+    let pos = 0;
+    for (let i = 0; i < result.length; i++) {
+      const idx = allPricingTiers.findIndex(t => t.key === result[i].key);
+      if (idx < insertIndex) pos = i + 1;
+    }
+    result.splice(pos, 0, customerTierDef);
+    return result;
+  }, [basePricingTiers, matchingTier]);
 
   // Product category icon mapping with colors
   const getProductIcon = (productName: string | undefined | null) => {
