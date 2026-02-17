@@ -6,13 +6,14 @@ import helmet from 'helmet';
 import rateLimit from 'express-rate-limit';
 import { registerRoutes } from "./routes";
 import { setupVite, serveStatic, log } from "./vite";
-import { startDripEmailWorker } from "./drip-email-worker";
-import { startQuoteFollowUpWorker } from "./quote-followup-worker";
-import { startDataRetentionWorker } from "./data-retention";
-import { startOdooSyncWorker } from "./odoo-sync-worker";
+import { startDripEmailWorker, stopDripEmailWorker } from "./drip-email-worker";
+import { startQuoteFollowUpWorker, stopQuoteFollowUpWorker } from "./quote-followup-worker";
+import { startDataRetentionWorker, stopDataRetentionWorker } from "./data-retention";
+import { startOdooSyncWorker, stopOdooSyncWorker } from "./odoo-sync-worker";
 import { ensureTaxonomySeeded } from "./taxonomy-seed";
 import { seedSpotlightCoachingContent } from "./spotlight-coaching-seed";
 import { sessionConfig } from "./replitAuth";
+import { pool } from "./db";
 
 process.on('uncaughtException', (err: any) => {
   const isNeonDisconnect = err?.code === '57P01' || 
@@ -333,4 +334,53 @@ app.use((req, res, next) => {
       console.log('[Workers] All background workers disabled via ENABLE_WORKERS=false');
     }
   });
+
+  let isShuttingDown = false;
+
+  async function gracefulShutdown(signal: string) {
+    if (isShuttingDown) return;
+    isShuttingDown = true;
+    console.log(`[Shutdown] ${signal} received — stopping gracefully...`);
+
+    const stopWorkers = async () => {
+      const stops = [
+        stopDripEmailWorker().catch(e => console.error('[Shutdown] Drip worker stop error:', e.message)),
+        stopQuoteFollowUpWorker().catch(e => console.error('[Shutdown] Quote follow-up stop error:', e.message)),
+        stopDataRetentionWorker().catch(e => console.error('[Shutdown] Data retention stop error:', e.message)),
+        stopOdooSyncWorker().catch(e => console.error('[Shutdown] Odoo sync stop error:', e.message)),
+      ];
+
+      try {
+        const { stopDailyEmailSync } = await import("./gmail-intelligence");
+        stops.push(stopDailyEmailSync().catch(e => console.error('[Shutdown] Gmail sync stop error:', e.message)));
+      } catch {}
+
+      await Promise.allSettled(stops);
+      console.log('[Shutdown] All workers stopped');
+    };
+
+    const closeServer = () => new Promise<void>((resolve) => {
+      server.close(() => {
+        console.log('[Shutdown] HTTP server closed');
+        resolve();
+      });
+      setTimeout(resolve, 5000);
+    });
+
+    await stopWorkers();
+    await closeServer();
+
+    try {
+      await pool.end();
+      console.log('[Shutdown] Database pool closed');
+    } catch (e: any) {
+      console.error('[Shutdown] Pool close error:', e.message);
+    }
+
+    console.log('[Shutdown] Complete');
+    process.exit(0);
+  }
+
+  process.on('SIGTERM', () => gracefulShutdown('SIGTERM'));
+  process.on('SIGINT', () => gracefulShutdown('SIGINT'));
 })();
