@@ -2557,26 +2557,26 @@ export default function Spotlight() {
                     <Mail className="w-4 h-4" />
                   </button>
                   {showEmailMenu && (
-                    <div className="absolute left-12 top-0 z-50 bg-white border border-slate-200 rounded-xl shadow-lg py-1 min-w-[180px]">
+                    <div className="absolute left-12 top-0 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 flex flex-row gap-1.5">
                       <button
                         onClick={() => {
                           setShowEmailMenu(false);
                           handleOpenEmailComposer();
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-blue-50 hover:text-blue-700 transition-colors"
+                        className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-lg bg-blue-50 border border-blue-100 text-blue-700 hover:bg-blue-100 hover:border-blue-200 hover:shadow-sm transition-all cursor-pointer"
                       >
-                        <MailPlus className="w-4 h-4" />
-                        <span>Send Email</span>
+                        <MailPlus className="w-5 h-5" />
+                        <span className="text-[11px] font-medium whitespace-nowrap">Send Email</span>
                       </button>
                       <button
                         onClick={() => {
                           setShowEmailMenu(false);
                           setShowDripEnroll(true);
                         }}
-                        className="w-full flex items-center gap-2.5 px-3 py-2.5 text-sm text-slate-700 hover:bg-purple-50 hover:text-purple-700 transition-colors"
+                        className="flex flex-col items-center gap-1 px-4 py-2.5 rounded-lg bg-purple-50 border border-purple-100 text-purple-700 hover:bg-purple-100 hover:border-purple-200 hover:shadow-sm transition-all cursor-pointer"
                       >
-                        <Droplets className="w-4 h-4" />
-                        <span>Start Drip Campaign</span>
+                        <Droplets className="w-5 h-5" />
+                        <span className="text-[11px] font-medium whitespace-nowrap">Drip Campaign</span>
                       </button>
                     </div>
                   )}
