@@ -196,7 +196,7 @@ app.use((req, res, next) => {
       contentSecurityPolicy: {
         directives: {
           defaultSrc: ["'self'"],
-          scriptSrc: ["'self'", "'unsafe-inline'", "'unsafe-eval'", "https://cdn.shopify.com", "https://accounts.google.com"],
+          scriptSrc: ["'self'", "https://cdn.shopify.com", "https://accounts.google.com"],
           styleSrc: ["'self'", "'unsafe-inline'", "https://fonts.googleapis.com", "https://accounts.google.com"],
           fontSrc: ["'self'", "https://fonts.gstatic.com", "data:"],
           imgSrc: ["'self'", "data:", "blob:", "https:", "http:"],
