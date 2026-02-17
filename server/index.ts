@@ -307,10 +307,30 @@ app.use((req, res, next) => {
   }, () => {
     log(`serving on port ${port}`);
     
-    // Start background workers (async, acquire advisory locks for singleton execution)
-    startDripEmailWorker().catch(err => console.error('[Drip Worker] Failed to start:', err.message));
-    startQuoteFollowUpWorker().catch(err => console.error('[Quote Follow-up Worker] Failed to start:', err.message));
-    startDataRetentionWorker().catch(err => console.error('[Data Retention] Failed to start:', err.message));
-    startOdooSyncWorker().catch(err => console.error('[Odoo Sync Worker] Failed to start:', err.message));
+    const workersEnabled = process.env.ENABLE_WORKERS !== 'false';
+    if (workersEnabled) {
+      if (process.env.ENABLE_DRIP_WORKER !== 'false') {
+        startDripEmailWorker().catch(err => console.error('[Drip Worker] Failed to start:', err.message));
+      } else {
+        console.log('[Workers] Drip email worker disabled via ENABLE_DRIP_WORKER=false');
+      }
+      if (process.env.ENABLE_QUOTE_FOLLOWUP !== 'false') {
+        startQuoteFollowUpWorker().catch(err => console.error('[Quote Follow-up Worker] Failed to start:', err.message));
+      } else {
+        console.log('[Workers] Quote follow-up worker disabled via ENABLE_QUOTE_FOLLOWUP=false');
+      }
+      if (process.env.ENABLE_DATA_RETENTION !== 'false') {
+        startDataRetentionWorker().catch(err => console.error('[Data Retention] Failed to start:', err.message));
+      } else {
+        console.log('[Workers] Data retention worker disabled via ENABLE_DATA_RETENTION=false');
+      }
+      if (process.env.ENABLE_ODOO_SYNC !== 'false') {
+        startOdooSyncWorker().catch(err => console.error('[Odoo Sync Worker] Failed to start:', err.message));
+      } else {
+        console.log('[Workers] Odoo sync worker disabled via ENABLE_ODOO_SYNC=false');
+      }
+    } else {
+      console.log('[Workers] All background workers disabled via ENABLE_WORKERS=false');
+    }
   });
 })();
