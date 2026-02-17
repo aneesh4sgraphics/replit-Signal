@@ -3322,20 +3322,40 @@ export default function Spotlight() {
                 {task.taskSubtype !== 'hygiene_bounced_email' && (
                   <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-yellow-300 rounded-2xl p-4">
                     {/* Context-dependent action label */}
-                    {task.whyNow && (
-                      <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200">
-                        <Target className="w-4 h-4 text-blue-600 flex-shrink-0" />
-                        <span className="text-xs font-semibold text-blue-600 uppercase">
-                          {task.bucket === 'calls' ? 'Call Reason:' :
-                           task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
-                           task.bucket === 'outreach' ? 'Outreach Opportunity:' :
-                           task.bucket === 'data_hygiene' ? 'Issue:' :
-                           task.bucket === 'enablement' ? 'Materials Needed:' :
-                           'Action Needed:'}
-                        </span>
-                        <span className="text-sm text-slate-700">{task.whyNow}</span>
-                      </div>
-                    )}
+                    {task.whyNow && (() => {
+                      const hygieneResolved = task.bucket === 'data_hygiene' && customer && (
+                        (task.taskSubtype === 'hygiene_pricing_tier' && customer.pricingTier) ||
+                        (task.taskSubtype === 'hygiene_email' && customer.email) ||
+                        (task.taskSubtype === 'hygiene_phone' && customer.phone) ||
+                        (task.taskSubtype === 'hygiene_sales_rep' && customer.salesRepId) ||
+                        (task.taskSubtype === 'hygiene_name' && (customer.firstName || customer.lastName)) ||
+                        (task.taskSubtype === 'hygiene_company' && customer.company) ||
+                        (task.taskSubtype === 'hygiene_customer_type' && customer.customerType)
+                      );
+                      if (hygieneResolved) {
+                        return (
+                          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-green-200">
+                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-green-600 uppercase">Resolved</span>
+                            <span className="text-sm text-green-700">This field has been updated. You can mark this task complete.</span>
+                          </div>
+                        );
+                      }
+                      return (
+                        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200">
+                          <Target className="w-4 h-4 text-blue-600 flex-shrink-0" />
+                          <span className="text-xs font-semibold text-blue-600 uppercase">
+                            {task.bucket === 'calls' ? 'Call Reason:' :
+                             task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
+                             task.bucket === 'outreach' ? 'Outreach Opportunity:' :
+                             task.bucket === 'data_hygiene' ? 'Issue:' :
+                             task.bucket === 'enablement' ? 'Materials Needed:' :
+                             'Action Needed:'}
+                          </span>
+                          <span className="text-sm text-slate-700">{task.whyNow}</span>
+                        </div>
+                      );
+                    })()}
                     {/* Missing field hints displayed */}
                     {currentTask.hints?.filter(h => h.type === 'missing_field').map((hint, idx) => (
                       <div key={idx} className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-amber-200">
