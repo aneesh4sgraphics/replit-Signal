@@ -48,6 +48,7 @@ This is a full-stack TypeScript sales management application designed for a spec
     - **Bounced Email Detection:** Scans Gmail for bounce notifications, parses them, and creates high-priority hygiene tasks for investigation. Provides user options for resolution (Do Not Contact, Delete, Keep Active, Investigate Later).
     - **Remind Me Again Today:** A feature to defer tasks to later in the day, tracked via a "Later Today Scratch Pad."
     - **Session State Persistence:** Ensures progress bars and session state survive restarts.
+    - **Performance Optimization:** Task prefetch cache (claim-on-serve), exclude list caching (10s TTL), and piggyback pattern where complete/skip responses include the next task data. Frontend uses `setQueryData` instead of `invalidateQueries` for instant card transitions. Generation counter guards against stale prefetch results.
     - **DRIP Email Integration:** Automatically surfaces urgent replies to drip campaigns and stale drip follow-ups as high-priority tasks.
     - **Differentiated Task Cards:** Visually distinct task cards based on their source (email, drip, lead, Odoo quote/sample) to provide context. Email intelligence cards show color-coded event type badges (PO=emerald, Pricing Objection=amber, Samples=blue, Urgent=red, AI Insight=purple), trigger text, confidence percentage, and coaching tips.
     - **Email Intelligence → Spotlight Bridge:** Two pipelines feed email signals into Spotlight:
