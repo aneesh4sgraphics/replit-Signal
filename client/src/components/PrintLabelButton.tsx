@@ -32,11 +32,12 @@ interface LabelStats {
 
 interface PrintLabelButtonProps {
   customer: CustomerAddress;
+  leadId?: number;
   variant?: "icon" | "button";
   size?: "sm" | "default";
 }
 
-export function PrintLabelButton({ customer, variant = "icon", size = "sm" }: PrintLabelButtonProps) {
+export function PrintLabelButton({ customer, leadId, variant = "icon", size = "sm" }: PrintLabelButtonProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'other'>('swatch_book');
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
@@ -60,10 +61,13 @@ export function PrintLabelButton({ customer, variant = "icon", size = "sm" }: Pr
     mutationFn: async (data: { labelType: string; otherDescription?: string; quantity: number; notes?: string }) => {
       console.log('[PrintLabel] Starting print request for customer:', customer.id);
       try {
-        const res = await apiRequest('POST', '/api/labels/print', {
-          customerId: customer.id,
-          ...data,
-        });
+        const payload: any = { ...data };
+        if (leadId) {
+          payload.leadId = leadId;
+        } else {
+          payload.customerId = customer.id;
+        }
+        const res = await apiRequest('POST', '/api/labels/print', payload);
         console.log('[PrintLabel] Response status:', res.status);
         const json = await res.json();
         console.log('[PrintLabel] Response data:', json.success ? 'success' : 'failed');

@@ -45,6 +45,7 @@ import {
   Printer,
   Truck,
 } from "lucide-react";
+import { PrintLabelButton } from "@/components/PrintLabelButton";
 
 // Helper function to strip HTML tags and extract plain text
 function stripHtml(html: string | null | undefined): string {
@@ -479,6 +480,22 @@ export default function LeadDetail() {
                     <div className="flex items-start gap-3">
                       <MapPin className="w-4 h-4 text-slate-400 mt-0.5" />
                       <span className="text-slate-700">{address}</span>
+                      <PrintLabelButton
+                        customer={{
+                          id: String(lead.id),
+                          company: lead.company,
+                          firstName: lead.name?.split(' ')[0] || null,
+                          lastName: lead.name?.split(' ').slice(1).join(' ') || null,
+                          address1: lead.street,
+                          address2: lead.street2,
+                          city: lead.city,
+                          province: lead.state,
+                          zip: lead.zip,
+                          country: lead.country,
+                        }}
+                        leadId={lead.id}
+                        variant="icon"
+                      />
                     </div>
                   )}
                   {lead.preferredContact && (
