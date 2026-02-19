@@ -548,6 +548,49 @@ export class OpportunityEngine {
     }
 
     combined.sort((a, b) => b.score - a.score);
+    
+    const OPPORTUNITY_TYPE_PRIORITY: Record<string, number> = {
+      'sample_no_order': 1,
+      'went_quiet': 2,
+      'upsell_potential': 3,
+      'new_fit': 4,
+      'machine_match': 5,
+    };
+    
+    if (!opportunityType) {
+      const entityMap = new Map<string, ScoredOpportunity>();
+      for (const opp of combined) {
+        const key = opp.customerId ? `c-${opp.customerId}` : `l-${opp.leadId}`;
+        const existing = entityMap.get(key);
+        if (!existing) {
+          entityMap.set(key, opp);
+        } else {
+          const existingPriority = OPPORTUNITY_TYPE_PRIORITY[existing.opportunityType] || 99;
+          const newPriority = OPPORTUNITY_TYPE_PRIORITY[opp.opportunityType] || 99;
+          if (newPriority < existingPriority) {
+            const mergedSignals = [...opp.signals];
+            for (const sig of existing.signals) {
+              if (!mergedSignals.some(s => s.signal === sig.signal)) {
+                mergedSignals.push(sig);
+              }
+            }
+            entityMap.set(key, { ...opp, signals: mergedSignals });
+          } else {
+            const mergedSignals = [...existing.signals];
+            for (const sig of opp.signals) {
+              if (!mergedSignals.some(s => s.signal === sig.signal)) {
+                mergedSignals.push(sig);
+              }
+            }
+            entityMap.set(key, { ...existing, signals: mergedSignals });
+          }
+        }
+      }
+      const deduplicated = Array.from(entityMap.values());
+      deduplicated.sort((a, b) => b.score - a.score);
+      return deduplicated.slice(0, maxResults);
+    }
+    
     return combined.slice(0, maxResults);
   }
 
