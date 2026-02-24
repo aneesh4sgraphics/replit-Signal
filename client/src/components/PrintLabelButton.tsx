@@ -96,7 +96,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
   removeFromQueue: (id: string) => void;
   clearQueue: () => void;
 }) {
-  const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'other'>('swatch_book');
+  const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'letter' | 'other'>('swatch_book');
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
   const { toast } = useToast();
   const queryClient = useQueryClient();
@@ -181,6 +181,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
                 <SelectItem value="swatch_book">Swatch Book</SelectItem>
                 <SelectItem value="press_test_kit">Press Test Kit</SelectItem>
                 <SelectItem value="mailer">Mailer</SelectItem>
+                <SelectItem value="letter">Letter</SelectItem>
                 <SelectItem value="other">Something Else</SelectItem>
               </SelectContent>
             </Select>
@@ -188,13 +189,41 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
 
           {labelType === 'other' && (
             <div className="grid gap-2">
-              <Label htmlFor="batchOtherDesc">Description</Label>
+              <Label htmlFor="batchOtherDesc">What are you sending?</Label>
               <Input
                 id="batchOtherDesc"
                 value={labelOtherDescription}
                 onChange={(e) => setLabelOtherDescription(e.target.value)}
-                placeholder="What are you sending?"
+                placeholder="Describe what you're sending..."
               />
+            </div>
+          )}
+
+          {queue.length > 0 && (
+            <div className="grid gap-2">
+              <Label>Label Preview</Label>
+              <div className="bg-white rounded-lg border-2 border-dashed border-slate-300 p-4">
+                <p className="text-[10px] uppercase tracking-wider text-slate-400 mb-3">How each label will print (4×6 format):</p>
+                {(() => {
+                  const sample = queue[0];
+                  const lines = formatAddressPreview(sample.customer);
+                  return (
+                    <div className="bg-slate-50 rounded border border-slate-200 p-3 font-mono text-sm leading-relaxed">
+                      {lines.map((line, i) => (
+                        <p key={i} className={i === 0 ? 'font-bold text-slate-900' : 'text-slate-700'}>{line}</p>
+                      ))}
+                    </div>
+                  );
+                })()}
+                {queue.length > 1 && (
+                  <p className="text-xs text-slate-400 mt-2 text-center">
+                    + {queue.length - 1} more label{queue.length - 1 !== 1 ? 's' : ''} with the same format
+                  </p>
+                )}
+                <p className="text-[10px] text-slate-400 mt-2 italic">
+                  Note: Only the address prints on the label. "{labelType === 'other' ? (labelOtherDescription || 'your item') : labelType.replace(/_/g, ' ')}" is logged for tracking only.
+                </p>
+              </div>
             </div>
           )}
 
