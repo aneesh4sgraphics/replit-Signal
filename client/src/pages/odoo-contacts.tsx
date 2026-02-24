@@ -117,7 +117,7 @@ interface ShopifyCustomerMapping {
 }
 
 type ViewMode = 'table' | 'cards';
-type SortField = 'company' | 'email' | 'updatedAt' | 'createdAt' | 'totalSpent';
+type SortField = 'company' | 'email' | 'updatedAt' | 'createdAt' | 'totalSpent' | 'province';
 type SortOrder = 'asc' | 'desc';
 
 export default function OdooContacts() {
@@ -410,6 +410,10 @@ export default function OdooContacts() {
         case 'totalSpent':
           aVal = parseFloat(a.totalSpent || '0');
           bVal = parseFloat(b.totalSpent || '0');
+          break;
+        case 'province':
+          aVal = (a.province || '').toLowerCase();
+          bVal = (b.province || '').toLowerCase();
           break;
         case 'createdAt':
         case 'updatedAt':
@@ -775,6 +779,12 @@ export default function OdooContacts() {
                 </DropdownMenuItem>
                 <DropdownMenuItem onClick={() => { setSortField('totalSpent'); setSortOrder('desc'); }}>
                   Highest Value
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortField('province'); setSortOrder('asc'); }}>
+                  State A-Z
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={() => { setSortField('province'); setSortOrder('desc'); }}>
+                  State Z-A
                 </DropdownMenuItem>
               </DropdownMenuContent>
             </DropdownMenu>

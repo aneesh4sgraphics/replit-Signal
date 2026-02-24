@@ -61,7 +61,14 @@ import {
   Send,
   GripVertical,
   SlidersHorizontal,
+  ArrowUpDown,
 } from "lucide-react";
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
 import { SiOdoo, SiShopify } from "react-icons/si";
 import { Progress } from "@/components/ui/progress";
@@ -148,6 +155,8 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'list' | 'kanban' | 'funnel'>('cards');
+  const [sortField, setSortField] = useState<'name' | 'company' | 'state' | 'createdAt'>('createdAt');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const LEAD_COLUMNS = [
     { key: 'name', label: 'Name', alwaysVisible: true },
@@ -350,7 +359,32 @@ export default function LeadsPage() {
     },
   });
 
-  const leads = leadsData?.leads || [];
+  const leads = (leadsData?.leads || []).sort((a, b) => {
+    let aVal: string | number, bVal: string | number;
+    switch (sortField) {
+      case 'name':
+        aVal = (a.name || '').toLowerCase();
+        bVal = (b.name || '').toLowerCase();
+        break;
+      case 'company':
+        aVal = (a.company || '').toLowerCase();
+        bVal = (b.company || '').toLowerCase();
+        break;
+      case 'state':
+        aVal = (a.state || '').toLowerCase();
+        bVal = (b.state || '').toLowerCase();
+        break;
+      case 'createdAt':
+        aVal = new Date(a.createdAt || 0).getTime();
+        bVal = new Date(b.createdAt || 0).getTime();
+        break;
+      default:
+        aVal = '';
+        bVal = '';
+    }
+    if (sortOrder === 'asc') return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
+    return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
+  });
 
   const getStageInfo = (stage: string) => STAGES.find(s => s.value === stage) || STAGES[0];
   const getPriorityInfo = (priority: string | null) => PRIORITIES.find(p => p.value === priority) || PRIORITIES[1];
@@ -503,6 +537,34 @@ export default function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-2 bg-white/80">
+                <ArrowUpDown className="w-4 h-4" />
+                Sort
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="start">
+              <DropdownMenuItem onClick={() => { setSortField('createdAt'); setSortOrder('desc'); }}>
+                Recently Created
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortField('name'); setSortOrder('asc'); }}>
+                Name A-Z
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortField('name'); setSortOrder('desc'); }}>
+                Name Z-A
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortField('company'); setSortOrder('asc'); }}>
+                Company A-Z
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortField('state'); setSortOrder('asc'); }}>
+                State A-Z
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => { setSortField('state'); setSortOrder('desc'); }}>
+                State Z-A
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {viewMode === 'list' && (
             <Popover>
               <PopoverTrigger asChild>
