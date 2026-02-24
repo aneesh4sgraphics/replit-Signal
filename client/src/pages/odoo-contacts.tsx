@@ -646,7 +646,12 @@ export default function OdooContacts() {
   };
 
   // Active filters count
-  const activeFiltersCount = Object.values(filters).filter(v => v !== null).length;
+  const activeFiltersCount = [
+    filters.isCompany !== null && filters.isCompany !== true ? 1 : 0,
+    filters.pricingTier !== null ? 1 : 0,
+    filters.hasEmail !== null ? 1 : 0,
+    filters.isHotProspect !== null ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
 
   // Clear filters
   const clearFilters = () => {
