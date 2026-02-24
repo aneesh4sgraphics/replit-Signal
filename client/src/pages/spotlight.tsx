@@ -98,6 +98,7 @@ import {
   Droplets,
   MailPlus,
 } from "lucide-react";
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SiShopify } from "react-icons/si";
 
 // Progress Ring SVG Component for Pastel & Soft design
@@ -2021,50 +2022,59 @@ export default function Spotlight() {
             </div>
 
             {/* Coaching Compliance - Executive Culture Metric */}
-            {todayProgress?.coachingCompliance && (
-              <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
-                <div className="flex items-center justify-between mb-3">
-                  <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Coaching Compliance</p>
-                  <span className={`text-2xl font-bold ${
-                    todayProgress.coachingCompliance.score >= 80 ? 'text-green-600' :
-                    todayProgress.coachingCompliance.score >= 60 ? 'text-amber-600' :
-                    'text-red-500'
-                  }`}>
-                    {todayProgress.coachingCompliance.score}%
-                  </span>
-                </div>
-                <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-3">
-                  <div 
-                    className="h-full rounded-full transition-all duration-500"
-                    style={{ 
-                      width: `${todayProgress.coachingCompliance.score}%`,
-                      background: todayProgress.coachingCompliance.score >= 80 
-                        ? 'linear-gradient(90deg, #22C55E, #16A34A)'
-                        : todayProgress.coachingCompliance.score >= 60
-                        ? 'linear-gradient(90deg, #F59E0B, #D97706)'
-                        : 'linear-gradient(90deg, #EF4444, #DC2626)',
-                    }}
-                  />
-                </div>
-                <div className="grid grid-cols-3 gap-2">
-                  <div className="text-center p-1.5 rounded-lg bg-blue-50">
-                    <p className="text-[10px] text-muted-foreground leading-tight">Tasks Done</p>
-                    <p className="text-xs font-bold text-blue-700">{todayProgress.coachingCompliance.breakdown.taskCompletion}%</p>
-                    <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.tasksCompleted}/{todayProgress.coachingCompliance.components.tasksTarget}</p>
+            {todayProgress?.coachingCompliance && (() => {
+              const score = todayProgress.coachingCompliance.score;
+              const tasksCompleted = todayProgress.coachingCompliance.components.tasksCompleted || 0;
+              const tasksTarget = todayProgress.coachingCompliance.components.tasksTarget || 30;
+              const earlyInDay = tasksCompleted < Math.floor(tasksTarget * 0.2);
+              
+              const getColor = () => {
+                if (score >= 80) return { text: 'text-green-600', gradient: 'linear-gradient(90deg, #22C55E, #16A34A)' };
+                if (score >= 60) return { text: 'text-amber-600', gradient: 'linear-gradient(90deg, #F59E0B, #D97706)' };
+                if (earlyInDay) return { text: 'text-blue-500', gradient: 'linear-gradient(90deg, #3B82F6, #2563EB)' };
+                return { text: 'text-amber-600', gradient: 'linear-gradient(90deg, #F59E0B, #D97706)' };
+              };
+              const colors = getColor();
+              
+              return (
+                <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
+                  <div className="flex items-center justify-between mb-3">
+                    <p className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Coaching Compliance</p>
+                    <div className="flex items-center gap-2">
+                      {earlyInDay && score < 60 && (
+                        <span className="text-[10px] text-blue-500 font-medium">Just started</span>
+                      )}
+                      <span className={`text-2xl font-bold ${colors.text}`}>
+                        {score}%
+                      </span>
+                    </div>
                   </div>
-                  <div className="text-center p-1.5 rounded-lg bg-purple-50">
-                    <p className="text-[10px] text-muted-foreground leading-tight">On Time</p>
-                    <p className="text-xs font-bold text-purple-700">{todayProgress.coachingCompliance.breakdown.followUpTimeliness}%</p>
-                    <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.followUpsOnTime}/{todayProgress.coachingCompliance.components.followUpsTotal || '—'}</p>
+                  <div className="h-2.5 bg-gray-100 rounded-full overflow-hidden mb-3">
+                    <div 
+                      className="h-full rounded-full transition-all duration-500"
+                      style={{ width: `${score}%`, background: colors.gradient }}
+                    />
                   </div>
-                  <div className="text-center p-1.5 rounded-lg bg-emerald-50">
-                    <p className="text-[10px] text-muted-foreground leading-tight">Calls</p>
-                    <p className="text-xs font-bold text-emerald-700">{todayProgress.coachingCompliance.breakdown.callsLogged}%</p>
-                    <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.callsMade}/{todayProgress.coachingCompliance.components.callsGoal}</p>
+                  <div className="grid grid-cols-3 gap-2">
+                    <div className="text-center p-1.5 rounded-lg bg-blue-50">
+                      <p className="text-[10px] text-muted-foreground leading-tight">Tasks Done</p>
+                      <p className="text-xs font-bold text-blue-700">{todayProgress.coachingCompliance.breakdown.taskCompletion}%</p>
+                      <p className="text-[9px] text-muted-foreground">{tasksCompleted}/{tasksTarget}</p>
+                    </div>
+                    <div className="text-center p-1.5 rounded-lg bg-purple-50">
+                      <p className="text-[10px] text-muted-foreground leading-tight">On Time</p>
+                      <p className="text-xs font-bold text-purple-700">{todayProgress.coachingCompliance.breakdown.followUpTimeliness}%</p>
+                      <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.followUpsOnTime}/{todayProgress.coachingCompliance.components.followUpsTotal || '—'}</p>
+                    </div>
+                    <div className="text-center p-1.5 rounded-lg bg-emerald-50">
+                      <p className="text-[10px] text-muted-foreground leading-tight">Calls</p>
+                      <p className="text-xs font-bold text-emerald-700">{todayProgress.coachingCompliance.breakdown.callsLogged}%</p>
+                      <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.callsMade}/{todayProgress.coachingCompliance.components.callsGoal}</p>
+                    </div>
                   </div>
                 </div>
-              </div>
-            )}
+              );
+            })()}
 
             {/* Today's Progress Card - 5 Dedicated Bars */}
             <div className="bg-white rounded-xl shadow-sm p-4 mb-3">
@@ -2513,19 +2523,24 @@ export default function Spotlight() {
               <div className="w-16 bg-slate-50 border border-r-0 border-slate-200 rounded-l-xl flex flex-col items-center py-4 gap-2">
                 <p className="text-[9px] font-bold text-slate-400 uppercase tracking-wide mb-1">Actions</p>
                 
+                <TooltipProvider delayDuration={200}>
                 {/* Email - with menu for single email or drip */}
                 <div className="relative" ref={emailMenuRef}>
-                  <button
-                    onClick={() => {
-                      if (!effectiveEmail) return;
-                      setShowEmailMenu(!showEmailMenu);
-                    }}
-                    disabled={!effectiveEmail}
-                    className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${effectiveEmail ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
-                    title={effectiveEmail ? "Email Options" : "No email available"}
-                  >
-                    <Mail className="w-4 h-4" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => {
+                          if (!effectiveEmail) return;
+                          setShowEmailMenu(!showEmailMenu);
+                        }}
+                        disabled={!effectiveEmail}
+                        className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${effectiveEmail ? 'bg-blue-100 text-blue-600 hover:bg-blue-200' : 'bg-slate-100 text-slate-300 cursor-not-allowed'}`}
+                      >
+                        <Mail className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right"><p>{effectiveEmail ? "Email" : "No email available"}</p></TooltipContent>
+                  </Tooltip>
                   {showEmailMenu && (
                     <div className="absolute left-12 top-0 z-50 bg-white border border-slate-200 rounded-xl shadow-lg p-1.5 flex flex-row gap-1.5">
                       <button
@@ -2583,84 +2598,105 @@ export default function Spotlight() {
                   };
                   const leadIdForQueue = task.isLeadTask ? task.lead?.id : undefined;
                   return (
-                    <button
-                      onClick={() => {
-                        if (inQueue) {
-                          labelQueue.removeFromQueue(labelId);
-                          toast({ title: 'Removed from label queue' });
-                        } else {
-                          labelQueue.addToQueue(labelCustomer, leadIdForQueue);
-                          toast({ title: 'Added to label queue', description: `${labelQueue.queue.length + 1} label(s) queued` });
-                        }
-                      }}
-                      disabled={!effectiveAddress}
-                      className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
-                        !effectiveAddress 
-                          ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
-                          : inQueue 
-                            ? 'bg-blue-200 text-blue-700 hover:bg-blue-300 ring-2 ring-blue-400' 
-                            : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
-                      }`}
-                      title={!effectiveAddress ? "No address available" : inQueue ? "Remove from label queue" : "Add to label queue"}
-                    >
-                      <Printer className="w-4 h-4" />
-                    </button>
+                    <Tooltip>
+                      <TooltipTrigger asChild>
+                        <button
+                          onClick={() => {
+                            if (inQueue) {
+                              labelQueue.removeFromQueue(labelId);
+                              toast({ title: 'Removed from label queue' });
+                            } else {
+                              labelQueue.addToQueue(labelCustomer, leadIdForQueue);
+                              toast({ title: 'Added to label queue', description: `${labelQueue.queue.length + 1} label(s) queued` });
+                            }
+                          }}
+                          disabled={!effectiveAddress}
+                          className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
+                            !effectiveAddress 
+                              ? 'bg-slate-100 text-slate-300 cursor-not-allowed' 
+                              : inQueue 
+                                ? 'bg-blue-200 text-blue-700 hover:bg-blue-300 ring-2 ring-blue-400' 
+                                : 'bg-amber-100 text-amber-600 hover:bg-amber-200'
+                          }`}
+                        >
+                          <Printer className="w-4 h-4" />
+                        </button>
+                      </TooltipTrigger>
+                      <TooltipContent side="right"><p>{!effectiveAddress ? "No address" : inQueue ? "In label queue" : "Print label"}</p></TooltipContent>
+                    </Tooltip>
                   );
                 })()}
                 
                 {/* Later */}
-                <button
-                  onClick={() => remindTodayMutation.mutate({ taskId: task.id })}
-                  disabled={remindTodayMutation.isPending}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
-                  title="Remind Me Later Today"
-                >
-                  <Clock className="w-4 h-4" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => remindTodayMutation.mutate({ taskId: task.id })}
+                      disabled={remindTodayMutation.isPending}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-yellow-100 text-yellow-600 hover:bg-yellow-200"
+                    >
+                      <Clock className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right"><p>Remind me later</p></TooltipContent>
+                </Tooltip>
                 
                 {/* Skip */}
-                <button
-                  onClick={handleSkip}
-                  disabled={skipMutation.isPending}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-slate-200 text-slate-500 hover:bg-slate-300"
-                  title="Skip This Task"
-                >
-                  <SkipForward className="w-4 h-4" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={handleSkip}
+                      disabled={skipMutation.isPending}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-slate-200 text-slate-500 hover:bg-slate-300"
+                    >
+                      <SkipForward className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right"><p>Skip task</p></TooltipContent>
+                </Tooltip>
                 
                 {/* Mark as Hot - Only for non-lead customers */}
                 {!task.isLeadTask && (
-                  <button
-                    onClick={() => {
-                      const isCurrentlyHot = optimisticHotProspect ?? customer.isHotProspect;
-                      setOptimisticHotProspect(!isCurrentlyHot);
-                      apiRequest('PUT', `/api/customers/${customer.id}`, { isHotProspect: !isCurrentlyHot })
-                        .then(() => toast({ title: isCurrentlyHot ? "Removed Hot status" : "Marked as Hot Prospect" }))
-                        .catch(() => {
-                          setOptimisticHotProspect(null);
-                          toast({ title: "Error", variant: "destructive" });
-                        });
-                    }}
-                    className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
-                      (optimisticHotProspect ?? customer.isHotProspect) 
-                        ? 'bg-orange-500 text-white hover:bg-orange-600' 
-                        : 'bg-orange-100 text-orange-500 hover:bg-orange-200'
-                    }`}
-                    title={(optimisticHotProspect ?? customer.isHotProspect) ? "Remove Hot Prospect status" : "Mark as Hot Prospect"}
-                  >
-                    <Flame className="w-4 h-4" />
-                  </button>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <button
+                        onClick={() => {
+                          const isCurrentlyHot = optimisticHotProspect ?? customer.isHotProspect;
+                          setOptimisticHotProspect(!isCurrentlyHot);
+                          apiRequest('PUT', `/api/customers/${customer.id}`, { isHotProspect: !isCurrentlyHot })
+                            .then(() => toast({ title: isCurrentlyHot ? "Removed Hot status" : "Marked as Hot Prospect" }))
+                            .catch(() => {
+                              setOptimisticHotProspect(null);
+                              toast({ title: "Error", variant: "destructive" });
+                            });
+                        }}
+                        className={`w-10 h-10 flex items-center justify-center rounded-lg transition-all ${
+                          (optimisticHotProspect ?? customer.isHotProspect) 
+                            ? 'bg-orange-500 text-white hover:bg-orange-600' 
+                            : 'bg-orange-100 text-orange-500 hover:bg-orange-200'
+                        }`}
+                      >
+                        <Flame className="w-4 h-4" />
+                      </button>
+                    </TooltipTrigger>
+                    <TooltipContent side="right"><p>{(optimisticHotProspect ?? customer.isHotProspect) ? "Remove Hot status" : "Hot Prospect"}</p></TooltipContent>
+                  </Tooltip>
                 )}
                 
                 {/* Bad Fit */}
-                <button
-                  onClick={() => completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' })}
-                  disabled={completeMutation.isPending}
-                  className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-red-100 text-red-500 hover:bg-red-200"
-                  title="Bad Fit - Not Printing Related"
-                >
-                  <Ban className="w-4 h-4" />
-                </button>
+                <Tooltip>
+                  <TooltipTrigger asChild>
+                    <button
+                      onClick={() => completeMutation.mutate({ taskId: task.id, outcomeId: 'bad_fit', outcomeLabel: 'Bad Fit - Not Printing Related' })}
+                      disabled={completeMutation.isPending}
+                      className="w-10 h-10 flex items-center justify-center rounded-lg transition-all bg-red-100 text-red-500 hover:bg-red-200"
+                    >
+                      <Ban className="w-4 h-4" />
+                    </button>
+                  </TooltipTrigger>
+                  <TooltipContent side="right"><p>Not a fit</p></TooltipContent>
+                </Tooltip>
+                </TooltipProvider>
               </div>
               
               {/* Card Container */}
@@ -3266,8 +3302,8 @@ export default function Spotlight() {
                 </div>
               ))}
 
-              {/* Trust Level + Pro Tip Row */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-5">
+              {/* Trust Level + Context Row */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-5 mb-6">
                 {/* Trust Level Card - Real metrics from API */}
                 {(() => {
                   const calls = trustMetrics?.calls || 0;
@@ -3334,74 +3370,102 @@ export default function Spotlight() {
                   );
                 })()}
 
-                {/* Pro Tip Card - hidden for bounced email tasks (they have their own compact card) */}
-                {task.taskSubtype !== 'hygiene_bounced_email' && (
-                  <div className="bg-gradient-to-br from-amber-50 to-yellow-50 border-2 border-yellow-300 rounded-2xl p-4">
-                    {/* Context-dependent action label */}
-                    {task.whyNow && (() => {
-                      const hygieneResolved = task.bucket === 'data_hygiene' && customer && (
-                        (task.taskSubtype === 'hygiene_pricing_tier' && customer.pricingTier) ||
-                        (task.taskSubtype === 'hygiene_email' && customer.email) ||
-                        (task.taskSubtype === 'hygiene_phone' && customer.phone) ||
-                        (task.taskSubtype === 'hygiene_sales_rep' && customer.salesRepId) ||
-                        (task.taskSubtype === 'hygiene_name' && (customer.firstName || customer.lastName)) ||
-                        (task.taskSubtype === 'hygiene_company' && customer.company) ||
-                        (task.taskSubtype === 'hygiene_customer_type' && customer.customerType)
-                      );
-                      if (hygieneResolved) {
-                        return (
-                          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-green-200">
-                            <CheckCircle className="w-4 h-4 text-green-600 flex-shrink-0" />
-                            <span className="text-xs font-semibold text-green-600 uppercase">Resolved</span>
-                            <span className="text-sm text-green-700">This field has been updated. You can mark this task complete.</span>
+                {/* Context Card - Issue OR Pro Tip (never both) */}
+                {task.taskSubtype !== 'hygiene_bounced_email' && (() => {
+                  const hygieneResolved = task.bucket === 'data_hygiene' && customer && (
+                    (task.taskSubtype === 'hygiene_pricing_tier' && customer.pricingTier) ||
+                    (task.taskSubtype === 'hygiene_email' && customer.email) ||
+                    (task.taskSubtype === 'hygiene_phone' && customer.phone) ||
+                    (task.taskSubtype === 'hygiene_sales_rep' && customer.salesRepId) ||
+                    (task.taskSubtype === 'hygiene_name' && (customer.firstName || customer.lastName)) ||
+                    (task.taskSubtype === 'hygiene_company' && customer.company) ||
+                    (task.taskSubtype === 'hygiene_customer_type' && customer.customerType)
+                  );
+                  const hasMissingFields = currentTask.hints?.some(h => h.type === 'missing_field');
+                  const hasUnresolvedIssue = task.bucket === 'data_hygiene' && !hygieneResolved && task.whyNow;
+
+                  if (hygieneResolved) {
+                    return (
+                      <div className="bg-gradient-to-br from-green-50 to-emerald-50 border border-green-200 rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-green-500 flex items-center justify-center flex-shrink-0">
+                            <CheckCircle className="w-5 h-5 text-white" />
                           </div>
-                        );
-                      }
-                      return (
-                        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200">
+                          <div>
+                            <p className="text-sm font-semibold text-green-700">All set!</p>
+                            <p className="text-sm text-green-600">This field has been updated. You can mark this task complete.</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (hasUnresolvedIssue || hasMissingFields) {
+                    return (
+                      <div className="bg-gradient-to-br from-amber-50 to-orange-50 border border-amber-200 rounded-2xl p-4">
+                        {task.whyNow && (
+                          <div className="flex items-center gap-2 mb-3 pb-3 border-b border-amber-200/60">
+                            <Target className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                            <span className="text-xs font-semibold text-amber-700 uppercase">
+                              {task.bucket === 'calls' ? 'Call Reason:' :
+                               task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
+                               task.bucket === 'outreach' ? 'Outreach Opportunity:' :
+                               task.bucket === 'data_hygiene' ? 'Issue:' :
+                               task.bucket === 'enablement' ? 'Materials Needed:' :
+                               'Action Needed:'}
+                            </span>
+                            <span className="text-sm text-slate-700">{task.whyNow}</span>
+                          </div>
+                        )}
+                        {currentTask.hints?.filter(h => h.type === 'missing_field').map((hint, idx) => (
+                          <div key={idx} className="flex items-center justify-between gap-3 mb-2 last:mb-0">
+                            <div className="flex items-center gap-2 flex-1">
+                              <UserCog className="w-4 h-4 text-amber-600 flex-shrink-0" />
+                              <span className="text-sm text-amber-800">{hint.message}</span>
+                            </div>
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-xs rounded-full border-amber-300 text-amber-700 hover:bg-amber-100"
+                              onClick={() => handleFixData(hint.metadata?.missingFields || [])}
+                            >
+                              {hint.ctaLabel}
+                            </Button>
+                          </div>
+                        ))}
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4">
+                      {task.whyNow && (
+                        <div className="flex items-center gap-2 mb-3 pb-3 border-b border-blue-200/60">
                           <Target className="w-4 h-4 text-blue-600 flex-shrink-0" />
                           <span className="text-xs font-semibold text-blue-600 uppercase">
                             {task.bucket === 'calls' ? 'Call Reason:' :
                              task.bucket === 'follow_ups' ? 'Follow-up Reason:' :
                              task.bucket === 'outreach' ? 'Outreach Opportunity:' :
-                             task.bucket === 'data_hygiene' ? 'Issue:' :
                              task.bucket === 'enablement' ? 'Materials Needed:' :
-                             'Action Needed:'}
+                             'Context:'}
                           </span>
                           <span className="text-sm text-slate-700">{task.whyNow}</span>
                         </div>
-                      );
-                    })()}
-                    {/* Missing field hints displayed */}
-                    {currentTask.hints?.filter(h => h.type === 'missing_field').map((hint, idx) => (
-                      <div key={idx} className="flex items-center justify-between gap-3 mb-3 pb-3 border-b border-amber-200">
-                        <div className="flex items-center gap-2 flex-1">
-                          <UserCog className="w-4 h-4 text-amber-600 flex-shrink-0" />
-                          <span className="text-sm text-amber-800">{hint.message}</span>
+                      )}
+                      <div className="flex items-start gap-3">
+                        <div className="w-9 h-9 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                          <Lightbulb className="w-4 h-4 text-blue-600" />
                         </div>
-                        <Button
-                          size="sm"
-                          variant="outline"
-                          className="text-xs rounded-full border-amber-400 text-amber-700 hover:bg-amber-100"
-                          onClick={() => handleFixData(hint.metadata?.missingFields || [])}
-                        >
-                          {hint.ctaLabel}
-                        </Button>
-                      </div>
-                    ))}
-                    <div className="flex items-start gap-3">
-                      <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0">
-                        <Lightbulb className="w-5 h-5 text-white" />
-                      </div>
-                      <div>
-                        <p className="text-sm font-bold text-red-600 mb-1">PRO Tip!!</p>
-                        <p className="text-sm text-amber-800">
-                          {currentTask?.coachTip?.content || "Follow up within 24 hours for best conversion rates. Consider sending a personalized quote or sample material based on their customer type."}
-                        </p>
+                        <div>
+                          <p className="text-xs font-semibold text-blue-700 uppercase tracking-wide mb-1">Pro Tip</p>
+                          <p className="text-sm text-slate-600 leading-relaxed">
+                            {currentTask?.coachTip?.content || "Follow up within 24 hours for best conversion rates. Consider sending a personalized quote or sample material based on their customer type."}
+                          </p>
+                        </div>
                       </div>
                     </div>
-                  </div>
-                )}
+                  );
+                })()}
               </div>
 
               {/* Follow-up context */}
@@ -3529,13 +3593,13 @@ export default function Spotlight() {
                       if (allMissing.length === 0) allMissing.push('all');
                       handleFixData(allMissing, true);
                     }}
-                    className="w-full flex items-center justify-center gap-3 px-6 py-4 rounded-2xl text-base font-bold transition-all bg-gradient-to-r from-indigo-500 to-purple-600 text-white shadow-lg hover:shadow-xl hover:scale-[1.02] active:scale-[0.98]"
+                    className="w-full flex items-center justify-center gap-2 px-5 py-3 rounded-xl text-sm font-semibold transition-all bg-slate-100 border border-slate-200 text-slate-700 hover:bg-slate-200 hover:border-slate-300 active:scale-[0.98]"
                   >
-                    <UserCog className="w-5 h-5" />
-                    Fix Data First
+                    <UserCog className="w-4 h-4" />
+                    Update Contact Info
                   </button>
-                  <p className="text-xs text-slate-400 text-center mt-2">
-                    Open the contact editor to fix all missing details at once
+                  <p className="text-[11px] text-slate-400 text-center mt-1.5">
+                    Fix missing fields to complete this task
                   </p>
                 </div>
               )}

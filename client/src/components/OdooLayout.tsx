@@ -3,6 +3,7 @@ import { Link, useLocation } from 'wouter';
 import logoPath from '@assets/4s_logo_Clean_120x_1764801255491.png';
 import { Button } from '@/components/ui/button';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip';
 import type { User } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppUsage, AppUsageProvider } from '@/hooks/useAppUsage';
@@ -253,6 +254,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
         </button>
 
         <nav className="flex-1 py-2 overflow-y-auto">
+          <TooltipProvider delayDuration={100}>
           <div className="px-3 space-y-1">
             {sidebarExpanded && (
               <p className="text-[11px] font-medium text-[#9B9A97] uppercase tracking-wide px-3 mb-2">Menu</p>
@@ -261,30 +263,45 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
               const Icon = item.icon;
               const isActive = location === item.path;
               
-              return (
+              const linkContent = (
                 <Link 
                   key={item.path} 
                   href={item.path}
                   className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out group relative ${
                     isActive 
-                      ? 'bg-[#F7F7F5] text-[#37352F] font-medium'
+                      ? 'bg-blue-50 text-blue-700 font-medium shadow-sm border border-blue-100'
                       : 'text-[#73726E] hover:bg-[#F7F7F5] hover:text-[#37352F]'
                   }`}
-                  title={!sidebarExpanded ? item.label : undefined}
                 >
                   {isActive && (
-                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
+                    <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-blue-600 rounded-r-full" />
                   )}
                   <span 
-                    className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                    className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150 ${
+                      isActive ? 'bg-blue-100' : ''
+                    }`}
                   >
-                    <Icon className="h-5 w-5 text-[#37352F]" />
+                    <Icon className={`h-5 w-5 ${isActive ? 'text-blue-700' : 'text-[#37352F]'}`} />
                   </span>
                   {sidebarExpanded && (
                     <span className="text-sm truncate">{item.label}</span>
                   )}
                 </Link>
               );
+              
+              if (!sidebarExpanded) {
+                return (
+                  <Tooltip key={item.path}>
+                    <TooltipTrigger asChild>
+                      {linkContent}
+                    </TooltipTrigger>
+                    <TooltipContent side="right" className="font-medium">
+                      <p>{item.label}</p>
+                    </TooltipContent>
+                  </Tooltip>
+                );
+              }
+              return <div key={item.path}>{linkContent}</div>;
             })}
           </div>
 
@@ -297,33 +314,49 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                 const Icon = item.icon;
                 const isActive = location === item.path;
                 
-                return (
+                const linkContent = (
                   <Link 
                     key={item.path} 
                     href={item.path}
                     className={`flex items-center gap-3 px-3 py-2 rounded-lg transition-all duration-150 ease-out group relative ${
                       isActive 
-                        ? 'bg-[#F7F7F5] text-[#37352F] font-medium'
+                        ? 'bg-blue-50 text-blue-700 font-medium shadow-sm border border-blue-100'
                         : 'text-[#73726E] hover:bg-[#F7F7F5] hover:text-[#37352F]'
                     }`}
-                    title={!sidebarExpanded ? item.label : undefined}
                   >
                     {isActive && (
-                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-5 bg-[#37352F] rounded-r-full" />
+                      <span className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-6 bg-blue-600 rounded-r-full" />
                     )}
                     <span 
-                      className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150"
+                      className={`w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150 ${
+                        isActive ? 'bg-blue-100' : ''
+                      }`}
                     >
-                      <Icon className="h-5 w-5 text-[#37352F]" />
+                      <Icon className={`h-5 w-5 ${isActive ? 'text-blue-700' : 'text-[#37352F]'}`} />
                     </span>
                     {sidebarExpanded && (
                       <span className="text-sm truncate">{item.label}</span>
                     )}
                   </Link>
                 );
+                
+                if (!sidebarExpanded) {
+                  return (
+                    <Tooltip key={item.path}>
+                      <TooltipTrigger asChild>
+                        {linkContent}
+                      </TooltipTrigger>
+                      <TooltipContent side="right" className="font-medium">
+                        <p>{item.label}</p>
+                      </TooltipContent>
+                    </Tooltip>
+                  );
+                }
+                return <div key={item.path}>{linkContent}</div>;
               })}
             </div>
           )}
+          </TooltipProvider>
         </nav>
 
         <div className="p-3 border-t border-gray-100">
