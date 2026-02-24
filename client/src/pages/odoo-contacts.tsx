@@ -9,6 +9,7 @@ import { Card, CardContent } from "@/components/ui/card";
 import { Separator } from "@/components/ui/separator";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { 
   Select, 
   SelectContent, 
@@ -69,6 +70,7 @@ import {
   Loader2,
   CreditCard,
   UserCheck,
+  SlidersHorizontal,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
@@ -153,6 +155,37 @@ export default function OdooContacts() {
   const [bulkEditLoading, setBulkEditLoading] = useState(false);
 
   const [searchActiveFilterSnapshot, setSearchActiveFilterSnapshot] = useState<typeof filters | null>(null);
+
+  const CONTACT_COLUMNS = [
+    { key: 'name', label: 'Name', alwaysVisible: true },
+    { key: 'email', label: 'Email' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'location', label: 'Location' },
+    { key: 'tier', label: 'Tier' },
+    { key: 'salesRep', label: 'Sales Rep' },
+    { key: 'website', label: 'Website' },
+    { key: 'totalOrders', label: 'Orders' },
+    { key: 'totalSpent', label: 'Total Spent' },
+    { key: 'tags', label: 'Tags' },
+    { key: 'createdAt', label: 'Created' },
+    { key: 'updatedAt', label: 'Updated' },
+  ] as const;
+
+  const [visibleColumns, setVisibleColumns] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('contacts-visible-columns');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return { name: true, email: true, phone: true, location: true, tier: true };
+  });
+
+  const toggleColumn = (key: string) => {
+    setVisibleColumns(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem('contacts-visible-columns', JSON.stringify(next));
+      return next;
+    });
+  };
 
   // Debounced search
   const debouncedSetSearch = useCallback(
@@ -743,6 +776,35 @@ export default function OdooContacts() {
 
             <div className="flex-1" />
 
+            {viewMode === 'table' && (
+              <Popover>
+                <PopoverTrigger asChild>
+                  <Button variant="ghost" size="sm" className="gap-2">
+                    <SlidersHorizontal className="w-4 h-4" />
+                    Columns
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-52 p-2">
+                  <p className="text-xs font-medium text-gray-500 uppercase px-2 py-1.5">Toggle Columns</p>
+                  {CONTACT_COLUMNS.map(col => (
+                    <label
+                      key={col.key}
+                      className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer hover:bg-gray-50 ${
+                        'alwaysVisible' in col && col.alwaysVisible ? 'opacity-50 pointer-events-none' : ''
+                      }`}
+                    >
+                      <Checkbox
+                        checked={!!visibleColumns[col.key] || ('alwaysVisible' in col && !!col.alwaysVisible)}
+                        onCheckedChange={() => !('alwaysVisible' in col && col.alwaysVisible) && toggleColumn(col.key)}
+                        disabled={'alwaysVisible' in col && !!col.alwaysVisible}
+                      />
+                      {col.label}
+                    </label>
+                  ))}
+                </PopoverContent>
+              </Popover>
+            )}
+
             {/* View Toggle */}
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
               <button
@@ -1010,11 +1072,18 @@ export default function OdooContacts() {
                       onCheckedChange={toggleSelectAll}
                     />
                   </th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>
-                  <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>
+                  {visibleColumns.name !== false && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Name</th>}
+                  {visibleColumns.email && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Email</th>}
+                  {visibleColumns.phone && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Phone</th>}
+                  {visibleColumns.location && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Location</th>}
+                  {visibleColumns.tier && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tier</th>}
+                  {visibleColumns.salesRep && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Sales Rep</th>}
+                  {visibleColumns.website && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Website</th>}
+                  {visibleColumns.totalOrders && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Orders</th>}
+                  {visibleColumns.totalSpent && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Total Spent</th>}
+                  {visibleColumns.tags && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Tags</th>}
+                  {visibleColumns.createdAt && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Created</th>}
+                  {visibleColumns.updatedAt && <th className="text-left px-4 py-3 text-xs font-medium text-gray-500 uppercase tracking-wider">Updated</th>}
                   <th className="w-12"></th>
                 </tr>
               </thead>
@@ -1035,6 +1104,7 @@ export default function OdooContacts() {
                           onCheckedChange={() => toggleSelect(contact.id)}
                         />
                       </td>
+                      {visibleColumns.name !== false && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-3">
                           <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm font-medium ${
@@ -1063,6 +1133,8 @@ export default function OdooContacts() {
                           </div>
                         </div>
                       </td>
+                      )}
+                      {visibleColumns.email && (
                       <td className="px-4 py-3">
                         {editingField?.id === contact.id && editingField?.field === 'email' ? (
                           <div className="flex items-center gap-1" onClick={e => e.stopPropagation()}>
@@ -1099,12 +1171,16 @@ export default function OdooContacts() {
                           </div>
                         )}
                       </td>
+                      )}
+                      {visibleColumns.phone && (
                       <td className="px-4 py-3">
                         <div className="flex items-center gap-2">
                           <Phone className="w-4 h-4 text-gray-400" />
                           <span className="text-gray-700">{contact.phone || '—'}</span>
                         </div>
                       </td>
+                      )}
+                      {visibleColumns.location && (
                       <td className="px-4 py-3">
                         {contact.city || contact.province || contact.address1 ? (
                           <div className="flex items-center gap-2">
@@ -1118,6 +1194,8 @@ export default function OdooContacts() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
+                      )}
+                      {visibleColumns.tier && (
                       <td className="px-4 py-3">
                         {contact.pricingTier ? (
                           <Badge variant="secondary" className="capitalize bg-gray-100 text-gray-700">
@@ -1127,6 +1205,40 @@ export default function OdooContacts() {
                           <span className="text-gray-400">—</span>
                         )}
                       </td>
+                      )}
+                      {visibleColumns.salesRep && (
+                      <td className="px-4 py-3">
+                        <span className="text-gray-700">{contact.salesRepName || '—'}</span>
+                      </td>
+                      )}
+                      {visibleColumns.website && (
+                      <td className="px-4 py-3">
+                        {contact.website ? (
+                          <a href={contact.website.startsWith('http') ? contact.website : `https://${contact.website}`} target="_blank" rel="noopener noreferrer" onClick={e => e.stopPropagation()} className="text-blue-600 hover:underline text-sm truncate max-w-[200px] block">
+                            {contact.website.replace(/^https?:\/\//, '')}
+                          </a>
+                        ) : <span className="text-gray-400">—</span>}
+                      </td>
+                      )}
+                      {visibleColumns.totalOrders && (
+                      <td className="px-4 py-3 text-gray-700">{contact.totalOrders || 0}</td>
+                      )}
+                      {visibleColumns.totalSpent && (
+                      <td className="px-4 py-3 text-gray-700">${Number(contact.totalSpent || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 })}</td>
+                      )}
+                      {visibleColumns.tags && (
+                      <td className="px-4 py-3">
+                        {contact.tags ? (
+                          <span className="text-xs text-gray-600 truncate max-w-[150px] block">{contact.tags}</span>
+                        ) : <span className="text-gray-400">—</span>}
+                      </td>
+                      )}
+                      {visibleColumns.createdAt && (
+                      <td className="px-4 py-3 text-xs text-gray-500">{contact.createdAt ? new Date(contact.createdAt).toLocaleDateString() : '—'}</td>
+                      )}
+                      {visibleColumns.updatedAt && (
+                      <td className="px-4 py-3 text-xs text-gray-500">{contact.updatedAt ? new Date(contact.updatedAt).toLocaleDateString() : '—'}</td>
+                      )}
                       <td className="px-4 py-3">
                         <DropdownMenu>
                           <DropdownMenuTrigger asChild onClick={e => e.stopPropagation()}>

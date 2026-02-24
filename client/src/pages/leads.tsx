@@ -60,9 +60,12 @@ import {
   BarChart3,
   Send,
   GripVertical,
+  SlidersHorizontal,
 } from "lucide-react";
 import { SiOdoo, SiShopify } from "react-icons/si";
 import { Progress } from "@/components/ui/progress";
+import { Checkbox } from "@/components/ui/checkbox";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 
 interface Lead {
   id: number;
@@ -141,6 +144,38 @@ export default function LeadsPage() {
   const [search, setSearch] = useState('');
   const [stageFilter, setStageFilter] = useState<string>('all');
   const [viewMode, setViewMode] = useState<'cards' | 'list' | 'kanban' | 'funnel'>('cards');
+
+  const LEAD_COLUMNS = [
+    { key: 'name', label: 'Name', alwaysVisible: true },
+    { key: 'company', label: 'Company' },
+    { key: 'email', label: 'Email' },
+    { key: 'stage', label: 'Stage' },
+    { key: 'priority', label: 'Priority' },
+    { key: 'origin', label: 'Origin' },
+    { key: 'primaryContact', label: 'Primary Contact' },
+    { key: 'touchpoints', label: 'Touchpoints' },
+    { key: 'score', label: 'Score' },
+    { key: 'salesRep', label: 'Sales Rep' },
+    { key: 'phone', label: 'Phone' },
+    { key: 'location', label: 'Location' },
+    { key: 'createdAt', label: 'Created' },
+  ] as const;
+
+  const [visibleLeadColumns, setVisibleLeadColumns] = useState<Record<string, boolean>>(() => {
+    const saved = localStorage.getItem('leads-visible-columns');
+    if (saved) {
+      try { return JSON.parse(saved); } catch {}
+    }
+    return { name: true, company: true, email: true, stage: true, priority: true, origin: true, primaryContact: true, touchpoints: true, score: true, salesRep: true };
+  });
+
+  const toggleLeadColumn = (key: string) => {
+    setVisibleLeadColumns(prev => {
+      const next = { ...prev, [key]: !prev[key] };
+      localStorage.setItem('leads-visible-columns', JSON.stringify(next));
+      return next;
+    });
+  };
   const [showCreateDialog, setShowCreateDialog] = useState(false);
   const [importStatus, setImportStatus] = useState<{ message: string; progress: number } | null>(null);
   const [showMondayReview, setShowMondayReview] = useState(false);
@@ -464,6 +499,34 @@ export default function LeadsPage() {
               ))}
             </SelectContent>
           </Select>
+          {viewMode === 'list' && (
+            <Popover>
+              <PopoverTrigger asChild>
+                <Button variant="outline" size="sm" className="gap-2 bg-white/80">
+                  <SlidersHorizontal className="w-4 h-4" />
+                  Columns
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent align="end" className="w-52 p-2">
+                <p className="text-xs font-medium text-gray-500 uppercase px-2 py-1.5">Toggle Columns</p>
+                {LEAD_COLUMNS.map(col => (
+                  <label
+                    key={col.key}
+                    className={`flex items-center gap-2 px-2 py-1.5 rounded-md text-sm cursor-pointer hover:bg-gray-50 ${
+                      'alwaysVisible' in col && col.alwaysVisible ? 'opacity-50 pointer-events-none' : ''
+                    }`}
+                  >
+                    <Checkbox
+                      checked={!!visibleLeadColumns[col.key] || ('alwaysVisible' in col && !!col.alwaysVisible)}
+                      onCheckedChange={() => !('alwaysVisible' in col && col.alwaysVisible) && toggleLeadColumn(col.key)}
+                      disabled={'alwaysVisible' in col && !!col.alwaysVisible}
+                    />
+                    {col.label}
+                  </label>
+                ))}
+              </PopoverContent>
+            </Popover>
+          )}
           <div className="flex border rounded-md bg-white/80">
             <Button
               variant={viewMode === 'cards' ? 'secondary' : 'ghost'}
@@ -733,16 +796,19 @@ export default function LeadsPage() {
               <table className="w-full text-sm">
                 <thead className="bg-slate-50/80">
                   <tr>
-                    <th className="text-left p-3 font-medium text-slate-600">Name</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Company</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Email</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Stage</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Priority</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Origin</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Primary Contact</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Touchpoints</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Score</th>
-                    <th className="text-left p-3 font-medium text-slate-600">Sales Rep</th>
+                    {visibleLeadColumns.name !== false && <th className="text-left p-3 font-medium text-slate-600">Name</th>}
+                    {visibleLeadColumns.company && <th className="text-left p-3 font-medium text-slate-600">Company</th>}
+                    {visibleLeadColumns.email && <th className="text-left p-3 font-medium text-slate-600">Email</th>}
+                    {visibleLeadColumns.stage && <th className="text-left p-3 font-medium text-slate-600">Stage</th>}
+                    {visibleLeadColumns.priority && <th className="text-left p-3 font-medium text-slate-600">Priority</th>}
+                    {visibleLeadColumns.origin && <th className="text-left p-3 font-medium text-slate-600">Origin</th>}
+                    {visibleLeadColumns.primaryContact && <th className="text-left p-3 font-medium text-slate-600">Primary Contact</th>}
+                    {visibleLeadColumns.touchpoints && <th className="text-left p-3 font-medium text-slate-600">Touchpoints</th>}
+                    {visibleLeadColumns.score && <th className="text-left p-3 font-medium text-slate-600">Score</th>}
+                    {visibleLeadColumns.salesRep && <th className="text-left p-3 font-medium text-slate-600">Sales Rep</th>}
+                    {visibleLeadColumns.phone && <th className="text-left p-3 font-medium text-slate-600">Phone</th>}
+                    {visibleLeadColumns.location && <th className="text-left p-3 font-medium text-slate-600">Location</th>}
+                    {visibleLeadColumns.createdAt && <th className="text-left p-3 font-medium text-slate-600">Created</th>}
                   </tr>
                 </thead>
                 <tbody>
@@ -755,17 +821,22 @@ export default function LeadsPage() {
                         className="border-t border-slate-100 hover:bg-slate-50/50 cursor-pointer"
                         onClick={() => setLocation(`/leads/${lead.id}`)}
                       >
-                        <td className="p-3 font-medium text-slate-800">{lead.name}</td>
-                        <td className="p-3 text-slate-600">{lead.company || '-'}</td>
-                        <td className="p-3 text-slate-600">{lead.email || '-'}</td>
+                        {visibleLeadColumns.name !== false && <td className="p-3 font-medium text-slate-800">{lead.name}</td>}
+                        {visibleLeadColumns.company && <td className="p-3 text-slate-600">{lead.company || '-'}</td>}
+                        {visibleLeadColumns.email && <td className="p-3 text-slate-600">{lead.email || '-'}</td>}
+                        {visibleLeadColumns.stage && (
                         <td className="p-3">
                           <Badge className={stageInfo.color}>{stageInfo.label}</Badge>
                         </td>
+                        )}
+                        {visibleLeadColumns.priority && (
                         <td className="p-3">
                           <Badge variant="outline" className={priorityInfo.color}>
                             {priorityInfo.label}
                           </Badge>
                         </td>
+                        )}
+                        {visibleLeadColumns.origin && (
                         <td className="p-3">
                           <div className="flex items-center gap-1">
                             {lead.existsInOdooAsContact && (
@@ -781,6 +852,8 @@ export default function LeadsPage() {
                             {!lead.existsInOdooAsContact && !lead.existsInShopify && '-'}
                           </div>
                         </td>
+                        )}
+                        {visibleLeadColumns.primaryContact && (
                         <td className="p-3 text-slate-600">
                           {lead.primaryContactName ? (
                             <div className="flex flex-col">
@@ -793,9 +866,13 @@ export default function LeadsPage() {
                             '-'
                           )}
                         </td>
-                        <td className="p-3 text-slate-600">{lead.totalTouchpoints}</td>
-                        <td className="p-3 text-slate-600">{lead.score}</td>
-                        <td className="p-3 text-slate-600">{lead.salesRepName || '-'}</td>
+                        )}
+                        {visibleLeadColumns.touchpoints && <td className="p-3 text-slate-600">{lead.totalTouchpoints}</td>}
+                        {visibleLeadColumns.score && <td className="p-3 text-slate-600">{lead.score}</td>}
+                        {visibleLeadColumns.salesRep && <td className="p-3 text-slate-600">{lead.salesRepName || '-'}</td>}
+                        {visibleLeadColumns.phone && <td className="p-3 text-slate-600">{lead.phone || lead.mobile || '-'}</td>}
+                        {visibleLeadColumns.location && <td className="p-3 text-slate-600">{[lead.city, lead.state, lead.country].filter(Boolean).join(', ') || '-'}</td>}
+                        {visibleLeadColumns.createdAt && <td className="p-3 text-xs text-slate-500">{lead.createdAt ? new Date(lead.createdAt).toLocaleDateString() : '-'}</td>}
                       </tr>
                     );
                   })}
