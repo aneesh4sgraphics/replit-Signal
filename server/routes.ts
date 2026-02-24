@@ -2739,6 +2739,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
       for (const addr of resolved) {
         try {
           const finalCustomerId = addr.leadId ? `lead-${addr.leadId}` : addr.customerId!;
+          const isBulk = resolved.length > 1;
+          const bulkNote = isBulk ? `Bulk label (${resolved.length} labels in batch)` : null;
           await db.insert(labelPrints).values({
             customerId: finalCustomerId,
             labelType,
@@ -2752,7 +2754,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
             postalCode: '',
             printedByUserId: userId,
             printedByUserName: userName,
-            notes: null,
+            notes: bulkNote,
           });
 
           if (addr.leadId) {
@@ -2760,7 +2762,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               leadId: addr.leadId,
               activityType: 'sample_sent',
               summary: `Printed ${labelTypeDisplay} label`,
-              details: null,
+              details: bulkNote,
               performedBy: userId,
               performedByName: userName,
             });
@@ -2770,7 +2772,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
               customerId: addr.customerId,
               eventType,
               title: `${labelTypeDisplay} label printed`,
-              description: null,
+              description: bulkNote,
               sourceType: 'auto',
               sourceId: finalCustomerId,
               sourceTable: 'label_prints',
