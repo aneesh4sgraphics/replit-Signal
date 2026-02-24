@@ -158,6 +158,8 @@ export default function LeadsPage() {
   const [viewMode, setViewMode] = useState<'cards' | 'list' | 'kanban' | 'funnel'>('cards');
   const [sortField, setSortField] = useState<'name' | 'company' | 'state' | 'createdAt'>('createdAt');
   const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
+  const [currentPage, setCurrentPage] = useState(1);
+  const leadsPerPage = 50;
 
   const LEAD_COLUMNS = [
     { key: 'name', label: 'Name', alwaysVisible: true },
@@ -392,6 +394,13 @@ export default function LeadsPage() {
     if (sortOrder === 'asc') return aVal > bVal ? 1 : aVal < bVal ? -1 : 0;
     return aVal < bVal ? 1 : aVal > bVal ? -1 : 0;
   });
+
+  const totalPages = Math.ceil(leads.length / leadsPerPage);
+  const paginatedLeads = leads.slice((currentPage - 1) * leadsPerPage, currentPage * leadsPerPage);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [search, stageFilter, stateFilter, sortField, sortOrder]);
 
   const getStageInfo = (stage: string) => STAGES.find(s => s.value === stage) || STAGES[0];
   const getPriorityInfo = (priority: string | null) => PRIORITIES.find(p => p.value === priority) || PRIORITIES[1];
@@ -678,7 +687,7 @@ export default function LeadsPage() {
           </Card>
         ) : viewMode === 'cards' ? (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {leads.map(lead => {
+            {paginatedLeads.map(lead => {
               const stageInfo = getStageInfo(lead.stage);
               const priorityInfo = getPriorityInfo(lead.priority);
               const trustProgress = getTrustBuildingProgress(lead);
@@ -914,7 +923,7 @@ export default function LeadsPage() {
                   </tr>
                 </thead>
                 <tbody>
-                  {leads.map(lead => {
+                  {paginatedLeads.map(lead => {
                     const stageInfo = getStageInfo(lead.stage);
                     const priorityInfo = getPriorityInfo(lead.priority);
                     return (
@@ -1165,6 +1174,54 @@ export default function LeadsPage() {
             </CardContent>
           </Card>
         ) : null}
+
+        {(viewMode === 'cards' || viewMode === 'list') && totalPages > 1 && (
+          <div className="flex items-center justify-between mt-4 px-2">
+            <p className="text-sm text-slate-500">
+              Showing {((currentPage - 1) * leadsPerPage) + 1}–{Math.min(currentPage * leadsPerPage, leads.length)} of {leads.length} leads
+            </p>
+            <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === 1}
+                onClick={() => setCurrentPage(p => p - 1)}
+              >
+                Previous
+              </Button>
+              {Array.from({ length: totalPages }, (_, i) => i + 1)
+                .filter(page => page === 1 || page === totalPages || Math.abs(page - currentPage) <= 2)
+                .reduce<(number | string)[]>((acc, page, idx, arr) => {
+                  if (idx > 0 && page - (arr[idx - 1] as number) > 1) acc.push('...');
+                  acc.push(page);
+                  return acc;
+                }, [])
+                .map((page, idx) =>
+                  typeof page === 'string' ? (
+                    <span key={`ellipsis-${idx}`} className="px-1 text-slate-400">...</span>
+                  ) : (
+                    <Button
+                      key={page}
+                      variant={page === currentPage ? "default" : "outline"}
+                      size="sm"
+                      className="w-9"
+                      onClick={() => setCurrentPage(page)}
+                    >
+                      {page}
+                    </Button>
+                  )
+                )}
+              <Button
+                variant="outline"
+                size="sm"
+                disabled={currentPage === totalPages}
+                onClick={() => setCurrentPage(p => p + 1)}
+              >
+                Next
+              </Button>
+            </div>
+          </div>
+        )}
 
         {/* Create Lead Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
