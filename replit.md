@@ -79,6 +79,8 @@ This is a full-stack TypeScript sales management application designed for a spec
     - Old single-print endpoint (`POST /api/labels/print`) still works for Spotlight's inline label flow.
     - `LabelQueueProvider` wraps the app in `App.tsx`; `LabelQueueIndicator` shows the floating print button.
 
+- **Win Path Visualization:** On customer detail pages, shows the chronological sequence of interactions (emails, mailers, swatch books, press test kits, calls, quotes, samples, meetings) that led to each Shopify order, when the order occurred after the first email sent from the app. Includes summary badges of interaction counts and "days from first touch" metric. Backend endpoint: `GET /api/customers/:customerId/win-path`. Dashboard also has `GET /api/dashboard/sales-wins` for team-wide win attribution.
+
 ## External Dependencies
 
 - **Odoo V19 ERP:** Used for customer data, product catalogs, pricelists, and orders.

@@ -56,6 +56,7 @@ import {
   Star,
   Target,
   Eye,
+  Trophy,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -207,6 +208,17 @@ export default function OdooCompanyDetail() {
     },
     enabled: !!companyId,
     staleTime: 60000,
+  });
+
+  const { data: winPathData } = useQuery<any>({
+    queryKey: ['/api/customers', companyId, 'win-path'],
+    queryFn: async () => {
+      const res = await fetch(`/api/customers/${companyId}/win-path`);
+      if (!res.ok) return null;
+      return res.json();
+    },
+    enabled: !!companyId,
+    staleTime: 120000,
   });
 
   const { data: contactsData, isLoading: contactsLoading } = useQuery<{ contacts: OdooContact[] }>({
@@ -1430,6 +1442,109 @@ export default function OdooCompanyDetail() {
                       Type: <span className="capitalize font-medium">{opportunityData.opportunityType.replace(/_/g, ' ')}</span>
                     </div>
                   )}
+                </CardContent>
+              </Card>
+            )}
+
+            {winPathData?.hasWins && winPathData.paths.length > 0 && (
+              <Card className="border-emerald-200 bg-gradient-to-br from-emerald-50/50 to-green-50/30">
+                <CardHeader className="pb-3">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Trophy className="w-5 h-5 text-emerald-600" />
+                    Win Path
+                    <Badge className="ml-auto bg-emerald-100 text-emerald-800 font-semibold">
+                      {winPathData.paths.length} {winPathData.paths.length === 1 ? 'Win' : 'Wins'}
+                    </Badge>
+                  </CardTitle>
+                  <p className="text-xs text-gray-500 mt-1">The steps that led to each order — learn what works and repeat it</p>
+                </CardHeader>
+                <CardContent className="space-y-4">
+                  {winPathData.paths.map((path: any, pathIdx: number) => (
+                    <div key={path.orderId} className={pathIdx > 0 ? 'pt-4 border-t border-emerald-100' : ''}>
+                      <div className="flex items-center justify-between mb-3">
+                        <div className="flex items-center gap-2">
+                          <SiShopify className="w-4 h-4 text-green-600" />
+                          <span className="text-sm font-semibold text-gray-800">
+                            Order {path.orderNumber}
+                          </span>
+                          <span className="text-sm font-bold text-emerald-700">
+                            ${path.orderTotal.toFixed(2)}
+                          </span>
+                        </div>
+                        <span className="text-xs text-gray-500">
+                          {path.daysToWin} {path.daysToWin === 1 ? 'day' : 'days'} from first touch
+                        </span>
+                      </div>
+
+                      <div className="relative pl-6">
+                        <div className="absolute left-[11px] top-2 bottom-2 w-[2px] bg-emerald-200" />
+                        {path.steps.map((step: any, stepIdx: number) => {
+                          const isLast = stepIdx === path.steps.length - 1;
+                          const stepDate = new Date(step.date);
+                          const dateStr = stepDate.toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
+
+                          const iconMap: Record<string, { bg: string; icon: string }> = {
+                            email: { bg: 'bg-blue-100', icon: '✉️' },
+                            swatch_book: { bg: 'bg-purple-100', icon: '📚' },
+                            press_test_kit: { bg: 'bg-indigo-100', icon: '🧪' },
+                            mailer: { bg: 'bg-orange-100', icon: '📬' },
+                            letter: { bg: 'bg-gray-100', icon: '✉️' },
+                            call_made: { bg: 'bg-green-100', icon: '📞' },
+                            quote_sent: { bg: 'bg-violet-100', icon: '📄' },
+                            quote_accepted: { bg: 'bg-emerald-100', icon: '✅' },
+                            sample_shipped: { bg: 'bg-cyan-100', icon: '📦' },
+                            sample_delivered: { bg: 'bg-teal-100', icon: '📬' },
+                            sample_feedback: { bg: 'bg-amber-100', icon: '💬' },
+                            meeting_completed: { bg: 'bg-pink-100', icon: '🤝' },
+                            order: { bg: 'bg-emerald-200', icon: '🏆' },
+                          };
+                          const stepStyle = iconMap[step.type] || { bg: 'bg-gray-100', icon: '•' };
+
+                          return (
+                            <div key={stepIdx} className="relative flex items-start gap-3 mb-2 last:mb-0">
+                              <div className={`relative z-10 w-6 h-6 rounded-full ${stepStyle.bg} flex items-center justify-center text-xs flex-shrink-0 ${isLast ? 'ring-2 ring-emerald-400' : ''}`}>
+                                {stepStyle.icon}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <div className="flex items-center gap-2">
+                                  <span className={`text-sm ${isLast ? 'font-bold text-emerald-700' : 'font-medium text-gray-800'}`}>
+                                    {step.label}
+                                  </span>
+                                  <span className="text-xs text-gray-400">{dateStr}</span>
+                                </div>
+                                <p className="text-xs text-gray-500 truncate">{step.detail}</p>
+                              </div>
+                            </div>
+                          );
+                        })}
+                      </div>
+
+                      {path.steps.length > 1 && (
+                        <div className="mt-3 flex flex-wrap gap-2">
+                          {(() => {
+                            const counts: Record<string, number> = {};
+                            path.steps.filter((s: any) => s.type !== 'order').forEach((s: any) => {
+                              const key = s.type === 'email' ? 'Emails'
+                                : s.type === 'swatch_book' ? 'Swatch Books'
+                                : s.type === 'press_test_kit' ? 'Press Test Kits'
+                                : s.type === 'mailer' ? 'Mailers'
+                                : s.type === 'call_made' ? 'Calls'
+                                : s.type === 'quote_sent' ? 'Quotes'
+                                : s.type === 'sample_shipped' ? 'Samples'
+                                : s.type === 'meeting_completed' ? 'Meetings'
+                                : 'Other';
+                              counts[key] = (counts[key] || 0) + 1;
+                            });
+                            return Object.entries(counts).map(([label, count]) => (
+                              <span key={label} className="inline-flex items-center text-xs px-2 py-0.5 rounded-full bg-white border border-emerald-200 text-gray-600">
+                                {count} {label}
+                              </span>
+                            ));
+                          })()}
+                        </div>
+                      )}
+                    </div>
+                  ))}
                 </CardContent>
               </Card>
             )}
