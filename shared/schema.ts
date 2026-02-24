@@ -3305,13 +3305,14 @@ export type SpotlightCoachTip = typeof spotlightCoachTips.$inferSelect;
 export type InsertSpotlightCoachTip = z.infer<typeof insertSpotlightCoachTipSchema>;
 
 // Label print types
-export const LABEL_TYPES = ['swatch_book', 'press_test_kit', 'mailer', 'other'] as const;
+export const LABEL_TYPES = ['swatch_book', 'press_test_kit', 'mailer', 'letter', 'other'] as const;
 export type LabelType = typeof LABEL_TYPES[number];
 
 export const LABEL_TYPE_LABELS: Record<LabelType, string> = {
   'swatch_book': 'Swatch Book',
   'press_test_kit': 'Press Test Kit',
   'mailer': 'Mailer',
+  'letter': 'Letter',
   'other': 'Something Else',
 };
 

@@ -2584,8 +2584,8 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
 
-      if (resolved.length < 4) {
-        return res.status(400).json({ error: "Not enough valid addresses. At least 4 required." });
+      if (resolved.length < 1) {
+        return res.status(400).json({ error: "No valid addresses found." });
       }
 
       // 4"x6" at 72 DPI = 288x432 points
@@ -3224,33 +3224,41 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       const customerDetails = await db.select({
         id: customers.id,
-        companyName: customers.companyName,
+        company: customers.company,
         email: customers.email,
       })
       .from(customers)
       .where(inArray(customers.id, customerIds));
       
-      // Also check leads table for any lead IDs
-      const leadDetails = await db.select({
-        id: leads.id,
-        companyName: leads.companyName,
-        email: leads.email,
-      })
-      .from(leads)
-      .where(inArray(leads.id, customerIds));
+      // Also check leads table for any lead IDs (lead IDs are integers stored as strings in customerIds)
+      const leadIdNumbers = customerIds.map(id => parseInt(id, 10)).filter(id => !isNaN(id));
+      let leadDetails: { id: number; company: string | null; email: string | null }[] = [];
+      if (leadIdNumbers.length > 0) {
+        leadDetails = await db.select({
+          id: leads.id,
+          company: leads.company,
+          email: leads.email,
+        })
+        .from(leads)
+        .where(inArray(leads.id, leadIdNumbers));
+      }
       
       // Combine and map to preserve order
-      const allDetails = [...customerDetails, ...leadDetails];
-      const detailsMap = new Map(allDetails.map(c => [c.id, c]));
+      const detailsMap = new Map<string, { company: string | null; email: string | null }>();
+      for (const c of customerDetails) {
+        detailsMap.set(String(c.id), { company: c.company, email: c.email });
+      }
+      for (const l of leadDetails) {
+        detailsMap.set(String(l.id), { company: l.company, email: l.email });
+      }
       
       const result = customerIds
-        .map(id => detailsMap.get(id))
-        .filter(Boolean)
-        .map(c => ({
-          id: c!.id,
-          name: c!.companyName || c!.email || 'Unknown',
-          email: c!.email,
-        }));
+        .map(id => {
+          const d = detailsMap.get(id);
+          if (!d) return null;
+          return { id, name: d.company || d.email || 'Unknown', email: d.email };
+        })
+        .filter(Boolean);
       
       res.json({ customers: result });
     } catch (error) {
