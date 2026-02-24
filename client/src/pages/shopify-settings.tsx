@@ -307,9 +307,13 @@ export default function ShopifySettingsPage() {
       queryClient.invalidateQueries({ queryKey: ['/api/shopify/customer-mappings'] });
       setMatchingOrderId(null);
       setSelectedCrmCustomer("");
+      const parts = ["Match saved for this and future orders."];
+      if (data.bulkMatched > 0) {
+        parts.push(`Also matched ${data.bulkMatched} other order${data.bulkMatched > 1 ? 's' : ''} from the same customer.`);
+      }
       toast({ 
         title: "Customer matched!", 
-        description: data.mappingCreated ? "A mapping was created for future orders from this customer." : undefined 
+        description: parts.join(' ')
       });
     },
     onError: (error: any) => {
@@ -1315,22 +1319,12 @@ export default function ShopifySettingsPage() {
                                 })()}
                               </div>
                               <div className="flex items-center gap-2">
-                                <div className="flex items-center gap-1">
-                                  <input 
-                                    type="checkbox" 
-                                    id={`mapping-${order.id}`}
-                                    checked={createMappingForFuture} 
-                                    onChange={(e) => setCreateMappingForFuture(e.target.checked)}
-                                    className="h-3 w-3"
-                                  />
-                                  <label htmlFor={`mapping-${order.id}`} className="text-xs">Remember for future</label>
-                                </div>
                                 <Button 
                                   size="sm" 
                                   onClick={() => matchCustomerMutation.mutate({ 
                                     orderId: order.id, 
                                     customerId: selectedCrmCustomer, 
-                                    createMapping: createMappingForFuture 
+                                    createMapping: true 
                                   })}
                                   disabled={!selectedCrmCustomer || matchCustomerMutation.isPending}
                                   data-testid={`button-confirm-match-${order.id}`}

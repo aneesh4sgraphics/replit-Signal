@@ -21275,46 +21275,73 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(404).json({ error: "Order not found" });
       }
 
+      const orderData = order[0];
+
       // Update the order with matched customer
       await db.update(shopifyOrders)
         .set({ customerId, updatedAt: new Date() })
         .where(eq(shopifyOrders.id, parseInt(orderId)));
 
-      // Create customer mapping for future auto-matching if requested
-      if (createMapping) {
-        const orderData = order[0];
-        const mappingData: any = {
-          crmCustomerId: customerId,
-          crmCustomerName: null,
-        };
+      // Also match all other unmatched orders from the same Shopify customer
+      const bulkMatchConditions = [];
+      if (orderData.customerEmail) {
+        bulkMatchConditions.push(ilike(shopifyOrders.customerEmail, orderData.customerEmail));
+      }
+      if (orderData.shopifyCustomerId) {
+        bulkMatchConditions.push(eq(shopifyOrders.shopifyCustomerId, orderData.shopifyCustomerId));
+      }
+      let bulkMatched = 0;
+      if (bulkMatchConditions.length > 0) {
+        const bulkResult = await db.update(shopifyOrders)
+          .set({ customerId, updatedAt: new Date() })
+          .where(and(
+            or(...bulkMatchConditions),
+            isNull(shopifyOrders.customerId)
+          ));
+        bulkMatched = (bulkResult as any)?.rowCount || 0;
+      }
 
-        // Get CRM customer name
-        const crmCustomer = await db.select().from(customers)
-          .where(eq(customers.id, customerId))
-          .limit(1);
-        if (crmCustomer.length > 0) {
-          mappingData.crmCustomerName = crmCustomer[0].company || `${crmCustomer[0].firstName} ${crmCustomer[0].lastName}`.trim();
-        }
+      // Always create customer mapping for future auto-matching
+      const mappingData: any = {
+        crmCustomerId: customerId,
+        crmCustomerName: null,
+      };
 
-        // Add Shopify identifiers
-        if (orderData.customerEmail) {
-          mappingData.shopifyEmail = orderData.customerEmail.toLowerCase();
-        }
-        if (orderData.companyName) {
-          mappingData.shopifyCompanyName = orderData.companyName;
-        }
-        if (orderData.shopifyCustomerId) {
-          mappingData.shopifyCustomerId = orderData.shopifyCustomerId;
-        }
+      const crmCustomer = await db.select().from(customers)
+        .where(eq(customers.id, customerId))
+        .limit(1);
+      if (crmCustomer.length > 0) {
+        mappingData.crmCustomerName = crmCustomer[0].company || `${crmCustomer[0].firstName} ${crmCustomer[0].lastName}`.trim();
+      }
 
-        // Check if mapping already exists
-        const existingMapping = await db.select().from(shopifyCustomerMappings)
-          .where(eq(shopifyCustomerMappings.crmCustomerId, customerId))
-          .limit(1);
+      if (orderData.customerEmail) {
+        mappingData.shopifyEmail = orderData.customerEmail.toLowerCase();
+      }
+      if (orderData.companyName) {
+        mappingData.shopifyCompanyName = orderData.companyName;
+      }
+      if (orderData.shopifyCustomerId) {
+        mappingData.shopifyCustomerId = orderData.shopifyCustomerId;
+      }
 
-        if (existingMapping.length === 0) {
-          await db.insert(shopifyCustomerMappings).values(mappingData);
-        }
+      // Check if mapping already exists by any Shopify identifier
+      const mappingChecks = [];
+      if (orderData.shopifyCustomerId) {
+        mappingChecks.push(eq(shopifyCustomerMappings.shopifyCustomerId, orderData.shopifyCustomerId));
+      }
+      if (orderData.customerEmail) {
+        mappingChecks.push(ilike(shopifyCustomerMappings.shopifyEmail, orderData.customerEmail));
+      }
+      mappingChecks.push(eq(shopifyCustomerMappings.crmCustomerId, customerId));
+
+      const existingMapping = await db.select().from(shopifyCustomerMappings)
+        .where(or(...mappingChecks))
+        .limit(1);
+
+      let mappingCreated = false;
+      if (existingMapping.length === 0) {
+        await db.insert(shopifyCustomerMappings).values(mappingData);
+        mappingCreated = true;
       }
 
       // Process for coaching if paid
@@ -21327,7 +21354,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         });
       }
 
-      res.json({ success: true, mappingCreated: !!createMapping });
+      res.json({ success: true, mappingCreated, bulkMatched });
     } catch (error) {
       console.error("Error matching customer to order:", error);
       res.status(500).json({ error: "Failed to match customer" });
