@@ -81,6 +81,8 @@ This is a full-stack TypeScript sales management application designed for a spec
 
 - **Win Path Visualization:** On customer detail pages, shows the chronological sequence of interactions (emails, mailers, swatch books, press test kits, calls, quotes, samples, meetings) that led to each Shopify order, when the order occurred after the first email sent from the app. Includes summary badges of interaction counts and "days from first touch" metric. Backend endpoint: `GET /api/customers/:customerId/win-path`. Dashboard also has `GET /api/dashboard/sales-wins` for team-wide win attribution.
 
+- **Automatic Lead-to-Customer Conversion:** When a Shopify order over $50 is placed by someone whose email matches an active lead (not already converted or lost), the lead is automatically converted to a customer in Contacts. The conversion maps all lead fields (name, email, phone, address, sales rep, pricing tier, tags, etc.) to the new customer record, marks the lead stage as "converted", and logs an activity event. This runs in three places: Shopify order webhook, order sync, and order listing auto-match.
+
 ## External Dependencies
 
 - **Odoo V19 ERP:** Used for customer data, product catalogs, pricelists, and orders.

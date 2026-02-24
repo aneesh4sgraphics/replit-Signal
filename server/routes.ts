@@ -19943,6 +19943,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
           }
         }
 
+        // If no customer match, check leads — convert to customer if order > $50
+        if (!matchedCustomerId && customerEmail) {
+          const orderTotal = parseFloat(order.total_price || '0');
+          if (orderTotal > 50) {
+            const matchingLeads = await db.select().from(leads)
+              .where(and(
+                ilike(leads.email, customerEmail),
+                ne(leads.stage, 'converted'),
+                ne(leads.stage, 'lost')
+              ))
+              .limit(1);
+
+            if (matchingLeads.length > 0) {
+              const convertedId = await convertLeadToCustomer(matchingLeads[0], orderTotal, customerEmail);
+              if (convertedId) {
+                matchedCustomerId = convertedId;
+              }
+            }
+          }
+        }
+
         // Store the order
         await db.insert(shopifyOrders).values({
           shopifyOrderId: String(order.id),
@@ -19987,6 +20008,75 @@ export async function registerRoutes(app: Express): Promise<Server> {
       console.error("Error processing Shopify webhook:", error);
     }
   });
+
+  // Helper function to convert a lead to a customer when they place a qualifying order
+  async function convertLeadToCustomer(lead: any, orderTotal: number, orderEmail: string): Promise<string | null> {
+    try {
+      const newCustomerId = crypto.randomUUID();
+      const nameParts = (lead.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+
+      await db.insert(customers).values({
+        id: newCustomerId,
+        firstName,
+        lastName,
+        company: lead.company || lead.name || '',
+        email: lead.email || orderEmail,
+        emailNormalized: lead.emailNormalized || orderEmail?.toLowerCase()?.trim(),
+        phone: lead.phone || null,
+        cell: lead.mobile || null,
+        address1: lead.street || null,
+        address2: lead.street2 || null,
+        city: lead.city || null,
+        province: lead.state || null,
+        zip: lead.zip || null,
+        country: lead.country || null,
+        website: lead.website || null,
+        note: lead.description || null,
+        salesRepId: lead.salesRepId || null,
+        salesRepName: lead.salesRepName || null,
+        pricingTier: lead.pricingTier || null,
+        pricingTierSetBy: lead.pricingTierSetBy || null,
+        pricingTierSetAt: lead.pricingTierSetAt || null,
+        customerType: lead.customerType || null,
+        tags: lead.tags || null,
+        isCompany: lead.isCompany || false,
+        totalSpent: String(orderTotal),
+        totalOrders: 1,
+        sources: ['lead_conversion'],
+        swatchbookSentAt: lead.swatchbookSentAt || null,
+        priceListSentAt: lead.priceListSentAt || null,
+        odooPartnerId: lead.sourceContactOdooPartnerId || null,
+        createdAt: new Date(),
+      });
+
+      // Mark the lead as converted
+      await db.update(leads).set({
+        stage: 'converted',
+        updatedAt: new Date(),
+      }).where(eq(leads.id, lead.id));
+
+      // Log the conversion as an activity event
+      await db.insert(customerActivityEvents).values({
+        customerId: newCustomerId,
+        eventType: 'order_placed',
+        title: `Lead converted to customer (order $${orderTotal.toFixed(2)})`,
+        description: `Lead "${lead.name}" was automatically converted to a customer after placing a Shopify order over $50.`,
+        sourceType: 'auto',
+        sourceTable: 'leads',
+        sourceId: String(lead.id),
+        amount: String(orderTotal),
+        eventDate: new Date(),
+      });
+
+      console.log(`[Lead Conversion] Lead #${lead.id} "${lead.name}" converted to customer ${newCustomerId} (order: $${orderTotal.toFixed(2)})`);
+      return newCustomerId;
+    } catch (error) {
+      console.error(`[Lead Conversion] Failed to convert lead #${lead.id}:`, error);
+      return null;
+    }
+  }
 
   // Helper function to process paid orders for coaching
   async function processOrderForCoaching(customerId: string, order: any) {
@@ -20413,6 +20503,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
           
           if (matchingCustomers.length === 1) {
             autoMatched[email] = matchingCustomers[0].id;
+          } else if (matchingCustomers.length === 0) {
+            // No customer match — check if a lead matches and has a qualifying order
+            const ordersForEmail = unmatchedOrders.filter(o => o.customerEmail?.toLowerCase() === email);
+            const maxOrderTotal = Math.max(...ordersForEmail.map(o => parseFloat(o.totalPrice || '0')));
+            if (maxOrderTotal > 50) {
+              const matchingLeads = await db.select().from(leads)
+                .where(and(
+                  ilike(leads.email, email),
+                  ne(leads.stage, 'converted'),
+                  ne(leads.stage, 'lost')
+                ))
+                .limit(1);
+
+              if (matchingLeads.length > 0) {
+                const convertedId = await convertLeadToCustomer(matchingLeads[0], maxOrderTotal, email);
+                if (convertedId) {
+                  autoMatched[email] = convertedId;
+                }
+              }
+            }
           }
         }
         
@@ -20530,6 +20640,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
             .limit(2);
           if (emailMatches.length === 1) {
             orderData.customerId = emailMatches[0].id;
+          }
+        }
+
+        // If still no customer match, check leads — convert to customer if order > $50
+        if (!orderData.customerId && customerEmail) {
+          const orderTotal = parseFloat(order.total_price || '0');
+          if (orderTotal > 50) {
+            const matchingLeads = await db.select().from(leads)
+              .where(and(
+                ilike(leads.email, customerEmail),
+                ne(leads.stage, 'converted'),
+                ne(leads.stage, 'lost')
+              ))
+              .limit(1);
+
+            if (matchingLeads.length > 0) {
+              const convertedId = await convertLeadToCustomer(matchingLeads[0], orderTotal, customerEmail);
+              if (convertedId) {
+                orderData.customerId = convertedId;
+              }
+            }
           }
         }
         
