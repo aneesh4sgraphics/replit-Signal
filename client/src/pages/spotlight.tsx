@@ -2606,7 +2606,8 @@ export default function Spotlight() {
                               labelQueue.removeFromQueue(labelId);
                               toast({ title: 'Removed from label queue' });
                             } else {
-                              labelQueue.addToQueueAndOpen(labelCustomer, leadIdForQueue);
+                              labelQueue.addToQueue(labelCustomer, leadIdForQueue);
+                              toast({ title: 'Added to label queue', description: 'Click the labels button to print when ready.' });
                             }
                           }}
                           disabled={!effectiveAddress}
