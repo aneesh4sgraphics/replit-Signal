@@ -27,7 +27,7 @@ import {
   Zap, Play, Pause, GripVertical, Mail, ArrowRight, Eye, Variable,
   Bold, Italic, Underline as UnderlineIcon, List, ListOrdered, 
   AlignLeft, AlignCenter, AlignRight, Link as LinkIcon, Image as ImageIcon,
-  X, Check, Search, UserPlus
+  X, Check, Search, UserPlus, Smartphone, Monitor, Sun, Moon
 } from "lucide-react";
 import type { DripCampaign, DripCampaignStep, Customer } from "@shared/schema";
 import { EMAIL_TEMPLATE_VARIABLES } from "@shared/schema";
@@ -63,6 +63,8 @@ export default function DripCampaignBuilder() {
   const [showStepEditor, setShowStepEditor] = useState(false);
   const [showCampaignDialog, setShowCampaignDialog] = useState(false);
   const [showPreview, setShowPreview] = useState(false);
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewTheme, setPreviewTheme] = useState<'light' | 'dark'>('light');
   const [customerSearch, setCustomerSearch] = useState("");
   const [selectedCustomerIds, setSelectedCustomerIds] = useState<string[]>([]);
   const editorRef = useRef<Editor | null>(null);
@@ -262,6 +264,39 @@ export default function DripCampaignBuilder() {
     if (editorRef.current) {
       editorRef.current.chain().focus().insertContent(`{{${variable}}}`).run();
     }
+  };
+
+  const PREVIEW_SAMPLE_VALUES: Record<string, string> = {
+    'client.name': 'Jane Smith',
+    'client.firstName': 'Jane',
+    'client.lastName': 'Smith',
+    'client.company': 'Acme Corporation',
+    'client.email': 'jane@acme.com',
+    'client.salesRep': 'Your Name',
+    'product.name': 'Premium Banner',
+    'product.type': 'Wide Format',
+    'product.size': '4ft × 8ft',
+    'product.itemCode': 'WF-4x8-001',
+    'price.dealer': '$12.50',
+    'price.retail': '$18.00',
+    'price.export': '$10.00',
+    'price.masterDistributor': '$9.00',
+    'user.name': 'Your Name',
+    'user.email': 'you@yourcompany.com',
+    'user.signature': '<p style="color:#666;font-size:13px">Your Name | Sales Rep<br/>your@company.com | (555) 123-4567</p>',
+    'custom.text1': '[Custom Text 1]',
+    'custom.text2': '[Custom Text 2]',
+  };
+
+  const renderDripPreview = (subject: string, body: string) => {
+    let previewSubject = subject;
+    let previewBody = body;
+    Object.entries(PREVIEW_SAMPLE_VALUES).forEach(([key, value]) => {
+      const pattern = new RegExp(`\\{\\{${key.replace('.', '\\.')}\\}\\}`, 'g');
+      previewSubject = previewSubject.replace(pattern, value);
+      previewBody = previewBody.replace(pattern, value);
+    });
+    return { subject: previewSubject, body: previewBody };
   };
 
   const filteredCustomers = customers.filter(c => {
@@ -730,19 +765,125 @@ export default function DripCampaignBuilder() {
         </Dialog>
 
         <Dialog open={showPreview} onOpenChange={setShowPreview}>
-          <DialogContent className="max-w-2xl">
+          <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
             <DialogHeader>
-              <DialogTitle>Email Preview</DialogTitle>
-            </DialogHeader>
-            <div className="border rounded-lg p-4 bg-white">
-              <div className="border-b pb-3 mb-3">
-                <p className="text-sm text-gray-500">Subject:</p>
-                <p className="font-medium">{stepForm.subject || "(No subject)"}</p>
+              <div className="flex items-center justify-between">
+                <DialogTitle className="flex items-center gap-2">
+                  <Eye className="h-5 w-5 text-purple-600" />
+                  Email Preview
+                </DialogTitle>
+                <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 mr-8">
+                  <button
+                    onClick={() => setPreviewDevice('mobile')}
+                    className={`p-1.5 rounded-md transition-all ${previewDevice === 'mobile' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="Mobile preview"
+                  >
+                    <Smartphone className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setPreviewDevice('desktop')}
+                    className={`p-1.5 rounded-md transition-all ${previewDevice === 'desktop' ? 'bg-white shadow-sm text-purple-600' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="Desktop preview"
+                  >
+                    <Monitor className="h-4 w-4" />
+                  </button>
+                  <div className="w-px h-5 bg-gray-300 mx-0.5" />
+                  <button
+                    onClick={() => setPreviewTheme('light')}
+                    className={`p-1.5 rounded-md transition-all ${previewTheme === 'light' ? 'bg-white shadow-sm text-amber-500' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="Light mode"
+                  >
+                    <Sun className="h-4 w-4" />
+                  </button>
+                  <button
+                    onClick={() => setPreviewTheme('dark')}
+                    className={`p-1.5 rounded-md transition-all ${previewTheme === 'dark' ? 'bg-gray-700 shadow-sm text-blue-300' : 'text-gray-400 hover:text-gray-600'}`}
+                    title="Dark mode"
+                  >
+                    <Moon className="h-4 w-4" />
+                  </button>
+                </div>
               </div>
-              <div 
-                className="prose prose-sm max-w-none"
-                dangerouslySetInnerHTML={{ __html: stepForm.body || "<p>No content</p>" }}
-              />
+              <p className="text-xs text-gray-400 mt-1">Variables are shown with sample data so you can see how the email will look</p>
+            </DialogHeader>
+
+            <div className="flex justify-center py-2">
+              <div className={`relative transition-all duration-300 ${previewDevice === 'mobile' ? 'w-[320px]' : 'w-full max-w-[600px]'}`}>
+                {(() => {
+                  const { subject, body } = renderDripPreview(stepForm.subject || '', stepForm.body || '');
+                  const senderInitial = (user as any)?.email?.[0]?.toUpperCase() || 'Y';
+                  const senderEmail = (user as any)?.email || 'you@yourcompany.com';
+
+                  if (previewDevice === 'mobile') {
+                    return (
+                      <div className={`rounded-[2.5rem] border-[6px] p-1 shadow-xl ${previewTheme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-100'}`}>
+                        <div className={`w-12 h-1.5 rounded-full mx-auto mt-1 mb-2 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                        <div className={`rounded-[1.8rem] overflow-hidden ${previewTheme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                          <div className={`px-4 py-2.5 border-b ${previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                            <div className="flex items-center gap-2 mb-1.5">
+                              <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${previewTheme === 'dark' ? 'bg-purple-800 text-purple-200' : 'bg-purple-100 text-purple-600'}`}>
+                                {senderInitial}
+                              </div>
+                              <div className="flex-1 min-w-0">
+                                <p className={`text-xs font-semibold truncate ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                                  {senderEmail}
+                                </p>
+                                <p className={`text-[10px] truncate ${previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                                  to jane@acme.com
+                                </p>
+                              </div>
+                              <span className={`text-[10px] ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Now</span>
+                            </div>
+                            <p className={`text-sm font-semibold truncate ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                              {subject || '(No subject)'}
+                            </p>
+                          </div>
+                          <div
+                            className={`px-4 py-3 text-sm overflow-y-auto prose prose-sm max-w-none ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
+                            style={{ maxHeight: '380px', fontSize: '13px', lineHeight: '1.5' }}
+                            dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                          />
+                        </div>
+                        <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                      </div>
+                    );
+                  }
+
+                  return (
+                    <div className={`rounded-xl border shadow-lg overflow-hidden ${previewTheme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
+                      <div className={`px-4 py-3 border-b ${previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${previewTheme === 'dark' ? 'bg-purple-800 text-purple-200' : 'bg-purple-100 text-purple-600'}`}>
+                            {senderInitial}
+                          </div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                              {senderEmail}
+                            </p>
+                            <p className={`text-xs ${previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>
+                              to jane@acme.com
+                            </p>
+                          </div>
+                          <span className={`text-xs ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Just now</span>
+                        </div>
+                        <p className={`text-base font-semibold ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>
+                          {subject || '(No subject)'}
+                        </p>
+                      </div>
+                      <div
+                        className={`px-6 py-5 prose prose-sm max-w-none overflow-y-auto ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
+                        style={{ maxHeight: '440px', fontSize: '14px', lineHeight: '1.6' }}
+                        dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                      />
+                    </div>
+                  );
+                })()}
+              </div>
+            </div>
+
+            <div className={`flex items-center gap-2 p-3 rounded-lg text-xs ${previewTheme === 'dark' ? 'bg-gray-800 text-gray-400' : 'bg-gray-50 text-gray-500'}`}>
+              <Variable className="h-3.5 w-3.5 flex-shrink-0" />
+              <span>Preview uses sample data: <strong>Jane Smith</strong> at <strong>Acme Corporation</strong>. Real names and details will be filled in when the email sends.</span>
             </div>
           </DialogContent>
         </Dialog>
