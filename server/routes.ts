@@ -14576,10 +14576,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
     const newPartnerId = await odooClient.createPartner(payload);
 
-    // Save back to DB
-    await db.update(leads).set({ odooPartnerId: newPartnerId, updatedAt: new Date() }).where(eq(leads.id, leadId));
+    // Create a Contact in our own Contacts page from the lead data
+    const newCustomerId = crypto.randomUUID();
+    const nameParts = (lead.name || '').trim().split(' ');
+    const firstName = nameParts[0] || '';
+    const lastName = nameParts.slice(1).join(' ') || '';
 
-    return { success: true, odooPartnerId: newPartnerId };
+    await db.insert(customers).values({
+      id: newCustomerId,
+      firstName,
+      lastName,
+      company: lead.company || lead.name || '',
+      email: lead.email || null,
+      emailNormalized: lead.emailNormalized || (lead.email ? lead.email.toLowerCase().trim() : null),
+      phone: lead.phone || null,
+      cell: lead.mobile || null,
+      address1: lead.street || null,
+      address2: lead.street2 || null,
+      city: lead.city || null,
+      province: lead.state || null,
+      zip: lead.zip || null,
+      country: lead.country || null,
+      website: lead.website || null,
+      note: lead.description || null,
+      salesRepId: lead.salesRepId || null,
+      salesRepName: lead.salesRepName || null,
+      pricingTier: lead.pricingTier || null,
+      pricingTierSetBy: lead.pricingTierSetBy || null,
+      pricingTierSetAt: lead.pricingTierSetAt || null,
+      customerType: lead.customerType || null,
+      tags: lead.tags || null,
+      isCompany: lead.isCompany || false,
+      contactType: 'contact',
+      sources: ['lead_conversion'],
+      swatchbookSentAt: lead.swatchbookSentAt || null,
+      priceListSentAt: lead.priceListSentAt || null,
+      odooPartnerId: newPartnerId,
+      totalSpent: '0',
+      totalOrders: 0,
+      createdAt: new Date(),
+    });
+
+    // Log a conversion activity on the new contact
+    await db.insert(customerActivityEvents).values({
+      customerId: newCustomerId,
+      eventType: 'note',
+      title: 'Contact created from Lead (pushed to Odoo)',
+      description: `Lead "${lead.name}" was pushed to Odoo as Contact #${newPartnerId} and moved to the Contacts page.`,
+      sourceType: 'manual',
+      sourceTable: 'leads',
+      sourceId: String(lead.id),
+      eventDate: new Date(),
+    });
+
+    // Delete the lead — it now lives in Contacts
+    await db.delete(leadActivities).where(eq(leadActivities.leadId, leadId));
+    await db.delete(leads).where(eq(leads.id, leadId));
+
+    console.log(`[Push to Odoo] Lead #${leadId} "${lead.name}" → Odoo partner #${newPartnerId}, customer ${newCustomerId}, lead deleted`);
+
+    return { success: true, odooPartnerId: newPartnerId, customerId: newCustomerId };
   }
 
   // Push a single lead to Odoo as a Contact

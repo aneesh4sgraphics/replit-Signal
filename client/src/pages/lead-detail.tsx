@@ -259,10 +259,12 @@ export default function LeadDetail() {
       if (data.alreadyPushed) {
         toast({ title: 'Already in Odoo', description: `This contact is already in Odoo (Partner #${data.odooPartnerId})` });
       } else {
-        toast({ title: 'Contact created in Odoo', description: `Successfully added as Odoo Contact #${data.odooPartnerId}` });
+        toast({ title: 'Moved to Contacts', description: `Contact created in Odoo and added to your Contacts page.` });
+        queryClientInstance.invalidateQueries({ queryKey: ['/api/leads'] });
+        queryClientInstance.invalidateQueries({ queryKey: ['/api/customers'] });
+        // Redirect to the new contact's detail page
+        setTimeout(() => setLocation(`/contacts/${data.customerId}`), 600);
       }
-      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads', leadId] });
-      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads'] });
     },
     onError: (error: Error) => {
       toast({ title: 'Push to Odoo failed', description: error.message, variant: 'destructive' });

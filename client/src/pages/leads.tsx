@@ -851,9 +851,14 @@ export default function LeadsPage() {
                         const res = await apiRequest('POST', '/api/leads/push-to-odoo-bulk', { leadIds: unpushed });
                         const data = await res.json();
                         queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+                        queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
                         toast({
-                          title: `${data.pushed} contact${data.pushed !== 1 ? 's' : ''} created in Odoo`,
-                          description: data.skipped > 0 ? `${data.skipped} already pushed, ${data.failed} failed` : data.failed > 0 ? `${data.failed} failed` : undefined,
+                          title: `${data.pushed} contact${data.pushed !== 1 ? 's' : ''} moved to Contacts`,
+                          description: [
+                            data.pushed > 0 ? `Created in Odoo and added to Contacts page` : null,
+                            data.skipped > 0 ? `${data.skipped} already pushed` : null,
+                            data.failed > 0 ? `${data.failed} failed` : null,
+                          ].filter(Boolean).join(' · ') || undefined,
                         });
                       } catch (e: any) {
                         toast({ title: 'Push failed', description: e.message, variant: 'destructive' });
