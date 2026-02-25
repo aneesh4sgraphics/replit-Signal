@@ -395,7 +395,8 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
       labelQueue.removeFromQueue(customer.id);
       toast({ title: 'Removed from label queue' });
     } else {
-      labelQueue.addToQueueAndOpen(customer, leadId);
+      labelQueue.addToQueue(customer, leadId);
+      toast({ title: 'Added to label queue', description: 'Click the labels button to print when ready.' });
     }
   };
 
@@ -445,14 +446,24 @@ export function LabelQueueIndicator() {
 
   if (!labelQueue || labelQueue.queue.length === 0) return null;
 
+  const count = labelQueue.queue.length;
+  const nextFull4 = Math.ceil(count / 4) * 4;
+  const toFill4 = nextFull4 - count;
+  const hintText = toFill4 === 0
+    ? 'Ready to print!'
+    : `${toFill4} more to fill a 4×6 sheet`;
+
   return (
     <Button
       onClick={() => labelQueue!.openPrintDialog()}
       size="sm"
-      className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 shadow-lg rounded-full h-12 px-5 gap-2"
+      className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 shadow-lg rounded-2xl h-auto px-5 py-2.5 gap-1 flex-col items-center"
     >
-      <Printer className="w-5 h-5" />
-      <span>{labelQueue.queue.length} Label{labelQueue.queue.length !== 1 ? 's' : ''}</span>
+      <div className="flex items-center gap-2">
+        <Printer className="w-5 h-5" />
+        <span className="font-semibold">{count} Label{count !== 1 ? 's' : ''} Queued</span>
+      </div>
+      <span className="text-[11px] opacity-80">{hintText}</span>
     </Button>
   );
 }
