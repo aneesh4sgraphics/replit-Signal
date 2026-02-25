@@ -354,119 +354,301 @@ export class OpportunityEngine {
   }
 
   async calculateAndStoreScores(): Promise<{ processed: number; scored: number }> {
+    const now = new Date();
     let processed = 0;
     let scored = 0;
 
-    const allCustomers = await db
-      .select({ id: customers.id })
-      .from(customers)
-      .where(and(
-        eq(customers.doNotContact, false),
-        eq(customers.isCompany, false),
-      ));
+    // ── BULK DATA FETCH ────────────────────────────────────────────────────────
+    // Fetch everything we need in parallel with a handful of queries instead of
+    // hitting the DB once per customer (which was ~24 000 queries for 4 759 customers).
+
+    const [
+      allCustomers,
+      allMachineProfiles,
+      sampleShipmentRows,
+      coachStateRows,
+      gmailInboundRows,
+      latestShopifyOrderRows,
+      existingScoreRows,
+      allLeads,
+    ] = await Promise.all([
+      db.select().from(customers).where(and(eq(customers.doNotContact, false), eq(customers.isCompany, false))),
+      db.select().from(customerMachineProfiles),
+      db.select({ customerId: sampleShipments.customerId, cnt: count() }).from(sampleShipments).where(isNotNull(sampleShipments.customerId)).groupBy(sampleShipments.customerId),
+      db.select({ customerId: customerCoachState.customerId, daysSinceLastOrder: customerCoachState.daysSinceLastOrder }).from(customerCoachState),
+      db.select({ customerId: gmailMessages.customerId, cnt: count() }).from(gmailMessages).where(and(eq(gmailMessages.direction, 'inbound'), isNotNull(gmailMessages.customerId))).groupBy(gmailMessages.customerId),
+      db.execute(sql`SELECT DISTINCT ON (customer_id) customer_id, shopify_created_at, total_price, order_number FROM shopify_orders WHERE customer_id IS NOT NULL ORDER BY customer_id, shopify_created_at DESC`),
+      db.select({ id: opportunityScores.id, customerId: opportunityScores.customerId, leadId: opportunityScores.leadId, opportunityType: opportunityScores.opportunityType, isActive: opportunityScores.isActive }).from(opportunityScores),
+      db.select().from(leads).where(sql`${leads.stage} NOT IN ('converted', 'lost')`),
+    ]);
+
+    // Build lookup maps for O(1) access
+    const machinesByCustomer = new Map<string, typeof allMachineProfiles>();
+    for (const mp of allMachineProfiles) {
+      if (!mp.customerId) continue;
+      if (!machinesByCustomer.has(mp.customerId)) machinesByCustomer.set(mp.customerId, []);
+      machinesByCustomer.get(mp.customerId)!.push(mp);
+    }
+
+    const sampleCountByCustomer = new Map<string, number>();
+    for (const row of sampleShipmentRows) {
+      if (row.customerId) sampleCountByCustomer.set(row.customerId, Number(row.cnt));
+    }
+
+    const coachStateByCustomer = new Map<string, number | null>();
+    for (const row of coachStateRows) {
+      coachStateByCustomer.set(row.customerId, row.daysSinceLastOrder);
+    }
+
+    const gmailCountByCustomer = new Map<string, number>();
+    for (const row of gmailInboundRows) {
+      if (row.customerId) gmailCountByCustomer.set(row.customerId, Number(row.cnt));
+    }
+
+    const lastOrderByCustomer = new Map<string, { date: Date | null; daysSince: number | null }>();
+    for (const row of latestShopifyOrderRows.rows as any[]) {
+      const cid = row.customer_id as string;
+      const rawDate = row.shopify_created_at;
+      const date = rawDate ? new Date(rawDate) : null;
+      const daysSince = date ? Math.floor((Date.now() - date.getTime()) / (1000 * 60 * 60 * 24)) : null;
+      lastOrderByCustomer.set(cid, { date, daysSince });
+    }
+
+    // Map: "c:{customerId}:{type}" or "l:{leadId}:{type}" → existing score row id
+    const existingScoreMap = new Map<string, number>();
+    for (const row of existingScoreRows) {
+      if (row.customerId) existingScoreMap.set(`c:${row.customerId}:${row.opportunityType}`, row.id);
+      if (row.leadId) existingScoreMap.set(`l:${row.leadId}:${row.opportunityType}`, row.id);
+    }
+
+    // ── CUSTOMER SCORING ───────────────────────────────────────────────────────
+    const updateOps: Array<{ id: number; score: number; signals: OpportunitySignal[]; isActive: boolean }> = [];
+    const insertOps: Array<{ customerId?: string; leadId?: number; score: number; opportunityType: string; signals: OpportunitySignal[]; isActive: boolean }> = [];
+    const deactivateCustomerIds: string[] = [];
+    const deactivateLeadIds: number[] = [];
+
+    const sevenDaysAgo = new Date(now);
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
 
     for (const customer of allCustomers) {
       processed++;
-      const { score, signals, opportunityTypes } = await this.scoreCustomer(customer.id);
+      const machineProfiles = machinesByCustomer.get(customer.id) || [];
+      const sampleShipmentCount = sampleCountByCustomer.get(customer.id) || 0;
+      const gmailCount = gmailCountByCustomer.get(customer.id) || 0;
+      const lastOrder = lastOrderByCustomer.get(customer.id);
+      const coachDays = coachStateByCustomer.get(customer.id) ?? null;
+      const daysSinceLastOrder = lastOrder?.daysSince ?? coachDays ?? null;
 
-      if (score >= 20 && opportunityTypes.length > 0) {
+      const signals: OpportunitySignal[] = [];
+      let totalScore = 0;
+      const opportunityTypes: OpportunityType[] = [];
+
+      // Is printing company
+      if (customer.customerType === 'printer') {
+        signals.push({ signal: 'is_printing_company', points: OPPORTUNITY_SCORING_WEIGHTS.isPrintingCompany, detail: 'Printing company — ideal customer profile' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.isPrintingCompany;
+      }
+
+      // Digital machines
+      const digitalMachines = machineProfiles.filter(m => DIGITAL_PRINTING_MACHINES.includes(m.machineFamily as any));
+      if (digitalMachines.length > 0) {
+        signals.push({ signal: 'has_digital_machines', points: OPPORTUNITY_SCORING_WEIGHTS.hasDigitalMachines, detail: `Has digital printing machines: ${digitalMachines.map(m => m.machineFamily).join(', ')}` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.hasDigitalMachines;
+        opportunityTypes.push('machine_match');
+      }
+
+      // Samples
+      const hasCrmSamples = customer.swatchbookSentAt || customer.pressTestSentAt;
+      const hasSampleShipments = sampleShipmentCount > 0;
+      const hasSamples = hasCrmSamples || hasSampleShipments;
+      const totalSpent = parseFloat(customer.totalSpent || '0');
+      const hasOrders = (customer.totalOrders ?? 0) > 0 && totalSpent > 10;
+
+      if (hasSamples && !hasOrders) {
+        const src = [hasCrmSamples ? 'swatch book/press test kit' : null, hasSampleShipments ? 'sample order' : null].filter(Boolean).join(' & ');
+        signals.push({ signal: 'sample_sent_no_order', points: OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder, detail: `Received ${src} but hasn't placed a paid order yet` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder;
+        opportunityTypes.push('sample_no_order');
+      }
+
+      // Email engagement
+      if (gmailCount > 0) {
+        signals.push({ signal: 'email_engagement', points: OPPORTUNITY_SCORING_WEIGHTS.emailEngagement, detail: `${gmailCount} inbound emails — showing active interest` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.emailEngagement;
+      }
+
+      // Region
+      const stateAbbrev = normalizeStateToAbbreviation(customer.province);
+      if (stateAbbrev && HIGH_PERFORMING_REGIONS.includes(stateAbbrev as any)) {
+        signals.push({ signal: 'high_performing_region', points: OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion, detail: `Located in high-performing region: ${stateAbbrev}` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion;
+      }
+
+      // Went quiet — only for non-buyers
+      const noRecentContact = !customer.lastOutboundEmailAt || customer.lastOutboundEmailAt < sevenDaysAgo;
+      if (gmailCount > 0 && noRecentContact && !hasOrders) {
+        const daysSinceContact = customer.lastOutboundEmailAt
+          ? Math.floor((now.getTime() - customer.lastOutboundEmailAt.getTime()) / (1000 * 60 * 60 * 24))
+          : null;
+        signals.push({ signal: 'went_quiet', points: OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest, detail: daysSinceContact ? `Replied to our emails but no follow-up in ${daysSinceContact} days` : 'Replied to our emails but was never followed up' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest;
+        opportunityTypes.push('went_quiet');
+      }
+
+      // Reorder due — buyers who have gone quiet
+      if (hasOrders && noRecentContact && (daysSinceLastOrder === null || daysSinceLastOrder > 60)) {
+        const ctx = daysSinceLastOrder !== null ? `last ordered ${daysSinceLastOrder} days ago` : `${customer.totalOrders} order(s) on record`;
+        signals.push({ signal: 'reorder_opportunity', points: 20, detail: `Paying customer (${customer.totalOrders} order(s), $${totalSpent.toFixed(0)} spent) — ${ctx}. Needs re-engagement.` });
+        totalScore += 20;
+        opportunityTypes.push('reorder_due');
+      }
+
+      // Upsell
+      if (hasOrders && totalSpent > 2000) {
+        const ctx = daysSinceLastOrder !== null ? ` — last ordered ${daysSinceLastOrder} days ago` : '';
+        signals.push({ signal: 'small_order_upsell', points: OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell, detail: `${customer.totalOrders} order(s), $${totalSpent.toFixed(0)} spent${ctx}. Upsell opportunity.` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.smallOrderUpsell;
+        opportunityTypes.push('upsell_potential');
+      }
+
+      // Regular buyer
+      if ((customer.totalOrders ?? 0) >= 3 && totalSpent > 0 && daysSinceLastOrder !== null && daysSinceLastOrder < 90) {
+        const contactNote = noRecentContact ? ' — needs follow-up!' : '';
+        signals.push({ signal: 'regular_buyer', points: 15, detail: `Regular buyer — ${customer.totalOrders} orders, $${totalSpent.toFixed(0)} total, last order ${daysSinceLastOrder} days ago${contactNote}` });
+        totalScore += 15;
+        opportunityTypes.push('new_fit');
+      }
+
+      // Website
+      if (customer.website) {
+        signals.push({ signal: 'has_website', points: OPPORTUNITY_SCORING_WEIGHTS.hasWebsite, detail: 'Has a website — can research their business' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.hasWebsite;
+      }
+
+      const finalScore = Math.min(totalScore, 100);
+
+      if (finalScore >= 20 && opportunityTypes.length > 0) {
         scored++;
         for (const oppType of opportunityTypes) {
-          const typeSignals = signals.filter(s => {
-            if (oppType === 'sample_no_order') return s.signal === 'sample_sent_no_order' || s.signal !== 'small_order_upsell';
-            return true;
-          });
-
-          const existing = await db
-            .select({ id: opportunityScores.id })
-            .from(opportunityScores)
-            .where(and(
-              eq(opportunityScores.customerId, customer.id),
-              eq(opportunityScores.opportunityType, oppType),
-              eq(opportunityScores.isActive, true),
-            ))
-            .limit(1);
-
-          if (existing.length > 0) {
-            await db.update(opportunityScores)
-              .set({
-                score,
-                signals: typeSignals,
-                lastCalculatedAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .where(eq(opportunityScores.id, existing[0].id));
+          const typeSignals = oppType === 'sample_no_order'
+            ? signals.filter(s => s.signal === 'sample_sent_no_order' || s.signal !== 'small_order_upsell')
+            : signals;
+          const key = `c:${customer.id}:${oppType}`;
+          const existingId = existingScoreMap.get(key);
+          if (existingId) {
+            updateOps.push({ id: existingId, score: finalScore, signals: typeSignals, isActive: true });
           } else {
-            await db.insert(opportunityScores).values({
-              customerId: customer.id,
-              score,
-              opportunityType: oppType,
-              signals: typeSignals,
-              isActive: true,
-              lastCalculatedAt: new Date(),
-            });
+            insertOps.push({ customerId: customer.id, score: finalScore, opportunityType: oppType, signals: typeSignals, isActive: true });
+          }
+        }
+        // Deactivate any types no longer valid for this customer
+        for (const [key, id] of existingScoreMap) {
+          if (!key.startsWith(`c:${customer.id}:`)) continue;
+          const type = key.split(':')[2];
+          if (!opportunityTypes.includes(type as OpportunityType)) {
+            updateOps.push({ id, score: 0, signals: [], isActive: false });
           }
         }
       } else {
-        await db.update(opportunityScores)
-          .set({ isActive: false, updatedAt: new Date() })
-          .where(and(
-            eq(opportunityScores.customerId, customer.id),
-            eq(opportunityScores.isActive, true),
-          ));
+        deactivateCustomerIds.push(customer.id);
       }
     }
 
-    const allLeads = await db
-      .select({ id: leads.id })
-      .from(leads)
-      .where(sql`${leads.stage} NOT IN ('converted', 'lost')`);
-
+    // ── LEAD SCORING ───────────────────────────────────────────────────────────
     for (const lead of allLeads) {
       processed++;
-      const { score, signals, opportunityTypes } = await this.scoreLead(lead.id);
+      const signals: OpportunitySignal[] = [];
+      let totalScore = 0;
+      const opportunityTypes: OpportunityType[] = [];
 
-      if (score >= 20 && opportunityTypes.length > 0) {
+      if (lead.customerType === 'printer') {
+        signals.push({ signal: 'is_printing_company', points: OPPORTUNITY_SCORING_WEIGHTS.isPrintingCompany, detail: 'Printing company — ideal customer profile' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.isPrintingCompany;
+      }
+
+      const machineTypes = lead.machineTypes || [];
+      const hasDigitalMachines = machineTypes.some(m => DIGITAL_PRINTING_MACHINES.includes(m as any));
+      if (hasDigitalMachines) {
+        signals.push({ signal: 'has_digital_machines', points: OPPORTUNITY_SCORING_WEIGHTS.hasDigitalMachines, detail: `Has digital printing machines: ${machineTypes.filter(m => DIGITAL_PRINTING_MACHINES.includes(m as any)).join(', ')}` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.hasDigitalMachines;
+        opportunityTypes.push('machine_match');
+      }
+
+      if (lead.sampleSentAt && lead.stage !== 'converted') {
+        signals.push({ signal: 'sample_sent_no_order', points: OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder, detail: "Received samples but hasn't converted yet" });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.sampleSentNoOrder;
+        opportunityTypes.push('sample_no_order');
+      }
+
+      if (lead.firstEmailReplyAt) {
+        signals.push({ signal: 'email_engagement', points: OPPORTUNITY_SCORING_WEIGHTS.emailEngagement, detail: 'Replied to emails — showing active interest' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.emailEngagement;
+      }
+
+      const stateAbbrev = normalizeStateToAbbreviation(lead.state);
+      if (stateAbbrev && HIGH_PERFORMING_REGIONS.includes(stateAbbrev as any)) {
+        signals.push({ signal: 'high_performing_region', points: OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion, detail: `Located in high-performing region: ${stateAbbrev}` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.highPerformingRegion;
+      }
+
+      if (lead.lastContactAt && lead.lastContactAt < sevenDaysAgo && (lead.totalTouchpoints ?? 0) > 1) {
+        const daysSince = Math.floor((now.getTime() - lead.lastContactAt.getTime()) / (1000 * 60 * 60 * 24));
+        signals.push({ signal: 'went_quiet', points: OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest, detail: `${lead.totalTouchpoints} touchpoints but no contact in ${daysSince} days` });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.wentQuietAfterInterest;
+        opportunityTypes.push('went_quiet');
+      }
+
+      if (lead.website) {
+        signals.push({ signal: 'has_website', points: OPPORTUNITY_SCORING_WEIGHTS.hasWebsite, detail: 'Has a website — can research their business' });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.hasWebsite;
+      }
+
+      if (opportunityTypes.length === 0 && totalScore >= 30) opportunityTypes.push('new_fit');
+
+      const finalScore = Math.min(totalScore, 100);
+
+      if (finalScore >= 20 && opportunityTypes.length > 0) {
         scored++;
         for (const oppType of opportunityTypes) {
-          const existing = await db
-            .select({ id: opportunityScores.id })
-            .from(opportunityScores)
-            .where(and(
-              eq(opportunityScores.leadId, lead.id),
-              eq(opportunityScores.opportunityType, oppType),
-              eq(opportunityScores.isActive, true),
-            ))
-            .limit(1);
-
-          if (existing.length > 0) {
-            await db.update(opportunityScores)
-              .set({
-                score,
-                signals,
-                lastCalculatedAt: new Date(),
-                updatedAt: new Date(),
-              })
-              .where(eq(opportunityScores.id, existing[0].id));
+          const key = `l:${lead.id}:${oppType}`;
+          const existingId = existingScoreMap.get(key);
+          if (existingId) {
+            updateOps.push({ id: existingId, score: finalScore, signals, isActive: true });
           } else {
-            await db.insert(opportunityScores).values({
-              leadId: lead.id,
-              score,
-              opportunityType: oppType,
-              signals,
-              isActive: true,
-              lastCalculatedAt: new Date(),
-            });
+            insertOps.push({ leadId: lead.id, score: finalScore, opportunityType: oppType, signals, isActive: true });
           }
         }
       } else {
-        await db.update(opportunityScores)
-          .set({ isActive: false, updatedAt: new Date() })
-          .where(and(
-            eq(opportunityScores.leadId, lead.id),
-            eq(opportunityScores.isActive, true),
-          ));
+        deactivateLeadIds.push(lead.id);
       }
+    }
+
+    // ── BATCH DB WRITES ────────────────────────────────────────────────────────
+    // Run all updates in parallel batches of 50 to avoid overwhelming the pool
+    const BATCH = 50;
+    const updateChunks: typeof updateOps[] = [];
+    for (let i = 0; i < updateOps.length; i += BATCH) updateChunks.push(updateOps.slice(i, i + BATCH));
+    for (const chunk of updateChunks) {
+      await Promise.all(chunk.map(op =>
+        db.update(opportunityScores).set({ score: op.score, signals: op.signals, isActive: op.isActive, lastCalculatedAt: now, updatedAt: now }).where(eq(opportunityScores.id, op.id))
+      ));
+    }
+
+    // Batch inserts in chunks of 100
+    if (insertOps.length > 0) {
+      const insertChunks: typeof insertOps[] = [];
+      for (let i = 0; i < insertOps.length; i += 100) insertChunks.push(insertOps.slice(i, i + 100));
+      for (const chunk of insertChunks) {
+        await db.insert(opportunityScores).values(chunk.map(op => ({ ...op, lastCalculatedAt: now })));
+      }
+    }
+
+    // Deactivate in bulk
+    if (deactivateCustomerIds.length > 0) {
+      await db.update(opportunityScores).set({ isActive: false, updatedAt: now }).where(and(inArray(opportunityScores.customerId, deactivateCustomerIds), eq(opportunityScores.isActive, true)));
+    }
+    if (deactivateLeadIds.length > 0) {
+      await db.update(opportunityScores).set({ isActive: false, updatedAt: now }).where(and(inArray(opportunityScores.leadId, deactivateLeadIds), eq(opportunityScores.isActive, true)));
     }
 
     console.log(`[OpportunityEngine] Scored ${scored} opportunities from ${processed} entities`);
