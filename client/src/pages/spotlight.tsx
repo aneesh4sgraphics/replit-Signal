@@ -1485,10 +1485,26 @@ export default function Spotlight() {
       
       // Regular customer merge flow
       const [currentRes, duplicateRes] = await Promise.all([
-        fetch(`/api/customers/${currentCustomerId}`),
-        fetch(`/api/customers/${duplicateIds[0]}`)
+        fetch(`/api/customers/${currentCustomerId}`, { credentials: 'include' }),
+        fetch(`/api/customers/${duplicateIds[0]}`, { credentials: 'include' })
       ]);
-      
+
+      if (duplicateRes.status === 404) {
+        toast({
+          title: "Duplicate no longer exists",
+          description: "This record may have already been merged or removed. The duplicate suggestion will be dismissed.",
+        });
+        // Auto-dismiss: mark as not a duplicate so this hint goes away
+        if (currentCustomerId && duplicateIds[0]) {
+          doNotMergeMutation.mutate({
+            customerId1: currentCustomerId,
+            customerId2: duplicateIds[0],
+            taskId: undefined as any,
+          });
+        }
+        return;
+      }
+
       if (!currentRes.ok || !duplicateRes.ok) {
         throw new Error('Failed to fetch customer data');
       }
