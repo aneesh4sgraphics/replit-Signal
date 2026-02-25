@@ -1,5 +1,5 @@
 import { db } from "./db";
-import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads, bouncedEmails, dripCampaignStepStatus, dripCampaignAssignments, dripCampaignSteps, dripCampaigns, emailSends, emailSalesEvents } from "@shared/schema";
+import { customers, followUpTasks, users, customerActivityEvents, spotlightEvents, customerContacts, spotlightSessionState, spotlightCustomerClaims, spotlightMicroCards, spotlightCoachTips, TASK_ENERGY_COSTS, customerSyncQueue, sentQuotes, territorySkipFlags, gmailMessages, leads, bouncedEmails, dripCampaignStepStatus, dripCampaignAssignments, dripCampaignSteps, dripCampaigns, emailSends, emailSalesEvents, opportunityScores } from "@shared/schema";
 import { scanForBouncedEmails } from "./bounce-detector";
 import { odooClient, isOdooConfigured } from "./odoo";
 
@@ -422,6 +422,9 @@ const WHY_NOW_MESSAGES: Record<string, string> = {
   outreach_no_contact: 'No recent contact - reach out before they forget you.',
   outreach_mailer_suggestion_email_engaged: 'You\'ve exchanged emails — now stand out with something physical. A SwatchBook or mailer lands differently than an inbox message.',
   outreach_mailer_suggestion_went_quiet: 'They received your SwatchBook but went quiet. A follow-up mailer can reignite the conversation before you lose the momentum.',
+  outreach_mailer_suggestion_pending_quote: 'A quote has been sitting unanswered for over a week. A physical mailer or SwatchBook alongside your follow-up can tip the scales.',
+  outreach_mailer_suggestion_opportunity: 'Their buying signals suggest they\'re ready — a physical sample or mailer gives them something tangible to show their team.',
+  outreach_mailer_suggestion_post_call: 'You connected by phone but they haven\'t ordered yet. A SwatchBook or press test kit in the mail gives them something to hold and share.',
   outreach_drip: 'Send a nurture email to stay top of mind.',
   enablement_swatchbook: 'Send a SwatchBook to showcase your products.',
   enablement_press_test: 'Send a Press Test Kit to demonstrate quality.',
