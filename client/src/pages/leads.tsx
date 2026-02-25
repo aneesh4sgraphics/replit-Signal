@@ -65,6 +65,8 @@ import {
   Check,
   X,
   Printer,
+  Upload,
+  CheckCircle,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -125,6 +127,8 @@ interface Lead {
   isCompany: boolean | null;
   primaryContactName: string | null;
   primaryContactEmail: string | null;
+  // Odoo push tracking
+  odooPartnerId: number | null;
 }
 
 interface LeadStats {
@@ -831,6 +835,36 @@ export default function LeadsPage() {
                       Print Address Labels
                     </Button>
                   )}
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="gap-2 bg-white border-violet-300 text-violet-700 hover:bg-violet-50"
+                    onClick={async () => {
+                      const unpushed = paginatedLeads
+                        .filter(l => selectedLeads.has(l.id) && !l.odooPartnerId)
+                        .map(l => l.id);
+                      if (unpushed.length === 0) {
+                        toast({ title: 'Already in Odoo', description: 'All selected leads have already been pushed to Odoo.' });
+                        return;
+                      }
+                      try {
+                        const res = await apiRequest('POST', '/api/leads/push-to-odoo-bulk', { leadIds: unpushed });
+                        const data = await res.json();
+                        queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+                        toast({
+                          title: `${data.pushed} contact${data.pushed !== 1 ? 's' : ''} created in Odoo`,
+                          description: data.skipped > 0 ? `${data.skipped} already pushed, ${data.failed} failed` : data.failed > 0 ? `${data.failed} failed` : undefined,
+                        });
+                      } catch (e: any) {
+                        toast({ title: 'Push failed', description: e.message, variant: 'destructive' });
+                      }
+                    }}
+                  >
+                    <Upload className="w-4 h-4" />
+                    Push {paginatedLeads.filter(l => selectedLeads.has(l.id) && !l.odooPartnerId).length > 0
+                      ? `${paginatedLeads.filter(l => selectedLeads.has(l.id) && !l.odooPartnerId).length} `
+                      : ''}to Odoo
+                  </Button>
                   <div className="flex-1" />
                   <Button
                     variant="ghost"

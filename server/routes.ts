@@ -348,6 +348,13 @@ async function saveProductDataToFile() {
 export async function registerRoutes(app: Express): Promise<Server> {
   // Register Object Storage routes for file uploads
   registerObjectStorageRoutes(app);
+
+  // Boot-time migration: add odoo_partner_id to leads if it doesn't exist
+  try {
+    await db.execute(sql`ALTER TABLE leads ADD COLUMN IF NOT EXISTS odoo_partner_id integer`);
+  } catch (err) {
+    console.error("Migration error (leads.odoo_partner_id):", err);
+  }
   
   // Initialize default follow-up configurations on startup
   try {
@@ -14495,6 +14502,126 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Error deleting lead:", error);
       res.status(500).json({ error: "Failed to delete lead" });
+    }
+  });
+
+  // ── Helper: push a single lead to Odoo as a Contact (res.partner) ──────────
+  async function pushLeadToOdooContact(leadId: number): Promise<{ success: boolean; alreadyPushed?: boolean; odooPartnerId?: number; error?: string }> {
+    const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
+    if (!lead) return { success: false, error: 'Lead not found' };
+
+    // Idempotent: already pushed
+    if (lead.odooPartnerId) return { success: true, alreadyPushed: true, odooPartnerId: lead.odooPartnerId };
+
+    // Resolve country
+    let resolvedCountryId: number | undefined;
+    if (lead.country) {
+      const countries = await odooClient.getCountries();
+      const normalize = (s: string) => s.trim().toLowerCase();
+      const countryInput = normalize(lead.country);
+      const match = countries.find(c =>
+        normalize(c.name) === countryInput ||
+        normalize(c.code) === countryInput ||
+        (countryInput === 'usa' && normalize(c.code) === 'us') ||
+        (countryInput === 'united states' && normalize(c.code) === 'us') ||
+        (countryInput === 'united states of america' && normalize(c.code) === 'us') ||
+        (countryInput === 'canada' && normalize(c.code) === 'ca')
+      );
+      if (match) resolvedCountryId = match.id;
+    }
+
+    // Resolve state
+    let resolvedStateId: number | undefined;
+    if (lead.state && resolvedCountryId) {
+      const states = await odooClient.getStates(resolvedCountryId);
+      const normalize = (s: string) => s.trim().toLowerCase();
+      const stateInput = normalize(lead.state);
+      const match = states.find(s =>
+        normalize(s.name) === stateInput || normalize(s.code) === stateInput
+      );
+      if (match) resolvedStateId = match.id;
+    }
+
+    // Try to find matching company parent in Odoo
+    let parentId: number | undefined;
+    if (lead.company) {
+      try {
+        const companies = await odooClient.searchRead('res.partner', [
+          ['name', 'ilike', lead.company],
+          ['is_company', '=', true]
+        ], ['id', 'name'], { limit: 1 });
+        if (companies.length > 0) parentId = companies[0].id;
+      } catch (_) {}
+    }
+
+    // Build Odoo partner payload
+    const payload: any = {
+      name: lead.name,
+      is_company: false,
+      type: 'contact',
+    };
+    if (lead.email) payload.email = lead.email;
+    if (lead.phone) payload.phone = lead.phone;
+    if (lead.jobTitle) payload.function = lead.jobTitle;
+    if (lead.website) payload.website = lead.website;
+    if (lead.street) payload.street = lead.street;
+    if (lead.street2) payload.street2 = lead.street2;
+    if (lead.city) payload.city = lead.city;
+    if (lead.zip) payload.zip = lead.zip;
+    if (resolvedCountryId) payload.country_id = resolvedCountryId;
+    if (resolvedStateId) payload.state_id = resolvedStateId;
+    if (parentId) payload.parent_id = parentId;
+    // mobile is unsupported in Odoo V19 res.partner — stash in comment
+    if (lead.mobile) payload.comment = `Mobile: ${lead.mobile}`;
+
+    const newPartnerId = await odooClient.createPartner(payload);
+
+    // Save back to DB
+    await db.update(leads).set({ odooPartnerId: newPartnerId, updatedAt: new Date() }).where(eq(leads.id, leadId));
+
+    return { success: true, odooPartnerId: newPartnerId };
+  }
+
+  // Push a single lead to Odoo as a Contact
+  app.post("/api/leads/:id/push-to-odoo", isAuthenticated, async (req: any, res) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      if (isNaN(leadId)) return res.status(400).json({ error: 'Invalid lead ID' });
+      const result = await pushLeadToOdooContact(leadId);
+      if (!result.success && result.error === 'Lead not found') return res.status(404).json(result);
+      if (!result.success) return res.status(500).json(result);
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error pushing lead to Odoo:", error);
+      res.status(500).json({ error: error.message || 'Failed to push lead to Odoo' });
+    }
+  });
+
+  // Bulk push leads to Odoo as Contacts
+  app.post("/api/leads/push-to-odoo-bulk", isAuthenticated, async (req: any, res) => {
+    try {
+      const { leadIds } = req.body;
+      if (!Array.isArray(leadIds) || leadIds.length === 0) {
+        return res.status(400).json({ error: 'leadIds array is required' });
+      }
+      const capped = leadIds.slice(0, 50);
+      let pushed = 0, skipped = 0, failed = 0;
+      const results: any[] = [];
+      for (const id of capped) {
+        try {
+          const r = await pushLeadToOdooContact(Number(id));
+          if (r.alreadyPushed) { skipped++; results.push({ id, status: 'skipped', odooPartnerId: r.odooPartnerId }); }
+          else if (r.success) { pushed++; results.push({ id, status: 'pushed', odooPartnerId: r.odooPartnerId }); }
+          else { failed++; results.push({ id, status: 'failed', error: r.error }); }
+        } catch (e: any) {
+          failed++;
+          results.push({ id, status: 'failed', error: e.message });
+        }
+      }
+      res.json({ pushed, skipped, failed, results });
+    } catch (error: any) {
+      console.error("Error bulk pushing leads to Odoo:", error);
+      res.status(500).json({ error: error.message || 'Failed to bulk push leads to Odoo' });
     }
   });
 

@@ -45,6 +45,8 @@ import {
   StickyNote,
   Printer,
   Truck,
+  Upload,
+  CheckCircle,
 } from "lucide-react";
 import { PrintLabelButton } from "@/components/PrintLabelButton";
 
@@ -111,6 +113,7 @@ interface Lead {
   primaryContactName: string | null;
   primaryContactEmail: string | null;
   customerType: string | null;
+  odooPartnerId: number | null;
   createdAt: string;
   updatedAt: string;
   activities?: LeadActivity[];
@@ -240,6 +243,29 @@ export default function LeadDetail() {
     },
     onError: (error: Error) => {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const pushToOdooMutation = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/leads/${leadId}/push-to-odoo`, {});
+      if (!res.ok) {
+        const err = await res.json();
+        throw new Error(err.error || 'Failed to push to Odoo');
+      }
+      return res.json();
+    },
+    onSuccess: (data) => {
+      if (data.alreadyPushed) {
+        toast({ title: 'Already in Odoo', description: `This contact is already in Odoo (Partner #${data.odooPartnerId})` });
+      } else {
+        toast({ title: 'Contact created in Odoo', description: `Successfully added as Odoo Contact #${data.odooPartnerId}` });
+      }
+      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads', leadId] });
+      queryClientInstance.invalidateQueries({ queryKey: ['/api/leads'] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Push to Odoo failed', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -396,6 +422,30 @@ export default function LeadDetail() {
                 <Mail className="w-4 h-4 mr-2" />
                 Compose Email
               </Button>
+          )}
+          {lead.odooPartnerId ? (
+            <div
+              className="flex items-center gap-1.5 px-3 py-1.5 rounded-md border border-green-200 bg-green-50 text-green-700 text-sm font-medium"
+              title={`Odoo Contact #${lead.odooPartnerId}`}
+            >
+              <CheckCircle className="w-4 h-4" />
+              In Odoo
+            </div>
+          ) : (
+            <Button
+              variant="outline"
+              className="border-violet-200 text-violet-700 hover:bg-violet-50"
+              onClick={() => pushToOdooMutation.mutate()}
+              disabled={pushToOdooMutation.isPending}
+              title="Create this lead as a Contact in Odoo"
+            >
+              {pushToOdooMutation.isPending ? (
+                <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+              ) : (
+                <Upload className="w-4 h-4 mr-2" />
+              )}
+              Push to Odoo
+            </Button>
           )}
           <Button variant="outline" onClick={handleEditClick}>
             <Edit className="w-4 h-4 mr-2" /> Edit

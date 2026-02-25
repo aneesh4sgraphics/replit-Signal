@@ -430,6 +430,8 @@ export const leads = pgTable("leads", {
   isCompany: boolean("is_company").default(false), // True if this lead represents a company
   primaryContactName: varchar("primary_contact_name", { length: 255 }), // Name of primary contact person
   primaryContactEmail: varchar("primary_contact_email", { length: 255 }), // Email of primary contact person
+  // Odoo push tracking
+  odooPartnerId: integer("odoo_partner_id"), // Odoo res.partner ID after pushing lead as a Contact
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

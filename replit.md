@@ -83,6 +83,17 @@ This is a full-stack TypeScript sales management application designed for a spec
 
 - **Automatic Lead-to-Customer Conversion:** When a Shopify order over $50 is placed by someone whose email matches an active lead (not already converted or lost), the lead is automatically converted to a customer in Contacts. The conversion maps all lead fields (name, email, phone, address, sales rep, pricing tier, tags, etc.) to the new customer record, marks the lead stage as "converted", and logs an activity event. This runs in three places: Shopify order webhook, order sync, and order listing auto-match.
 
+## Feature Backlog
+Features requested but not yet built — carry forward to future sessions.
+
+1. **Email Thread Continuity** — When sending follow-up emails (drip sequences or manual from Spotlight/Contacts), each subsequent email should send as a reply in the same Gmail thread, so both sender and recipient see the full conversation history. Requires:
+   - Add `gmailMessageId` (varchar 255), `gmailThreadId` (varchar 100), `rawMessageId` (varchar 500) columns to `emailSends` table
+   - Add `gmailThreadId` to `dripCampaignStepStatus` table
+   - Update `sendEmail()` in `server/gmail-client.ts` and `sendEmailAsUser()` in `server/user-gmail-oauth.ts` to accept optional `threadingOptions?: { inReplyTo, references, gmailThreadId }`; pass `threadId` in the Gmail send API call; return `{ id, threadId, rawMessageId }`
+   - Update `server/drip-email-worker.ts`: before sending step N, look up step N-1's `rawMessageId` + `gmailThreadId` via join, pass as `threadingOptions`; save returned `gmailThreadId` on the step status row
+   - Update `POST /api/email/send` in `server/routes.ts`: query most recent `emailSend` for the `customerId`/`leadId` with a non-null `gmailThreadId`, auto-thread if found (unless `replyToThread: false` passed in body), save returned IDs to the new row
+   - Add thread indicator in Spotlight email compose modal and Contact detail email modal: "Will be sent as a reply to keep your thread intact" with a small toggle to disable
+
 ## External Dependencies
 
 - **Odoo V19 ERP:** Used for customer data, product catalogs, pricelists, and orders.
