@@ -229,10 +229,18 @@ function ProductPricingListRow({
   isSelected: boolean;
   onToggleSelect: () => void;
 }) {
+  const [focusField, setFocusField] = useState<string | null>(null);
   const priceKeys = ['landedPrice','exportPrice','masterDistributorPrice','dealerPrice','dealer2Price','approvalNeededPrice','tierStage25Price','tierStage2Price','tierStage15Price','tierStage1Price','retailPrice'] as const;
 
+  const handleCellClick = (key: string) => {
+    if (!isEditing) {
+      setFocusField(key);
+      onEdit();
+    }
+  };
+
   return (
-    <tr className={`border-b border-gray-100 hover:bg-gray-50 transition-colors text-xs ${isSelected ? 'bg-purple-50/40' : ''}`}>
+    <tr className={`border-b border-gray-100 hover:bg-gray-50/60 transition-colors text-xs ${isSelected ? 'bg-purple-50/40' : ''} ${isEditing ? 'bg-blue-50/20' : ''}`}>
       <td className="pl-3 pr-1 py-2 w-8">
         <input type="checkbox" checked={isSelected} onChange={onToggleSelect} className="h-3.5 w-3.5 rounded border-gray-300 text-purple-600 focus:ring-purple-500 cursor-pointer" />
       </td>
@@ -245,22 +253,31 @@ function ProductPricingListRow({
       </td>
       <td className="px-2 py-2 whitespace-nowrap text-gray-500">{item.size || '—'}</td>
       {priceKeys.map(key => (
-        <td key={key} className="px-2 py-2 whitespace-nowrap text-right">
+        <td
+          key={key}
+          className={`px-2 py-2 whitespace-nowrap text-right ${!isEditing ? 'cursor-pointer group' : ''}`}
+          onClick={() => handleCellClick(key)}
+          title={!isEditing ? 'Click to edit' : undefined}
+        >
           {isEditing ? (
             <input
               type="number" step="0.01" min="0"
               value={editValues[key] || ''}
               onChange={(e) => onValueChange(key, e.target.value)}
-              className="w-16 text-right text-xs px-1 py-0.5 border border-gray-300 rounded focus:border-purple-500 focus:ring-1 focus:ring-purple-200"
+              autoFocus={focusField === key}
+              onFocus={() => setFocusField(null)}
+              className="w-16 text-right text-xs px-1 py-0.5 border border-purple-300 rounded bg-white focus:border-purple-500 focus:ring-1 focus:ring-purple-200 focus:outline-none"
             />
           ) : (
-            <span className="text-gray-700">${Number(item[key]).toFixed(2)}</span>
+            <span className="text-gray-700 group-hover:text-purple-700 group-hover:underline group-hover:underline-offset-2 group-hover:decoration-dotted transition-colors">
+              ${Number(item[key]).toFixed(2)}
+            </span>
           )}
         </td>
       ))}
-      <td className="px-2 py-2 text-center w-12">
+      <td className="px-2 py-2 text-center w-14">
         {!isEditing ? (
-          <button onClick={onEdit} className="p-1 text-gray-400 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors" title="Edit pricing">
+          <button onClick={onEdit} className="p-1 text-gray-300 hover:text-purple-600 hover:bg-purple-50 rounded transition-colors" title="Edit all prices">
             <Edit2 className="h-3.5 w-3.5" />
           </button>
         ) : (
