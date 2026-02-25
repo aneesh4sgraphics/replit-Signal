@@ -14506,12 +14506,76 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // ── Helper: push a single lead to Odoo as a Contact (res.partner) ──────────
-  async function pushLeadToOdooContact(leadId: number): Promise<{ success: boolean; alreadyPushed?: boolean; odooPartnerId?: number; error?: string }> {
+  async function pushLeadToOdooContact(leadId: number): Promise<{ success: boolean; alreadyPushed?: boolean; odooPartnerId?: number; customerId?: string; error?: string }> {
     const [lead] = await db.select().from(leads).where(eq(leads.id, leadId)).limit(1);
     if (!lead) return { success: false, error: 'Lead not found' };
 
-    // Idempotent: already pushed
-    if (lead.odooPartnerId) return { success: true, alreadyPushed: true, odooPartnerId: lead.odooPartnerId };
+    // Idempotent: already pushed to Odoo
+    if (lead.odooPartnerId) {
+      // Check if a local customer was also created — if not, complete the conversion now
+      const [existingCustomer] = await db.select({ id: customers.id })
+        .from(customers)
+        .where(eq(customers.odooPartnerId, lead.odooPartnerId))
+        .limit(1);
+
+      if (existingCustomer) {
+        // Already fully converted — nothing left to do
+        return { success: true, alreadyPushed: true, odooPartnerId: lead.odooPartnerId, customerId: existingCustomer.id };
+      }
+
+      // Local customer missing (old code path) — finish the conversion: create customer + delete lead
+      const newCustomerId = crypto.randomUUID();
+      const nameParts = (lead.name || '').trim().split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      await db.insert(customers).values({
+        id: newCustomerId,
+        firstName, lastName,
+        company: lead.company || lead.name || '',
+        email: lead.email || null,
+        emailNormalized: lead.emailNormalized || (lead.email ? lead.email.toLowerCase().trim() : null),
+        phone: lead.phone || null,
+        cell: lead.mobile || null,
+        address1: lead.street || null,
+        address2: lead.street2 || null,
+        city: lead.city || null,
+        province: lead.state || null,
+        zip: lead.zip || null,
+        country: lead.country || null,
+        website: lead.website || null,
+        note: lead.description || null,
+        salesRepId: lead.salesRepId || null,
+        salesRepName: lead.salesRepName || null,
+        pricingTier: lead.pricingTier || null,
+        pricingTierSetBy: lead.pricingTierSetBy || null,
+        pricingTierSetAt: lead.pricingTierSetAt || null,
+        customerType: lead.customerType || null,
+        tags: lead.tags || null,
+        isCompany: lead.isCompany || false,
+        contactType: 'contact',
+        sources: ['lead_conversion'],
+        swatchbookSentAt: lead.swatchbookSentAt || null,
+        priceListSentAt: lead.priceListSentAt || null,
+        odooPartnerId: lead.odooPartnerId,
+        totalSpent: '0',
+        totalOrders: 0,
+        createdAt: new Date(),
+      });
+      await db.insert(customerActivityEvents).values({
+        customerId: newCustomerId,
+        eventType: 'note',
+        title: 'Contact created from Lead (retroactive)',
+        description: `Lead "${lead.name}" was already in Odoo as partner #${lead.odooPartnerId}; local contact record created now.`,
+        sourceType: 'manual',
+        sourceTable: 'leads',
+        sourceId: String(lead.id),
+        eventDate: new Date(),
+      });
+      await db.delete(leadActivities).where(eq(leadActivities.leadId, leadId));
+      await db.delete(leads).where(eq(leads.id, leadId));
+      console.log(`[Push to Odoo] Lead #${leadId} retroactively converted — customer ${newCustomerId}`);
+      return { success: true, odooPartnerId: lead.odooPartnerId, customerId: newCustomerId };
+    }
 
     // Resolve country
     let resolvedCountryId: number | undefined;

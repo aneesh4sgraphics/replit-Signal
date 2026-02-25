@@ -1499,7 +1499,6 @@ export default function Spotlight() {
           doNotMergeMutation.mutate({
             customerId1: currentCustomerId,
             customerId2: duplicateIds[0],
-            taskId: undefined as any,
           });
         }
         return;
