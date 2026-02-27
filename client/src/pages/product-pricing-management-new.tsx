@@ -1360,18 +1360,25 @@ export default function ProductPricingManagementNew() {
                               {TIER_LABELS[key]}
                             </td>
                             {referenceProducts.map(item => {
-                              const price = (item as any)[key];
+                              const pricePerSqm = Number((item as any)[key]) || 0;
+                              const sqmPerSheet = item.minQuantity > 1
+                                ? item.totalSqm / item.minQuantity
+                                : item.totalSqm;
+                              const currentPerSheet = +(pricePerSqm * sqmPerSheet).toFixed(2);
                               const newVal = bulkEditValues[key];
-                              const newPrice = newVal ? parseFloat(newVal) : null;
-                              const isChanged = newPrice !== null && !isNaN(newPrice) && Math.abs(newPrice - price) > 0.001;
+                              const newPricePerSqm = newVal ? parseFloat(newVal) : null;
+                              const newPerSheet = newPricePerSqm !== null && !isNaN(newPricePerSqm)
+                                ? +(newPricePerSqm * sqmPerSheet).toFixed(2)
+                                : null;
+                              const isChanged = newPerSheet !== null && Math.abs(newPerSheet - currentPerSheet) > 0.001;
                               return (
                                 <td key={item.id} className="text-center py-1.5 px-2 border-x border-gray-100">
                                   <span className={`font-mono text-[11px] ${isChanged ? 'line-through text-gray-300' : 'text-gray-700'}`}>
-                                    ${Number(price).toFixed(2)}
+                                    ${currentPerSheet.toFixed(2)}
                                   </span>
-                                  {isChanged && newPrice !== null && (
+                                  {isChanged && newPerSheet !== null && (
                                     <span className="font-mono text-[11px] text-purple-600 font-semibold ml-1">
-                                      ${newPrice.toFixed(2)}
+                                      ${newPerSheet.toFixed(2)}
                                     </span>
                                   )}
                                 </td>
