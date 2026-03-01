@@ -43,14 +43,14 @@ function getOAuth2Client() {
   return new google.auth.OAuth2(clientId, clientSecret, redirectUri);
 }
 
-export function getAuthUrl(userId: string): string {
+export function getAuthUrl(nonce: string): string {
   const oauth2Client = getOAuth2Client();
   
   return oauth2Client.generateAuthUrl({
     access_type: 'offline',
     scope: GMAIL_SCOPES,
     prompt: 'consent',
-    state: userId,
+    state: nonce,
   });
 }
 

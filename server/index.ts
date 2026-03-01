@@ -79,35 +79,13 @@ if (isProduction) {
   console.log('[Boot] trust proxy enabled for production');
 }
 
-// Public diagnostic endpoint - MUST be before auth middleware so it's accessible when auth is broken
-app.get('/api/diagnostics/auth-env', (req, res) => {
+// Minimal public diagnostic endpoint — intentionally before auth middleware for debugging auth failures.
+// Returns only enough to confirm the environment is configured; no secret names, hostnames, or session internals.
+app.get('/api/diagnostics/auth-env', (_req, res) => {
   res.json({
     environment: isProduction ? 'production' : 'development',
     timestamp: new Date().toISOString(),
-    hostname: req.hostname,
-    secrets: {
-      SESSION_SECRET: !!process.env.SESSION_SECRET,
-      DATABASE_URL: !!process.env.DATABASE_URL,
-      REPL_ID: !!process.env.REPL_ID,
-      REPLIT_DOMAINS: !!process.env.REPLIT_DOMAINS,
-      REPLIT_DEPLOYMENT: !!process.env.REPLIT_DEPLOYMENT,
-      NODE_ENV: process.env.NODE_ENV || 'not set',
-    },
-    domains: process.env.REPLIT_DOMAINS ? process.env.REPLIT_DOMAINS.split(',') : [],
-    authWillWork: !!(process.env.REPLIT_DOMAINS && process.env.SESSION_SECRET && process.env.REPL_ID),
-    cookies: {
-      present: !!req.cookies,
-      sessionCookie: !!req.cookies?.['connect.sid'],
-    },
-    sessionCookieConfig: {
-      isProduction: sessionConfig.isProduction,
-      sameSite: sessionConfig.sameSite,
-      secure: sessionConfig.secure,
-      httpOnly: sessionConfig.httpOnly,
-      ttl: sessionConfig.ttl,
-      path: sessionConfig.path,
-    },
-    trustProxy: true,
+    requiredSecretsPresent: !!(process.env.REPLIT_DOMAINS && process.env.SESSION_SECRET && process.env.REPL_ID),
   });
 });
 

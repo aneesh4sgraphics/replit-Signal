@@ -3623,7 +3623,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
 
   // --- Comprehensive diagnostics endpoint ---
-  app.get('/api/diagnostics', async (_req, res) => {
+  app.get('/api/diagnostics', isAuthenticated, requireAdmin, async (_req, res) => {
     try {
       const diagnostics: any = {
         timestamp: new Date().toISOString(),
@@ -6365,7 +6365,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
           // Create a map of existing pricing data for duplicate detection and updates
           const existingDataMap = new Map(existingData.map(row => [`${row[0]}_${row[1]}`, row]));
           
-          let updatedCount = 0;
           const finalData = [...existingData];
           
           // Process new data to add new records or update existing ones
@@ -9287,7 +9286,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
   });
   
   // URL fetching endpoint for the text parser
-  app.post("/api/fetch-url", async (req, res) => {
+  app.post("/api/fetch-url", isAuthenticated, async (req, res) => {
     try {
       const { url } = req.body;
       if (!url || typeof url !== 'string') {
@@ -9295,14 +9294,38 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }
       
       // Validate URL
+      let parsed: URL;
       try {
-        new URL(url);
+        parsed = new URL(url);
       } catch {
         return res.status(400).json({ error: "Invalid URL format" });
       }
+
+      // Only allow HTTPS to public hosts — block SSRF vectors
+      if (parsed.protocol !== 'https:') {
+        return res.status(400).json({ error: "Only HTTPS URLs are allowed" });
+      }
+      const hostname = parsed.hostname.toLowerCase();
+      const privatePatterns = [
+        /^localhost$/,
+        /^127\./,
+        /^10\./,
+        /^172\.(1[6-9]|2\d|3[01])\./,
+        /^192\.168\./,
+        /^169\.254\./,
+        /^::1$/,
+        /^fc[0-9a-f]{2}:/i,
+        /\.local$/,
+        /\.internal$/,
+      ];
+      if (privatePatterns.some(p => p.test(hostname))) {
+        return res.status(400).json({ error: "URL host is not allowed" });
+      }
       
-      // Fetch the URL content
-      const response = await fetch(url);
+      // Fetch with a 10-second timeout
+      const controller = new AbortController();
+      const timeout = setTimeout(() => controller.abort(), 10000);
+      const response = await fetch(url, { signal: controller.signal }).finally(() => clearTimeout(timeout));
       if (!response.ok) {
         throw new Error(`Failed to fetch URL: ${response.status}`);
       }
@@ -9773,7 +9796,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
     try {
       const { getAuthUrl } = await import("./user-gmail-oauth");
       const userId = req.user?.claims?.sub || req.user?.id;
-      const authUrl = getAuthUrl(userId);
+      const nonce = require('crypto').randomUUID();
+      req.session.gmailOAuthNonce = nonce;
+      req.session.gmailOAuthUserId = userId;
+      const authUrl = getAuthUrl(nonce);
       res.json({ authUrl });
     } catch (error: any) {
       console.error("Error initiating Gmail OAuth:", error);
@@ -9791,16 +9817,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // OAuth callback
   app.get("/api/gmail-oauth/callback", async (req: any, res) => {
     try {
-      const { code, state: userId, error: oauthError } = req.query;
+      const { code, state: nonce, error: oauthError } = req.query;
       
       if (oauthError) {
         console.error("Gmail OAuth error:", oauthError);
         return res.redirect("/?gmail_error=" + encodeURIComponent(oauthError as string));
       }
       
-      if (!code || !userId) {
+      if (!code || !nonce) {
         return res.redirect("/?gmail_error=missing_params");
       }
+
+      // Verify nonce matches session to prevent OAuth CSRF / account-linking abuse
+      const sessionNonce = req.session?.gmailOAuthNonce;
+      const userId = req.session?.gmailOAuthUserId;
+      if (!sessionNonce || sessionNonce !== nonce || !userId) {
+        console.error("[Gmail OAuth] State nonce mismatch — possible CSRF attempt");
+        return res.redirect("/?gmail_error=invalid_state");
+      }
+      // Consume the nonce so it can't be replayed
+      delete req.session.gmailOAuthNonce;
+      delete req.session.gmailOAuthUserId;
       
       const { handleCallback } = await import("./user-gmail-oauth");
       const result = await handleCallback(code as string, userId as string);
