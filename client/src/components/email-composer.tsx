@@ -250,12 +250,17 @@ function EmailComposePopup({ isOpen, onClose, initialConfig, onSent }: EmailComp
 
   const activeTemplates = templates.filter(t => {
     if (!t.isActive) return false;
-    // If a usageType is specified, only show templates matching that type
+    const tUsage = (t as any).usageType;
+    // lead_email and client_email both use the same general outreach templates
+    if (initialConfig.usageType === 'lead_email') {
+      return !tUsage || tUsage === 'client_email' || tUsage === 'lead_email';
+    }
+    // If another specific usageType is specified, match it exactly
     if (initialConfig.usageType) {
-      return (t as any).usageType === initialConfig.usageType;
+      return tUsage === initialConfig.usageType;
     }
     // Default: show client_email templates or templates without usageType
-    return !(t as any).usageType || (t as any).usageType === 'client_email';
+    return !tUsage || tUsage === 'client_email';
   });
 
   return (
