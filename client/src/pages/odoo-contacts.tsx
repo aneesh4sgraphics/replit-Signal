@@ -169,6 +169,8 @@ export default function OdooContacts() {
   const [searchActiveFilterSnapshot, setSearchActiveFilterSnapshot] = useState<typeof filters | null>(null);
 
   // Customer health review
+  // Show the health check button only on Monday (1) and Thursday (4)
+  const isReviewDay = [1, 4].includes(new Date().getDay());
   const [showCustomerReview, setShowCustomerReview] = useState(false);
   const { data: reviewData, isLoading: isLoadingReview } = useQuery<{
     customers: Array<{
@@ -764,19 +766,21 @@ export default function OdooContacts() {
             </div>
             
             <div className="flex items-center gap-2">
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setShowCustomerReview(true)}
-                className="relative text-rose-500 hover:text-rose-600 hover:bg-rose-50"
-                title="Customer Health Review"
-              >
-                <span className="relative flex items-center gap-2">
-                  <span className="absolute -left-0.5 -top-0.5 w-5 h-5 rounded-full bg-rose-400 opacity-30 animate-ping" />
-                  <HeartPulse className="w-4 h-4 relative" />
-                  <span className="text-sm font-medium">Health Check</span>
-                </span>
-              </Button>
+              {isReviewDay && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => setShowCustomerReview(true)}
+                  className="relative text-rose-500 hover:text-rose-600 hover:bg-rose-50"
+                  title="Customer Health Review"
+                >
+                  <span className="relative flex items-center gap-2">
+                    <span className="absolute -left-0.5 -top-0.5 w-5 h-5 rounded-full bg-rose-400 opacity-30 animate-ping" />
+                    <HeartPulse className="w-4 h-4 relative" />
+                    <span className="text-sm font-medium">Health Check</span>
+                  </span>
+                </Button>
+              )}
               <Button 
                 variant="ghost" 
                 size="sm"
