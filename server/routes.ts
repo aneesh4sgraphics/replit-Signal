@@ -5879,9 +5879,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
       
       setCachedData("customers", null);
       res.json({ message: "Customers merged successfully", mergedCustomer: mergedData });
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error merging customers:", error);
-      res.status(500).json({ error: "Failed to merge customers" });
+      const detail = error?.message || String(error) || "Unknown error";
+      res.status(500).json({ error: `Merge failed: ${detail}` });
     }
   });
 

@@ -72,21 +72,24 @@ export class ApiError extends Error {
 async function throwIfResNotOk(res: Response) {
   if (!res.ok) {
     const text = (await res.text()) || res.statusText;
-    
-    let message = `Request failed`;
-    
+
+    let serverMessage: string | null = null;
+    try {
+      const parsed = JSON.parse(text);
+      serverMessage = parsed.error || parsed.message || parsed.details || null;
+    } catch {}
+
+    let message: string;
     if (res.status === 401) {
       message = 'Your session has expired. Please log in again.';
     } else if (res.status === 403) {
-      message = 'You do not have permission to access this resource.';
+      message = serverMessage || 'You do not have permission to access this resource.';
     } else if (res.status === 404) {
-      message = 'The requested resource was not found.';
-    } else if (res.status >= 500) {
-      message = 'The server encountered an error. Please try again later.';
+      message = serverMessage || 'The requested resource was not found.';
     } else {
-      message = `Request failed with status ${res.status}`;
+      message = serverMessage || `Request failed with status ${res.status}`;
     }
-    
+
     throw new ApiError(message, {
       status: res.status,
       statusText: res.statusText,
