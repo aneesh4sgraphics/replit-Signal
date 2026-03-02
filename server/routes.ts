@@ -6024,6 +6024,95 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Screenshot import - AI-powered contact extraction from screenshots
+  const screenshotUpload = multer({
+    storage: multer.memoryStorage(),
+    fileFilter: (req, file, cb) => {
+      if (file.mimetype.startsWith('image/')) {
+        cb(null, true);
+      } else {
+        cb(new Error('Only image files are allowed'));
+      }
+    },
+    limits: { fileSize: 10 * 1024 * 1024 }
+  });
+
+  app.post("/api/screenshot/extract", isAuthenticated, screenshotUpload.single('screenshot'), async (req: any, res) => {
+    try {
+      if (!req.file) {
+        return res.status(400).json({ error: 'No image file provided' });
+      }
+
+      const openaiApiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      if (!openaiApiKey) {
+        return res.status(503).json({ error: 'AI extraction is not configured' });
+      }
+
+      const openaiClient = new OpenAI({
+        apiKey: openaiApiKey,
+        baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL,
+      });
+
+      const base64Image = req.file.buffer.toString('base64');
+      const mimeType = req.file.mimetype;
+
+      const completion = await openaiClient.chat.completions.create({
+        model: 'gpt-4o',
+        messages: [
+          {
+            role: 'user',
+            content: [
+              {
+                type: 'image_url',
+                image_url: {
+                  url: `data:${mimeType};base64,${base64Image}`,
+                  detail: 'high',
+                }
+              },
+              {
+                type: 'text',
+                text: `Extract contact information from this screenshot. Return ONLY a valid JSON object with these exact fields (use null for any field not found):
+{
+  "name": "Full name of the person",
+  "company": "Company or organization name",
+  "jobTitle": "Job title or professional role",
+  "email": "Primary email address",
+  "phone": "Phone number including country code if visible (e.g. +1 708-203-5717)",
+  "street": "Street address line 1",
+  "street2": "Apartment, suite, or floor (line 2 only if present)",
+  "city": "City name",
+  "state": "Full state or province name (e.g. Illinois not IL, Ontario not ON)",
+  "zip": "Postal or ZIP code",
+  "country": "Full country name in Odoo format (e.g. United States, Canada, Mexico, United Kingdom)",
+  "notes": "Any other relevant professional context visible in the screenshot"
+}
+Return only the JSON object. No markdown, no code blocks.`
+              }
+            ]
+          }
+        ],
+        max_tokens: 500,
+      });
+
+      const rawText = completion.choices[0]?.message?.content || '{}';
+      const cleaned = rawText.replace(/```json\n?/g, '').replace(/```\n?/g, '').trim();
+
+      let extracted: Record<string, string | null> = {};
+      try {
+        extracted = JSON.parse(cleaned);
+      } catch (e) {
+        console.error('[Screenshot Extract] Failed to parse AI response:', rawText);
+        return res.status(422).json({ error: 'Could not parse contact information from image' });
+      }
+
+      console.log(`[Screenshot Extract] Extracted fields: ${Object.keys(extracted).filter(k => extracted[k]).join(', ')}`);
+      res.json({ data: extracted });
+    } catch (error) {
+      console.error('[Screenshot Extract] Error:', error);
+      res.status(500).json({ error: 'Failed to extract contact information' });
+    }
+  });
+
   // File Upload Tracking routes
   app.get("/api/file-uploads/:fileType", async (req, res) => {
     try {

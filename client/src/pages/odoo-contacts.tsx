@@ -75,10 +75,12 @@ import {
   HeartPulse,
   Clock,
   TrendingUp,
+  Camera,
 } from "lucide-react";
 import { SiShopify, SiOdoo } from "react-icons/si";
 import { PrintLabelButton, useLabelQueue, CustomerAddress } from "@/components/PrintLabelButton";
 import { useEmailComposer } from "@/components/email-composer";
+import ScreenshotImportModal from "@/components/ScreenshotImportModal";
 
 interface Contact {
   id: string;
@@ -172,6 +174,7 @@ export default function OdooContacts() {
   // Show the health check button only on Monday (1) and Thursday (4)
   const isReviewDay = [1, 4].includes(new Date().getDay());
   const [showCustomerReview, setShowCustomerReview] = useState(false);
+  const [showScreenshotImport, setShowScreenshotImport] = useState(false);
   const { data: reviewData, isLoading: isLoadingReview } = useQuery<{
     customers: Array<{
       id: string;
@@ -766,6 +769,16 @@ export default function OdooContacts() {
             </div>
             
             <div className="flex items-center gap-2">
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowScreenshotImport(true)}
+                className="gap-2"
+                title="Import contact from screenshot"
+              >
+                <Camera className="w-4 h-4" />
+                From Screenshot
+              </Button>
               {isReviewDay && (
                 <Button
                   variant="ghost"
@@ -1927,6 +1940,13 @@ export default function OdooContacts() {
           )}
         </SheetContent>
       </Sheet>
+
+      {/* Screenshot Import Modal */}
+      <ScreenshotImportModal
+        isOpen={showScreenshotImport}
+        onClose={() => setShowScreenshotImport(false)}
+        defaultSaveAs="contact"
+      />
 
       {/* Customer Health Review Dialog */}
       <Dialog open={showCustomerReview} onOpenChange={setShowCustomerReview}>

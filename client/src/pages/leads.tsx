@@ -68,6 +68,7 @@ import {
   Upload,
   CheckCircle,
   Zap,
+  Camera,
 } from "lucide-react";
 import {
   DropdownMenu,
@@ -76,6 +77,7 @@ import {
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
 import { PrintLabelButton, useLabelQueue, CustomerAddress } from "@/components/PrintLabelButton";
+import ScreenshotImportModal from "@/components/ScreenshotImportModal";
 import { motion, AnimatePresence } from "framer-motion";
 import { SiOdoo, SiShopify } from "react-icons/si";
 import { Progress } from "@/components/ui/progress";
@@ -211,6 +213,7 @@ export default function LeadsPage() {
     });
   };
   const [showCreateDialog, setShowCreateDialog] = useState(false);
+  const [showScreenshotImport, setShowScreenshotImport] = useState(false);
   const [importStatus, setImportStatus] = useState<{ message: string; progress: number } | null>(null);
   const [showBulkDrip, setShowBulkDrip] = useState(false);
   const [selectedBulkDripCampaignId, setSelectedBulkDripCampaignId] = useState<string>('');
@@ -574,6 +577,16 @@ export default function LeadsPage() {
             >
               <RefreshCw className="w-4 h-4" />
               Refresh
+            </Button>
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={() => setShowScreenshotImport(true)}
+              className="gap-2"
+              title="Import lead from screenshot"
+            >
+              <Camera className="w-4 h-4" />
+              From Screenshot
             </Button>
             <Button
               size="sm"
@@ -1538,6 +1551,13 @@ export default function LeadsPage() {
             </div>
           </div>
         )}
+
+        {/* Screenshot Import Modal */}
+        <ScreenshotImportModal
+          isOpen={showScreenshotImport}
+          onClose={() => setShowScreenshotImport(false)}
+          defaultSaveAs="lead"
+        />
 
         {/* Create Lead Dialog */}
         <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
