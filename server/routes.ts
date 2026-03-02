@@ -14485,24 +14485,15 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // Get leads that need Monday morning review (must be before :id route)
   app.get("/api/leads/needs-review", isAuthenticated, async (req: any, res) => {
     try {
-      const oneWeekAgo = new Date();
-      oneWeekAgo.setDate(oneWeekAgo.getDate() - 7);
-      
       const activeStages = ['new', 'contacted', 'qualified', 'nurturing', 'contact_later'];
       
+      // Return ALL active pipeline leads — the date filter was too narrow and excluded
+      // leads that hadn't been touched in over a week, which are exactly the ones
+      // most in need of a Monday review. Sort stale leads first (oldest update first).
       const reviewLeads = await db.select().from(leads)
-        .where(
-          and(
-            inArray(leads.stage, activeStages),
-            or(
-              gte(leads.updatedAt, oneWeekAgo),
-              gte(leads.lastContactAt, oneWeekAgo),
-              gte(leads.createdAt, oneWeekAgo)
-            )
-          )
-        )
-        .orderBy(desc(leads.updatedAt))
-        .limit(50);
+        .where(inArray(leads.stage, activeStages))
+        .orderBy(leads.updatedAt)
+        .limit(100);
       
       res.json({ leads: reviewLeads, count: reviewLeads.length });
     } catch (error) {

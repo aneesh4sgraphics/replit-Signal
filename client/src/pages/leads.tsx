@@ -216,14 +216,21 @@ export default function LeadsPage() {
   const [selectedBulkDripCampaignId, setSelectedBulkDripCampaignId] = useState<string>('');
   const [showMondayReview, setShowMondayReview] = useState(false);
   const [mondayReviewDismissed, setMondayReviewDismissed] = useState(() => {
-    // Check if user already dismissed the Monday review this week
+    // Only keep the dismissal if it happened during *this* Monday (00:00 onward).
+    // A rolling 7-day window caused the dialog to stay hidden into the next Monday
+    // when users had dismissed it in the afternoon the previous week.
     const dismissed = localStorage.getItem('mondayReviewDismissed');
     if (dismissed) {
       const dismissedDate = new Date(dismissed);
       const now = new Date();
-      // If dismissed was more than a week ago, show again
-      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
-      return dismissedDate > weekAgo;
+      // Compute start of this Monday at midnight local time
+      const dayOfWeek = now.getDay(); // 0=Sun, 1=Mon, …
+      const daysFromMonday = dayOfWeek === 0 ? 6 : dayOfWeek - 1;
+      const thisMonday = new Date(now);
+      thisMonday.setDate(now.getDate() - daysFromMonday);
+      thisMonday.setHours(0, 0, 0, 0);
+      // Still dismissed only if the user closed it earlier today (this Monday)
+      return dismissedDate >= thisMonday;
     }
     return false;
   });
