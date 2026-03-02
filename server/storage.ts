@@ -196,6 +196,9 @@ import {
   type CoachingMoment,
   type InsertCoachingMoment,
   customerCoachState,
+  // Label Queue
+  labelQueue,
+  type LabelQueueItem,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -540,6 +543,12 @@ export interface IStorage {
   createEmailTemplate(data: InsertEmailTemplate): Promise<EmailTemplate>;
   updateEmailTemplate(id: number, data: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined>;
   deleteEmailTemplate(id: number): Promise<void>;
+
+  // Label Queue (shared cross-user)
+  getLabelQueue(): Promise<LabelQueueItem[]>;
+  addToLabelQueue(customerId: string | null, leadId: number | null, addedBy: string): Promise<LabelQueueItem>;
+  removeFromLabelQueue(id: number): Promise<void>;
+  clearLabelQueue(): Promise<void>;
 
   // Email Sends
   getEmailSends(customerId?: string): Promise<EmailSend[]>;
@@ -2904,6 +2913,27 @@ export class DatabaseStorage implements IStorage {
     await db.update(emailSends).set({ templateId: null }).where(eq(emailSends.templateId, id));
     await db.update(dripCampaignSteps).set({ templateId: null }).where(eq(dripCampaignSteps.templateId, id));
     await db.delete(emailTemplates).where(eq(emailTemplates.id, id));
+  }
+
+  // ========================================
+  // Label Queue Implementation
+  // ========================================
+
+  async getLabelQueue(): Promise<LabelQueueItem[]> {
+    return await db.select().from(labelQueue).orderBy(labelQueue.addedAt);
+  }
+
+  async addToLabelQueue(customerId: string | null, leadId: number | null, addedBy: string): Promise<LabelQueueItem> {
+    const [item] = await db.insert(labelQueue).values({ customerId, leadId, addedBy }).returning();
+    return item;
+  }
+
+  async removeFromLabelQueue(id: number): Promise<void> {
+    await db.delete(labelQueue).where(eq(labelQueue.id, id));
+  }
+
+  async clearLabelQueue(): Promise<void> {
+    await db.delete(labelQueue);
   }
 
   // ========================================

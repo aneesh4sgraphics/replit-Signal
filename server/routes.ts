@@ -154,6 +154,7 @@ import {
   dripCampaignSteps,
   dripCampaignAssignments,
   dripCampaignStepStatus,
+  labelQueue,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -3272,6 +3273,101 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Today's label stats error:", error);
       res.status(500).json({ error: "Failed to fetch today's label stats" });
+    }
+  });
+
+  // --- Shared Label Queue (cross-user) ---
+
+  app.get("/api/label-queue", isAuthenticated, async (req: any, res) => {
+    try {
+      const items = await storage.getLabelQueue();
+      // Enrich with address data for each item
+      const enriched = await Promise.all(items.map(async (item) => {
+        let address = null;
+        if (item.customerId) {
+          const [c] = await db.select({
+            id: customers.id,
+            company: customers.company,
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            address1: customers.address1,
+            address2: customers.address2,
+            city: customers.city,
+            province: customers.province,
+            zip: customers.zip,
+            country: customers.country,
+          }).from(customers).where(eq(customers.id, item.customerId)).limit(1);
+          if (c) address = c;
+        } else if (item.leadId) {
+          const lead = await db.select({
+            id: leads.id,
+            name: leads.name,
+            company: leads.company,
+            street: leads.street,
+            street2: leads.street2,
+            city: leads.city,
+            state: leads.state,
+            zip: leads.zip,
+            country: leads.country,
+          }).from(leads).where(eq(leads.id, item.leadId)).limit(1).then(r => r[0]);
+          if (lead) {
+            const nameParts = (lead.name || '').split(' ');
+            address = {
+              id: `lead-${lead.id}`,
+              company: lead.company,
+              firstName: nameParts[0] || null,
+              lastName: nameParts.slice(1).join(' ') || null,
+              address1: lead.street,
+              address2: lead.street2,
+              city: lead.city,
+              province: lead.state,
+              zip: lead.zip,
+              country: lead.country,
+            };
+          }
+        }
+        return { ...item, address };
+      }));
+      res.json(enriched);
+    } catch (error) {
+      console.error("Error fetching label queue:", error);
+      res.status(500).json({ error: "Failed to fetch label queue" });
+    }
+  });
+
+  app.post("/api/label-queue", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId, leadId } = req.body;
+      const addedBy = req.user?.email || req.user?.id || 'unknown';
+      if (!customerId && !leadId) {
+        return res.status(400).json({ error: "customerId or leadId required" });
+      }
+      const item = await storage.addToLabelQueue(customerId || null, leadId || null, addedBy);
+      res.json(item);
+    } catch (error) {
+      console.error("Error adding to label queue:", error);
+      res.status(500).json({ error: "Failed to add to label queue" });
+    }
+  });
+
+  app.delete("/api/label-queue/clear", isAuthenticated, async (req: any, res) => {
+    try {
+      await storage.clearLabelQueue();
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error clearing label queue:", error);
+      res.status(500).json({ error: "Failed to clear label queue" });
+    }
+  });
+
+  app.delete("/api/label-queue/:id", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      await storage.removeFromLabelQueue(id);
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Error removing from label queue:", error);
+      res.status(500).json({ error: "Failed to remove from label queue" });
     }
   });
 

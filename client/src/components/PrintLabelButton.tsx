@@ -1,16 +1,15 @@
 import { useState, createContext, useContext } from "react";
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
-import { Badge } from "@/components/ui/badge";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
-import { Printer, Loader2, X } from "lucide-react";
+import { Printer, Loader2, X, Users } from "lucide-react";
 
 export interface CustomerAddress {
   id: string;
@@ -25,19 +24,24 @@ export interface CustomerAddress {
   country?: string | null;
 }
 
-interface QueuedLabel {
-  customer: CustomerAddress;
-  leadId?: number;
+interface ServerQueueItem {
+  id: number;
+  customerId: string | null;
+  leadId: number | null;
+  addedBy: string | null;
+  addedAt: string;
+  address: CustomerAddress | null;
 }
 
 interface LabelQueueContextType {
-  queue: QueuedLabel[];
-  addToQueue: (customer: CustomerAddress, leadId?: number) => void;
-  addToQueueAndOpen: (customer: CustomerAddress, leadId?: number) => void;
-  addBulkToQueueAndOpen: (items: { customer: CustomerAddress; leadId?: number }[]) => void;
-  removeFromQueue: (customerId: string) => void;
-  clearQueue: () => void;
-  isInQueue: (customerId: string) => boolean;
+  queue: ServerQueueItem[];
+  isLoading: boolean;
+  addToQueue: (customer: CustomerAddress, leadId?: number) => Promise<void>;
+  addToQueueAndOpen: (customer: CustomerAddress, leadId?: number) => Promise<void>;
+  addBulkToQueueAndOpen: (items: { customer: CustomerAddress; leadId?: number }[]) => Promise<void>;
+  removeFromQueue: (entityId: string) => Promise<void>;
+  clearQueue: () => Promise<void>;
+  isInQueue: (entityId: string) => boolean;
   openPrintDialog: () => void;
 }
 
@@ -49,46 +53,88 @@ export function useLabelQueue() {
   return ctx;
 }
 
+function entityId(item: ServerQueueItem): string {
+  if (item.customerId) return item.customerId;
+  if (item.leadId) return `lead-${item.leadId}`;
+  return String(item.id);
+}
+
 export function LabelQueueProvider({ children }: { children: React.ReactNode }) {
-  const [queue, setQueue] = useState<QueuedLabel[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
+  const queryClient = useQueryClient();
+  const { toast } = useToast();
 
-  const addToQueue = (customer: CustomerAddress, leadId?: number) => {
-    setQueue(prev => {
-      if (prev.some(q => q.customer.id === customer.id)) return prev;
-      return [...prev, { customer, leadId }];
-    });
+  const { data: queue = [], isLoading } = useQuery<ServerQueueItem[]>({
+    queryKey: ['/api/label-queue'],
+    refetchInterval: 8000,
+  });
+
+  const invalidate = () => queryClient.invalidateQueries({ queryKey: ['/api/label-queue'] });
+
+  const addMutation = useMutation({
+    mutationFn: async ({ customerId, leadId }: { customerId?: string; leadId?: number }) => {
+      const res = await apiRequest('POST', '/api/label-queue', { customerId, leadId });
+      return res.json();
+    },
+    onSuccess: invalidate,
+  });
+
+  const removeMutation = useMutation({
+    mutationFn: async (id: number) => {
+      await apiRequest('DELETE', `/api/label-queue/${id}`);
+    },
+    onSuccess: invalidate,
+  });
+
+  const clearMutation = useMutation({
+    mutationFn: async () => {
+      await apiRequest('DELETE', '/api/label-queue/clear');
+    },
+    onSuccess: invalidate,
+  });
+
+  const isInQueue = (id: string) => queue.some(item => entityId(item) === id);
+
+  const addToQueue = async (customer: CustomerAddress, leadId?: number) => {
+    const id = leadId ? `lead-${leadId}` : customer.id;
+    if (isInQueue(id)) return;
+    await addMutation.mutateAsync(leadId ? { leadId } : { customerId: customer.id });
   };
 
-  const addToQueueAndOpen = (customer: CustomerAddress, leadId?: number) => {
-    setQueue(prev => {
-      if (prev.some(q => q.customer.id === customer.id)) return prev;
-      return [...prev, { customer, leadId }];
-    });
+  const addToQueueAndOpen = async (customer: CustomerAddress, leadId?: number) => {
+    await addToQueue(customer, leadId);
     setDialogOpen(true);
   };
 
-  const addBulkToQueueAndOpen = (items: { customer: CustomerAddress; leadId?: number }[]) => {
-    setQueue(prev => {
-      const existingIds = new Set(prev.map(q => q.customer.id));
-      const newItems = items.filter(item => !existingIds.has(item.customer.id));
-      return [...prev, ...newItems];
+  const addBulkToQueueAndOpen = async (items: { customer: CustomerAddress; leadId?: number }[]) => {
+    const newItems = items.filter(i => {
+      const id = i.leadId ? `lead-${i.leadId}` : i.customer.id;
+      return !isInQueue(id);
     });
+    await Promise.all(newItems.map(i =>
+      addMutation.mutateAsync(i.leadId ? { leadId: i.leadId } : { customerId: i.customer.id })
+    ));
+    await invalidate();
     setDialogOpen(true);
+    toast({ title: `Added ${newItems.length} address${newItems.length !== 1 ? 'es' : ''} to the shared queue` });
   };
 
-  const removeFromQueue = (customerId: string) => {
-    setQueue(prev => prev.filter(q => q.customer.id !== customerId));
+  const removeFromQueue = async (id: string) => {
+    const item = queue.find(q => entityId(q) === id);
+    if (!item) return;
+    await removeMutation.mutateAsync(item.id);
   };
 
-  const clearQueue = () => setQueue([]);
-  const isInQueue = (customerId: string) => queue.some(q => q.customer.id === customerId);
+  const clearQueue = async () => {
+    await clearMutation.mutateAsync();
+  };
+
   const openPrintDialog = () => setDialogOpen(true);
 
   return (
-    <LabelQueueContext.Provider value={{ queue, addToQueue, addToQueueAndOpen, addBulkToQueueAndOpen, removeFromQueue, clearQueue, isInQueue, openPrintDialog }}>
+    <LabelQueueContext.Provider value={{ queue, isLoading, addToQueue, addToQueueAndOpen, addBulkToQueueAndOpen, removeFromQueue, clearQueue, isInQueue, openPrintDialog }}>
       {children}
-      <BatchPrintDialog open={dialogOpen} onOpenChange={setDialogOpen} queue={queue} removeFromQueue={removeFromQueue} clearQueue={clearQueue} />
+      <BatchPrintDialog open={dialogOpen} onOpenChange={setDialogOpen} />
     </LabelQueueContext.Provider>
   );
 }
@@ -111,13 +157,11 @@ function formatAddressPreview(c: CustomerAddress) {
 
 type LabelFormat = 'thermal_4x6' | 'letter_30up';
 
-function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQueue }: {
+function BatchPrintDialog({ open, onOpenChange }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
-  queue: QueuedLabel[];
-  removeFromQueue: (id: string) => void;
-  clearQueue: () => void;
 }) {
+  const { queue, removeFromQueue, clearQueue } = useLabelQueue();
   const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'letter' | 'other'>('swatch_book');
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
   const [labelFormat, setLabelFormat] = useState<LabelFormat>('thermal_4x6');
@@ -130,25 +174,24 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
         labelType,
         labelFormat,
         otherDescription: labelType === 'other' ? labelOtherDescription : undefined,
-        addresses: queue.map(q => ({
-          customerId: q.leadId ? undefined : q.customer.id,
-          leadId: q.leadId,
-        })),
+        addresses: queue
+          .filter(q => q.address)
+          .map(q => ({
+            customerId: q.leadId ? undefined : q.customerId,
+            leadId: q.leadId ?? undefined,
+          })),
       };
       const res = await apiRequest('POST', '/api/labels/print-batch', payload);
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: async (data) => {
       if (!data.pdf) {
         toast({ title: 'Failed to print labels', description: 'No PDF data received', variant: 'destructive' });
         return;
       }
       const byteCharacters = atob(data.pdf);
-      const byteNumbers = new Array(byteCharacters.length);
-      for (let i = 0; i < byteCharacters.length; i++) {
-        byteNumbers[i] = byteCharacters.charCodeAt(i);
-      }
-      const byteArray = new Uint8Array(byteNumbers);
+      const byteArray = new Uint8Array(byteCharacters.length);
+      for (let i = 0; i < byteCharacters.length; i++) byteArray[i] = byteCharacters.charCodeAt(i);
       const blob = new Blob([byteArray], { type: 'application/pdf' });
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
@@ -163,8 +206,10 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
       toast({ title: 'Labels printed', description: `${queue.length} labels generated on ${Math.ceil(queue.length / labelsPerPage)} page(s)` });
 
       queue.forEach(q => {
-        queryClient.invalidateQueries({ queryKey: ['/api/customers', q.customer.id, 'label-stats'] });
-        queryClient.invalidateQueries({ queryKey: ['/api/customers', q.customer.id, 'activity'] });
+        if (q.customerId) {
+          queryClient.invalidateQueries({ queryKey: ['/api/customers', q.customerId, 'label-stats'] });
+          queryClient.invalidateQueries({ queryKey: ['/api/customers', q.customerId, 'activity'] });
+        }
         if (q.leadId) {
           queryClient.invalidateQueries({ queryKey: ['/api/leads', q.leadId, 'activities'] });
         }
@@ -172,7 +217,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
       queryClient.invalidateQueries({ queryKey: ['/api/dashboard/label-stats'] });
       queryClient.invalidateQueries({ queryKey: ['/api/labels/today'] });
 
-      clearQueue();
+      await clearQueue();
       onOpenChange(false);
     },
     onError: (error: any) => {
@@ -191,8 +236,9 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
             <Printer className="w-5 h-5 text-blue-600" />
             Print Address Labels
           </DialogTitle>
-          <DialogDescription>
-            Choose your label format and what you're sending, then print.
+          <DialogDescription className="flex items-center gap-1.5">
+            <Users className="w-3.5 h-3.5 text-blue-500" />
+            Shared queue — all team members contribute to this list.
           </DialogDescription>
         </DialogHeader>
 
@@ -257,7 +303,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
             </div>
           )}
 
-          {queue.length > 0 && (
+          {queue.length > 0 && queue[0].address && (
             <div className="grid gap-2">
               <Label>Label Preview</Label>
               <div className="bg-white rounded-lg border-2 border-dashed border-slate-300 p-4">
@@ -265,8 +311,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
                   How each label will print ({labelFormat === 'letter_30up' ? '2⅝″ × 1″ letter sheet' : '4×6 thermal'}):
                 </p>
                 {(() => {
-                  const sample = queue[0];
-                  const lines = formatAddressPreview(sample.customer);
+                  const lines = formatAddressPreview(queue[0].address!);
                   return (
                     <div className={`bg-slate-50 rounded border border-slate-200 p-3 font-mono leading-relaxed ${
                       labelFormat === 'letter_30up' ? 'text-xs' : 'text-sm'
@@ -304,17 +349,22 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
             ) : (
               <div className="space-y-2 max-h-[300px] overflow-y-auto">
                 {queue.map((q, i) => {
-                  const lines = formatAddressPreview(q.customer);
+                  const addr = q.address;
+                  if (!addr) return null;
+                  const lines = formatAddressPreview(addr);
                   return (
-                    <div key={q.customer.id} className="bg-gray-50 rounded-lg p-3 border flex items-start gap-3">
+                    <div key={q.id} className="bg-gray-50 rounded-lg p-3 border flex items-start gap-3">
                       <span className="text-xs text-gray-400 font-mono mt-0.5 w-5 text-center flex-shrink-0">{i + 1}</span>
                       <div className="flex-1 min-w-0">
                         {lines.map((line, li) => (
                           <p key={li} className={`text-sm ${li === 0 ? 'font-semibold text-gray-900' : 'text-gray-600'} truncate`}>{line}</p>
                         ))}
+                        {q.addedBy && (
+                          <p className="text-[10px] text-gray-400 mt-0.5">Added by {q.addedBy}</p>
+                        )}
                       </div>
                       <button
-                        onClick={() => removeFromQueue(q.customer.id)}
+                        onClick={() => removeFromQueue(entityId(q))}
                         className="p-1 rounded hover:bg-red-100 text-gray-400 hover:text-red-500 flex-shrink-0"
                       >
                         <X className="w-4 h-4" />
@@ -339,7 +389,7 @@ function BatchPrintDialog({ open, onOpenChange, queue, removeFromQueue, clearQue
 
         <DialogFooter className="gap-2">
           {queue.length > 0 && (
-            <Button variant="ghost" size="sm" onClick={clearQueue} className="mr-auto text-red-500 hover:text-red-600">
+            <Button variant="ghost" size="sm" onClick={() => clearQueue()} className="mr-auto text-red-500 hover:text-red-600">
               Clear All
             </Button>
           )}
@@ -398,7 +448,8 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
   const hasAddress = customer.address1 || customer.city;
   if (!hasAddress) return null;
 
-  const inQueue = labelQueue?.isInQueue(customer.id) ?? false;
+  const entityKey = leadId ? `lead-${leadId}` : customer.id;
+  const inQueue = labelQueue?.isInQueue(entityKey) ?? false;
 
   const printNowMutation = useMutation({
     mutationFn: async () => {
@@ -446,20 +497,20 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
   const handleClick = (e: React.MouseEvent) => {
     e.stopPropagation();
     if (inQueue) {
-      labelQueue?.removeFromQueue(customer.id);
-      toast({ title: 'Removed from label queue' });
+      labelQueue?.removeFromQueue(entityKey);
+      toast({ title: 'Removed from shared queue' });
       return;
     }
     setDialogOpen(true);
   };
 
-  const handleAddToQueue = () => {
+  const handleAddToQueue = async () => {
     if (!labelQueue) {
       toast({ title: 'Label queue not available', variant: 'destructive' });
       return;
     }
-    labelQueue.addToQueue(customer, leadId);
-    toast({ title: 'Added to label queue', description: 'Click the floating button to print when ready.' });
+    await labelQueue.addToQueue(customer, leadId);
+    toast({ title: 'Added to shared queue', description: 'All team members can see this in the queue.' });
     setDialogOpen(false);
   };
 
@@ -478,7 +529,7 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
                     ? 'bg-blue-100 text-blue-600 hover:bg-blue-200'
                     : 'hover:bg-gray-100 text-gray-400 hover:text-blue-600'
                 }`}
-                title={inQueue ? "Remove from queue" : "Print label"}
+                title={inQueue ? "Remove from shared queue" : "Print label"}
               >
                 <Printer className="w-4 h-4" />
               </button>
@@ -495,7 +546,7 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
             )}
           </TooltipTrigger>
           <TooltipContent>
-            <p>{inQueue ? 'Remove from queue' : 'Print label'}</p>
+            <p>{inQueue ? 'Remove from shared queue' : 'Print label'}</p>
           </TooltipContent>
         </Tooltip>
       </TooltipProvider>
@@ -549,7 +600,7 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
               disabled={!canConfirm || printNowMutation.isPending}
               className="flex-1"
             >
-              Add to Queue
+              Add to Shared Queue
             </Button>
             <Button
               size="sm"
@@ -570,33 +621,22 @@ export function PrintLabelButton({ customer, leadId, variant = "icon", size = "s
 }
 
 export function LabelQueueIndicator() {
-  let labelQueue: LabelQueueContextType | null = null;
-  try {
-    labelQueue = useLabelQueue();
-  } catch {
-    return null;
-  }
+  const { queue, isLoading, openPrintDialog } = useLabelQueue();
 
-  if (!labelQueue || labelQueue.queue.length === 0) return null;
-
-  const count = labelQueue.queue.length;
-  const nextFull4 = Math.ceil(count / 4) * 4;
-  const toFill4 = nextFull4 - count;
-  const hintText = toFill4 === 0
-    ? 'Ready to print!'
-    : `${toFill4} more to fill a 4×6 sheet`;
+  if (isLoading || queue.length === 0) return null;
 
   return (
-    <Button
-      onClick={() => labelQueue!.openPrintDialog()}
-      size="sm"
-      className="fixed bottom-6 right-6 z-50 bg-blue-600 hover:bg-blue-700 shadow-lg rounded-2xl h-auto px-5 py-2.5 gap-1 flex-col items-center"
-    >
-      <div className="flex items-center gap-2">
-        <Printer className="w-5 h-5" />
-        <span className="font-semibold">{count} Label{count !== 1 ? 's' : ''} Queued</span>
-      </div>
-      <span className="text-[11px] opacity-80">{hintText}</span>
-    </Button>
+    <div className="fixed bottom-6 right-6 z-50">
+      <button
+        onClick={openPrintDialog}
+        className="flex items-center gap-2 bg-blue-600 hover:bg-blue-700 text-white rounded-full px-4 py-2.5 shadow-lg transition-all hover:shadow-xl"
+      >
+        <Printer className="w-4 h-4" />
+        <span className="text-sm font-medium">{queue.length} label{queue.length !== 1 ? 's' : ''} ready</span>
+        <span className="bg-white text-blue-600 text-xs font-bold rounded-full w-5 h-5 flex items-center justify-center">
+          {queue.length}
+        </span>
+      </button>
+    </div>
   );
 }

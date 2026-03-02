@@ -2527,6 +2527,16 @@ export const insertDripCampaignStepStatusSchema = createInsertSchema(dripCampaig
 export type DripCampaignStepStatus = typeof dripCampaignStepStatus.$inferSelect;
 export type InsertDripCampaignStepStatus = z.infer<typeof insertDripCampaignStepStatusSchema>;
 
+// Shared Label Queue - cross-user queue for batch address label printing
+export const labelQueue = pgTable("label_queue", {
+  id: serial("id").primaryKey(),
+  customerId: varchar("customer_id", { length: 255 }).references(() => customers.id, { onDelete: "cascade" }),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }),
+  addedBy: varchar("added_by", { length: 255 }),
+  addedAt: timestamp("added_at").defaultNow(),
+});
+export type LabelQueueItem = typeof labelQueue.$inferSelect;
+
 // Media Uploads - for storing images used in drip emails
 export const mediaUploads = pgTable("media_uploads", {
   id: serial("id").primaryKey(),

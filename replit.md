@@ -64,7 +64,7 @@ This is a full-stack TypeScript sales management application designed for a spec
       4. **Emails**: Count of all emails sent today (email_sent, send_drip, replied outcomes)
       5. **Data Hygiene**: Count of all data hygiene bucket tasks completed (includes research tasks)
 
-- **Batch Address Label Printing:** Queue-based label printing system with two formats.
+- **Shared Batch Address Label Printing:** Team-wide shared queue stored in the database (`label_queue` table). All users contribute to and see the same queue simultaneously.
     - Users click the printer icon next to contacts/leads to add addresses to a label queue.
     - Bulk "Print Address Labels" button in Companies page multi-select bar adds all selected contacts to queue.
     - A floating indicator shows the queue count; min 1 label to print.
