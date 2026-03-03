@@ -2855,7 +2855,7 @@ class SpotlightEngine {
       const followUps = await opportunityEngine.getSampleShipmentsNeedingFollowUp();
       
       for (const fu of followUps) {
-        const shipment = fu.shipment;
+        const shipment = fu;
         if (!shipment.customerId) continue;
         if (skippedIds.includes(shipment.customerId)) continue;
         

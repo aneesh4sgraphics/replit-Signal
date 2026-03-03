@@ -9971,6 +9971,8 @@ Return only the JSON object. No markdown, no code blocks.`
           await storage.createActivityEvent({
             customerId: resolvedCustomerId,
             eventType: 'email_sent',
+            title: `Email sent: ${subject}`,
+            description: `Sent to ${to}`,
             eventData: {
               templateId,
               subject,
