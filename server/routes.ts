@@ -9906,12 +9906,26 @@ Return only the JSON object. No markdown, no code blocks.`
         result = await sendEmail(to, subject, finalPlainBody, trackedHtmlBody);
       }
       
+      // Verify customerId still exists (may have been merged/deleted by batch dedup)
+      let resolvedCustomerId: string | null = customerId || null;
+      if (resolvedCustomerId && !resolvedCustomerId.startsWith('lead-')) {
+        try {
+          const existing = await storage.getCustomer(resolvedCustomerId);
+          if (!existing) {
+            console.warn(`[Email Send] Customer ${resolvedCustomerId} not found (merged/deleted) — logging send without customer link`);
+            resolvedCustomerId = null;
+          }
+        } catch {
+          resolvedCustomerId = null;
+        }
+      }
+
       // Log to emailSends table
       const emailSend = await storage.createEmailSend({
         templateId: templateId || null,
         recipientEmail: to,
         recipientName: recipientName || null,
-        customerId: customerId || null,
+        customerId: resolvedCustomerId,
         subject,
         body: finalPlainBody,
         variableData: variableData || {},
@@ -9925,7 +9939,7 @@ Return only the JSON object. No markdown, no code blocks.`
           trackingTokenRecord = await storage.createEmailTrackingToken({
             token: trackingToken,
             emailSendId: emailSend.id,
-            customerId: customerId || null,
+            customerId: resolvedCustomerId,
             recipientEmail: to,
             subject: subject,
             sentBy: req.user?.email || req.user?.claims?.email,
@@ -9951,11 +9965,11 @@ Return only the JSON object. No markdown, no code blocks.`
       }
       
       // Log as customer activity if customerId is provided (skip lead-prefixed IDs)
-      const isValidCustomerId = customerId && !customerId.startsWith('lead-');
+      const isValidCustomerId = resolvedCustomerId && !resolvedCustomerId.startsWith('lead-');
       if (isValidCustomerId) {
         try {
           await storage.createActivityEvent({
-            customerId,
+            customerId: resolvedCustomerId,
             eventType: 'email_sent',
             eventData: {
               templateId,
@@ -9971,7 +9985,7 @@ Return only the JSON object. No markdown, no code blocks.`
         
         // Sync email to Odoo contact's chatter (non-blocking)
         try {
-          const customer = await storage.getCustomer(customerId);
+          const customer = await storage.getCustomer(resolvedCustomerId);
           if (customer?.odooPartnerId) {
             const { odooClient } = await import("./odoo");
             await odooClient.logEmailToPartner(customer.odooPartnerId, {
