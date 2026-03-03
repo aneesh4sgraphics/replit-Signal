@@ -42,6 +42,10 @@ const PRINTING_POSITIVE_KEYWORDS = [
   'offset', 'digital print', 'wide format', 'large format',
   'flexo', 'flexographic', 'letterpress', 'lithography',
   'marketing', 'advertising', 'agency', 'creative', 'brand',
+  // Paper / substrate / supply industry — clear printing-related businesses
+  'paper', 'papers', 'substrate', 'substrates', 'media', 'stock',
+  'supply', 'supplies', 'distributor', 'wholesale', 'converter',
+  'coated', 'uncoated', 'bond', 'cardstock', 'card stock',
 ];
 
 function normalizeText(text: string | null): string {
@@ -49,22 +53,34 @@ function normalizeText(text: string | null): string {
   return text.toLowerCase().trim().replace(/[^a-z0-9\s]/g, ' ').replace(/\s+/g, ' ');
 }
 
+// Match keyword as a whole word (surrounded by spaces or string boundaries).
+// Prevents "spa" from matching "athenspaper", "nail" from matching "thumbnail", etc.
+function matchesWholeWord(text: string, keyword: string): boolean {
+  // Multi-word keywords: check as substring (they already have spaces)
+  if (keyword.includes(' ')) return text.includes(keyword);
+  const regex = new RegExp(`(?:^|\\s)${keyword.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}(?:\\s|$)`);
+  return regex.test(text);
+}
+
 function checkBadFitCompany(company: string | null, website: string | null): SpotlightHint | null {
   const normalizedCompany = normalizeText(company);
   const normalizedWebsite = normalizeText(website);
   const combined = `${normalizedCompany} ${normalizedWebsite}`;
   
-  const hasPrintingKeyword = PRINTING_POSITIVE_KEYWORDS.some(kw => combined.includes(kw));
+  // Check positive keywords first — any match means we leave them alone
+  const hasPrintingKeyword = PRINTING_POSITIVE_KEYWORDS.some(kw => matchesWholeWord(combined, kw));
   if (hasPrintingKeyword) return null;
   
-  const matchedNonPrinting = NON_PRINTING_KEYWORDS.filter(kw => combined.includes(kw));
+  // Check non-printing keywords using whole-word matching to avoid false positives
+  // e.g. "spa" must not match "athenspaper", "nail" must not match "email"
+  const matchedNonPrinting = NON_PRINTING_KEYWORDS.filter(kw => matchesWholeWord(combined, kw));
   
   if (matchedNonPrinting.length >= 1) {
     const primaryMatch = matchedNonPrinting[0];
     return {
       type: 'bad_fit',
       severity: matchedNonPrinting.length >= 2 ? 'high' : 'medium',
-      message: `This looks like a ${primaryMatch} company - probably not in printing.`,
+      message: `This looks like a ${primaryMatch} company — probably not in printing. Click "Mark as Bad Fit" to remove them from your task list permanently.`,
       ctaLabel: 'Mark as Bad Fit',
       ctaAction: 'bad_fit',
       metadata: { matchedKeywords: matchedNonPrinting },
