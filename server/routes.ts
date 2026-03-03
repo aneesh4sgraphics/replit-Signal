@@ -17830,9 +17830,9 @@ Return only the JSON object. No markdown, no code blocks.`
       }
       console.log(`[Odoo Import] Resolved ${parentLinksResolved} parent relationships`);
       
-      // Step 6: If sync_with_deletions mode, delete customers that no longer exist in Odoo
-      if (useSyncWithDeletions && existingOdooCustomers.size > 0) {
-        console.log(`[Odoo Import] Checking for deleted partners (sync mode)...`);
+      // Step 6: Delete customers that no longer exist in Odoo (always runs when we have linked customers)
+      if (existingOdooCustomers.size > 0) {
+        console.log(`[Odoo Import] Checking for deleted partners...`);
         console.log(`[Odoo Import] Active Odoo partners: ${activeOdooPartnerIds.size}, Local Odoo-linked customers: ${existingOdooCustomers.size}`);
         
         for (const [odooPartnerId, customerId] of existingOdooCustomers) {
@@ -21414,6 +21414,7 @@ Return only the JSON object. No markdown, no code blocks.`
       let mappingsCreated = 0;
       let mappingsUpdated = 0;
       let mappingsDeactivated = 0;
+      let customersDeleted = 0;
       const matchedCustomers: string[] = [];
       const importedCustomers: string[] = [];
       const skippedBlockedNames: string[] = [];
@@ -21744,7 +21745,26 @@ Return only the JSON object. No markdown, no code blocks.`
             })
             .where(eq(shopifyCustomerMappings.id, mapping.id));
           mappingsDeactivated++;
-          console.log(`Deactivated mapping for deleted/merged Shopify customer ${mapping.shopifyCustomerId} (CRM: ${mapping.crmCustomerName})`);
+          console.log(`[Shopify Sync] Deactivated mapping for deleted/merged Shopify customer ${mapping.shopifyCustomerId} (CRM: ${mapping.crmCustomerName})`);
+
+          // Also delete the CRM customer if they have no Odoo link (Shopify-only customer)
+          if (mapping.crmCustomerId) {
+            try {
+              const [crmCustomer] = await db.select({ odooPartnerId: customers.odooPartnerId })
+                .from(customers)
+                .where(eq(customers.id, mapping.crmCustomerId))
+                .limit(1);
+              if (crmCustomer && !crmCustomer.odooPartnerId) {
+                await db.delete(customers).where(eq(customers.id, mapping.crmCustomerId));
+                customersDeleted++;
+                console.log(`[Shopify Sync] Deleted CRM customer ${mapping.crmCustomerName} (${mapping.crmCustomerId}) — no longer in Shopify`);
+              } else if (crmCustomer?.odooPartnerId) {
+                console.log(`[Shopify Sync] Kept CRM customer ${mapping.crmCustomerName} — still linked to Odoo partner ${crmCustomer.odooPartnerId}`);
+              }
+            } catch (delErr: any) {
+              console.error(`[Shopify Sync] Failed to delete CRM customer ${mapping.crmCustomerId}:`, delErr.message);
+            }
+          }
         }
       }
 
@@ -21760,6 +21780,7 @@ Return only the JSON object. No markdown, no code blocks.`
         mappingsCreated,
         mappingsUpdated,
         mappingsDeactivated,
+        customersDeleted,
         matchedCustomers: matchedCustomers.slice(0, 20), // Limit to first 20 for display
         importedCustomers: importedCustomers.slice(0, 20),
         skippedBlockedNames: skippedBlockedNames.slice(0, 20),
