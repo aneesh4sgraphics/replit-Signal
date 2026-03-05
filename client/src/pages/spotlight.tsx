@@ -432,26 +432,27 @@ export default function Spotlight() {
 
   // Review Last Week panel state
   const [showReviewPanel, setShowReviewPanel] = useState(false);
+  // Track locally-dismissed customers (called/emailed/skipped) so they vanish without refetch
+  const [dismissedIds, setDismissedIds] = useState<Set<string>>(new Set());
 
-  // Review leads query (always enabled so badge count is available)
-  const { data: reviewLeadsData, isLoading: isLoadingReview } = useQuery<{ leads: any[] }>({
-    queryKey: ['/api/leads/needs-review'],
+  // Outreach review query — customers who received swatch books, press kits, mailers, samples, or quotes last week
+  const { data: outreachReviewData, isLoading: isLoadingReview } = useQuery<{ customers: any[]; count: number }>({
+    queryKey: ['/api/spotlight/outreach-review'],
     queryFn: async () => {
-      const res = await fetch('/api/leads/needs-review', { credentials: 'include' });
-      if (!res.ok) return { leads: [] };
+      const res = await fetch('/api/spotlight/outreach-review', { credentials: 'include' });
+      if (!res.ok) return { customers: [], count: 0 };
       return res.json();
     },
   });
-  const reviewLeads = reviewLeadsData?.leads || [];
+  const reviewLeads = (outreachReviewData?.customers || []).filter((c: any) => !dismissedIds.has(c.id));
 
-  const updateReviewLeadMutation = useMutation({
-    mutationFn: async ({ leadId, stage }: { leadId: number; stage: string }) => {
-      const res = await apiRequest('PUT', `/api/leads/${leadId}`, { stage });
+  const markFollowedUpMutation = useMutation({
+    mutationFn: async ({ customerId, actionType }: { customerId: string; actionType: string }) => {
+      const res = await apiRequest('POST', '/api/spotlight/outreach-review/mark-done', { customerId, actionType });
       return res.json();
     },
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/leads/needs-review'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/leads'] });
+    onSuccess: (_data, variables) => {
+      setDismissedIds(prev => new Set([...prev, variables.customerId]));
     },
   });
 
@@ -2381,9 +2382,9 @@ export default function Spotlight() {
             <div className="bg-white rounded-xl shadow-sm p-4 mb-4">
               <div className="flex items-center justify-between mb-4">
                 <div>
-                  <p className="text-sm font-semibold text-slate-800">Review Last Week's Leads</p>
+                  <p className="text-sm font-semibold text-slate-800">Follow Up on Last Week's Outreach</p>
                   <p className="text-xs text-slate-500 mt-0.5">
-                    These are active leads you haven't resolved yet — sorted oldest first. Decide on each so nothing falls through the cracks.
+                    Customers who received a Swatch Book, Press Test Kit, Mailer, Sample, or Quote in the past 7 days — call or email each one to close the loop.
                   </p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setShowReviewPanel(false)} className="text-xs text-slate-500">
@@ -2398,108 +2399,72 @@ export default function Spotlight() {
               ) : reviewLeads.length === 0 ? (
                 <div className="text-center py-8 text-slate-500">
                   <CheckCircle2 className="w-10 h-10 mx-auto mb-2 text-green-400" />
-                  <p className="font-medium text-sm">All caught up!</p>
-                  <p className="text-xs">No leads need review right now.</p>
+                  <p className="font-medium text-sm">All followed up!</p>
+                  <p className="text-xs">No outreach from the past 7 days needs a follow-up right now.</p>
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {reviewLeads.map((lead: any) => {
-                    const actTypeIcon: Record<string, string> = {
-                      email_sent: '✉️', call_made: '📞', sample_sent: '📦',
-                      meeting: '📅', note: '📝', drip_email: '✉️',
+                  {reviewLeads.map((customer: any) => {
+                    const typeIcon: Record<string, string> = {
+                      swatch_book: '📚', press_test_kit: '🧪', mailer: '📬',
+                      other: '📦', letter: '✉️', sample: '🎁', quote: '📄',
                     };
-                    const actTypeLabel: Record<string, string> = {
-                      email_sent: 'Email sent', call_made: 'Call made', sample_sent: 'Sample sent',
-                      meeting: 'Meeting', note: 'Note added', drip_email: 'Drip email sent',
-                    };
-                    const urgencyColor = lead.daysSinceContact >= 14
+                    const urgencyColor = customer.daysAgo >= 5
                       ? 'text-red-600 bg-red-50 border-red-200'
-                      : lead.daysSinceContact >= 7
+                      : customer.daysAgo >= 3
                       ? 'text-amber-600 bg-amber-50 border-amber-200'
-                      : 'text-slate-500 bg-slate-100 border-slate-200';
+                      : 'text-emerald-600 bg-emerald-50 border-emerald-200';
                     return (
-                    <div key={lead.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
+                    <div key={customer.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 flex-wrap">
-                            <span className="font-medium text-slate-800 text-sm">{lead.name}</span>
-                            {lead.company && <span className="text-xs text-slate-500">{lead.company}</span>}
-                            <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
-                              {lead.stage?.replace(/_/g, ' ') || 'New'}
-                            </Badge>
+                          <div className="flex items-center gap-2 flex-wrap mb-1">
+                            <span className="font-medium text-slate-800 text-sm">{customer.name}</span>
+                            {customer.company && <span className="text-xs text-slate-500">{customer.company}</span>}
                             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${urgencyColor}`}>
-                              {lead.daysSinceContact === 0
-                                ? 'Today'
-                                : lead.daysSinceContact === 1
-                                ? '1 day idle'
-                                : `${lead.daysSinceContact}d idle`}
+                              {customer.daysAgo === 0 ? 'sent today' : `${customer.daysAgo}d ago`}
                             </span>
                           </div>
-                          <p className="text-xs text-slate-400 mt-0.5">{lead.email || lead.phone || 'No contact info'}</p>
-                          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
-                            {lead.lastActivity
-                              ? <>
-                                  <span className="mr-1">{actTypeIcon[lead.lastActivity.type] || '🔔'}</span>
-                                  <span className="font-medium">{actTypeLabel[lead.lastActivity.type] || lead.lastActivity.type}</span>
-                                  {' · '}
-                                  <span className="text-slate-400">{lead.lastActivity.daysAgo === 0 ? 'today' : `${lead.lastActivity.daysAgo}d ago`}</span>
-                                  {' — '}
-                                  <span className="text-slate-500 italic truncate">{lead.lastActivity.summary}</span>
-                                </>
-                              : <span className="text-slate-400 italic">
-                                  No activity yet · Added {lead.daysInPipeline === 0 ? 'today' : `${lead.daysInPipeline}d ago`} · Awaiting first contact
-                                </span>
-                            }
-                          </p>
+                          <p className="text-xs text-slate-400">{customer.email || customer.phone || 'No contact info'}</p>
+                          {/* What was sent */}
+                          <div className="flex flex-wrap gap-1.5 mt-1.5">
+                            {customer.activities.map((act: any, i: number) => (
+                              <span key={i} className="inline-flex items-center gap-1 text-[11px] bg-violet-50 text-violet-700 border border-violet-200 rounded px-2 py-0.5">
+                                <span>{typeIcon[act.type] || '📌'}</span>
+                                <span>{act.label}</span>
+                                <span className="text-violet-400">· {act.daysAgo === 0 ? 'today' : `${act.daysAgo}d ago`}</span>
+                              </span>
+                            ))}
+                          </div>
                         </div>
-                        <div className="flex items-center gap-1.5 flex-shrink-0">
-                          {(lead.street || lead.city) && (
-                            <PrintLabelButton
-                              customer={{
-                                id: String(lead.id),
-                                company: lead.company,
-                                firstName: lead.name?.split(' ')[0] || null,
-                                lastName: lead.name?.split(' ').slice(1).join(' ') || null,
-                                address1: lead.street,
-                                city: lead.city,
-                                province: lead.state,
-                                zip: lead.zip,
-                                country: lead.country,
-                              }}
-                              leadId={lead.id}
-                              variant="icon"
-                              size="sm"
-                            />
-                          )}
+                        <div className="flex flex-col gap-1.5 flex-shrink-0">
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-orange-600 border-orange-200 hover:bg-orange-50 h-7 px-2 text-xs"
-                            disabled={updateReviewLeadMutation.isPending}
-                            onClick={() => updateReviewLeadMutation.mutate({ leadId: lead.id, stage: 'contact_later' })}
+                            className="text-emerald-700 border-emerald-300 hover:bg-emerald-50 h-7 px-2 text-xs"
+                            disabled={markFollowedUpMutation.isPending}
+                            onClick={() => markFollowedUpMutation.mutate({ customerId: customer.id, actionType: 'called' })}
                           >
-                            <Clock className="w-3 h-3 mr-1" />
-                            Later
+                            <Phone className="w-3 h-3 mr-1" />
+                            Called
                           </Button>
                           <Button
                             size="sm"
                             variant="outline"
-                            className="text-slate-600 border-slate-200 hover:bg-slate-100 h-7 px-2 text-xs"
-                            disabled={updateReviewLeadMutation.isPending}
-                            onClick={() => updateReviewLeadMutation.mutate({ leadId: lead.id, stage: 'not_a_fit' })}
+                            className="text-blue-600 border-blue-200 hover:bg-blue-50 h-7 px-2 text-xs"
+                            disabled={markFollowedUpMutation.isPending}
+                            onClick={() => markFollowedUpMutation.mutate({ customerId: customer.id, actionType: 'emailed' })}
                           >
-                            <XCircle className="w-3 h-3 mr-1" />
-                            Not a Fit
+                            <Mail className="w-3 h-3 mr-1" />
+                            Emailed
                           </Button>
                           <Button
                             size="sm"
-                            variant="outline"
-                            className="text-green-600 border-green-200 hover:bg-green-50 h-7 px-2 text-xs"
-                            disabled={updateReviewLeadMutation.isPending}
-                            onClick={() => updateReviewLeadMutation.mutate({ leadId: lead.id, stage: 'qualified' })}
+                            variant="ghost"
+                            className="text-slate-400 h-7 px-2 text-xs"
+                            onClick={() => setDismissedIds(prev => new Set([...prev, customer.id]))}
                           >
-                            <CheckCircle2 className="w-3 h-3 mr-1" />
-                            Qualified
+                            Skip
                           </Button>
                         </div>
                       </div>

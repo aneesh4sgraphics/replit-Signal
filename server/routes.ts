@@ -3547,6 +3547,159 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // --- Spotlight: Last Week's Outreach Review ---
+  // Returns customers who had outbound activities (swatch books, press kits, mailers, samples, quotes)
+  // in the past 7 days and need a follow-up call or email.
+  app.get("/api/spotlight/outreach-review", isAuthenticated, async (req: any, res) => {
+    try {
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
+
+      // 1. Label prints (swatch books, press test kits, mailers, other)
+      const recentPrints = await db.execute(sql`
+        SELECT customer_id AS "customerId", label_type AS "labelType", created_at AS "createdAt"
+        FROM label_prints
+        WHERE created_at >= ${sevenDaysAgo}
+      `).then(r => r.rows as { customerId: string; labelType: string; createdAt: string }[]);
+
+      // 2. $0.00 Shopify orders (samples)
+      const recentSamples = await db.execute(sql`
+        SELECT customer_id AS "customerId", order_number AS "orderNumber", shopify_created_at AS "shopifyCreatedAt"
+        FROM shopify_orders
+        WHERE shopify_created_at >= ${sevenDaysAgo}
+          AND CAST(total_price AS numeric) = 0
+          AND customer_id IS NOT NULL
+      `).then(r => r.rows as { customerId: string; orderNumber: string | null; shopifyCreatedAt: string }[]);
+
+      // 3. Quotes sent (customerActivityEvents with eventType = 'quote_sent')
+      const recentQuotes = await db.execute(sql`
+        SELECT customer_id AS "customerId", title, event_date AS "eventDate"
+        FROM customer_activity_events
+        WHERE event_date >= ${sevenDaysAgo}
+          AND event_type = 'quote_sent'
+      `).then(r => r.rows as { customerId: string; title: string; eventDate: string }[]);
+
+      // Build map of customerId → activities
+      type Activity = { type: string; label: string; date: Date };
+      const actMap = new Map<string, Activity[]>();
+
+      const LABEL_DISPLAY: Record<string, string> = {
+        swatch_book: 'Swatch Book sent',
+        press_test_kit: 'Press Test Kit sent',
+        mailer: 'Mailer sent',
+        other: 'Kit sent',
+        letter: 'Letter sent',
+      };
+
+      for (const p of recentPrints) {
+        if (!p.customerId) continue;
+        if (!actMap.has(p.customerId)) actMap.set(p.customerId, []);
+        actMap.get(p.customerId)!.push({
+          type: p.labelType,
+          label: LABEL_DISPLAY[p.labelType] || 'Material sent',
+          date: p.createdAt ? new Date(p.createdAt) : new Date(),
+        });
+      }
+
+      for (const s of recentSamples) {
+        if (!s.customerId) continue;
+        if (!actMap.has(s.customerId)) actMap.set(s.customerId, []);
+        actMap.get(s.customerId)!.push({
+          type: 'sample',
+          label: `Sample order${s.orderNumber ? ' ' + s.orderNumber : ''} sent`,
+          date: s.shopifyCreatedAt ? new Date(s.shopifyCreatedAt) : new Date(),
+        });
+      }
+
+      for (const q of recentQuotes) {
+        if (!q.customerId) continue;
+        if (!actMap.has(q.customerId)) actMap.set(q.customerId, []);
+        actMap.get(q.customerId)!.push({
+          type: 'quote',
+          label: q.title || 'Quote sent',
+          date: q.eventDate ? new Date(q.eventDate) : new Date(),
+        });
+      }
+
+      if (actMap.size === 0) return res.json({ customers: [], count: 0 });
+
+      // Fetch customer details for all matched customers
+      const customerIds = Array.from(actMap.keys());
+      const customerRows = await db.select({
+        id: customers.id,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        company: customers.company,
+        email: customers.email,
+        phone: customers.phone,
+        odooPartnerId: customers.odooPartnerId,
+        salesRepName: customers.salesRepName,
+      }).from(customers)
+        .where(inArray(customers.id, customerIds));
+
+      const now = new Date();
+      const result = customerRows.map(c => {
+        const acts = (actMap.get(c.id) || []).sort((a, b) => b.date.getTime() - a.date.getTime());
+        const mostRecentDate = acts[0]?.date || new Date();
+        const daysAgo = Math.floor((now.getTime() - mostRecentDate.getTime()) / (1000 * 60 * 60 * 24));
+        return {
+          id: c.id,
+          name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email || 'Unknown',
+          company: c.company,
+          email: c.email,
+          phone: c.phone,
+          odooPartnerId: c.odooPartnerId,
+          salesRepName: c.salesRepName,
+          activities: acts.map(a => ({
+            type: a.type,
+            label: a.label,
+            date: a.date.toISOString(),
+            daysAgo: Math.floor((now.getTime() - a.date.getTime()) / (1000 * 60 * 60 * 24)),
+          })),
+          mostRecentDate: mostRecentDate.toISOString(),
+          daysAgo,
+        };
+      }).sort((a, b) => a.daysAgo - b.daysAgo); // most recent first
+
+      res.json({ customers: result, count: result.length });
+    } catch (error) {
+      console.error("Outreach review error:", error);
+      res.status(500).json({ error: "Failed to fetch outreach review" });
+    }
+  });
+
+  // Mark a customer as followed up (called or emailed) — logs a CRM activity event
+  app.post("/api/spotlight/outreach-review/mark-done", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId, actionType } = req.body; // actionType: 'called' | 'emailed'
+      if (!customerId || !actionType) {
+        return res.status(400).json({ error: "customerId and actionType required" });
+      }
+      const userId = req.user?.id;
+      const userName = req.user?.firstName
+        ? `${req.user.firstName} ${req.user.lastName || ''}`.trim()
+        : req.user?.email || 'Unknown';
+
+      const eventType = actionType === 'emailed' ? 'email_sent' : 'call_made';
+      const title = actionType === 'emailed'
+        ? 'Follow-up email sent (outreach review)'
+        : 'Follow-up call made (outreach review)';
+
+      await db.insert(customerActivityEvents).values({
+        customerId,
+        eventType,
+        title,
+        createdBy: userId,
+        createdByName: userName,
+        eventDate: new Date(),
+      });
+
+      res.json({ success: true });
+    } catch (error) {
+      console.error("Mark-done error:", error);
+      res.status(500).json({ error: "Failed to log follow-up" });
+    }
+  });
+
   // --- Today's SPOTLIGHT Progress Bars ---
   // Comprehensive daily progress tracking for SPOTLIGHT UI
   app.get("/api/spotlight/today-progress", isAuthenticated, async (req: any, res) => {
