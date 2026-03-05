@@ -18,9 +18,11 @@ let pdfCategoryDetailsCache: PdfCategoryDetails[] | null = null;
 let pdfCategoryCacheTime: number = 0;
 const CACHE_TTL_MS = 60000; // 1 minute cache
 
-// Fallback product category logo mappings (used when DB has no data)
+// Fallback product category logo mappings (used when DB has no data or DB file is missing)
 const FALLBACK_LOGO_FILES: Record<string, string> = {
   'graffiti': 'Graffiti-Logo--long_1765564746224.png',
+  'graffitiblended': 'Graffiti-Logo--long_1765564746224.png',
+  'graffitisoft': 'Graffiti-Logo--long_1765564746224.png',
   'graffitistick': 'GraffitiSTICK-left_align_1765564758521.jpg',
   'slickstick': 'GraffitiSTICK-left_align_1765564758521.jpg',
   'cliq': 'CLIQ_Final_logo2_med_size_1765564721731.png',
@@ -67,9 +69,11 @@ async function getPdfCategoryDetailsFromDb(): Promise<PdfCategoryDetails[]> {
 
 function findMatchingCategoryKey(productType: string): string {
   const normalized = productType.toLowerCase();
+  // Also check without spaces so "graffiti blended poly" matches 'graffitiblended'
+  const normalizedNoSpaces = normalized.replace(/\s+/g, '');
   
   for (const key of LOGO_MATCH_ORDER) {
-    if (normalized.includes(key)) {
+    if (normalized.includes(key) || normalizedNoSpaces.includes(key)) {
       return key;
     }
   }
@@ -77,7 +81,6 @@ function findMatchingCategoryKey(productType: string): string {
 }
 
 async function getProductLogoBase64(productType: string): Promise<string> {
-  const normalized = productType.toLowerCase();
   const categoryKey = findMatchingCategoryKey(productType);
   
   // Return cached logo if available
@@ -85,13 +88,16 @@ async function getProductLogoBase64(productType: string): Promise<string> {
     return productLogoCache[categoryKey];
   }
   
-  // Try to get logo from database
+  // Try to get logo from database first, then fall back to hardcoded file
   const dbCategories = await getPdfCategoryDetailsFromDb();
   const dbCategory = dbCategories.find(c => c.categoryKey === categoryKey);
   
-  let logoFile = dbCategory?.logoFile || FALLBACK_LOGO_FILES[categoryKey];
-  
-  if (logoFile) {
+  // Build candidate list: DB file first, then hardcoded fallback
+  const candidates: string[] = [];
+  if (dbCategory?.logoFile) candidates.push(dbCategory.logoFile);
+  if (FALLBACK_LOGO_FILES[categoryKey]) candidates.push(FALLBACK_LOGO_FILES[categoryKey]);
+
+  for (const logoFile of candidates) {
     const logoPath = path.join(process.cwd(), 'attached_assets', logoFile);
     if (fs.existsSync(logoPath)) {
       const buffer = fs.readFileSync(logoPath);
@@ -700,10 +706,20 @@ export async function generatePriceListHTML(data: any): Promise<string> {
     return aSortOrder - bSortOrder;
   });
 
-  // Use the selected category name (not product type) for header/features lookup
-  // This ensures "Graffiti_Polyester_Paper" category shows Graffiti features
-  // even when listing products like "AURABOARD" under that category
-  const categoryForLookup = categoryName || sortedProductTypes[0] || '';
+  // Derive the most specific category from the actual items' product types.
+  // This ensures that if the user selected "Graffiti Polyester Paper" in the UI
+  // but only included Blended Poly products, the heading says "Graffiti Blended Poly"
+  // rather than the broad parent category name.
+  const derivedCategory = (() => {
+    if (sortedProductTypes.length === 0) return categoryName;
+    const mapped = sortedProductTypes.map(pt => getCategoryDisplayName('', pt));
+    const unique = [...new Set(mapped.filter(Boolean))];
+    // If all items share one specific sub-category that differs from the parent, use it
+    if (unique.length === 1 && unique[0]) return unique[0];
+    return categoryName;
+  })();
+
+  const categoryForLookup = derivedCategory || categoryName || sortedProductTypes[0] || '';
   const productLogo = await getProductLogoBase64(categoryForLookup);
   const productFeatures = await getProductFeatures(categoryForLookup);
   
@@ -713,8 +729,8 @@ export async function generatePriceListHTML(data: any): Promise<string> {
   const dbCategory = dbCategories.find(c => c.categoryKey === categoryKey);
   const compatibleWith = dbCategory?.compatibleWith || 'Compatible with All Digital Toner Press - HP Indigo, Xerox, Konica Minolta, Ricoh, Fuji Inkjet and others';
   
-  // Use displayName from PDF settings if available, otherwise format category name
-  const displayCategoryName = dbCategory?.displayName || formatCategoryName(categoryName);
+  // For display name: prefer derivedCategory (from items) over DB displayName (which may be the broad parent name)
+  const displayCategoryName = formatCategoryName(derivedCategory || categoryName);
 
   // Calculate total items for page numbering
   const totalItems = items.length;
