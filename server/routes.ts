@@ -14934,15 +14934,66 @@ Return only the JSON object. No markdown, no code blocks.`
     try {
       const activeStages = ['new', 'contacted', 'qualified', 'nurturing', 'contact_later'];
       
-      // Return ALL active pipeline leads — the date filter was too narrow and excluded
-      // leads that hadn't been touched in over a week, which are exactly the ones
-      // most in need of a Monday review. Sort stale leads first (oldest update first).
+      // Return ALL active pipeline leads — sorted stale-first (oldest update first)
       const reviewLeads = await db.select().from(leads)
         .where(inArray(leads.stage, activeStages))
         .orderBy(leads.updatedAt)
         .limit(100);
+
+      if (reviewLeads.length === 0) {
+        return res.json({ leads: [], count: 0 });
+      }
+
+      // Fetch the most recent non-creation activity for each lead in one query
+      const leadIds = reviewLeads.map(l => l.id);
+      const recentActivities = await db
+        .selectDistinctOn([leadActivities.leadId], {
+          leadId: leadActivities.leadId,
+          activityType: leadActivities.activityType,
+          summary: leadActivities.summary,
+          createdAt: leadActivities.createdAt,
+        })
+        .from(leadActivities)
+        .where(
+          and(
+            inArray(leadActivities.leadId, leadIds),
+            sql`${leadActivities.summary} NOT ILIKE 'Lead created%'`
+          )
+        )
+        .orderBy(leadActivities.leadId, desc(leadActivities.createdAt));
+
+      const activityMap = new Map(recentActivities.map(a => [a.leadId, a]));
+      const now = new Date();
+
+      const enriched = reviewLeads.map(lead => {
+        const lastAct = activityMap.get(lead.id);
+        const lastTouched = lastAct?.createdAt
+          ? new Date(lastAct.createdAt)
+          : lead.updatedAt
+          ? new Date(lead.updatedAt)
+          : lead.createdAt
+          ? new Date(lead.createdAt)
+          : now;
+        const daysSinceContact = Math.floor((now.getTime() - lastTouched.getTime()) / (1000 * 60 * 60 * 24));
+        const daysInPipeline = lead.createdAt
+          ? Math.floor((now.getTime() - new Date(lead.createdAt).getTime()) / (1000 * 60 * 60 * 24))
+          : 0;
+        return {
+          ...lead,
+          lastActivity: lastAct
+            ? {
+                type: lastAct.activityType,
+                summary: lastAct.summary,
+                createdAt: lastAct.createdAt,
+                daysAgo: daysSinceContact,
+              }
+            : null,
+          daysSinceContact,
+          daysInPipeline,
+        };
+      });
       
-      res.json({ leads: reviewLeads, count: reviewLeads.length });
+      res.json({ leads: enriched, count: enriched.length });
     } catch (error) {
       console.error("Error fetching leads for review:", error);
       res.status(500).json({ error: "Failed to fetch leads for review" });

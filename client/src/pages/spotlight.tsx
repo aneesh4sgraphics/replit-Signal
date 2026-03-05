@@ -2382,7 +2382,9 @@ export default function Spotlight() {
               <div className="flex items-center justify-between mb-4">
                 <div>
                   <p className="text-sm font-semibold text-slate-800">Review Last Week's Leads</p>
-                  <p className="text-xs text-slate-500 mt-0.5">Clear off leads sitting in your pipeline. Mark each one so nothing slips through.</p>
+                  <p className="text-xs text-slate-500 mt-0.5">
+                    These are active leads you haven't resolved yet — sorted oldest first. Decide on each so nothing falls through the cracks.
+                  </p>
                 </div>
                 <Button variant="ghost" size="sm" onClick={() => setShowReviewPanel(false)} className="text-xs text-slate-500">
                   <X className="w-4 h-4 mr-1" /> Close
@@ -2401,7 +2403,21 @@ export default function Spotlight() {
                 </div>
               ) : (
                 <div className="space-y-2.5">
-                  {reviewLeads.map((lead: any) => (
+                  {reviewLeads.map((lead: any) => {
+                    const actTypeIcon: Record<string, string> = {
+                      email_sent: '✉️', call_made: '📞', sample_sent: '📦',
+                      meeting: '📅', note: '📝', drip_email: '✉️',
+                    };
+                    const actTypeLabel: Record<string, string> = {
+                      email_sent: 'Email sent', call_made: 'Call made', sample_sent: 'Sample sent',
+                      meeting: 'Meeting', note: 'Note added', drip_email: 'Drip email sent',
+                    };
+                    const urgencyColor = lead.daysSinceContact >= 14
+                      ? 'text-red-600 bg-red-50 border-red-200'
+                      : lead.daysSinceContact >= 7
+                      ? 'text-amber-600 bg-amber-50 border-amber-200'
+                      : 'text-slate-500 bg-slate-100 border-slate-200';
+                    return (
                     <div key={lead.id} className="p-3 bg-slate-50 rounded-lg border border-slate-200">
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
@@ -2411,8 +2427,30 @@ export default function Spotlight() {
                             <Badge variant="outline" className="text-xs bg-blue-50 text-blue-700 border-blue-200">
                               {lead.stage?.replace(/_/g, ' ') || 'New'}
                             </Badge>
+                            <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${urgencyColor}`}>
+                              {lead.daysSinceContact === 0
+                                ? 'Today'
+                                : lead.daysSinceContact === 1
+                                ? '1 day idle'
+                                : `${lead.daysSinceContact}d idle`}
+                            </span>
                           </div>
                           <p className="text-xs text-slate-400 mt-0.5">{lead.email || lead.phone || 'No contact info'}</p>
+                          <p className="text-[11px] text-slate-500 mt-1 leading-snug">
+                            {lead.lastActivity
+                              ? <>
+                                  <span className="mr-1">{actTypeIcon[lead.lastActivity.type] || '🔔'}</span>
+                                  <span className="font-medium">{actTypeLabel[lead.lastActivity.type] || lead.lastActivity.type}</span>
+                                  {' · '}
+                                  <span className="text-slate-400">{lead.lastActivity.daysAgo === 0 ? 'today' : `${lead.lastActivity.daysAgo}d ago`}</span>
+                                  {' — '}
+                                  <span className="text-slate-500 italic truncate">{lead.lastActivity.summary}</span>
+                                </>
+                              : <span className="text-slate-400 italic">
+                                  No activity yet · Added {lead.daysInPipeline === 0 ? 'today' : `${lead.daysInPipeline}d ago`} · Awaiting first contact
+                                </span>
+                            }
+                          </p>
                         </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {(lead.street || lead.city) && (
@@ -2466,7 +2504,8 @@ export default function Spotlight() {
                         </div>
                       </div>
                     </div>
-                  ))}
+                  );
+                  })}
                 </div>
               )}
             </div>
