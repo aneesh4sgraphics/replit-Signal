@@ -10,8 +10,14 @@ import { Link } from "wouter";
 import {
   Target, TrendingUp, Package, Volume2, Sparkles, RefreshCw,
   Phone, Mail, ExternalLink, Building2, MapPin, Star,
-  ArrowUpRight, Loader2, AlertCircle
+  ArrowUpRight, Loader2, AlertCircle, HelpCircle
 } from "lucide-react";
+import {
+  Tooltip,
+  TooltipContent,
+  TooltipProvider,
+  TooltipTrigger,
+} from "@/components/ui/tooltip";
 
 const OPPORTUNITY_TYPE_CONFIG: Record<string, { label: string; icon: any; color: string; bgColor: string }> = {
   sample_no_order: { label: 'Samples Sent', icon: Package, color: 'text-orange-700', bgColor: 'bg-orange-50 border-orange-200' },
@@ -222,8 +228,38 @@ export default function OpportunitiesPage() {
             </Card>
             <Card className="bg-white/80 backdrop-blur">
               <CardContent className="p-4 text-center">
-                <div className="text-2xl font-bold text-blue-600">{summary.avgScore}</div>
-                <div className="text-xs text-gray-500">Avg Score</div>
+                <div className={`text-2xl font-bold ${
+                  summary.avgScore >= 61 ? 'text-green-600' :
+                  summary.avgScore >= 31 ? 'text-amber-600' :
+                  'text-red-500'
+                }`}>{summary.avgScore}</div>
+                <TooltipProvider>
+                  <Tooltip>
+                    <TooltipTrigger asChild>
+                      <div className="flex items-center justify-center gap-1 cursor-help">
+                        <span className="text-xs text-gray-500">Avg Score</span>
+                        <HelpCircle className="w-3 h-3 text-gray-400" />
+                      </div>
+                    </TooltipTrigger>
+                    <TooltipContent side="bottom" className="max-w-[200px] p-3">
+                      <p className="text-xs font-semibold mb-2">What does my score mean?</p>
+                      <div className="space-y-1">
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-green-500 flex-shrink-0" />
+                          <span className="text-xs"><strong>61–100</strong> — High priority, act now</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-amber-500 flex-shrink-0" />
+                          <span className="text-xs"><strong>31–60</strong> — Worth nurturing</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <span className="w-2 h-2 rounded-full bg-red-400 flex-shrink-0" />
+                          <span className="text-xs"><strong>0–30</strong> — Low signal, monitor only</span>
+                        </div>
+                      </div>
+                    </TooltipContent>
+                  </Tooltip>
+                </TooltipProvider>
               </CardContent>
             </Card>
             <Card className="bg-white/80 backdrop-blur">

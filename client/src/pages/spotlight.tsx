@@ -2120,23 +2120,49 @@ export default function Spotlight() {
                       style={{ width: `${score}%`, background: colors.gradient }}
                     />
                   </div>
-                  <div className="grid grid-cols-3 gap-2">
-                    <div className="text-center p-1.5 rounded-lg bg-blue-50">
-                      <p className="text-[10px] text-muted-foreground leading-tight">Tasks Done</p>
-                      <p className="text-xs font-bold text-blue-700">{todayProgress.coachingCompliance.breakdown.taskCompletion}%</p>
-                      <p className="text-[9px] text-muted-foreground">{tasksCompleted}/{tasksTarget}</p>
-                    </div>
-                    <div className="text-center p-1.5 rounded-lg bg-purple-50">
-                      <p className="text-[10px] text-muted-foreground leading-tight">On Time</p>
-                      <p className="text-xs font-bold text-purple-700">{todayProgress.coachingCompliance.breakdown.followUpTimeliness}%</p>
-                      <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.followUpsOnTime}/{todayProgress.coachingCompliance.components.followUpsTotal || '—'}</p>
-                    </div>
-                    <div className="text-center p-1.5 rounded-lg bg-emerald-50">
-                      <p className="text-[10px] text-muted-foreground leading-tight">Calls</p>
-                      <p className="text-xs font-bold text-emerald-700">{todayProgress.coachingCompliance.breakdown.callsLogged}%</p>
-                      <p className="text-[9px] text-muted-foreground">{todayProgress.coachingCompliance.components.callsMade}/{todayProgress.coachingCompliance.components.callsGoal}</p>
-                    </div>
-                  </div>
+                  {(() => {
+                    const bd = todayProgress.coachingCompliance.breakdown;
+                    const comp = todayProgress.coachingCompliance.components;
+                    const taskPct = bd.taskCompletion;
+                    const timePct = bd.followUpTimeliness;
+                    const callPct = bd.callsLogged;
+                    const components = [
+                      { key: 'tasks', pct: taskPct, label: 'Tasks Done', bg: 'bg-blue-50', text: 'text-blue-700' },
+                      { key: 'time',  pct: timePct, label: 'On Time',    bg: 'bg-purple-50', text: 'text-purple-700' },
+                      { key: 'calls', pct: callPct, label: 'Calls',      bg: 'bg-emerald-50', text: 'text-emerald-700' },
+                    ];
+                    const weakest = [...components].sort((a, b) => a.pct - b.pct)[0];
+                    const nudges: Record<string, string> = {
+                      tasks: `Complete ${Math.max(1, tasksTarget - tasksCompleted)} more tasks today to lift this above ${Math.min(100, taskPct + 20)}%`,
+                      time: `Follow up on pending quotes or emails promptly — timeliness is dragging your score down most`,
+                      calls: `Make ${Math.max(1, (comp.callsGoal || 5) - (comp.callsMade || 0))} more call${Math.max(1, (comp.callsGoal || 5) - (comp.callsMade || 0)) === 1 ? '' : 's'} today — calls have the biggest room to improve`,
+                    };
+                    return (
+                      <>
+                        <div className="grid grid-cols-3 gap-2">
+                          {components.map(c => (
+                            <div key={c.key} className={`text-center p-1.5 rounded-lg ${c.bg} ${weakest.key === c.key && score < 80 ? 'ring-2 ring-offset-1 ring-amber-400' : ''}`}>
+                              <p className="text-[10px] text-muted-foreground leading-tight">{c.label}</p>
+                              <p className={`text-xs font-bold ${c.text}`}>{c.pct}%</p>
+                              <p className="text-[9px] text-muted-foreground">
+                                {c.key === 'tasks' && `${tasksCompleted}/${tasksTarget}`}
+                                {c.key === 'time' && `${comp.followUpsOnTime}/${comp.followUpsTotal || '—'}`}
+                                {c.key === 'calls' && `${comp.callsMade}/${comp.callsGoal}`}
+                              </p>
+                            </div>
+                          ))}
+                        </div>
+                        {score < 80 && (
+                          <div className="mt-2 flex items-start gap-1.5 bg-amber-50 border border-amber-200 rounded-lg px-2.5 py-2">
+                            <span className="text-amber-500 text-sm flex-shrink-0">💡</span>
+                            <p className="text-[11px] text-amber-800 leading-snug">
+                              <strong>{weakest.label}</strong> is your biggest gap ({weakest.pct}%). {nudges[weakest.key]}
+                            </p>
+                          </div>
+                        )}
+                      </>
+                    );
+                  })()}
                 </div>
               );
             })()}
