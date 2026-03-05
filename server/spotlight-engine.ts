@@ -1852,13 +1852,23 @@ class SpotlightEngine {
       const cached = this.prefetchedTask.get(userId);
       if (cached && (Date.now() - cached.generatedAt) < SpotlightEngine.PREFETCH_TTL) {
         this.prefetchedTask.delete(userId);
-        const claimSuccess = await this.claimCustomer(userId, cached.task.customerId);
-        if (claimSuccess) {
-          console.log(`[Spotlight] Served prefetched task in ${Date.now() - startTime}ms`);
-          this.prefetchNextTask(userId);
-          return { task: cached.task, session, allDone: false };
+        // Re-validate hygiene tasks — the customer's data may have been fixed since this task was prefetched
+        let stillValid = true;
+        if (cached.task.bucket === 'data_hygiene' && cached.task.taskSubtype && cached.task.customerId) {
+          stillValid = await this.revalidateHygieneTask(cached.task.customerId, cached.task.taskSubtype);
+          if (!stillValid) {
+            console.log(`[Spotlight] Prefetched hygiene task (${cached.task.taskSubtype}) no longer needed for ${cached.task.customerId}, regenerating`);
+          }
         }
-        console.log(`[Spotlight] Prefetched task claim failed, falling through to full generation`);
+        if (stillValid) {
+          const claimSuccess = await this.claimCustomer(userId, cached.task.customerId);
+          if (claimSuccess) {
+            console.log(`[Spotlight] Served prefetched task in ${Date.now() - startTime}ms`);
+            this.prefetchNextTask(userId);
+            return { task: cached.task, session, allDone: false };
+          }
+          console.log(`[Spotlight] Prefetched task claim failed, falling through to full generation`);
+        }
       }
     }
     
@@ -3824,6 +3834,37 @@ class SpotlightEngine {
       return this.buildTaskWithMachineContext(customer, 'outreach', 'outreach_no_contact');
     }
     return null;
+  }
+
+  private async revalidateHygieneTask(customerId: string, subtype: string): Promise<boolean> {
+    try {
+      const rows = await db.select({
+        pricingTier: customers.pricingTier,
+        email: customers.email,
+        phone: customers.phone,
+        salesRepId: customers.salesRepId,
+        salesRepName: customers.salesRepName,
+        firstName: customers.firstName,
+        lastName: customers.lastName,
+        company: customers.company,
+        customerType: customers.customerType,
+      }).from(customers).where(eq(customers.id, customerId)).limit(1);
+      if (!rows.length) return false;
+      const c = rows[0];
+      const base = subtype.replace('_generic', '');
+      switch (base) {
+        case 'hygiene_pricing_tier': return !c.pricingTier;
+        case 'hygiene_email':        return !c.email;
+        case 'hygiene_phone':        return !c.phone;
+        case 'hygiene_sales_rep':    return !c.salesRepId && !c.salesRepName;
+        case 'hygiene_name':         return !c.firstName && !c.lastName;
+        case 'hygiene_company':      return !c.company;
+        case 'hygiene_customer_type':return !c.customerType;
+        default: return true;
+      }
+    } catch {
+      return true;
+    }
   }
 
   private async findHygieneTask(userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {

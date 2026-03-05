@@ -3559,8 +3559,18 @@ export default function Spotlight() {
                     (task.taskSubtype === 'hygiene_company' && customer.company) ||
                     (task.taskSubtype === 'hygiene_customer_type' && customer.customerType)
                   );
+                  // User has selected/typed a new value in the inline form but hasn't submitted yet
+                  const hygieneReadyToSave = !hygieneResolved && task.bucket === 'data_hygiene' && (
+                    (task.taskSubtype === 'hygiene_pricing_tier' && fixDataFields.pricingTier) ||
+                    (task.taskSubtype === 'hygiene_email' && fixDataFields.email) ||
+                    (task.taskSubtype === 'hygiene_phone' && fixDataFields.phone) ||
+                    (task.taskSubtype === 'hygiene_sales_rep' && fixDataFields.salesRepId) ||
+                    (task.taskSubtype === 'hygiene_name' && (fixDataFields.firstName || fixDataFields.lastName)) ||
+                    (task.taskSubtype === 'hygiene_company' && fixDataFields.company) ||
+                    (task.taskSubtype === 'hygiene_customer_type' && fixDataFields.customerType)
+                  );
                   const hasMissingFields = currentTask.hints?.some(h => h.type === 'missing_field');
-                  const hasUnresolvedIssue = task.bucket === 'data_hygiene' && !hygieneResolved && task.whyNow;
+                  const hasUnresolvedIssue = task.bucket === 'data_hygiene' && !hygieneResolved && !hygieneReadyToSave && task.whyNow;
 
                   if (hygieneResolved) {
                     return (
@@ -3572,6 +3582,22 @@ export default function Spotlight() {
                           <div>
                             <p className="text-sm font-semibold text-green-700">All set!</p>
                             <p className="text-sm text-green-600">This field has been updated. You can mark this task complete.</p>
+                          </div>
+                        </div>
+                      </div>
+                    );
+                  }
+
+                  if (hygieneReadyToSave) {
+                    return (
+                      <div className="bg-gradient-to-br from-blue-50 to-indigo-50 border border-blue-200 rounded-2xl p-4">
+                        <div className="flex items-center gap-3">
+                          <div className="w-10 h-10 rounded-full bg-blue-500 flex items-center justify-center flex-shrink-0">
+                            <CheckCircle className="w-5 h-5 text-white" />
+                          </div>
+                          <div>
+                            <p className="text-sm font-semibold text-blue-700">Ready to save</p>
+                            <p className="text-sm text-blue-600">Click Submit when done to save and move to the next task.</p>
                           </div>
                         </div>
                       </div>
