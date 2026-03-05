@@ -456,6 +456,16 @@ export default function Spotlight() {
     },
   });
 
+  const snoozeReviewMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const res = await apiRequest('POST', '/api/spotlight/outreach-review/snooze', { customerId });
+      return res.json();
+    },
+    onSuccess: (_data, customerId) => {
+      setDismissedIds(prev => new Set([...prev, customerId]));
+    },
+  });
+
   // Debug: allow forcing a specific bucket via URL param (e.g., ?forceBucket=data_hygiene)
   const urlParams = new URLSearchParams(window.location.search);
   const forceBucket = urlParams.get('forceBucket');
@@ -2419,7 +2429,12 @@ export default function Spotlight() {
                       <div className="flex items-start justify-between gap-3">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2 flex-wrap mb-1">
-                            <span className="font-medium text-slate-800 text-sm">{customer.name}</span>
+                            <Link
+                              href={customer.odooPartnerId ? `/odoo-contacts/${customer.odooPartnerId}` : `/odoo-contacts/${customer.id}`}
+                              className="font-medium text-slate-800 text-sm hover:text-violet-700 hover:underline transition-colors"
+                            >
+                              {customer.name}
+                            </Link>
                             {customer.company && <span className="text-xs text-slate-500">{customer.company}</span>}
                             <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded border ${urgencyColor}`}>
                               {customer.daysAgo === 0 ? 'sent today' : `${customer.daysAgo}d ago`}
@@ -2458,13 +2473,27 @@ export default function Spotlight() {
                             <Mail className="w-3 h-3 mr-1" />
                             Emailed
                           </Button>
+                          <Link
+                            href={customer.odooPartnerId ? `/odoo-contacts/${customer.odooPartnerId}` : `/odoo-contacts/${customer.id}`}
+                          >
+                            <Button
+                              size="sm"
+                              variant="outline"
+                              className="text-violet-600 border-violet-200 hover:bg-violet-50 h-7 px-2 text-xs w-full"
+                            >
+                              <ExternalLink className="w-3 h-3 mr-1" />
+                              View
+                            </Button>
+                          </Link>
                           <Button
                             size="sm"
                             variant="ghost"
-                            className="text-slate-400 h-7 px-2 text-xs"
-                            onClick={() => setDismissedIds(prev => new Set([...prev, customer.id]))}
+                            className="text-slate-400 hover:text-slate-600 h-7 px-2 text-xs"
+                            disabled={snoozeReviewMutation.isPending}
+                            onClick={() => snoozeReviewMutation.mutate(customer.id)}
+                            title="Hide for 7 days — will reappear next week"
                           >
-                            Skip
+                            Next Week
                           </Button>
                         </div>
                       </div>

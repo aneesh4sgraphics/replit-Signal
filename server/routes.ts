@@ -3622,8 +3622,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       if (actMap.size === 0) return res.json({ customers: [], count: 0 });
 
-      // Fetch customer details for all matched customers
       const customerIds = Array.from(actMap.keys());
+      const now = new Date();
+
+      // Fetch customer details for all matched customers
       const customerRows = await db.select({
         id: customers.id,
         firstName: customers.firstName,
@@ -3636,29 +3638,66 @@ export async function registerRoutes(app: Express): Promise<Server> {
       }).from(customers)
         .where(inArray(customers.id, customerIds));
 
-      const now = new Date();
-      const result = customerRows.map(c => {
-        const acts = (actMap.get(c.id) || []).sort((a, b) => b.date.getTime() - a.date.getTime());
-        const mostRecentDate = acts[0]?.date || new Date();
-        const daysAgo = Math.floor((now.getTime() - mostRecentDate.getTime()) / (1000 * 60 * 60 * 24));
-        return {
-          id: c.id,
-          name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email || 'Unknown',
-          company: c.company,
-          email: c.email,
-          phone: c.phone,
-          odooPartnerId: c.odooPartnerId,
-          salesRepName: c.salesRepName,
-          activities: acts.map(a => ({
-            type: a.type,
-            label: a.label,
-            date: a.date.toISOString(),
-            daysAgo: Math.floor((now.getTime() - a.date.getTime()) / (1000 * 60 * 60 * 24)),
-          })),
-          mostRecentDate: mostRecentDate.toISOString(),
-          daysAgo,
-        };
-      }).sort((a, b) => a.daysAgo - b.daysAgo); // most recent first
+      // Fetch all follow-up events + active snoozes for these customers in one query
+      const followUpAndSnoozeRows = await db.select({
+        customerId: customerActivityEvents.customerId,
+        eventType: customerActivityEvents.eventType,
+        eventDate: customerActivityEvents.eventDate,
+      }).from(customerActivityEvents)
+        .where(and(
+          inArray(customerActivityEvents.customerId, customerIds),
+          inArray(customerActivityEvents.eventType, ['call_made', 'email_sent', 'outreach_snoozed'])
+        ));
+
+      // Build per-customer maps for follow-ups and snoozes
+      const latestFollowUp = new Map<string, Date>();
+      const activeSnooze = new Set<string>();
+      for (const row of followUpAndSnoozeRows) {
+        const date = new Date(row.eventDate);
+        if (row.eventType === 'outreach_snoozed') {
+          // eventDate stores the "snooze until" date — if still in the future, exclude
+          if (date > now) activeSnooze.add(row.customerId);
+        } else {
+          // call_made or email_sent — track the most recent
+          const existing = latestFollowUp.get(row.customerId);
+          if (!existing || date > existing) latestFollowUp.set(row.customerId, date);
+        }
+      }
+
+      const result = customerRows
+        .map(c => {
+          const acts = (actMap.get(c.id) || []).sort((a, b) => b.date.getTime() - a.date.getTime());
+          const mostRecentOutreach = acts[0]?.date || new Date();
+          const daysAgo = Math.floor((now.getTime() - mostRecentOutreach.getTime()) / (1000 * 60 * 60 * 24));
+          return {
+            id: c.id,
+            name: [c.firstName, c.lastName].filter(Boolean).join(' ') || c.email || 'Unknown',
+            company: c.company,
+            email: c.email,
+            phone: c.phone,
+            odooPartnerId: c.odooPartnerId,
+            salesRepName: c.salesRepName,
+            activities: acts.map(a => ({
+              type: a.type,
+              label: a.label,
+              date: a.date.toISOString(),
+              daysAgo: Math.floor((now.getTime() - a.date.getTime()) / (1000 * 60 * 60 * 24)),
+            })),
+            mostRecentDate: mostRecentOutreach.toISOString(),
+            daysAgo,
+            _mostRecentOutreach: mostRecentOutreach,
+          };
+        })
+        .filter(c => {
+          // Exclude if snoozed until a future date
+          if (activeSnooze.has(c.id)) return false;
+          // Exclude if already followed up after the most recent outreach
+          const followUp = latestFollowUp.get(c.id);
+          if (followUp && followUp > c._mostRecentOutreach) return false;
+          return true;
+        })
+        .map(({ _mostRecentOutreach: _omit, ...rest }) => rest) // strip internal field
+        .sort((a, b) => b.daysAgo - a.daysAgo); // most overdue first
 
       res.json({ customers: result, count: result.length });
     } catch (error) {
@@ -3697,6 +3736,35 @@ export async function registerRoutes(app: Express): Promise<Server> {
     } catch (error) {
       console.error("Mark-done error:", error);
       res.status(500).json({ error: "Failed to log follow-up" });
+    }
+  });
+
+  // Snooze a customer in outreach-review for 7 days
+  app.post("/api/spotlight/outreach-review/snooze", isAuthenticated, async (req: any, res) => {
+    try {
+      const { customerId } = req.body;
+      if (!customerId) return res.status(400).json({ error: "customerId required" });
+      const userId = req.user?.id;
+      const userName = req.user?.firstName
+        ? `${req.user.firstName} ${req.user.lastName || ''}`.trim()
+        : req.user?.email || 'Unknown';
+
+      // eventDate = "snooze until" date — 7 days from now
+      const snoozeUntil = new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+
+      await db.insert(customerActivityEvents).values({
+        customerId,
+        eventType: 'outreach_snoozed',
+        title: 'Outreach review snoozed — remind next week',
+        createdBy: userId,
+        createdByName: userName,
+        eventDate: snoozeUntil,
+      });
+
+      res.json({ success: true, snoozeUntil });
+    } catch (error) {
+      console.error("Snooze error:", error);
+      res.status(500).json({ error: "Failed to snooze" });
     }
   });
 
