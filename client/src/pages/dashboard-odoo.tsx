@@ -186,6 +186,32 @@ export default function Dashboard() {
     staleTime: 60000,
   });
 
+  interface RecentWin {
+    customerId: string;
+    odooPartnerId: number | null;
+    companyName: string;
+    orderNumber: string;
+    totalPrice: number;
+    orderDate: string;
+    daysToWin: number;
+    attributedTo: string;
+    attributedToName: string;
+    stepSummary: {
+      emails: number;
+      swatchBooks: number;
+      pressTestKits: number;
+      mailers: number;
+      calls: number;
+      quotes: number;
+      samples: number;
+    };
+  }
+  const { data: recentWinsData } = useQuery<{ wins: RecentWin[]; period: string }>({
+    queryKey: ['/api/dashboard/recent-wins'],
+    retry: 1,
+    staleTime: 5 * 60 * 1000,
+  });
+
   interface OutboundKit {
     id: number;
     labelType: string;
@@ -440,6 +466,176 @@ export default function Dashboard() {
                           </div>
                         </div>
                       )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+
+          {/* Recent Wins - "What's Working This Week" */}
+          {recentWinsData && recentWinsData.wins.length > 0 && (
+            <div style={{
+              background: '#FFFFFF',
+              borderRadius: '12px',
+              border: '1px solid #D1FAE5',
+              marginBottom: '24px',
+              padding: '20px 24px',
+            }}>
+              {/* Section header */}
+              <div style={{ display: 'flex', alignItems: 'center', gap: '10px', marginBottom: '16px' }}>
+                <div style={{
+                  width: '36px',
+                  height: '36px',
+                  borderRadius: '8px',
+                  background: 'linear-gradient(135deg, #10B981 0%, #059669 100%)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'center',
+                  flexShrink: 0,
+                }}>
+                  <Trophy size={18} style={{ color: '#FFFFFF' }} />
+                </div>
+                <div>
+                  <h2 style={{ fontSize: '16px', fontWeight: 600, color: '#111111', margin: 0, lineHeight: 1.3 }}>
+                    What's Working {recentWinsData.period === 'week' ? 'This Week' : 'This Month'}
+                  </h2>
+                  <p style={{ fontSize: '12px', color: '#6B7280', margin: 0 }}>
+                    Real wins — learn the sequence and repeat it
+                  </p>
+                </div>
+              </div>
+
+              {/* Win cards */}
+              <div style={{
+                display: 'grid',
+                gridTemplateColumns: `repeat(${Math.min(recentWinsData.wins.length, 3)}, 1fr)`,
+                gap: '12px',
+              }}>
+                {recentWinsData.wins.map((win) => {
+                  const isMyWin = win.attributedTo === (user as any)?.email;
+                  const contactHref = win.odooPartnerId
+                    ? `/odoo-contacts/${win.odooPartnerId}`
+                    : `/odoo-contacts/${win.customerId}`;
+
+                  const stepBadges: { icon: string; label: string; count: number }[] = [
+                    { icon: '✉️', label: 'Email', count: win.stepSummary.emails },
+                    { icon: '📚', label: 'Swatch Book', count: win.stepSummary.swatchBooks },
+                    { icon: '🧪', label: 'Press Kit', count: win.stepSummary.pressTestKits },
+                    { icon: '📬', label: 'Mailer', count: win.stepSummary.mailers },
+                    { icon: '📞', label: 'Call', count: win.stepSummary.calls },
+                    { icon: '📄', label: 'Quote', count: win.stepSummary.quotes },
+                    { icon: '📦', label: 'Sample', count: win.stepSummary.samples },
+                  ].filter(b => b.count > 0);
+
+                  return (
+                    <div
+                      key={win.customerId + win.orderNumber}
+                      style={{
+                        background: isMyWin ? 'linear-gradient(135deg, #ECFDF5 0%, #D1FAE5 100%)' : '#F9FAFB',
+                        borderRadius: '10px',
+                        border: isMyWin ? '1.5px solid #6EE7B7' : '1px solid #E5E7EB',
+                        padding: '14px',
+                        position: 'relative',
+                      }}
+                    >
+                      {isMyWin && (
+                        <div style={{
+                          position: 'absolute',
+                          top: '-10px',
+                          right: '12px',
+                          background: '#059669',
+                          color: '#FFFFFF',
+                          fontSize: '10px',
+                          fontWeight: 700,
+                          padding: '2px 8px',
+                          borderRadius: '99px',
+                          letterSpacing: '0.03em',
+                        }}>
+                          🎉 Your Win!
+                        </div>
+                      )}
+
+                      {/* Company name + order amount */}
+                      <div style={{ marginBottom: '8px' }}>
+                        <Link
+                          href={contactHref}
+                          style={{
+                            fontSize: '14px',
+                            fontWeight: 600,
+                            color: '#059669',
+                            textDecoration: 'none',
+                            display: 'block',
+                            marginBottom: '2px',
+                          }}
+                          onMouseEnter={(e) => { (e.target as HTMLElement).style.textDecoration = 'underline'; }}
+                          onMouseLeave={(e) => { (e.target as HTMLElement).style.textDecoration = 'none'; }}
+                        >
+                          {win.companyName}
+                        </Link>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: '6px' }}>
+                          <span style={{ fontSize: '15px', fontWeight: 700, color: '#065F46' }}>
+                            ${win.totalPrice.toLocaleString('en-US', { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
+                          </span>
+                          <span style={{ fontSize: '11px', color: '#9CA3AF' }}>
+                            {win.orderNumber}
+                          </span>
+                        </div>
+                      </div>
+
+                      {/* Step summary badges */}
+                      {stepBadges.length > 0 && (
+                        <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px', marginBottom: '8px' }}>
+                          {stepBadges.map((badge, i) => (
+                            <span
+                              key={badge.label}
+                              style={{
+                                display: 'inline-flex',
+                                alignItems: 'center',
+                                gap: '3px',
+                                fontSize: '11px',
+                                padding: '2px 7px',
+                                borderRadius: '99px',
+                                background: '#FFFFFF',
+                                border: '1px solid #D1FAE5',
+                                color: '#374151',
+                                whiteSpace: 'nowrap',
+                              }}
+                            >
+                              {badge.icon} {badge.count} {badge.count === 1 ? badge.label : badge.label + 's'}
+                              {i < stepBadges.length - 1 && (
+                                <span style={{ color: '#9CA3AF', marginLeft: '1px' }}>→</span>
+                              )}
+                            </span>
+                          ))}
+                          <span style={{
+                            display: 'inline-flex',
+                            alignItems: 'center',
+                            gap: '3px',
+                            fontSize: '11px',
+                            padding: '2px 7px',
+                            borderRadius: '99px',
+                            background: '#059669',
+                            color: '#FFFFFF',
+                            whiteSpace: 'nowrap',
+                            fontWeight: 600,
+                          }}>
+                            🏆 Order
+                          </span>
+                        </div>
+                      )}
+
+                      {/* Footer: days to win + attribution */}
+                      <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}>
+                        <span style={{ fontSize: '11px', color: '#6B7280' }}>
+                          {win.daysToWin} {win.daysToWin === 1 ? 'day' : 'days'} from first touch
+                        </span>
+                        {!isMyWin && (
+                          <span style={{ fontSize: '11px', color: '#6B7280', fontStyle: 'italic' }}>
+                            by {win.attributedToName}
+                          </span>
+                        )}
+                      </div>
                     </div>
                   );
                 })}

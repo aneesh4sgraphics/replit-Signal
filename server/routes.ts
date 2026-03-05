@@ -2947,6 +2947,158 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Get recent wins for dashboard - up to 3 wins with step summaries
+  app.get("/api/dashboard/recent-wins", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.email || req.user?.id;
+
+      // Try this week first, fall back to last 30 days
+      const now = new Date();
+      const weekAgo = new Date(now.getTime() - 7 * 24 * 60 * 60 * 1000);
+      const monthAgo = new Date(now.getTime() - 30 * 24 * 60 * 60 * 1000);
+
+      // Find all email sends grouped by customer (need firstEmailDate for win detection)
+      const firstEmailsByCustomer = await db
+        .select({
+          customerId: emailSends.customerId,
+          firstEmailAt: sql<Date>`MIN(${emailSends.sentAt})`,
+          sentBy: sql<string>`(array_agg(${emailSends.sentBy} ORDER BY ${emailSends.sentAt} ASC))[1]`,
+        })
+        .from(emailSends)
+        .where(and(isNotNull(emailSends.customerId), eq(emailSends.status, 'sent')))
+        .groupBy(emailSends.customerId);
+
+      if (firstEmailsByCustomer.length === 0) {
+        return res.json({ wins: [], period: 'week' });
+      }
+
+      const emailMap = new Map(firstEmailsByCustomer.map(e => [e.customerId, e]));
+
+      const findWins = async (since: Date) => {
+        const orders = await db.select({
+          id: shopifyOrders.id,
+          orderNumber: shopifyOrders.orderNumber,
+          customerId: shopifyOrders.customerId,
+          customerName: shopifyOrders.customerName,
+          companyName: shopifyOrders.companyName,
+          totalPrice: shopifyOrders.totalPrice,
+          shopifyCreatedAt: shopifyOrders.shopifyCreatedAt,
+        })
+          .from(shopifyOrders)
+          .where(and(isNotNull(shopifyOrders.customerId), gte(shopifyOrders.shopifyCreatedAt, since)))
+          .orderBy(desc(shopifyOrders.shopifyCreatedAt));
+
+        const wins: any[] = [];
+        for (const order of orders) {
+          if (wins.length >= 3) break;
+          const emailData = emailMap.get(order.customerId!);
+          if (!emailData || !order.shopifyCreatedAt) continue;
+          if (new Date(order.shopifyCreatedAt) <= new Date(emailData.firstEmailAt)) continue;
+
+          const orderDate = new Date(order.shopifyCreatedAt);
+          const firstTouchDate = new Date(emailData.firstEmailAt);
+          const daysToWin = Math.round((orderDate.getTime() - firstTouchDate.getTime()) / (1000 * 60 * 60 * 24));
+
+          // Get customer info for linking
+          const custRows = await db.select({
+            odooPartnerId: customers.odooPartnerId,
+            firstName: customers.firstName,
+            lastName: customers.lastName,
+            company: customers.company,
+          }).from(customers).where(eq(customers.id, order.customerId!)).limit(1);
+          const cust = custRows[0];
+
+          // Step summary: emails
+          const emailCountRows = await db.select({ count: sql<number>`COUNT(*)` })
+            .from(emailSends)
+            .where(and(
+              eq(emailSends.customerId, order.customerId!),
+              eq(emailSends.status, 'sent'),
+              lte(emailSends.sentAt, orderDate)
+            ));
+          const emailCount = Number(emailCountRows[0]?.count || 0);
+
+          // Step summary: label prints grouped by type
+          const labelRows = await db.select({
+            labelType: labelPrints.labelType,
+            count: sql<number>`COUNT(*)`,
+          })
+            .from(labelPrints)
+            .where(and(
+              eq(labelPrints.customerId, order.customerId!),
+              lte(labelPrints.createdAt, orderDate)
+            ))
+            .groupBy(labelPrints.labelType);
+
+          // Step summary: activity events grouped by type
+          const activityRows = await db.select({
+            eventType: customerActivityEvents.eventType,
+            count: sql<number>`COUNT(*)`,
+          })
+            .from(customerActivityEvents)
+            .where(and(
+              eq(customerActivityEvents.customerId, order.customerId!),
+              lte(customerActivityEvents.eventDate, orderDate)
+            ))
+            .groupBy(customerActivityEvents.eventType);
+
+          const labelCounts: Record<string, number> = {};
+          for (const l of labelRows) {
+            labelCounts[l.labelType] = Number(l.count);
+          }
+          const activityCounts: Record<string, number> = {};
+          for (const a of activityRows) {
+            activityCounts[a.eventType] = Number(a.count);
+          }
+
+          // Get rep display name
+          const repEmail = emailData.sentBy;
+          const repRows = await db.select({ firstName: customers.firstName, lastName: customers.lastName })
+            .from(customers)
+            .where(eq(customers.email, repEmail))
+            .limit(1);
+          const repName = repRows[0]
+            ? [repRows[0].firstName, repRows[0].lastName].filter(Boolean).join(' ') || repEmail?.split('@')[0]
+            : repEmail?.split('@')[0] || 'Team';
+
+          wins.push({
+            customerId: order.customerId,
+            odooPartnerId: cust?.odooPartnerId || null,
+            companyName: order.companyName || order.customerName || cust?.company || 'Unknown',
+            orderNumber: order.orderNumber,
+            totalPrice: parseFloat(order.totalPrice || '0'),
+            orderDate: order.shopifyCreatedAt,
+            daysToWin,
+            attributedTo: repEmail,
+            attributedToName: repName,
+            stepSummary: {
+              emails: emailCount,
+              swatchBooks: labelCounts['swatch_book'] || 0,
+              pressTestKits: labelCounts['press_test_kit'] || 0,
+              mailers: (labelCounts['mailer'] || 0) + (labelCounts['letter'] || 0),
+              calls: activityCounts['call_made'] || 0,
+              quotes: activityCounts['quote_sent'] || 0,
+              samples: (activityCounts['sample_shipped'] || 0) + (activityCounts['sample_delivered'] || 0),
+            },
+          });
+        }
+        return wins;
+      };
+
+      let wins = await findWins(weekAgo);
+      let period = 'week';
+      if (wins.length === 0) {
+        wins = await findWins(monthAgo);
+        period = 'month';
+      }
+
+      res.json({ wins, period });
+    } catch (error) {
+      console.error("Error fetching recent wins:", error);
+      res.status(500).json({ error: "Failed to fetch recent wins" });
+    }
+  });
+
   // Get win path for a customer - timeline of interactions leading to a Shopify order
   app.get("/api/customers/:customerId/win-path", isAuthenticated, async (req: any, res) => {
     try {
