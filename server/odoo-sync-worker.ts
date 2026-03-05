@@ -1,6 +1,6 @@
 import { db } from "./db";
-import { customers, customerSyncQueue } from "@shared/schema";
-import { eq, and, sql, desc } from "drizzle-orm";
+import { customers, customerSyncQueue, productPricingMaster } from "@shared/schema";
+import { eq, and, sql, desc, inArray } from "drizzle-orm";
 import { odooClient } from "./odoo";
 import { tryAcquireAdvisoryLock, releaseAdvisoryLock } from "./advisory-lock";
 
@@ -168,6 +168,65 @@ async function processOdooSyncQueue(): Promise<void> {
   }
 }
 
+async function syncNewOdooProducts(): Promise<void> {
+  try {
+    console.log("[Odoo Product Sync] Checking for new products in Odoo...");
+
+    const odooProducts = await odooClient.getAllProductsWithVariants();
+    const odooWithCode = odooProducts.filter((p: any) => p.default_code && p.name);
+
+    if (odooWithCode.length === 0) {
+      console.log("[Odoo Product Sync] No products returned from Odoo");
+      return;
+    }
+
+    // Get all item codes already in the local DB
+    const existingRows = await db
+      .select({ itemCode: productPricingMaster.itemCode })
+      .from(productPricingMaster);
+    const existingCodes = new Set(existingRows.map(r => r.itemCode));
+
+    const newProducts = odooWithCode.filter((p: any) => !existingCodes.has(p.default_code.trim()));
+
+    if (newProducts.length === 0) {
+      console.log("[Odoo Product Sync] No new products found");
+      return;
+    }
+
+    const batchLabel = 'odoo-auto-sync-' + new Date().toISOString().split('T')[0];
+    let added = 0;
+
+    for (const product of newProducts) {
+      try {
+        const itemCode = product.default_code.trim();
+        await db.insert(productPricingMaster).values({
+          itemCode,
+          odooItemCode: itemCode,
+          productName: product.name,
+          productType: 'Unmapped',
+          productTypeId: null,
+          catalogCategoryId: null,
+          catalogProductTypeId: null,
+          size: 'Unmapped',
+          totalSqm: '0',
+          minQuantity: 1,
+          dealerPrice: product.list_price?.toString() || null,
+          retailPrice: product.list_price?.toString() || null,
+          uploadBatch: batchLabel,
+          isArchived: false,
+        });
+        added++;
+      } catch (_err) {
+        // Skip duplicates or constraint errors silently
+      }
+    }
+
+    console.log(`[Odoo Product Sync] Found ${newProducts.length} new products in Odoo, added ${added} to review queue`);
+  } catch (error: any) {
+    console.error("[Odoo Product Sync] Error syncing new products:", error.message);
+  }
+}
+
 export async function startOdooSyncWorker(): Promise<void> {
   if (intervalHandle !== null) {
     console.log("[Odoo Sync Worker] Already running, skipping start");
@@ -186,6 +245,7 @@ export async function startOdooSyncWorker(): Promise<void> {
     const now = new Date();
     if (now.getHours() === 3 && now.getMinutes() < 10) {
       processOdooSyncQueue();
+      syncNewOdooProducts();
     }
   }, 10 * 60 * 1000); // Check every 10 minutes
 }
@@ -206,6 +266,15 @@ export async function runOdooSyncNow(): Promise<{ success: boolean; message: str
   try {
     await processOdooSyncQueue();
     return { success: true, message: "Sync completed" };
+  } catch (error: any) {
+    return { success: false, message: error.message };
+  }
+}
+
+export async function runOdooProductSyncNow(): Promise<{ success: boolean; message: string }> {
+  try {
+    await syncNewOdooProducts();
+    return { success: true, message: "Product sync completed" };
   } catch (error: any) {
     return { success: false, message: error.message };
   }

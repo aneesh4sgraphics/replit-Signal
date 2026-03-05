@@ -17505,6 +17505,18 @@ Return only the JSON object. No markdown, no code blocks.`
     }
   });
 
+  // Admin route to check Odoo for new products and queue them for review
+  app.post("/api/odoo/sync-new-products", requireAdmin, async (req: any, res) => {
+    try {
+      const { runOdooProductSyncNow } = await import("./odoo-sync-worker");
+      const result = await runOdooProductSyncNow();
+      res.json(result);
+    } catch (error: any) {
+      console.error("Error syncing new products from Odoo:", error);
+      res.status(500).json({ success: false, message: error.message || "Failed to sync new products" });
+    }
+  });
+
   // Resync a customer's data from Odoo (updates address and other fields)
   app.post("/api/odoo/customer/:customerId/resync", requireApproval, async (req: any, res) => {
     try {
@@ -18901,14 +18913,9 @@ Return only the JSON object. No markdown, no code blocks.`
           // Extract guided fields from product (if provided)
           const rollSheet = product.rollSheet || null;
           const unitOfMeasure = product.unitOfMeasure || null;
-          const size = product.size || 'Standard';
-          const totalSqm = product.totalSqm || '0';
-          const productType = product.productType || product.categ_name || 'Imported from Odoo';
-          const catalogCategoryId = product.catalogCategoryId || null;
-          const catalogProductTypeId = product.catalogProductTypeId || null;
           const minQuantity = product.minQuantity || 1;
           
-          // All pricing tiers - can be null/0 and updated later in Product Pricing Management
+          // All pricing tiers - preserved so admin can see them in Product Mappings
           const landedPrice = product.landedPrice?.toString() || null;
           const exportPrice = product.exportPrice?.toString() || null;
           const masterDistributorPrice = product.masterDistributorPrice?.toString() || null;
@@ -18920,33 +18927,34 @@ Return only the JSON object. No markdown, no code blocks.`
           const tierStage1Price = product.tierStage1Price?.toString() || null;
           const retailPrice = product.retailPrice?.toString() || null;
           
-          // Create local product entry with guided values
+          // Always flag as Unmapped so it surfaces in Product Mappings for admin review.
+          // Category/type assignment happens there, not at import time.
           await db.insert(productPricingMaster).values({
             itemCode,
-            odooItemCode, // Store Odoo code for display
+            odooItemCode,
             productName: product.name,
-            productType,
-            productTypeId: catalogProductTypeId,
-            catalogCategoryId,
-            catalogProductTypeId,
-            size,
-            totalSqm,
+            productType: 'Unmapped',
+            productTypeId: null,
+            catalogCategoryId: null,
+            catalogProductTypeId: null,
+            size: 'Unmapped',
+            totalSqm: product.totalSqm || '0',
             minQuantity,
             rollSheet,
             unitOfMeasure,
-            // All pricing tiers
             landedPrice,
             exportPrice,
             masterDistributorPrice,
             dealerPrice,
             dealer2Price,
-            approvalNeededPrice: tierStage25Price, // Map to approvalNeededPrice column
+            approvalNeededPrice: tierStage25Price,
             tierStage25Price,
             tierStage2Price,
             tierStage15Price,
             tierStage1Price,
             retailPrice,
             uploadBatch: 'odoo-import-' + new Date().toISOString().split('T')[0],
+            isArchived: false,
           });
           
           // Auto-create mapping with Odoo code preserved
@@ -19082,6 +19090,7 @@ Return only the JSON object. No markdown, no code blocks.`
         dealerPrice: productPricingMaster.dealerPrice,
         retailPrice: productPricingMaster.retailPrice,
         updatedAt: productPricingMaster.updatedAt,
+        uploadBatch: productPricingMaster.uploadBatch,
       }).from(productPricingMaster)
         .where(or(eq(productPricingMaster.isArchived, false), isNull(productPricingMaster.isArchived)))
         .orderBy(productPricingMaster.productName);
@@ -19102,6 +19111,7 @@ Return only the JSON object. No markdown, no code blocks.`
         dealerPrice: productPricingMaster.dealerPrice,
         retailPrice: productPricingMaster.retailPrice,
         updatedAt: productPricingMaster.updatedAt,
+        uploadBatch: productPricingMaster.uploadBatch,
       }).from(productPricingMaster)
         .where(eq(productPricingMaster.isArchived, true))
         .orderBy(productPricingMaster.productName);
@@ -19147,6 +19157,7 @@ Return only the JSON object. No markdown, no code blocks.`
       });
       
       // Calculate counts for each filter
+      const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
       const counts = {
         all: allProducts.length,
         unmapped: allProducts.filter(p => !p.productTypeId || !p.catalogCategoryId).length,
@@ -19158,6 +19169,10 @@ Return only the JSON object. No markdown, no code blocks.`
           !p.totalSqm || parseFloat(p.totalSqm.toString()) === 0
         ).length,
         excluded: excludedProducts.length,
+        newInLast7Days: allProducts.filter(p => 
+          (!p.productTypeId || !p.catalogCategoryId) &&
+          p.updatedAt && new Date(p.updatedAt) >= sevenDaysAgo
+        ).length,
       };
       
       res.json({

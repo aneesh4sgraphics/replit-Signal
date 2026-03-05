@@ -43,6 +43,7 @@ interface Product {
   dealerPrice: string | null;
   retailPrice: string | null;
   updatedAt: string;
+  uploadBatch: string | null;
 }
 
 interface Category {
@@ -69,6 +70,7 @@ interface UnmappedResponse {
     noSqm: number;
     incomplete: number;
     excluded: number;
+    newInLast7Days: number;
   };
   categories: Category[];
   types: ProductType[];
@@ -133,7 +135,7 @@ export default function ProductMapping() {
   const types = typesData || [];
   const products = unmappedData?.products || [];
   const excludedProducts = unmappedData?.excludedProducts || [];
-  const counts = unmappedData?.counts || { all: 0, unmapped: 0, noSize: 0, noSqm: 0, incomplete: 0, excluded: 0 };
+  const counts = unmappedData?.counts || { all: 0, unmapped: 0, noSize: 0, noSqm: 0, incomplete: 0, excluded: 0, newInLast7Days: 0 };
 
   // Filter products based on tab and search
   const filteredProducts = useMemo(() => {
@@ -142,6 +144,10 @@ export default function ProductMapping() {
     // Filter by tab
     if (activeTab === 'unmapped') {
       filtered = filtered.filter(p => !p.catalogCategoryId || !p.productTypeId);
+      // Sort newest first so recently imported products are at the top
+      filtered = [...filtered].sort((a, b) =>
+        new Date(b.updatedAt).getTime() - new Date(a.updatedAt).getTime()
+      );
     } else if (activeTab === 'mapped') {
       filtered = filtered.filter(p => p.catalogCategoryId && p.productTypeId);
     }
@@ -209,6 +215,28 @@ export default function ProductMapping() {
       toast({
         variant: 'destructive',
         title: 'Import Failed',
+        description: error.message,
+      });
+    },
+  });
+
+  // Check Odoo for new products mutation
+  const checkOdooNewProducts = useMutation({
+    mutationFn: async () => {
+      const res = await apiRequest('POST', '/api/odoo/sync-new-products');
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({
+        title: 'Check Complete',
+        description: 'Odoo checked for new products. Any new ones are now in the Unmapped tab.',
+      });
+      refetchProducts();
+    },
+    onError: (error: Error) => {
+      toast({
+        variant: 'destructive',
+        title: 'Check Failed',
         description: error.message,
       });
     },
@@ -543,6 +571,11 @@ export default function ProductMapping() {
             <TabsTrigger value="unmapped" data-testid="tab-unmapped">
               <AlertCircle className="h-4 w-4 mr-2" />
               Unmapped ({counts.unmapped})
+              {counts.newInLast7Days > 0 && (
+                <span className="ml-2 inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-100 text-blue-700">
+                  {counts.newInLast7Days} new
+                </span>
+              )}
             </TabsTrigger>
             <TabsTrigger value="mapped" data-testid="tab-mapped">
               <CheckCircle2 className="h-4 w-4 mr-2" />
@@ -563,8 +596,24 @@ export default function ProductMapping() {
             <Card>
               <CardHeader>
                 <div className="flex items-center justify-between">
-                  <CardTitle>Unmapped Products</CardTitle>
+                  <div>
+                    <CardTitle>Unmapped Products</CardTitle>
+                    {counts.newInLast7Days > 0 && (
+                      <p className="text-sm text-blue-600 mt-1">
+                        {counts.newInLast7Days} new from Odoo in the last 7 days — showing newest first
+                      </p>
+                    )}
+                  </div>
                   <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      onClick={() => checkOdooNewProducts.mutate()}
+                      disabled={checkOdooNewProducts.isPending}
+                    >
+                      <RefreshCw className={cn("h-4 w-4 mr-2", checkOdooNewProducts.isPending && "animate-spin")} />
+                      {checkOdooNewProducts.isPending ? 'Checking...' : 'Check Odoo for New'}
+                    </Button>
                     <div className="relative">
                       <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                       <Input
@@ -595,11 +644,16 @@ export default function ProductMapping() {
                           data-testid={`product-row-${product.id}`}
                         >
                           <div className="flex-1">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 flex-wrap">
                               <span className="font-mono text-sm font-medium">{product.itemCode}</span>
                               <Badge variant="outline" className="text-amber-600 border-amber-600">
                                 Unmapped
                               </Badge>
+                              {product.uploadBatch && (
+                                <span className="text-xs text-muted-foreground bg-slate-100 px-2 py-0.5 rounded">
+                                  {product.uploadBatch.replace('odoo-auto-sync-', 'Auto-sync ').replace('odoo-import-', 'Imported ').replace('odoo-fresh-import-', 'Synced ')}
+                                </span>
+                              )}
                             </div>
                             <div className="text-sm text-muted-foreground mt-1">
                               {product.productName}
