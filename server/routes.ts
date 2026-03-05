@@ -3552,30 +3552,36 @@ export async function registerRoutes(app: Express): Promise<Server> {
   // in the past 7 days and need a follow-up call or email.
   app.get("/api/spotlight/outreach-review", isAuthenticated, async (req: any, res) => {
     try {
+      const userId = req.user?.id;
+      const userEmail = req.user?.email;
       const sevenDaysAgo = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000);
 
-      // 1. Label prints (swatch books, press test kits, mailers, other)
+      // 1. Label prints by THIS user only
       const recentPrints = await db.execute(sql`
         SELECT customer_id AS "customerId", label_type AS "labelType", created_at AS "createdAt"
         FROM label_prints
         WHERE created_at >= ${sevenDaysAgo}
+          AND printed_by_user_id = ${userId}
       `).then(r => r.rows as { customerId: string; labelType: string; createdAt: string }[]);
 
-      // 2. $0.00 Shopify orders (samples)
+      // 2. $0.00 Shopify orders for customers assigned to THIS user
       const recentSamples = await db.execute(sql`
-        SELECT customer_id AS "customerId", order_number AS "orderNumber", shopify_created_at AS "shopifyCreatedAt"
-        FROM shopify_orders
-        WHERE shopify_created_at >= ${sevenDaysAgo}
-          AND CAST(total_price AS numeric) = 0
-          AND customer_id IS NOT NULL
+        SELECT so.customer_id AS "customerId", so.order_number AS "orderNumber", so.shopify_created_at AS "shopifyCreatedAt"
+        FROM shopify_orders so
+        JOIN customers c ON c.id = so.customer_id
+        WHERE so.shopify_created_at >= ${sevenDaysAgo}
+          AND CAST(so.total_price AS numeric) = 0
+          AND so.customer_id IS NOT NULL
+          AND (c.sales_rep_id = ${userId} OR c.sales_rep_id = ${userEmail})
       `).then(r => r.rows as { customerId: string; orderNumber: string | null; shopifyCreatedAt: string }[]);
 
-      // 3. Quotes sent (customerActivityEvents with eventType = 'quote_sent')
+      // 3. Quotes sent by THIS user
       const recentQuotes = await db.execute(sql`
         SELECT customer_id AS "customerId", title, event_date AS "eventDate"
         FROM customer_activity_events
         WHERE event_date >= ${sevenDaysAgo}
           AND event_type = 'quote_sent'
+          AND created_by = ${userId}
       `).then(r => r.rows as { customerId: string; title: string; eventDate: string }[]);
 
       // Build map of customerId → activities
@@ -3644,6 +3650,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
         customerId: customerActivityEvents.customerId,
         eventType: customerActivityEvents.eventType,
         eventDate: customerActivityEvents.eventDate,
+        createdBy: customerActivityEvents.createdBy,
       }).from(customerActivityEvents)
         .where(and(
           inArray(customerActivityEvents.customerId, customerIds),
