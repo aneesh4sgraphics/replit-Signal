@@ -2419,6 +2419,18 @@ export default function Spotlight() {
                       swatch_book: '📚', press_test_kit: '🧪', mailer: '📬',
                       other: '📦', letter: '✉️', sample: '🎁', quote: '📄',
                     };
+                    const nextStepSuggestion: Record<string, { icon: string; text: string; action: 'call' | 'either' }> = {
+                      swatch_book: { icon: '📞', text: 'Call to ask if the swatch book arrived and get their thoughts on the samples.', action: 'call' },
+                      press_test_kit: { icon: '📞', text: 'Call to find out if the press test kit met their quality expectations.', action: 'call' },
+                      mailer: { icon: '📞', text: 'Call to confirm they received the mailer and see if they have any questions.', action: 'call' },
+                      letter: { icon: '📞', text: 'Call to confirm receipt and see if there is anything you can help with.', action: 'call' },
+                      other: { icon: '📞', text: 'Follow up — call to confirm it arrived and open a conversation.', action: 'call' },
+                      sample: { icon: '📧', text: 'Email or call to check if the samples arrived and get feedback on the quality.', action: 'either' },
+                      quote: { icon: '📧', text: 'Follow up on the quote — call or email to address any questions on pricing.', action: 'either' },
+                    };
+                    // Use the most recent activity type for the suggestion
+                    const primaryType = customer.activities[0]?.type;
+                    const suggestion = primaryType ? nextStepSuggestion[primaryType] : null;
                     const urgencyColor = customer.daysAgo >= 5
                       ? 'text-red-600 bg-red-50 border-red-200'
                       : customer.daysAgo >= 3
@@ -2451,6 +2463,13 @@ export default function Spotlight() {
                               </span>
                             ))}
                           </div>
+                          {/* Next step suggestion */}
+                          {suggestion && (
+                            <div className="mt-2 flex items-start gap-1.5 text-[11px] text-amber-700 bg-amber-50 border border-amber-200 rounded px-2 py-1.5">
+                              <span className="flex-shrink-0 mt-px">{suggestion.icon}</span>
+                              <span><span className="font-semibold">Suggested: </span>{suggestion.text}</span>
+                            </div>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1.5 flex-shrink-0">
                           <Button
