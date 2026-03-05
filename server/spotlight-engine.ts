@@ -1059,7 +1059,7 @@ class SpotlightEngine {
           
           const hygieneCustomers = await db.select({ id: customers.id, email: customers.email })
             .from(customers)
-            .where(and(condition, eq(customers.doNotContact, false)))
+            .where(and(condition, eq(customers.doNotContact, false), eq(customers.isCompany, true)))
             .orderBy(genericEmailCase, asc(customers.createdAt))
             .limit(Math.ceil((quota - hygieneCount) / hygieneTypes.length));
           
@@ -3919,6 +3919,7 @@ class SpotlightEngine {
         // Find customers with complete core data but missing machine profiles
         let machineConditions: any[] = [
           eq(customers.doNotContact, false),
+          eq(customers.isCompany, true),
           isNotNull(customers.email),
           isNotNull(customers.phone),
           isNotNull(customers.pricingTier),
@@ -3977,6 +3978,7 @@ class SpotlightEngine {
       let whereConditions: any[] = [
         condition,
         eq(customers.doNotContact, false),
+        eq(customers.isCompany, true),
         // Exclude internal 4sgraphics contacts from SPOTLIGHT (allow null emails for hygiene_email subtype)
         or(isNull(customers.email), sql`LOWER(${customers.email}) NOT LIKE '%4sgraphics%'`),
       ];
