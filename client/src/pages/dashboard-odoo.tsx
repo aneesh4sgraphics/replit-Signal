@@ -517,9 +517,7 @@ export default function Dashboard() {
               }}>
                 {recentWinsData.wins.map((win) => {
                   const isMyWin = win.attributedTo === (user as any)?.email;
-                  const contactHref = win.odooPartnerId
-                    ? `/odoo-contacts/${win.odooPartnerId}`
-                    : `/odoo-contacts/${win.customerId}`;
+                  const contactHref = `/odoo-contacts/${win.customerId}`;
 
                   const stepBadges: { icon: string; label: string; count: number }[] = [
                     { icon: '✉️', label: 'Email', count: win.stepSummary.emails },
