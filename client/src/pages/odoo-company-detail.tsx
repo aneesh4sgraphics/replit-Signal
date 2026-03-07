@@ -2220,32 +2220,30 @@ export default function OdooCompanyDetail() {
                           ))}
                         </SelectContent>
                       </Select>
-                    ) : partnerCategories && partnerCategories.length > 0 ? (
+                    ) : (
                       <Select
-                        value={partnerCategories.find(c => c.name === company.pricingTier)?.id.toString() || ''}
+                        value={company.pricingTier || ''}
                         onValueChange={(value) => {
-                          const category = partnerCategories.find(c => c.id.toString() === value);
+                          const category = partnerCategories.find(c => c.name === value);
                           if (category) {
                             updatePricingTierMutation.mutate({ categoryId: category.id, categoryName: category.name });
+                          } else {
+                            updateLocalPricingTierMutation.mutate({ pricingTier: value });
                           }
                         }}
-                        disabled={updatePricingTierMutation.isPending}
+                        disabled={updatePricingTierMutation.isPending || updateLocalPricingTierMutation.isPending}
                       >
-                        <SelectTrigger className={`w-full transition-all duration-300 ${updatePricingTierMutation.isPending ? 'opacity-50' : ''} ${tagSaveSuccess ? 'border-green-500 ring-2 ring-green-200' : ''}`}>
-                          <SelectValue placeholder={company.pricingTier || 'Select category'} />
+                        <SelectTrigger className={`w-full transition-all duration-300 ${(updatePricingTierMutation.isPending || updateLocalPricingTierMutation.isPending) ? 'opacity-50' : ''} ${tagSaveSuccess ? 'border-green-500 ring-2 ring-green-200' : ''}`}>
+                          <SelectValue placeholder={company.pricingTier || 'Select pricing tier'} />
                         </SelectTrigger>
                         <SelectContent>
-                          {partnerCategories.map((category) => (
-                            <SelectItem key={category.id} value={category.id.toString()}>
-                              {category.name}
+                          {PRICING_TIERS.map((tier) => (
+                            <SelectItem key={tier} value={tier}>
+                              {tier}
                             </SelectItem>
                           ))}
                         </SelectContent>
                       </Select>
-                    ) : (
-                      <p className="font-medium text-gray-900">
-                        {company.pricingTier || 'Not Set'}
-                      </p>
                     )}
                   </div>
                 </div>

@@ -1,6 +1,7 @@
 import { useState } from "react";
 import { useQuery, useMutation, useQueryClient } from "@tanstack/react-query";
 import { Link, useRoute, useLocation } from "wouter";
+import { PRICING_TIERS } from "@shared/schema";
 import { useEmailComposer } from "@/components/email-composer";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -115,6 +116,7 @@ interface Lead {
   primaryContactName: string | null;
   primaryContactEmail: string | null;
   customerType: string | null;
+  pricingTier: string | null;
   odooPartnerId: number | null;
   createdAt: string;
   updatedAt: string;
@@ -389,6 +391,7 @@ export default function LeadDetail() {
         expectedRevenue: lead.expectedRevenue,
         probability: lead.probability,
         priority: lead.priority,
+        pricingTier: lead.pricingTier,
         preferredContact: lead.preferredContact,
         bestTimeToCall: lead.bestTimeToCall,
       });
@@ -648,6 +651,16 @@ export default function LeadDetail() {
                       <span className="text-slate-700">Best time: {lead.bestTimeToCall}</span>
                     </div>
                   )}
+                  <div className="flex items-center gap-3">
+                    <DollarSign className="w-4 h-4 text-slate-400" />
+                    {lead.pricingTier ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-semibold bg-violet-100 text-violet-800">
+                        {lead.pricingTier}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">No pricing tier set</span>
+                    )}
+                  </div>
                 </div>
               </div>
 
@@ -1193,6 +1206,20 @@ export default function LeadDetail() {
                   <SelectItem value="medium">Medium</SelectItem>
                   <SelectItem value="high">High</SelectItem>
                   <SelectItem value="urgent">Urgent</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Pricing Tier</Label>
+              <Select value={editForm.pricingTier || ""} onValueChange={(v) => setEditForm(prev => ({ ...prev, pricingTier: v || null }))}>
+                <SelectTrigger>
+                  <SelectValue placeholder="Select pricing tier..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="">Not set</SelectItem>
+                  {PRICING_TIERS.map(tier => (
+                    <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                  ))}
                 </SelectContent>
               </Select>
             </div>

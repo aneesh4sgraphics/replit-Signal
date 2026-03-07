@@ -969,18 +969,18 @@ export default function OdooContacts() {
                     </SelectContent>
                   </Select>
 
-                  {/* Tags Filter */}
+                  {/* Pricing Tier Filter */}
                   <Select
                     value={filters.pricingTier || 'all'}
                     onValueChange={(v) => setFilters(f => ({ ...f, pricingTier: v === 'all' ? null : v }))}
                   >
                     <SelectTrigger className="w-[160px] bg-white">
-                      <SelectValue placeholder="Tags" />
+                      <SelectValue placeholder="Pricing Tier" />
                     </SelectTrigger>
                     <SelectContent>
-                      <SelectItem value="all">All Tags</SelectItem>
-                      {partnerCategories.map(category => (
-                        <SelectItem key={category.id} value={category.name}>{category.name}</SelectItem>
+                      <SelectItem value="all">All Tiers</SelectItem>
+                      {PRICING_TIERS.map(tier => (
+                        <SelectItem key={tier} value={tier}>{tier}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>
