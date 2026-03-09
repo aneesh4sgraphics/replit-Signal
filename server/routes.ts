@@ -2525,6 +2525,119 @@ export async function registerRoutes(app: Express): Promise<Server> {
     }
   });
 
+  // Check for mailer conflicts before batch printing
+  app.post("/api/labels/check-mailer-conflicts", isAuthenticated, async (req, res) => {
+    try {
+      const { mailerId, mailerName, addresses } = req.body as {
+        mailerId?: number | null;
+        mailerName?: string | null;
+        addresses: { customerId?: string; leadId?: number; name?: string }[];
+      };
+
+      const tenDaysAgo = new Date(Date.now() - 10 * 24 * 60 * 60 * 1000);
+
+      const sameMailer: { name: string; sentDate: string; entityType: string }[] = [];
+      const tooRecent: { name: string; lastMailerDate: string; daysAgo: number; entityType: string }[] = [];
+
+      for (const addr of addresses) {
+        if (addr.customerId) {
+          // Check same mailer already sent (by mailerId stored in metadata)
+          if (mailerId) {
+            const existing = await db
+              .select({ eventDate: customerActivityEvents.eventDate, title: customerActivityEvents.title })
+              .from(customerActivityEvents)
+              .where(and(
+                eq(customerActivityEvents.customerId, addr.customerId),
+                sql`${customerActivityEvents.metadata}->>'mailerId' = ${String(mailerId)}`
+              ))
+              .orderBy(asc(customerActivityEvents.eventDate))
+              .limit(1);
+            if (existing.length > 0) {
+              sameMailer.push({
+                name: addr.name || addr.customerId,
+                sentDate: existing[0].eventDate?.toISOString() || '',
+                entityType: 'customer',
+              });
+              continue; // already in sameMailer, skip tooRecent check
+            }
+          }
+          // Check any mailer within 10 days
+          const recentMailer = await db
+            .select({ eventDate: customerActivityEvents.eventDate })
+            .from(customerActivityEvents)
+            .where(and(
+              eq(customerActivityEvents.customerId, addr.customerId),
+              eq(customerActivityEvents.eventType, 'product_info_shared'),
+              gte(customerActivityEvents.eventDate, tenDaysAgo)
+            ))
+            .orderBy(desc(customerActivityEvents.eventDate))
+            .limit(1);
+          if (recentMailer.length > 0) {
+            const sentDate = new Date(recentMailer[0].eventDate!);
+            const daysAgo = Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24));
+            tooRecent.push({
+              name: addr.name || addr.customerId,
+              lastMailerDate: sentDate.toISOString(),
+              daysAgo,
+              entityType: 'customer',
+            });
+          }
+        } else if (addr.leadId) {
+          // Check same mailer already sent to lead (by summary text)
+          if (mailerName) {
+            const existing = await db
+              .select({ createdAt: leadActivities.createdAt })
+              .from(leadActivities)
+              .where(and(
+                eq(leadActivities.leadId, addr.leadId),
+                sql`${leadActivities.summary} ILIKE ${'%' + mailerName + '%'}`
+              ))
+              .orderBy(asc(leadActivities.createdAt))
+              .limit(1);
+            if (existing.length > 0) {
+              sameMailer.push({
+                name: addr.name || `Lead #${addr.leadId}`,
+                sentDate: existing[0].createdAt?.toISOString() || '',
+                entityType: 'lead',
+              });
+              continue;
+            }
+          }
+          // Check any mailer within 10 days for lead
+          const recentLeadMailer = await db
+            .select({ createdAt: leadActivities.createdAt })
+            .from(leadActivities)
+            .where(and(
+              eq(leadActivities.leadId, addr.leadId),
+              eq(leadActivities.activityType, 'sample_sent'),
+              gte(leadActivities.createdAt, tenDaysAgo)
+            ))
+            .orderBy(desc(leadActivities.createdAt))
+            .limit(1);
+          if (recentLeadMailer.length > 0) {
+            const sentDate = new Date(recentLeadMailer[0].createdAt!);
+            const daysAgo = Math.floor((Date.now() - sentDate.getTime()) / (1000 * 60 * 60 * 24));
+            tooRecent.push({
+              name: addr.name || `Lead #${addr.leadId}`,
+              lastMailerDate: sentDate.toISOString(),
+              daysAgo,
+              entityType: 'lead',
+            });
+          }
+        }
+      }
+
+      res.json({
+        sameMailer,
+        tooRecent,
+        totalConflicts: sameMailer.length + tooRecent.length,
+      });
+    } catch (error) {
+      console.error("Error checking mailer conflicts:", error);
+      res.status(500).json({ error: "Failed to check conflicts" });
+    }
+  });
+
   app.post("/api/labels/print-batch", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;

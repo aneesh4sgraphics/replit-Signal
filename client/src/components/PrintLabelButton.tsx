@@ -165,6 +165,18 @@ interface MailerType {
   displayOrder: number;
 }
 
+interface ConflictData {
+  sameMailer: { name: string; sentDate: string; entityType: string }[];
+  tooRecent: { name: string; lastMailerDate: string; daysAgo: number; entityType: string }[];
+  totalConflicts: number;
+}
+
+function getQueueItemName(q: ServerQueueItem): string {
+  const a = q.address;
+  if (!a) return 'Unknown';
+  return a.company || [a.firstName, a.lastName].filter(Boolean).join(' ') || 'Unknown';
+}
+
 function BatchPrintDialog({ open, onOpenChange }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -174,6 +186,8 @@ function BatchPrintDialog({ open, onOpenChange }: {
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
   const [labelFormat, setLabelFormat] = useState<LabelFormat>('thermal_4x6');
   const [selectedMailerId, setSelectedMailerId] = useState<number | null>(null);
+  const [conflictData, setConflictData] = useState<ConflictData | null>(null);
+  const [isCheckingConflicts, setIsCheckingConflicts] = useState(false);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
@@ -184,25 +198,28 @@ function BatchPrintDialog({ open, onOpenChange }: {
 
   useEffect(() => {
     setSelectedMailerId(null);
+    setConflictData(null);
   }, [labelType]);
 
+  const executePrint = async () => {
+    const payload: Record<string, unknown> = {
+      labelType,
+      labelFormat,
+      otherDescription: labelType === 'other' ? labelOtherDescription : undefined,
+      mailerId: labelType === 'mailer' && selectedMailerId ? selectedMailerId : undefined,
+      addresses: queue
+        .filter(q => q.address)
+        .map(q => ({
+          customerId: q.leadId ? undefined : q.customerId,
+          leadId: q.leadId ?? undefined,
+        })),
+    };
+    const res = await apiRequest('POST', '/api/labels/print-batch', payload);
+    return res.json();
+  };
+
   const printMutation = useMutation({
-    mutationFn: async () => {
-      const payload: Record<string, unknown> = {
-        labelType,
-        labelFormat,
-        otherDescription: labelType === 'other' ? labelOtherDescription : undefined,
-        mailerId: labelType === 'mailer' && selectedMailerId ? selectedMailerId : undefined,
-        addresses: queue
-          .filter(q => q.address)
-          .map(q => ({
-            customerId: q.leadId ? undefined : q.customerId,
-            leadId: q.leadId ?? undefined,
-          })),
-      };
-      const res = await apiRequest('POST', '/api/labels/print-batch', payload);
-      return res.json();
-    },
+    mutationFn: executePrint,
     onSuccess: async (data) => {
       if (!data.pdf) {
         toast({ title: 'Failed to print labels', description: 'No PDF data received', variant: 'destructive' });
@@ -237,12 +254,48 @@ function BatchPrintDialog({ open, onOpenChange }: {
       queryClient.invalidateQueries({ queryKey: ['/api/labels/today'] });
 
       await clearQueue();
+      setConflictData(null);
       onOpenChange(false);
     },
     onError: (error: any) => {
       toast({ title: 'Failed to print labels', description: error.message, variant: 'destructive' });
     },
   });
+
+  const handlePrintClick = async () => {
+    // Only run conflict checks for mailers
+    if (labelType !== 'mailer') {
+      printMutation.mutate();
+      return;
+    }
+    const selectedMailer = mailerTypes.find(m => m.id === selectedMailerId);
+    const addresses = queue
+      .filter(q => q.address)
+      .map(q => ({
+        customerId: q.leadId ? undefined : q.customerId ?? undefined,
+        leadId: q.leadId ?? undefined,
+        name: getQueueItemName(q),
+      }));
+    setIsCheckingConflicts(true);
+    try {
+      const res = await apiRequest('POST', '/api/labels/check-mailer-conflicts', {
+        mailerId: selectedMailerId,
+        mailerName: selectedMailer?.name ?? null,
+        addresses,
+      });
+      const data: ConflictData = await res.json();
+      if (data.totalConflicts > 0) {
+        setConflictData(data);
+      } else {
+        printMutation.mutate();
+      }
+    } catch {
+      // If check fails, proceed anyway
+      printMutation.mutate();
+    } finally {
+      setIsCheckingConflicts(false);
+    }
+  };
 
   const canPrint = queue.length >= 1
     && (labelType !== 'other' || labelOtherDescription.trim())
@@ -446,27 +499,109 @@ function BatchPrintDialog({ open, onOpenChange }: {
           )}
         </div>
 
+        {/* Conflict Warning Panel */}
+        {conflictData && conflictData.totalConflicts > 0 && (
+          <div className="rounded-lg border border-amber-300 bg-amber-50 p-4 space-y-3">
+            <div className="flex items-start gap-2">
+              <span className="text-amber-600 text-lg leading-none">⚠️</span>
+              <div>
+                <p className="text-sm font-semibold text-amber-800">
+                  Mailer conflicts detected for {conflictData.totalConflicts} contact{conflictData.totalConflicts !== 1 ? 's' : ''}
+                </p>
+                <p className="text-xs text-amber-600 mt-0.5">Review before printing — or override and print anyway.</p>
+              </div>
+            </div>
+
+            {conflictData.sameMailer.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-red-700 mb-1.5">
+                  🔁 Already received this mailer ({conflictData.sameMailer.length}):
+                </p>
+                <ul className="space-y-1">
+                  {conflictData.sameMailer.slice(0, 5).map((c, i) => (
+                    <li key={i} className="text-xs text-red-700 flex justify-between">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-red-500">
+                        sent {new Date(c.sentDate).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' })}
+                      </span>
+                    </li>
+                  ))}
+                  {conflictData.sameMailer.length > 5 && (
+                    <li className="text-xs text-red-500">+ {conflictData.sameMailer.length - 5} more</li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+            {conflictData.tooRecent.length > 0 && (
+              <div>
+                <p className="text-xs font-semibold text-amber-700 mb-1.5">
+                  ⏳ Received a mailer within last 10 days ({conflictData.tooRecent.length}):
+                </p>
+                <ul className="space-y-1">
+                  {conflictData.tooRecent.slice(0, 5).map((c, i) => (
+                    <li key={i} className="text-xs text-amber-700 flex justify-between">
+                      <span className="font-medium">{c.name}</span>
+                      <span className="text-amber-600">
+                        {c.daysAgo === 0 ? 'today' : `${c.daysAgo} day${c.daysAgo !== 1 ? 's' : ''} ago`}
+                        {' '}— wait {10 - c.daysAgo} more day{10 - c.daysAgo !== 1 ? 's' : ''}
+                      </span>
+                    </li>
+                  ))}
+                  {conflictData.tooRecent.length > 5 && (
+                    <li className="text-xs text-amber-600">+ {conflictData.tooRecent.length - 5} more</li>
+                  )}
+                </ul>
+              </div>
+            )}
+
+            <div className="flex gap-2 pt-1">
+              <Button
+                variant="outline"
+                size="sm"
+                className="flex-1 border-amber-300 text-amber-700 hover:bg-amber-100"
+                onClick={() => setConflictData(null)}
+              >
+                Go Back
+              </Button>
+              <Button
+                size="sm"
+                className="flex-1 bg-amber-600 hover:bg-amber-700 text-white"
+                onClick={() => { setConflictData(null); printMutation.mutate(); }}
+                disabled={printMutation.isPending}
+              >
+                {printMutation.isPending ? <Loader2 className="w-3 h-3 mr-1 animate-spin" /> : null}
+                Print Anyway
+              </Button>
+            </div>
+          </div>
+        )}
+
         <DialogFooter className="gap-2">
-          {queue.length > 0 && (
+          {queue.length > 0 && !conflictData && (
             <Button variant="ghost" size="sm" onClick={() => clearQueue()} className="mr-auto text-red-500 hover:text-red-600">
               Clear All
             </Button>
           )}
-          <Button variant="outline" onClick={() => onOpenChange(false)}>
-            Cancel
-          </Button>
-          <Button
-            onClick={() => printMutation.mutate()}
-            disabled={!canPrint || printMutation.isPending}
-            className="bg-blue-600 hover:bg-blue-700"
-          >
-            {printMutation.isPending ? (
-              <Loader2 className="w-4 h-4 mr-2 animate-spin" />
-            ) : (
-              <Printer className="w-4 h-4 mr-2" />
-            )}
-            Print {queue.length} Label{queue.length !== 1 ? 's' : ''}
-          </Button>
+          {!conflictData && (
+            <>
+              <Button variant="outline" onClick={() => onOpenChange(false)}>
+                Cancel
+              </Button>
+              <Button
+                onClick={handlePrintClick}
+                disabled={!canPrint || printMutation.isPending || isCheckingConflicts}
+                className="bg-blue-600 hover:bg-blue-700"
+              >
+                {(printMutation.isPending || isCheckingConflicts) ? (
+                  <Loader2 className="w-4 h-4 mr-2 animate-spin" />
+                ) : (
+                  <Printer className="w-4 h-4 mr-2" />
+                )}
+                {isCheckingConflicts ? 'Checking...' : `Print ${queue.length} Label${queue.length !== 1 ? 's' : ''}`}
+              </Button>
+            </>
+          )}
         </DialogFooter>
       </DialogContent>
     </Dialog>
