@@ -5562,30 +5562,39 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       }
       
-      // EMAIL DOMAIN PROPAGATION: When pricing tier is set, propagate to all contacts sharing the same email domain
-      if (newPricingTier && newPricingTier !== oldPricingTier && customer.email) {
+      // EMAIL DOMAIN PROPAGATION: When pricing tier changes, apply the LOWEST (most favorable) tier across all same-domain contacts
+      if (newPricingTier && customer.email) {
         try {
           const emailDomain = customer.email.split('@')[1]?.toLowerCase();
-          const genericDomains = ['gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'mail.com', 'msn.com', 'live.com', 'ymail.com', 'protonmail.com', 'zoho.com', 'comcast.net', 'att.net', 'verizon.net', 'sbcglobal.net', 'cox.net', 'charter.net', 'earthlink.net'];
+          const genericDomains = ['gmail.com', 'yahoo.com', 'aol.com', 'hotmail.com', 'outlook.com', 'icloud.com', 'mail.com', 'msn.com', 'live.com', 'ymail.com', 'protonmail.com', 'zoho.com', 'comcast.net', 'att.net', 'verizon.net', 'sbcglobal.net', 'cox.net', 'charter.net', 'earthlink.net', 'me.com', 'mac.com'];
           
           if (emailDomain && !genericDomains.includes(emailDomain)) {
-            const domainContacts = await db.select({ id: customers.id, pricingTier: customers.pricingTier })
+            // Find the lowest (most favorable = smallest index) tier across ALL domain contacts
+            const tierOrder = ['LANDED PRICE','EXPORT ONLY','DISTRIBUTOR','DEALER-VIP','DEALER','SHOPIFY LOWEST','SHOPIFY3','SHOPIFY2','SHOPIFY1','SHOPIFY-ACCOUNT','RETAIL'];
+            const tierOrderSql = sql.raw(`ARRAY['${tierOrder.join("','")}']::text[]`);
+
+            const [lowestResult] = await db.select({
+              lowestTier: sql<string>`(${tierOrderSql})[MIN(ARRAY_POSITION(${tierOrderSql}, ${customers.pricingTier}))]`,
+            })
               .from(customers)
               .where(and(
-                sql`LOWER(SPLIT_PART(${customers.email}, '@', 2)) = ${emailDomain}`,
-                ne(customers.id, customerId),
-                isNull(customers.pricingTier)
+                sql`LOWER(SPLIT_PART(COALESCE(${customers.email}, ''), '@', 2)) = ${emailDomain}`,
+                isNotNull(customers.pricingTier),
               ));
-            
-            if (domainContacts.length > 0) {
-              await db.update(customers)
-                .set({ pricingTier: newPricingTier })
+
+            const lowestTier = lowestResult?.lowestTier;
+            if (lowestTier) {
+              // Update ALL domain contacts that have null or a worse (higher-index) tier
+              const result = await db.update(customers)
+                .set({ pricingTier: lowestTier })
                 .where(and(
-                  sql`LOWER(SPLIT_PART(${customers.email}, '@', 2)) = ${emailDomain}`,
-                  ne(customers.id, customerId),
-                  isNull(customers.pricingTier)
+                  sql`LOWER(SPLIT_PART(COALESCE(${customers.email}, ''), '@', 2)) = ${emailDomain}`,
+                  or(
+                    isNull(customers.pricingTier),
+                    sql`ARRAY_POSITION(${tierOrderSql}, ${customers.pricingTier}) > ARRAY_POSITION(${tierOrderSql}, ${lowestTier}::text)`,
+                  ),
                 ));
-              console.log(`[Domain Pricing Propagation] Set ${newPricingTier} on ${domainContacts.length} contacts sharing @${emailDomain}`);
+              console.log(`[Domain Pricing] Applied lowest tier ${lowestTier} to all @${emailDomain} contacts`);
             }
           }
         } catch (domainPropError) {
@@ -5962,25 +5971,27 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       let createdCustomer = await storage.createCustomer(customer);
       
-      // EMAIL DOMAIN PROPAGATION on create: inherit pricing tier from same-domain contacts
+      // EMAIL DOMAIN PROPAGATION on create: inherit the LOWEST (most favorable) tier from same-domain contacts
       if (!createdCustomer.pricingTier && createdCustomer.email) {
         try {
           const emailDomain = createdCustomer.email.split('@')[1]?.toLowerCase();
           const genericDomains = ['gmail.com','yahoo.com','aol.com','hotmail.com','outlook.com','icloud.com','mail.com','msn.com','live.com','ymail.com','protonmail.com','zoho.com','comcast.net','att.net','verizon.net','sbcglobal.net','cox.net','charter.net','earthlink.net','me.com','mac.com'];
           if (emailDomain && !genericDomains.includes(emailDomain)) {
-            const [domainMatch] = await db.select({ pricingTier: customers.pricingTier })
+            const tierOrder = ['LANDED PRICE','EXPORT ONLY','DISTRIBUTOR','DEALER-VIP','DEALER','SHOPIFY LOWEST','SHOPIFY3','SHOPIFY2','SHOPIFY1','SHOPIFY-ACCOUNT','RETAIL'];
+            const tierOrderSql = sql.raw(`ARRAY['${tierOrder.join("','")}']::text[]`);
+            const [lowestResult] = await db.select({
+              lowestTier: sql<string>`(${tierOrderSql})[MIN(ARRAY_POSITION(${tierOrderSql}, ${customers.pricingTier}))]`,
+            })
               .from(customers)
               .where(and(
                 sql`LOWER(SPLIT_PART(COALESCE(${customers.email}, ''), '@', 2)) = ${emailDomain}`,
                 isNotNull(customers.pricingTier),
                 ne(customers.id, createdCustomer.id),
-              ))
-              .orderBy(desc(customers.updatedAt))
-              .limit(1);
-            if (domainMatch?.pricingTier) {
-              await db.update(customers).set({ pricingTier: domainMatch.pricingTier }).where(eq(customers.id, createdCustomer.id));
-              createdCustomer = { ...createdCustomer, pricingTier: domainMatch.pricingTier };
-              console.log(`[Domain Pricing] New customer ${createdCustomer.email} inherited ${domainMatch.pricingTier} from domain @${emailDomain}`);
+              ));
+            if (lowestResult?.lowestTier) {
+              await db.update(customers).set({ pricingTier: lowestResult.lowestTier }).where(eq(customers.id, createdCustomer.id));
+              createdCustomer = { ...createdCustomer, pricingTier: lowestResult.lowestTier };
+              console.log(`[Domain Pricing] New customer ${createdCustomer.email} inherited lowest tier ${lowestResult.lowestTier} from domain @${emailDomain}`);
             }
           }
         } catch (domainErr) {
