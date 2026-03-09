@@ -315,7 +315,7 @@ export default function OdooContacts() {
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!filters.pricingTier,
+    enabled: !!filters.pricingTier && filters.pricingTier !== 'no_tier',
     staleTime: 60000, // Cache for 1 minute
   });
 
@@ -439,7 +439,9 @@ export default function OdooContacts() {
   const filteredContacts = contacts
     .filter(c => {
       // Tag filter: check if the contact's Odoo partner ID is in the list of partners with this tag
-      if (filters.pricingTier && tagFilterPartnerIds) {
+      if (filters.pricingTier === 'no_tier') {
+        if (c.pricingTier) return false;
+      } else if (filters.pricingTier && tagFilterPartnerIds) {
         if (!c.odooPartnerId || !tagFilterPartnerIds.includes(c.odooPartnerId)) return false;
       }
       if (filters.hasEmail === true && !c.email) return false;
@@ -979,6 +981,7 @@ export default function OdooContacts() {
                     </SelectTrigger>
                     <SelectContent>
                       <SelectItem value="all">All Tiers</SelectItem>
+                      <SelectItem value="no_tier">No Tier</SelectItem>
                       {PRICING_TIERS.map(tier => (
                         <SelectItem key={tier} value={tier}>{tier}</SelectItem>
                       ))}
