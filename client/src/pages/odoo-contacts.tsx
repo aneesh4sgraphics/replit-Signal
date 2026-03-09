@@ -162,7 +162,7 @@ export default function OdooContacts() {
   const [pageSize] = useState(50);
   
   // Bulk edit state
-  const [bulkEditOpen, setBulkEditOpen] = useState<'tags' | 'salesRep' | 'paymentTerms' | null>(null);
+  const [bulkEditOpen, setBulkEditOpen] = useState<'tags' | 'salesRep' | 'paymentTerms' | 'pricingTier' | null>(null);
   const [bulkEditLoading, setBulkEditLoading] = useState(false);
 
   let labelQueue: ReturnType<typeof useLabelQueue> | null = null;
@@ -427,6 +427,29 @@ export default function OdooContacts() {
       if (result.success) {
         setSelectedContacts(new Set());
       }
+      setBulkEditOpen(null);
+    } catch (error: any) {
+      toast({ title: "Error", description: error.message || "Bulk update failed", variant: "destructive" });
+    } finally {
+      setBulkEditLoading(false);
+    }
+  };
+
+  const handleBulkUpdatePricingTier = async (tier: string) => {
+    setBulkEditLoading(true);
+    try {
+      const res = await apiRequest('POST', '/api/customers/bulk-update', {
+        customerIds: Array.from(selectedContacts),
+        pricingTier: tier,
+      });
+      const result = await res.json();
+      toast({
+        title: result.updatedCount > 0 ? "Pricing Tier Updated" : "No Updates Made",
+        description: `${result.updatedCount ?? 0} contact${result.updatedCount !== 1 ? 's' : ''} updated to ${tier}`,
+        variant: result.updatedCount > 0 ? "default" : "destructive",
+      });
+      queryClient.invalidateQueries({ queryKey: ['/api/customers'] });
+      if (result.updatedCount > 0) setSelectedContacts(new Set());
       setBulkEditOpen(null);
     } catch (error: any) {
       toast({ title: "Error", description: error.message || "Bulk update failed", variant: "destructive" });
@@ -1222,6 +1245,31 @@ export default function OdooContacts() {
                         disabled={bulkEditLoading}
                       >
                         {term.name}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuContent>
+                </DropdownMenu>
+
+                {/* Bulk Set Pricing Tier */}
+                <DropdownMenu open={bulkEditOpen === 'pricingTier'} onOpenChange={(open) => setBulkEditOpen(open ? 'pricingTier' : null)}>
+                  <DropdownMenuTrigger asChild>
+                    <Button variant="outline" size="sm" className="gap-2 bg-white" disabled={bulkEditLoading}>
+                      {bulkEditLoading && bulkEditOpen === 'pricingTier' ? (
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                      ) : (
+                        <Tag className="w-4 h-4" />
+                      )}
+                      Set Pricing Tier
+                    </Button>
+                  </DropdownMenuTrigger>
+                  <DropdownMenuContent align="start" className="max-h-64 overflow-y-auto">
+                    {PRICING_TIERS.map(tier => (
+                      <DropdownMenuItem
+                        key={tier}
+                        onClick={() => handleBulkUpdatePricingTier(tier)}
+                        disabled={bulkEditLoading}
+                      >
+                        {tier}
                       </DropdownMenuItem>
                     ))}
                   </DropdownMenuContent>
