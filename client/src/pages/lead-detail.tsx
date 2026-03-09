@@ -1211,12 +1211,12 @@ export default function LeadDetail() {
             </div>
             <div className="space-y-2">
               <Label>Pricing Tier</Label>
-              <Select value={editForm.pricingTier || ""} onValueChange={(v) => setEditForm(prev => ({ ...prev, pricingTier: v || null }))}>
+              <Select value={editForm.pricingTier || "__none__"} onValueChange={(v) => setEditForm(prev => ({ ...prev, pricingTier: v === "__none__" ? null : v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Select pricing tier..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Not set</SelectItem>
+                  <SelectItem value="__none__">Not set</SelectItem>
                   {PRICING_TIERS.map(tier => (
                     <SelectItem key={tier} value={tier}>{tier}</SelectItem>
                   ))}

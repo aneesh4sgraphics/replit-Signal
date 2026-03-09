@@ -576,12 +576,12 @@ export default function CalendarPage() {
             </div>
             <div>
               <Label htmlFor="assignedTo">Assign To</Label>
-              <Select value={taskForm.assignedTo} onValueChange={(v) => setTaskForm(prev => ({ ...prev, assignedTo: v }))}>
+              <Select value={taskForm.assignedTo || "__self__"} onValueChange={(v) => setTaskForm(prev => ({ ...prev, assignedTo: v === "__self__" ? '' : v }))}>
                 <SelectTrigger>
                   <SelectValue placeholder="Assign to user..." />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="">Self (me)</SelectItem>
+                  <SelectItem value="__self__">Self (me)</SelectItem>
                   {sortedUsers.map(u => (
                     <SelectItem key={u.id} value={u.email}>
                       {getSalesRepDisplayName(u.email)}

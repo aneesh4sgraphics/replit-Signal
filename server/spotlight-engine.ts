@@ -2808,9 +2808,8 @@ class SpotlightEngine {
             .from(spotlightEvents)
             .where(and(
               eq(spotlightEvents.customerId, customer.id),
-              eq(spotlightEvents.eventType, 'task_completed'),
-              sql`${spotlightEvents.details}->>'taskSubtype' = 'odoo_sample_followup'`,
-              sql`${spotlightEvents.details}->>'odooOrderId' = ${String(customerSampleOrder.id)}`
+              eq(spotlightEvents.eventType, 'completed'),
+              eq(spotlightEvents.taskSubtype, 'odoo_sample_followup'),
             ))
             .limit(1);
 
@@ -4422,6 +4421,7 @@ class SpotlightEngine {
   // When the queue is empty, generate light tasks to ensure reps always have a full day plan
 
   private async findFallbackTask(bucket: TaskBucket, userId: string, skippedIds: string[]): Promise<SpotlightTask | null> {
+    const repId = await this.getOdooRepId(userId);
     // Get ANY customer that can receive a light task (very relaxed criteria)
     let conditions = [
       eq(customers.doNotContact, false),
