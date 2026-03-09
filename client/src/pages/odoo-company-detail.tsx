@@ -57,6 +57,10 @@ import {
   Target,
   Eye,
   Trophy,
+  Linkedin,
+  MapPinned,
+  Video,
+  ClipboardList,
 } from "lucide-react";
 import { SiShopify } from "react-icons/si";
 import { useEmailComposer } from "@/components/email-composer";
@@ -153,6 +157,9 @@ export default function OdooCompanyDetail() {
   const [isDeleteConfirmOpen, setIsDeleteConfirmOpen] = useState(false);
   const [isNewNoteOpen, setIsNewNoteOpen] = useState(false);
   const [newNoteText, setNewNoteText] = useState('');
+  const [isLogActivityOpen, setIsLogActivityOpen] = useState(false);
+  const [logActivityType, setLogActivityType] = useState<string>('call');
+  const [logActivityNote, setLogActivityNote] = useState('');
   const [isNewContactOpen, setIsNewContactOpen] = useState(false);
   const [newContactForm, setNewContactForm] = useState({ name: '', email: '', phone: '', function: '' });
   const [isMergeContactsOpen, setIsMergeContactsOpen] = useState(false);
@@ -381,10 +388,45 @@ export default function OdooCompanyDetail() {
       toast({ title: 'Note added', description: 'Your note has been saved' });
       setNewNoteText('');
       setIsNewNoteOpen(false);
-      queryClient.invalidateQueries({ queryKey: ['/api/customer-activity/events', companyId] });
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-activity/events', internalCustomerId] });
     },
     onError: (error: Error) => {
       toast({ title: 'Failed to add note', description: error.message, variant: 'destructive' });
+    },
+  });
+
+  const ACTIVITY_TYPES: { value: string; label: string; icon: any; eventType: string; titleTemplate: string }[] = [
+    { value: 'call', label: 'Phone Call', icon: PhoneCall, eventType: 'call', titleTemplate: 'Call Logged' },
+    { value: 'meeting', label: 'Meeting', icon: Video, eventType: 'meeting', titleTemplate: 'Meeting Logged' },
+    { value: 'visit', label: 'In-Person Visit', icon: MapPinned, eventType: 'visit', titleTemplate: 'Visit Logged' },
+    { value: 'linkedin', label: 'LinkedIn Outreach', icon: Linkedin, eventType: 'outreach', titleTemplate: 'LinkedIn Outreach Logged' },
+    { value: 'email_sent', label: 'Email Sent', icon: Mail, eventType: 'email_sent', titleTemplate: 'Email Logged' },
+    { value: 'note', label: 'General Note', icon: StickyNote, eventType: 'note', titleTemplate: 'Note Added' },
+  ];
+
+  const logActivityMutation = useMutation({
+    mutationFn: async () => {
+      const actType = ACTIVITY_TYPES.find(a => a.value === logActivityType)!;
+      const res = await apiRequest('POST', '/api/customer-activity/events', {
+        customerId: internalCustomerId,
+        eventType: actType.eventType,
+        eventCategory: 'manual',
+        title: actType.titleTemplate,
+        description: logActivityNote.trim() || null,
+      });
+      if (!res.ok) throw new Error('Failed to log activity');
+      return res.json();
+    },
+    onSuccess: () => {
+      const actType = ACTIVITY_TYPES.find(a => a.value === logActivityType)!;
+      toast({ title: `${actType.label} logged`, description: 'Added to activity history' });
+      setLogActivityNote('');
+      setLogActivityType('call');
+      setIsLogActivityOpen(false);
+      queryClient.invalidateQueries({ queryKey: ['/api/customer-activity/events', internalCustomerId] });
+    },
+    onError: (error: Error) => {
+      toast({ title: 'Failed to log activity', description: error.message, variant: 'destructive' });
     },
   });
 
@@ -1766,11 +1808,83 @@ export default function OdooCompanyDetail() {
             {/* Activity History Card */}
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Activity className="w-5 h-5 text-blue-500" />
-                  Activity History
-                </CardTitle>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2 text-lg">
+                    <Activity className="w-5 h-5 text-blue-500" />
+                    Activity History
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    variant="outline"
+                    className="gap-1 h-8 text-blue-600 border-blue-200 hover:bg-blue-50"
+                    onClick={() => setIsLogActivityOpen(true)}
+                  >
+                    <Plus className="w-4 h-4" />
+                    Log Activity
+                  </Button>
+                </div>
               </CardHeader>
+
+              {/* Log Activity Dialog */}
+              <Dialog open={isLogActivityOpen} onOpenChange={setIsLogActivityOpen}>
+                <DialogContent className="max-w-md">
+                  <DialogHeader>
+                    <DialogTitle className="flex items-center gap-2">
+                      <ClipboardList className="w-5 h-5 text-blue-500" />
+                      Log Activity
+                    </DialogTitle>
+                    <DialogDescription>
+                      Record any interaction with this customer to build a complete history.
+                    </DialogDescription>
+                  </DialogHeader>
+                  <div className="py-3 space-y-4">
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-2">What type of activity?</p>
+                      <div className="grid grid-cols-3 gap-2">
+                        {ACTIVITY_TYPES.map((at) => {
+                          const Icon = at.icon;
+                          const isSelected = logActivityType === at.value;
+                          return (
+                            <button
+                              key={at.value}
+                              type="button"
+                              onClick={() => setLogActivityType(at.value)}
+                              className={`flex flex-col items-center gap-1.5 rounded-lg border-2 p-3 transition-all text-center ${
+                                isSelected
+                                  ? 'border-blue-500 bg-blue-50 text-blue-700'
+                                  : 'border-slate-200 text-slate-600 hover:border-slate-300 hover:bg-slate-50'
+                              }`}
+                            >
+                              <Icon className="w-5 h-5" />
+                              <span className="text-[11px] font-medium leading-tight">{at.label}</span>
+                            </button>
+                          );
+                        })}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-sm font-medium text-gray-700 mb-1">Notes <span className="text-gray-400 font-normal">(optional)</span></p>
+                      <Textarea
+                        placeholder="What happened? Any outcome or next step?"
+                        value={logActivityNote}
+                        onChange={(e) => setLogActivityNote(e.target.value)}
+                        className="min-h-[90px]"
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsLogActivityOpen(false)}>Cancel</Button>
+                    <Button
+                      onClick={() => logActivityMutation.mutate()}
+                      disabled={logActivityMutation.isPending}
+                      className="bg-blue-600 hover:bg-blue-700"
+                    >
+                      {logActivityMutation.isPending ? <Loader2 className="w-4 h-4 mr-2 animate-spin" /> : null}
+                      Save Activity
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
               <CardContent>
                 {activityLoading ? (
                   <div className="space-y-3">
@@ -1784,14 +1898,23 @@ export default function OdooCompanyDetail() {
                       const getEventIcon = (type: string) => {
                         switch (type) {
                           case 'call': return <PhoneCall className="w-4 h-4 text-green-500" />;
-                          case 'email': return <Mail className="w-4 h-4 text-blue-500" />;
-                          case 'quote': return <FileText className="w-4 h-4 text-purple-500" />;
+                          case 'email':
+                          case 'email_sent': return <Mail className="w-4 h-4 text-blue-500" />;
+                          case 'quote':
+                          case 'quote_sent': return <FileText className="w-4 h-4 text-purple-500" />;
                           case 'spotlight_action': return <UserCheck className="w-4 h-4 text-orange-500" />;
                           case 'follow_up_completed': return <CheckCircle2 className="w-4 h-4 text-green-500" />;
-                          case 'press_kit_shipped': return <Package className="w-4 h-4 text-indigo-500" />;
-                          case 'outreach': return <MessageSquare className="w-4 h-4 text-cyan-500" />;
+                          case 'press_kit_shipped':
+                          case 'sample_shipped': return <Package className="w-4 h-4 text-indigo-500" />;
+                          case 'outreach': return <Linkedin className="w-4 h-4 text-cyan-500" />;
+                          case 'meeting': return <Video className="w-4 h-4 text-violet-500" />;
+                          case 'visit': return <MapPinned className="w-4 h-4 text-rose-500" />;
                           case 'data_update': return <Pencil className="w-4 h-4 text-amber-500" />;
                           case 'enablement': return <FileText className="w-4 h-4 text-teal-500" />;
+                          case 'note': return <StickyNote className="w-4 h-4 text-amber-500" />;
+                          case 'product_info_shared': return <Truck className="w-4 h-4 text-orange-500" />;
+                          case 'shopify_order': return <Star className="w-4 h-4 text-emerald-500" />;
+                          case 'price_list_sent': return <Tag className="w-4 h-4 text-blue-400" />;
                           default: return <MessageSquare className="w-4 h-4 text-gray-500" />;
                         }
                       };
@@ -1799,20 +1922,49 @@ export default function OdooCompanyDetail() {
                       const getEventBadgeColor = (type: string) => {
                         switch (type) {
                           case 'call': return 'bg-green-100 text-green-700';
-                          case 'email': return 'bg-blue-100 text-blue-700';
-                          case 'quote': return 'bg-purple-100 text-purple-700';
+                          case 'email':
+                          case 'email_sent': return 'bg-blue-100 text-blue-700';
+                          case 'quote':
+                          case 'quote_sent': return 'bg-purple-100 text-purple-700';
                           case 'spotlight_action': return 'bg-orange-100 text-orange-700';
                           case 'follow_up_completed': return 'bg-green-100 text-green-700';
-                          case 'press_kit_shipped': return 'bg-indigo-100 text-indigo-700';
+                          case 'press_kit_shipped':
+                          case 'sample_shipped': return 'bg-indigo-100 text-indigo-700';
                           case 'outreach': return 'bg-cyan-100 text-cyan-700';
+                          case 'meeting': return 'bg-violet-100 text-violet-700';
+                          case 'visit': return 'bg-rose-100 text-rose-700';
                           case 'data_update': return 'bg-amber-100 text-amber-700';
                           case 'enablement': return 'bg-teal-100 text-teal-700';
+                          case 'note': return 'bg-amber-50 text-amber-700';
+                          case 'product_info_shared': return 'bg-orange-100 text-orange-700';
+                          case 'shopify_order': return 'bg-emerald-100 text-emerald-700';
+                          case 'price_list_sent': return 'bg-sky-100 text-sky-700';
                           default: return 'bg-gray-100 text-gray-700';
                         }
                       };
 
                       const formatEventType = (type: string) => {
-                        return type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+                        const labels: Record<string, string> = {
+                          call: 'Call',
+                          email: 'Email',
+                          email_sent: 'Email Sent',
+                          quote: 'Quote',
+                          quote_sent: 'Quote Sent',
+                          spotlight_action: 'Spotlight',
+                          follow_up_completed: 'Follow-up',
+                          press_kit_shipped: 'Press Kit',
+                          sample_shipped: 'Sample Sent',
+                          outreach: 'LinkedIn',
+                          meeting: 'Meeting',
+                          visit: 'Visit',
+                          data_update: 'Data Update',
+                          enablement: 'Enablement',
+                          note: 'Note',
+                          product_info_shared: 'Mailer/Info',
+                          shopify_order: 'Order',
+                          price_list_sent: 'Price List',
+                        };
+                        return labels[type] || type.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
                       };
 
                       const isEmailEvent = event.description?.includes('email_sent') || event.description?.includes('Email sent');
