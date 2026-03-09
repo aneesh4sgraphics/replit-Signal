@@ -1541,6 +1541,28 @@ export default function OdooContacts() {
           </div>
         ) : (
           /* Cards View */
+          <>
+          <div className="flex items-center gap-3 mb-3">
+            <Checkbox
+              checked={selectedContacts.size === filteredContacts.length && filteredContacts.length > 0}
+              onCheckedChange={() => {
+                if (selectedContacts.size === filteredContacts.length) {
+                  setSelectedContacts(new Set());
+                } else {
+                  setSelectedContacts(new Set(filteredContacts.map(c => c.id)));
+                }
+              }}
+              className="border-gray-400"
+            />
+            <span className="text-sm text-gray-500">
+              {selectedContacts.size > 0 ? `${selectedContacts.size} selected` : `Select all ${filteredContacts.length}`}
+            </span>
+            {selectedContacts.size > 0 && (
+              <button className="text-xs text-gray-400 hover:text-gray-600 underline" onClick={() => setSelectedContacts(new Set())}>
+                Clear
+              </button>
+            )}
+          </div>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-4">
             <AnimatePresence>
               {filteredContacts.map((contact, index) => (
@@ -1551,13 +1573,21 @@ export default function OdooContacts() {
                   transition={{ delay: index * 0.02 }}
                 >
                   <Card 
-                    className={`group hover:shadow-lg transition-all duration-200 cursor-pointer ${
-                      !hasPricingTier(contact)
+                    className={`group hover:shadow-lg transition-all duration-200 cursor-pointer relative ${
+                      selectedContacts.has(contact.id)
+                        ? 'ring-2 ring-violet-500 border-violet-300 bg-violet-50'
+                        : !hasPricingTier(contact)
                         ? 'bg-red-50 border-red-200 hover:border-red-300' 
                         : 'bg-white hover:border-violet-200'
                     }`}
                     onClick={() => navigate(`/odoo-contacts/${contact.id}`)}
                   >
+                  <div
+                    className={`absolute top-2 left-2 z-10 transition-opacity ${selectedContacts.has(contact.id) ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+                    onClick={(e) => { e.stopPropagation(); toggleSelect(contact.id); }}
+                  >
+                    <Checkbox checked={selectedContacts.has(contact.id)} className="bg-white shadow-sm" />
+                  </div>
                     <CardContent className="p-4">
                       <div className="flex items-start justify-between mb-3">
                         {(() => {
@@ -1729,6 +1759,7 @@ export default function OdooContacts() {
               ))}
             </AnimatePresence>
           </div>
+          </>
         )}
         
         {/* Pagination Controls */}
