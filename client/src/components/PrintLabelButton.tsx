@@ -1,4 +1,4 @@
-import { useState, createContext, useContext } from "react";
+import { useState, useEffect, createContext, useContext } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { Button } from "@/components/ui/button";
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription, DialogFooter } from "@/components/ui/dialog";
@@ -157,6 +157,14 @@ function formatAddressPreview(c: CustomerAddress) {
 
 type LabelFormat = 'thermal_4x6' | 'letter_30up';
 
+interface MailerType {
+  id: number;
+  name: string;
+  thumbnailPath: string;
+  isActive: boolean;
+  displayOrder: number;
+}
+
 function BatchPrintDialog({ open, onOpenChange }: {
   open: boolean;
   onOpenChange: (v: boolean) => void;
@@ -165,15 +173,26 @@ function BatchPrintDialog({ open, onOpenChange }: {
   const [labelType, setLabelType] = useState<'swatch_book' | 'press_test_kit' | 'mailer' | 'letter' | 'other'>('swatch_book');
   const [labelOtherDescription, setLabelOtherDescription] = useState('');
   const [labelFormat, setLabelFormat] = useState<LabelFormat>('thermal_4x6');
+  const [selectedMailerId, setSelectedMailerId] = useState<number | null>(null);
   const { toast } = useToast();
   const queryClient = useQueryClient();
 
+  const { data: mailerTypes = [] } = useQuery<MailerType[]>({
+    queryKey: ['/api/admin/mailer-types'],
+    staleTime: 5 * 60 * 1000,
+  });
+
+  useEffect(() => {
+    setSelectedMailerId(null);
+  }, [labelType]);
+
   const printMutation = useMutation({
     mutationFn: async () => {
-      const payload = {
+      const payload: Record<string, unknown> = {
         labelType,
         labelFormat,
         otherDescription: labelType === 'other' ? labelOtherDescription : undefined,
+        mailerId: labelType === 'mailer' && selectedMailerId ? selectedMailerId : undefined,
         addresses: queue
           .filter(q => q.address)
           .map(q => ({
@@ -225,7 +244,9 @@ function BatchPrintDialog({ open, onOpenChange }: {
     },
   });
 
-  const canPrint = queue.length >= 1 && (labelType !== 'other' || labelOtherDescription.trim());
+  const canPrint = queue.length >= 1
+    && (labelType !== 'other' || labelOtherDescription.trim())
+    && (labelType !== 'mailer' || selectedMailerId !== null || mailerTypes.length === 0);
   const labelsPerPage = labelFormat === 'letter_30up' ? 30 : 4;
 
   return (
@@ -300,6 +321,44 @@ function BatchPrintDialog({ open, onOpenChange }: {
                 onChange={(e) => setLabelOtherDescription(e.target.value)}
                 placeholder="Describe what you're sending..."
               />
+            </div>
+          )}
+
+          {labelType === 'mailer' && mailerTypes.length > 0 && (
+            <div className="grid gap-2">
+              <Label>Which mailer?</Label>
+              <div className="grid grid-cols-3 gap-2">
+                {mailerTypes.filter(m => m.isActive).map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => setSelectedMailerId(m.id)}
+                    className={`relative rounded-lg border-2 p-1 transition-all text-left ${
+                      selectedMailerId === m.id
+                        ? 'border-blue-500 ring-2 ring-blue-200'
+                        : 'border-slate-200 hover:border-slate-300'
+                    }`}
+                  >
+                    <img
+                      src={m.thumbnailPath}
+                      alt={m.name}
+                      className="w-full rounded object-cover"
+                      style={{ height: '70px', objectFit: 'cover' }}
+                    />
+                    <p className="text-[10px] text-slate-600 mt-1 leading-tight line-clamp-2">{m.name}</p>
+                    {selectedMailerId === m.id && (
+                      <div className="absolute top-1 right-1 w-4 h-4 bg-blue-500 rounded-full flex items-center justify-center">
+                        <svg viewBox="0 0 12 12" className="w-2.5 h-2.5 text-white fill-current">
+                          <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.5" fill="none" strokeLinecap="round" strokeLinejoin="round"/>
+                        </svg>
+                      </div>
+                    )}
+                  </button>
+                ))}
+              </div>
+              {selectedMailerId === null && (
+                <p className="text-xs text-amber-600">Please select which mailer you're sending</p>
+              )}
             </div>
           )}
 

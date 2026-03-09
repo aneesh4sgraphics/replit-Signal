@@ -301,15 +301,17 @@ export default function OdooCompanyDetail() {
     createdAt: string;
     userId: string | null;
     createdByName: string | null;
+    metadata: { mailerId?: number; mailerName?: string; thumbnailPath?: string } | null;
   }
+  const internalCustomerId = (company as any)?.id;
   const { data: activityEvents = [], isLoading: activityLoading } = useQuery<ActivityEvent[]>({
-    queryKey: ['/api/customer-activity/events', companyId],
+    queryKey: ['/api/customer-activity/events', internalCustomerId],
     queryFn: async () => {
-      const res = await fetch(`/api/customer-activity/events?customerId=${companyId}`);
+      const res = await fetch(`/api/customer-activity/events?customerId=${internalCustomerId}`);
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!companyId,
+    enabled: !!internalCustomerId,
     staleTime: 30000,
   });
 
@@ -1870,6 +1872,20 @@ export default function OdooCompanyDetail() {
                             </div>
                             {event.description && (
                               <p className="text-xs text-gray-600 line-clamp-2">{event.description}</p>
+                            )}
+                            {event.metadata?.thumbnailPath && (
+                              <div className="mt-2">
+                                <img
+                                  src={event.metadata.thumbnailPath}
+                                  alt={event.metadata.mailerName || 'Mailer'}
+                                  className="rounded border border-gray-200 object-cover"
+                                  style={{ width: '120px', height: '75px', objectFit: 'cover' }}
+                                  onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
+                                />
+                                {event.metadata.mailerName && (
+                                  <p className="text-[10px] text-gray-400 mt-0.5">{event.metadata.mailerName}</p>
+                                )}
+                              </div>
                             )}
                             <div className="flex items-center gap-2 mt-1 text-xs text-gray-400">
                               <Calendar className="w-3 h-3" />
