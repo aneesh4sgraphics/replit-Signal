@@ -210,6 +210,16 @@ app.use((req, res, next) => {
   next();
 });
 
+// General rate limiter for all /api routes
+const generalLimiter = rateLimit({
+  windowMs: 60 * 1000, // 1 minute
+  max: 100, // 100 requests per minute per IP
+  message: { error: 'Too many requests, please slow down and try again shortly' },
+  standardHeaders: true,
+  legacyHeaders: false,
+});
+app.use('/api', generalLimiter);
+
 // Rate limiting for auth endpoints (stricter)
 const authRateLimiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
