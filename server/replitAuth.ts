@@ -571,8 +571,6 @@ export const isAuthenticated: RequestHandler = async (req: Request, res: Respons
     const bufferSeconds = 60;
 
     if (now > user.expires_at + bufferSeconds) {
-      console.log(`[Auth] Token expired for ${user.email}. expires_at: ${new Date(user.expires_at * 1000).toISOString()}, now: ${new Date(now * 1000).toISOString()}, has_refresh_token: ${!!user.refresh_token}`);
-      
       if (!user.refresh_token) {
         console.log(`[Auth] No refresh token available for ${user.email} - session cannot be renewed`);
         return res.status(401).json({ message: "Session expired" });
