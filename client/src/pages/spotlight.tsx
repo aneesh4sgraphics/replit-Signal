@@ -386,6 +386,12 @@ export default function Spotlight() {
   const [voicemailNote, setVoicemailNote] = useState("");
   const [isTransitioning, setIsTransitioning] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [pendingQualification, setPendingQualification] = useState<{
+    leadId: number;
+    leadName: string;
+    nextTaskData: any;
+  } | null>(null);
+  const [qualifyMissing, setQualifyMissing] = useState<string[]>([]);
   const [showIdleModal, setShowIdleModal] = useState(false);
   const [showCallCoachingModal, setShowCallCoachingModal] = useState(false);
   const [callCoachingDismissedToday, setCallCoachingDismissedToday] = useState(false);
@@ -1068,26 +1074,52 @@ export default function Spotlight() {
       setShowSuccess(true);
     },
     onSuccess: (result) => {
-      applyPiggybackedTask(result.nextTaskData);
       setFieldValue("");
       setNotes("");
       setShowNotes(false);
-      
       setIsTransitioning(false);
       setTimeout(() => setShowSuccess(false), 300);
-      
-      if (result.nextFollowUp) {
-        const date = new Date(result.nextFollowUp.date).toLocaleDateString();
-        toast({ 
-          title: "Done!",
-          description: `Follow-up scheduled for ${date}` 
+
+      if (result.qualificationCheck?.leadId) {
+        // Hold next task — show qualification prompt first
+        setPendingQualification({
+          leadId: result.qualificationCheck.leadId,
+          leadName: result.qualificationCheck.leadName || 'This Lead',
+          nextTaskData: result.nextTaskData,
         });
+        setQualifyMissing([]);
+      } else {
+        applyPiggybackedTask(result.nextTaskData);
+        if (result.nextFollowUp) {
+          const date = new Date(result.nextFollowUp.date).toLocaleDateString();
+          toast({ title: "Done!", description: `Follow-up scheduled for ${date}` });
+        }
       }
     },
     onError: (error: any) => {
       setIsTransitioning(false);
       setShowSuccess(false);
       toast({ title: "Error", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const qualifyMutation = useMutation({
+    mutationFn: async (leadId: number) => {
+      const res = await apiRequest('POST', `/api/leads/${leadId}/qualify`, {});
+      return res.json();
+    },
+    onSuccess: (result) => {
+      if (result.qualified) {
+        toast({ title: "🌟 Lead Qualified!", description: `${pendingQualification?.leadName} is now in the Qualified stage.` });
+        applyPiggybackedTask(pendingQualification?.nextTaskData);
+        setPendingQualification(null);
+        setQualifyMissing([]);
+      } else {
+        setQualifyMissing(result.missing || []);
+      }
+    },
+    onError: () => {
+      toast({ title: "Error", description: "Could not qualify lead. Please try again.", variant: "destructive" });
     },
   });
 
@@ -2582,8 +2614,79 @@ export default function Spotlight() {
             </div>
           )}
           
+          {/* Qualification Prompt — shown after completing a lead task */}
+          {pendingQualification && (
+            <div className="rounded-2xl border-2 border-amber-300 bg-gradient-to-br from-amber-50 to-yellow-50 p-6 mb-2">
+              <div className="flex items-start gap-3 mb-4">
+                <div className="w-10 h-10 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 text-white font-bold text-lg">⭐</div>
+                <div>
+                  <h3 className="font-bold text-slate-800 text-lg leading-tight">
+                    Is <span className="text-amber-700">{pendingQualification.leadName}</span> ready to qualify?
+                  </h3>
+                  <p className="text-sm text-slate-500 mt-0.5">A qualified lead has everything needed to start the sales process.</p>
+                </div>
+              </div>
+
+              {/* Requirements checklist */}
+              <div className="space-y-2 mb-4">
+                {([
+                  { key: 'address', label: 'Complete address (street, city, state, ZIP)', icon: '📍' },
+                  { key: 'phone', label: 'Phone number on file', icon: '📞' },
+                  { key: 'pricing_tier', label: 'Pricing tier assigned', icon: '🏷️' },
+                  { key: 'email', label: 'Email address on file', icon: '✉️' },
+                  { key: 'email_bounced', label: 'Email is clean (not bouncing)', icon: '✅' },
+                ] as const).map(req => {
+                  const isMissing = qualifyMissing.includes(req.key);
+                  const wasChecked = qualifyMissing.length > 0;
+                  return (
+                    <div key={req.key} className={`flex items-center gap-2 text-sm rounded-lg px-3 py-2 ${
+                      wasChecked
+                        ? isMissing ? 'bg-red-50 text-red-700 border border-red-200' : 'bg-emerald-50 text-emerald-700 border border-emerald-200'
+                        : 'bg-white text-slate-600 border border-amber-200'
+                    }`}>
+                      <span className="text-base">{wasChecked ? (isMissing ? '❌' : '✓') : req.icon}</span>
+                      <span className={isMissing ? 'font-semibold' : ''}>{req.label}</span>
+                      {isMissing && <span className="ml-auto text-xs font-medium text-red-500">Missing</span>}
+                    </div>
+                  );
+                })}
+                <div className="flex items-center gap-2 text-sm rounded-lg px-3 py-2 bg-white text-slate-500 border border-amber-100">
+                  <span className="text-base">📬</span>
+                  <span>No returned USPS mail on record <span className="italic text-slate-400">(confirm manually)</span></span>
+                </div>
+              </div>
+
+              {qualifyMissing.length > 0 && (
+                <p className="text-sm text-red-600 font-medium mb-3">
+                  Fix the missing items above before qualifying this lead.
+                </p>
+              )}
+
+              <div className="flex gap-3">
+                <Button
+                  className="flex-1 bg-amber-500 hover:bg-amber-600 text-white font-semibold"
+                  onClick={() => qualifyMutation.mutate(pendingQualification.leadId)}
+                  disabled={qualifyMutation.isPending}
+                >
+                  {qualifyMutation.isPending ? 'Checking...' : qualifyMissing.length > 0 ? 'Try Again' : 'Yes, Qualify! ⭐'}
+                </Button>
+                <Button
+                  variant="outline"
+                  className="flex-1 border-slate-300 text-slate-600"
+                  onClick={() => {
+                    applyPiggybackedTask(pendingQualification.nextTaskData);
+                    setPendingQualification(null);
+                    setQualifyMissing([]);
+                  }}
+                >
+                  Not Yet — Keep Going
+                </Button>
+              </div>
+            </div>
+          )}
+
           {/* Task Card Container with Animation - stays hidden while fetching new data */}
-          <div className={`transition-all duration-150 ease-out ${(isTransitioning || isFetching) ? 'opacity-0 scale-95 translate-y-4' : 'opacity-100 scale-100 translate-y-0'}`}>
+          <div className={`transition-all duration-150 ease-out ${pendingQualification ? 'hidden' : ''} ${(isTransitioning || isFetching) ? 'opacity-0 scale-95 translate-y-4' : 'opacity-100 scale-100 translate-y-0'}`}>
             
             {/* Email Intelligence banner - rich context for email-derived tasks */}
             {(task.context?.sourceType === 'email_pricing_samples' || 

@@ -5389,6 +5389,8 @@ class SpotlightEngine {
     const now = new Date();
     const markedDnc = selectedOutcome?.nextAction?.type === 'mark_dnc';
     
+    let qualificationCheck: { leadId: number; leadName: string } | undefined = undefined;
+
     // Handle lead-specific updates when completing lead tasks
     if (isLeadTask && leadId) {
       try {
@@ -5398,6 +5400,12 @@ class SpotlightEngine {
           stage: leads.stage,
           firstEmailSentAt: leads.firstEmailSentAt,
           firstEmailReplyAt: leads.firstEmailReplyAt,
+          firstContactAt: leads.firstContactAt,
+          name: leads.name,
+          company: leads.company,
+          phone: leads.phone,
+          email: leads.email,
+          pricingTier: leads.pricingTier,
         }).from(leads).where(eq(leads.id, leadId)).limit(1);
         
         if (!currentLead) {
@@ -5408,17 +5416,18 @@ class SpotlightEngine {
             updatedAt: now,
           };
           
-          // Only increment touchpoints for actual contact outcomes
-          const contactOutcomes = ['email_sent', 'called', 'connected', 'voicemail', 'followed_up', 'sent_content', 'sent_email'];
-          if (contactOutcomes.includes(outcomeId)) {
+          // Any of these outcomes count as actually making contact
+          const contactMadeOutcomes = ['email_sent', 'called', 'connected', 'voicemail', 'followed_up', 'sent_content', 'sent_email', 'sent', 'send_mailer', 'send_swatchbook', 'send_press_test', 'sample_sent'];
+          const contactMade = contactMadeOutcomes.includes(outcomeId);
+          if (contactMade) {
             leadUpdateData.totalTouchpoints = sql`COALESCE(${leads.totalTouchpoints}, 0) + 1`;
           }
           
           // Update stage and timestamps based on outcome
-          if (subtype.startsWith('lead_outreach_') && (outcomeId === 'email_sent' || outcomeId === 'called')) {
-            // First contact - move from 'new' to 'contacted'
+          if (contactMade && currentLead.stage === 'new') {
+            // Any contact action promotes lead from NEW → CONTACTED
             leadUpdateData.stage = 'contacted';
-            // Only set firstEmailSentAt if it's null
+            if (!currentLead.firstContactAt) leadUpdateData.firstContactAt = now;
             if (outcomeId === 'email_sent' && !currentLead.firstEmailSentAt) {
               leadUpdateData.firstEmailSentAt = now;
             }
@@ -5472,6 +5481,12 @@ class SpotlightEngine {
           
           await db.update(leads).set(leadUpdateData).where(eq(leads.id, leadId));
           console.log(`[Spotlight] Lead ${leadId} updated after task completion: outcome=${outcomeId}`);
+
+          // Prompt for qualification after any contact action, unless lead is already qualified/lost/converted
+          if (contactMade && !markedDnc && !['converted', 'lost', 'qualified'].includes(currentLead.stage)) {
+            const leadDisplayName = currentLead.company || currentLead.name || 'This Lead';
+            qualificationCheck = { leadId, leadName: leadDisplayName };
+          }
         }
       } catch (e) {
         console.error('[Spotlight] Failed to update lead after task completion:', e);
@@ -5574,7 +5589,7 @@ class SpotlightEngine {
 
     console.log(`[Spotlight] Task completed for customer ${customerId}, bucket ${bucket}, outcome ${outcomeId}`);
 
-    return { success: true, nextFollowUp };
+    return { success: true, nextFollowUp, qualificationCheck };
   }
 
   async skipTask(userId: string, taskId: string, reason: string): Promise<void> {

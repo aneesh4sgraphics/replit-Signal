@@ -15649,6 +15649,77 @@ Return only the JSON object. No markdown, no code blocks.`
     }
   });
 
+  // Qualify a lead — validate all requirements then promote to 'qualified' stage
+  app.post("/api/leads/:id/qualify", isAuthenticated, async (req: any, res) => {
+    try {
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
+
+      const [lead] = await db.select({
+        id: leads.id,
+        stage: leads.stage,
+        street: leads.street,
+        city: leads.city,
+        state: leads.state,
+        zip: leads.zip,
+        phone: leads.phone,
+        email: leads.email,
+        pricingTier: leads.pricingTier,
+      }).from(leads).where(eq(leads.id, id)).limit(1);
+
+      if (!lead) return res.status(404).json({ error: "Lead not found" });
+
+      const missing: string[] = [];
+
+      // 1. Address completeness
+      if (!lead.street || !lead.city || !lead.state || !lead.zip) {
+        missing.push('address');
+      }
+
+      // 2. Phone on file
+      if (!lead.phone) {
+        missing.push('phone');
+      }
+
+      // 3. Pricing tier assigned
+      if (!lead.pricingTier) {
+        missing.push('pricing_tier');
+      }
+
+      // 4. Email present and not actively bounced
+      if (!lead.email) {
+        missing.push('email');
+      } else {
+        const [bounced] = await db.select({ id: bouncedEmails.id })
+          .from(bouncedEmails)
+          .where(and(
+            ilike(bouncedEmails.email, lead.email),
+            inArray(bouncedEmails.status, ['active', 'open', 'new'])
+          ))
+          .limit(1);
+        if (bounced) missing.push('email_bounced');
+      }
+
+      if (missing.length > 0) {
+        return res.json({ qualified: false, missing });
+      }
+
+      // All checks passed — promote to qualified
+      await db.update(leads)
+        .set({ stage: 'qualified', updatedAt: new Date() })
+        .where(eq(leads.id, id));
+
+      // Invalidate all Spotlight prefetch caches so reps see the updated stage immediately
+      spotlightEngine.invalidateAllPrefetchCaches();
+
+      console.log(`[Leads] Lead ${id} promoted to qualified by ${req.user?.email}`);
+      res.json({ qualified: true });
+    } catch (error) {
+      console.error("Error qualifying lead:", error);
+      res.status(500).json({ error: "Failed to qualify lead" });
+    }
+  });
+
   // Delete a lead
   app.delete("/api/leads/:id", isAuthenticated, async (req: any, res) => {
     try {
