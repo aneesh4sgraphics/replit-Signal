@@ -49,6 +49,17 @@ if (!process.env.PUPPETEER_EXECUTABLE_PATH) {
 const isProduction = process.env.NODE_ENV === 'production' || 
                      process.env.REPLIT_DEPLOYMENT === '1' ||
                      (!!process.env.REPL_SLUG && !process.env.REPLIT_DEV_DOMAIN);
+
+// Safety guard: if any signal says we're in production but NODE_ENV is not exactly
+// 'production', the dev-mode auth bypass could silently activate in a live environment.
+// Fail fast rather than risk exposing unauthenticated access.
+if (isProduction && process.env.NODE_ENV !== 'production') {
+  console.error('[FATAL] isProduction is true but NODE_ENV is not "production" — ' +
+    `got: ${JSON.stringify(process.env.NODE_ENV)}. ` +
+    'Set NODE_ENV=production in your deployment environment to prevent the dev-mode auth bypass from activating.');
+  process.exit(1);
+}
+
 const requiredSecrets = ['SESSION_SECRET', 'DATABASE_URL', 'REPLIT_DOMAINS', 'REPL_ID'];
 const missingSecrets = requiredSecrets.filter(key => !process.env[key]);
 if (missingSecrets.length > 0 && isProduction) {
