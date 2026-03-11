@@ -94,6 +94,18 @@ Features requested but not yet built — carry forward to future sessions.
    - Update `POST /api/email/send` in `server/routes.ts`: query most recent `emailSend` for the `customerId`/`leadId` with a non-null `gmailThreadId`, auto-thread if found (unless `replyToThread: false` passed in body), save returned IDs to the new row
    - Add thread indicator in Spotlight email compose modal and Contact detail email modal: "Will be sent as a reply to keep your thread intact" with a small toggle to disable
 
+## Lead-Contact Parity & Company Auto-Linking (v1 — complete)
+- **`companies` table**: `id`, `name`, `domain` (unique), `odooCompanyPartnerId`, `odooSyncedAt`
+- **New columns on `leads`**: `companyDomain` (text, auto-derived from email), `companyId` (FK → companies)
+- **New columns on `customers`**: `companyDomain`, `jobTitle`, `companyId` (FK → companies), `odooCompanyId`
+- **`extractCompanyDomain(email)`** added to `shared/email-normalizer.ts` — returns null for free providers
+- **POST/PUT `/api/leads`**: auto-computes `companyDomain` from email on create/update
+- **POST `/api/leads/:id/qualify`**: now does full company-aware conversion — validates requirements, finds/creates company, inserts customer record, auto-converts sibling leads from same domain, sets stage → `converted`
+- **GET `/api/companies`**: lists companies with `contactCount` and `leadCount`
+- **GET `/api/companies/:id/contacts`**: returns company + its linked contacts
+- **Odoo push** (lead push-to-odoo): two-phase sync — checks local `companies.odooCompanyPartnerId` first; if missing, creates Odoo company partner and saves back; falls back to name search if no local company record
+- **By Company view** in Contacts page: third toggle in view switcher (Building2 icon), groups contacts by `companyDomain` into collapsible company cards; standalone contacts shown last
+
 ## External Dependencies
 
 - **Odoo V19 ERP:** Used for customer data, product catalogs, pricelists, and orders.

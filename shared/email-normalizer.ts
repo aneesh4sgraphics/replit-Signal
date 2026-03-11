@@ -113,6 +113,15 @@ export const FREE_EMAIL_PROVIDERS = new Set([
   'tempmail.com',
 ]);
 
+export function extractCompanyDomain(email: string | null | undefined): string | null {
+  if (!email) return null;
+  const at = email.lastIndexOf('@');
+  if (at === -1) return null;
+  const domain = email.slice(at + 1).toLowerCase().trim();
+  if (!domain || FREE_EMAIL_PROVIDERS.has(domain)) return null;
+  return domain;
+}
+
 export function isFreeEmailProvider(email: string | null | undefined): boolean {
   const domain = extractEmailDomain(email);
   if (!domain) {

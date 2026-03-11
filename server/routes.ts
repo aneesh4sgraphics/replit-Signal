@@ -19,7 +19,7 @@ import { isBlockedCompany, getBlockedKeywordMatch, BLOCKED_COMPANY_KEYWORDS } fr
 import { autoAssignSalesRepIfNeeded } from "./sales-rep-auto-assign";
 
 import { generateQuoteHTMLForDownload, generatePriceListHTML, validateQuoteNumber, generateQuoteNumber } from "./stub-functions";
-import { normalizeEmail } from "@shared/email-normalizer";
+import { normalizeEmail, extractCompanyDomain } from "@shared/email-normalizer";
 import { 
   insertSentQuoteSchema,
   insertShipmentSchema,
@@ -158,6 +158,8 @@ import {
   dripCampaignStepStatus,
   labelQueue,
   mailerTypes,
+  companies,
+  insertCompanySchema,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -15886,6 +15888,9 @@ Return only the JSON object. No markdown, no code blocks.`
       // Normalize email if provided
       if (data.email) {
         data.emailNormalized = normalizeEmail(data.email);
+        if (!data.companyDomain) {
+          data.companyDomain = extractCompanyDomain(data.email) ?? undefined;
+        }
       }
       
       const result = await db.insert(leads).values(data).returning();
@@ -15918,6 +15923,9 @@ Return only the JSON object. No markdown, no code blocks.`
       // Normalize email if updated
       if (data.email) {
         data.emailNormalized = normalizeEmail(data.email);
+        if (!data.companyDomain) {
+          data.companyDomain = extractCompanyDomain(data.email) ?? null;
+        }
       }
       
       data.updatedAt = new Date();
@@ -15941,24 +15949,14 @@ Return only the JSON object. No markdown, no code blocks.`
     }
   });
 
-  // Qualify a lead — validate all requirements then promote to 'qualified' stage
+  // Qualify a lead — validate all requirements, convert to customer, link company, auto-convert siblings
   app.post("/api/leads/:id/qualify", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) return res.status(400).json({ error: "Invalid lead ID" });
 
-      const [lead] = await db.select({
-        id: leads.id,
-        stage: leads.stage,
-        street: leads.street,
-        city: leads.city,
-        state: leads.state,
-        zip: leads.zip,
-        phone: leads.phone,
-        email: leads.email,
-        pricingTier: leads.pricingTier,
-      }).from(leads).where(eq(leads.id, id)).limit(1);
-
+      // Fetch the full lead record for both validation and conversion
+      const [lead] = await db.select().from(leads).where(eq(leads.id, id)).limit(1);
       if (!lead) return res.status(404).json({ error: "Lead not found" });
 
       const missing: string[] = [];
@@ -15996,19 +15994,217 @@ Return only the JSON object. No markdown, no code blocks.`
         return res.json({ qualified: false, missing });
       }
 
-      // All checks passed — promote to qualified
+      // --- All checks passed — proceed with company-aware conversion ---
+
+      // Step 1: Resolve company domain
+      const companyDomain = lead.companyDomain || extractCompanyDomain(lead.email) || null;
+      let resolvedCompanyId: number | null = lead.companyId || null;
+
+      if (companyDomain && !resolvedCompanyId) {
+        // Find or create the company record
+        const [existingCompany] = await db.select({ id: companies.id })
+          .from(companies)
+          .where(eq(companies.domain, companyDomain))
+          .limit(1);
+
+        if (existingCompany) {
+          resolvedCompanyId = existingCompany.id;
+        } else {
+          const companyName = lead.company || companyDomain;
+          const [newCompany] = await db.insert(companies)
+            .values({ name: companyName, domain: companyDomain })
+            .returning({ id: companies.id });
+          resolvedCompanyId = newCompany.id;
+        }
+      }
+
+      // Step 2: Convert this lead to a customer
+      const nameParts = (lead.name || '').split(' ');
+      const firstName = nameParts[0] || '';
+      const lastName = nameParts.slice(1).join(' ') || '';
+      const newCustomerId = crypto.randomUUID();
+
+      await db.insert(customers).values({
+        id: newCustomerId,
+        firstName,
+        lastName,
+        company: lead.company || '',
+        email: lead.email || null,
+        emailNormalized: lead.emailNormalized || null,
+        phone: lead.phone || null,
+        cell: lead.mobile || null,
+        address1: lead.street || null,
+        address2: lead.street2 || null,
+        city: lead.city || null,
+        province: lead.state || null,
+        zip: lead.zip || null,
+        country: lead.country || null,
+        website: lead.website || null,
+        note: lead.description || null,
+        salesRepId: lead.salesRepId || null,
+        salesRepName: lead.salesRepName || null,
+        pricingTier: lead.pricingTier || null,
+        pricingTierSetBy: lead.pricingTierSetBy || null,
+        pricingTierSetAt: lead.pricingTierSetAt || null,
+        customerType: lead.customerType || null,
+        tags: lead.tags || null,
+        isCompany: lead.isCompany || false,
+        odooPartnerId: lead.sourceContactOdooPartnerId || null,
+        sources: ['lead_conversion'],
+        swatchbookSentAt: lead.swatchbookSentAt || null,
+        priceListSentAt: lead.priceListSentAt || null,
+        // Company parity fields
+        companyDomain: companyDomain,
+        jobTitle: lead.jobTitle || null,
+        companyId: resolvedCompanyId,
+        createdAt: new Date(),
+      });
+
+      // Log the conversion
+      await db.insert(customerActivityEvents).values({
+        customerId: newCustomerId,
+        eventType: 'status_change',
+        title: 'Lead converted to customer (qualified)',
+        description: `Lead "${lead.name}" was qualified and converted to a contact.`,
+        sourceType: 'manual',
+        sourceTable: 'leads',
+        sourceId: String(lead.id),
+        eventDate: new Date(),
+      });
+
+      // Step 3: Mark this lead as converted and update company link
       await db.update(leads)
-        .set({ stage: 'qualified', updatedAt: new Date() })
+        .set({ stage: 'converted', companyDomain, companyId: resolvedCompanyId, updatedAt: new Date() })
         .where(eq(leads.id, id));
 
-      // Invalidate all Spotlight prefetch caches so reps see the updated stage immediately
+      // Step 4: Auto-convert sibling leads with the same company domain (not already converted)
+      let siblingsConverted = 0;
+      if (companyDomain) {
+        const siblings = await db.select()
+          .from(leads)
+          .where(and(
+            eq(leads.companyDomain, companyDomain),
+            inArray(leads.stage, ['new', 'contacted', 'qualified']),
+            sql`${leads.id} != ${id}`
+          ));
+
+        for (const sibling of siblings) {
+          const siblingNameParts = (sibling.name || '').split(' ');
+          const siblingFirstName = siblingNameParts[0] || '';
+          const siblingLastName = siblingNameParts.slice(1).join(' ') || '';
+          const siblingCustomerId = crypto.randomUUID();
+
+          try {
+            await db.insert(customers).values({
+              id: siblingCustomerId,
+              firstName: siblingFirstName,
+              lastName: siblingLastName,
+              company: sibling.company || '',
+              email: sibling.email || null,
+              emailNormalized: sibling.emailNormalized || null,
+              phone: sibling.phone || null,
+              cell: sibling.mobile || null,
+              address1: sibling.street || null,
+              address2: sibling.street2 || null,
+              city: sibling.city || null,
+              province: sibling.state || null,
+              zip: sibling.zip || null,
+              country: sibling.country || null,
+              website: sibling.website || null,
+              note: sibling.description || null,
+              salesRepId: sibling.salesRepId || null,
+              salesRepName: sibling.salesRepName || null,
+              pricingTier: sibling.pricingTier || null,
+              pricingTierSetBy: sibling.pricingTierSetBy || null,
+              pricingTierSetAt: sibling.pricingTierSetAt || null,
+              customerType: sibling.customerType || null,
+              tags: sibling.tags || null,
+              isCompany: sibling.isCompany || false,
+              odooPartnerId: sibling.sourceContactOdooPartnerId || null,
+              sources: ['lead_conversion'],
+              companyDomain: companyDomain,
+              jobTitle: sibling.jobTitle || null,
+              companyId: resolvedCompanyId,
+              createdAt: new Date(),
+            });
+
+            await db.update(leads)
+              .set({ stage: 'converted', companyId: resolvedCompanyId, updatedAt: new Date() })
+              .where(eq(leads.id, sibling.id));
+
+            siblingsConverted++;
+          } catch (siblingErr) {
+            console.error(`[Qualify] Failed to auto-convert sibling lead #${sibling.id}:`, siblingErr);
+          }
+        }
+      }
+
+      // Invalidate Spotlight prefetch caches
       spotlightEngine.invalidateAllPrefetchCaches();
 
-      console.log(`[Leads] Lead ${id} promoted to qualified by ${req.user?.email}`);
-      res.json({ qualified: true });
+      console.log(`[Leads] Lead ${id} qualified → converted to customer ${newCustomerId} by ${req.user?.email} (${siblingsConverted} siblings auto-converted)`);
+      res.json({ qualified: true, customerId: newCustomerId, companyId: resolvedCompanyId, siblingsConverted });
     } catch (error) {
       console.error("Error qualifying lead:", error);
       res.status(500).json({ error: "Failed to qualify lead" });
+    }
+  });
+
+  // ── Companies API ─────────────────────────────────────────────────────────
+
+  // List all companies with lead/contact counts
+  app.get("/api/companies", isAuthenticated, async (req: any, res) => {
+    try {
+      const allCompanies = await db.select().from(companies).orderBy(companies.name);
+      
+      // Fetch contact counts grouped by company_id
+      const contactCounts = await db
+        .select({ companyId: customers.companyId, count: sql<number>`COUNT(*)` })
+        .from(customers)
+        .where(sql`${customers.companyId} IS NOT NULL`)
+        .groupBy(customers.companyId);
+      const contactCountMap = new Map(contactCounts.map(r => [r.companyId, Number(r.count)]));
+
+      // Fetch active lead counts grouped by company_id
+      const leadCounts = await db
+        .select({ companyId: leads.companyId, count: sql<number>`COUNT(*)` })
+        .from(leads)
+        .where(and(sql`${leads.companyId} IS NOT NULL`, inArray(leads.stage, ['new', 'contacted', 'qualified'])))
+        .groupBy(leads.companyId);
+      const leadCountMap = new Map(leadCounts.map(r => [r.companyId, Number(r.count)]));
+
+      const rows = allCompanies.map(c => ({
+        ...c,
+        contactCount: contactCountMap.get(c.id) ?? 0,
+        leadCount: leadCountMap.get(c.id) ?? 0,
+      }));
+
+      res.json(rows);
+    } catch (error) {
+      console.error("Error fetching companies:", error);
+      res.status(500).json({ error: "Failed to fetch companies" });
+    }
+  });
+
+  // Get contacts for a specific company
+  app.get("/api/companies/:id/contacts", isAuthenticated, async (req: any, res) => {
+    try {
+      const companyId = parseInt(req.params.id);
+      if (isNaN(companyId)) return res.status(400).json({ error: "Invalid company ID" });
+
+      const [company] = await db.select().from(companies).where(eq(companies.id, companyId)).limit(1);
+      if (!company) return res.status(404).json({ error: "Company not found" });
+
+      const contacts = await db
+        .select()
+        .from(customers)
+        .where(eq(customers.companyId, companyId))
+        .orderBy(customers.lastName, customers.firstName);
+
+      res.json({ company, contacts });
+    } catch (error) {
+      console.error("Error fetching company contacts:", error);
+      res.status(500).json({ error: "Failed to fetch company contacts" });
     }
   });
 
@@ -16134,15 +16330,36 @@ Return only the JSON object. No markdown, no code blocks.`
       if (match) resolvedStateId = match.id;
     }
 
-    // Try to find matching company parent in Odoo
+    // Two-phase company sync: check local companies table first, then Odoo
     let parentId: number | undefined;
-    if (lead.company) {
+    if (lead.companyId) {
+      // We have a local company record — check if it already has an Odoo partner ID
+      const [localCompany] = await db.select().from(companies).where(eq(companies.id, lead.companyId)).limit(1);
+      if (localCompany?.odooCompanyPartnerId) {
+        parentId = localCompany.odooCompanyPartnerId;
+      } else if (localCompany) {
+        // Company exists locally but not yet in Odoo — create it
+        try {
+          const companyPayload: any = { name: localCompany.name, is_company: true, type: 'contact' };
+          if (localCompany.domain) companyPayload.website = `https://${localCompany.domain}`;
+          const newOdooCompanyId = await odooClient.createPartner(companyPayload);
+          parentId = newOdooCompanyId;
+          await db.update(companies)
+            .set({ odooCompanyPartnerId: newOdooCompanyId, odooSyncedAt: new Date(), updatedAt: new Date() })
+            .where(eq(companies.id, localCompany.id));
+          console.log(`[Odoo Push] Created Odoo company partner #${newOdooCompanyId} for local company #${localCompany.id} "${localCompany.name}"`);
+        } catch (compErr) {
+          console.error(`[Odoo Push] Failed to create company partner for "${localCompany?.name}":`, compErr);
+        }
+      }
+    } else if (lead.company) {
+      // No local company record — fall back to name-based Odoo search
       try {
-        const companies = await odooClient.searchRead('res.partner', [
+        const odooCompanies = await odooClient.searchRead('res.partner', [
           ['name', 'ilike', lead.company],
           ['is_company', '=', true]
         ], ['id', 'name'], { limit: 1 });
-        if (companies.length > 0) parentId = companies[0].id;
+        if (odooCompanies.length > 0) parentId = odooCompanies[0].id;
       } catch (_) {}
     }
 

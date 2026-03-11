@@ -177,6 +177,23 @@ export const fileUploads = pgTable("file_uploads", {
   isActive: boolean("is_active").default(true), // Current active file for this type
 });
 
+// Companies table — groups contacts/leads by business domain for Odoo hierarchy
+export const companies = pgTable("companies", {
+  id: serial("id").primaryKey(),
+  name: text("name").notNull(),
+  domain: text("domain").unique(), // e.g. "acme.com" — primary lookup key
+  odooCompanyPartnerId: integer("odoo_company_partner_id"), // res.partner id in Odoo (is_company=true)
+  odooSyncedAt: timestamp("odoo_synced_at"),
+  createdAt: timestamp("created_at").defaultNow(),
+  updatedAt: timestamp("updated_at").defaultNow(),
+}, (table) => [
+  index("idx_companies_domain").on(table.domain),
+]);
+
+export const insertCompanySchema = createInsertSchema(companies).omit({ id: true, createdAt: true, updatedAt: true });
+export type Company = typeof companies.$inferSelect;
+export type InsertCompany = z.infer<typeof insertCompanySchema>;
+
 export const customers = pgTable("customers", {
   id: varchar("id").primaryKey().notNull(), // Customer ID from CSV
   firstName: varchar("first_name", { length: 255 }),
@@ -233,6 +250,11 @@ export const customers = pgTable("customers", {
   priceListSentAt: timestamp("price_list_sent_at"), // Track price list send date
   customerType: varchar("customer_type", { length: 50 }), // 'reseller' or 'printer'
   spotlightMeta: jsonb("spotlight_meta"), // Cached spotlight score + signal breakdown
+  // Company grouping (Lead-Contact Parity v1)
+  companyDomain: text("company_domain"), // e.g. "acme.com" — auto-derived from email
+  jobTitle: varchar("job_title", { length: 255 }), // Job title / position
+  companyId: integer("company_id").references(() => companies.id), // FK → companies
+  odooCompanyId: integer("odoo_company_id"), // Odoo company partner ID (res.partner.id where is_company=true)
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => [
@@ -434,6 +456,9 @@ export const leads = pgTable("leads", {
   primaryContactEmail: varchar("primary_contact_email", { length: 255 }), // Email of primary contact person
   // Odoo push tracking
   odooPartnerId: integer("odoo_partner_id"), // Odoo res.partner ID after pushing lead as a Contact
+  // Company grouping (Lead-Contact Parity v1)
+  companyDomain: text("company_domain"), // e.g. "acme.com" — auto-derived from email
+  companyId: integer("company_id").references(() => companies.id), // FK → companies
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),

@@ -110,6 +110,11 @@ interface Contact {
   totalSpent: string;
   createdAt: string;
   updatedAt: string;
+  // Company parity fields
+  companyDomain: string | null;
+  jobTitle: string | null;
+  companyId: number | null;
+  odooCompanyId: number | null;
 }
 
 interface ShopifyCustomerMapping {
@@ -122,7 +127,7 @@ interface ShopifyCustomerMapping {
   isActive: boolean;
 }
 
-type ViewMode = 'table' | 'cards';
+type ViewMode = 'table' | 'cards' | 'byCompany';
 type SortField = 'company' | 'email' | 'updatedAt' | 'createdAt' | 'totalSpent' | 'province';
 type SortOrder = 'asc' | 'desc';
 
@@ -973,6 +978,7 @@ export default function OdooContacts() {
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
               <button
                 onClick={() => setViewMode('table')}
+                title="Table view"
                 className={`p-1.5 rounded-md transition-all ${
                   viewMode === 'table' 
                     ? 'bg-white text-gray-900 shadow-sm' 
@@ -983,6 +989,7 @@ export default function OdooContacts() {
               </button>
               <button
                 onClick={() => setViewMode('cards')}
+                title="Cards view"
                 className={`p-1.5 rounded-md transition-all ${
                   viewMode === 'cards' 
                     ? 'bg-white text-gray-900 shadow-sm' 
@@ -990,6 +997,17 @@ export default function OdooContacts() {
                 }`}
               >
                 <LayoutGrid className="w-4 h-4" />
+              </button>
+              <button
+                onClick={() => setViewMode('byCompany')}
+                title="By Company view"
+                className={`p-1.5 rounded-md transition-all ${
+                  viewMode === 'byCompany'
+                    ? 'bg-white text-gray-900 shadow-sm'
+                    : 'text-gray-500 hover:text-gray-700'
+                }`}
+              >
+                <Building2 className="w-4 h-4" />
               </button>
             </div>
           </div>
@@ -1366,7 +1384,7 @@ export default function OdooContacts() {
               Loading contacts...
             </div>
           </div>
-        ) : filteredContacts.length === 0 ? (
+        ) : filteredContacts.length === 0 && viewMode !== 'byCompany' ? (
           <div className="flex flex-col items-center justify-center py-20">
             <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
               <Users className="w-8 h-8 text-gray-400" />
@@ -1374,6 +1392,102 @@ export default function OdooContacts() {
             <h3 className="text-lg font-medium text-gray-900 mb-1">No contacts found</h3>
             <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
           </div>
+        ) : viewMode === 'byCompany' ? (
+          /* By Company View — contacts grouped by business domain */
+          (() => {
+            const domainGroups = new Map<string, { label: string; domain: string | null; contacts: Contact[] }>();
+            for (const c of filteredContacts) {
+              const key = c.companyDomain || '__standalone__';
+              if (!domainGroups.has(key)) {
+                domainGroups.set(key, {
+                  label: key === '__standalone__' ? 'No Company' : (c.company || c.companyDomain || key),
+                  domain: c.companyDomain || null,
+                  contacts: [],
+                });
+              }
+              domainGroups.get(key)!.contacts.push(c);
+            }
+            const groups = Array.from(domainGroups.values()).sort((a, b) => {
+              if (a.domain === null) return 1;
+              if (b.domain === null) return -1;
+              return a.label.localeCompare(b.label);
+            });
+            if (groups.length === 0) {
+              return (
+                <div className="flex flex-col items-center justify-center py-20">
+                  <div className="w-16 h-16 rounded-full bg-gray-100 flex items-center justify-center mb-4">
+                    <Building2 className="w-8 h-8 text-gray-400" />
+                  </div>
+                  <h3 className="text-lg font-medium text-gray-900 mb-1">No contacts found</h3>
+                  <p className="text-gray-500 text-sm">Try adjusting your search or filters</p>
+                </div>
+              );
+            }
+            return (
+              <div className="space-y-4">
+                {groups.map((group) => (
+                  <div key={group.domain ?? '__standalone__'} className="bg-white rounded-xl border border-gray-200 shadow-sm overflow-hidden">
+                    {/* Company header */}
+                    <div className="flex items-center gap-3 px-5 py-3 bg-gray-50 border-b border-gray-200">
+                      <div className="w-8 h-8 rounded-lg bg-violet-100 flex items-center justify-center flex-shrink-0">
+                        <Building2 className="w-4 h-4 text-violet-600" />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <span className="font-semibold text-gray-900">{group.label}</span>
+                        {group.domain && (
+                          <span className="ml-2 text-xs text-gray-400">{group.domain}</span>
+                        )}
+                      </div>
+                      <span className="text-sm text-gray-500 flex-shrink-0">
+                        {group.contacts.length} contact{group.contacts.length !== 1 ? 's' : ''}
+                      </span>
+                    </div>
+                    {/* Contact rows */}
+                    <table className="w-full text-sm">
+                      <tbody>
+                        {group.contacts.map((contact, idx) => (
+                          <tr
+                            key={contact.id}
+                            className={`hover:bg-violet-50 cursor-pointer transition-colors ${idx !== 0 ? 'border-t border-gray-100' : ''}`}
+                            onClick={() => setDetailContact(contact)}
+                          >
+                            <td className="px-5 py-2.5 w-10">
+                              <div className="w-7 h-7 rounded-full bg-violet-100 flex items-center justify-center text-xs font-semibold text-violet-700 flex-shrink-0">
+                                {contact.isCompany ? <Building2 className="w-3.5 h-3.5" /> : getInitials(contact)}
+                              </div>
+                            </td>
+                            <td className="px-3 py-2.5 font-medium text-gray-900 min-w-[180px]">
+                              {getDisplayName(contact)}
+                              {contact.jobTitle && (
+                                <span className="ml-2 text-xs text-gray-400 font-normal">{contact.jobTitle}</span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-gray-500 hidden md:table-cell">{contact.email || '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-500 hidden lg:table-cell">{contact.phone || contact.cell || '—'}</td>
+                            <td className="px-3 py-2.5 text-gray-500 hidden xl:table-cell">{[contact.city, contact.province].filter(Boolean).join(', ') || '—'}</td>
+                            <td className="px-3 py-2.5 hidden xl:table-cell">
+                              {contact.pricingTier && (
+                                <span className="inline-flex items-center px-1.5 py-0.5 rounded text-xs font-medium bg-blue-50 text-blue-700">
+                                  {contact.pricingTier}
+                                </span>
+                              )}
+                            </td>
+                            <td className="px-3 py-2.5 text-right">
+                              {contact.odooPartnerId && (
+                                <span title="In Odoo">
+                                  <SiOdoo className="w-3.5 h-3.5 text-purple-400 inline" />
+                                </span>
+                              )}
+                            </td>
+                          </tr>
+                        ))}
+                      </tbody>
+                    </table>
+                  </div>
+                ))}
+              </div>
+            );
+          })()
         ) : viewMode === 'table' ? (
           /* Table View */
           <div className="bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm">
