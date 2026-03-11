@@ -1166,6 +1166,11 @@ export default function Spotlight() {
     },
   });
 
+  const { data: authUser } = useQuery<{ id: string; email: string; role: string }>({
+    queryKey: ['/api/auth/user'],
+    staleTime: Infinity,
+  });
+
   const [showSnoozeDialog, setShowSnoozeDialog] = useState(false);
   const [snoozeOutcomeTag, setSnoozeOutcomeTag] = useState('');
   const [snoozeNote, setSnoozeNote] = useState('');
@@ -1195,9 +1200,9 @@ export default function Spotlight() {
       const res = await apiRequest('POST', '/api/spotlight/claim', { customerId });
       return res.json();
     },
-    onSuccess: (data) => {
+    onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/claims'] });
-      toast({ title: "Claimed", description: "You've claimed this customer for 24 hours" });
+      toast({ title: "Claimed", description: "You've claimed this customer for 30 days." });
     },
     onError: () => {
       toast({ title: "Error", description: "Failed to claim", variant: "destructive" });
@@ -1211,11 +1216,33 @@ export default function Spotlight() {
     },
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/spotlight/claims'] });
-      toast({ title: "Released", description: "Claim released" });
+      toast({ title: "Released", description: "Claim released — customer returned to the shared list." });
     },
   });
 
-  const { data: claimsData } = useQuery<{ claims: Array<{ customerId: string; userId: string; claimedAt: string; userFirstName?: string; userLastName?: string; userEmail?: string }> }>({
+  const renewClaimMutation = useMutation({
+    mutationFn: async (customerId: string) => {
+      const res = await apiRequest('POST', `/api/spotlight/claim/${customerId}/renew`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to renew');
+      return data;
+    },
+    onSuccess: (data) => {
+      queryClient.invalidateQueries({ queryKey: ['/api/spotlight/claims'] });
+      const remaining = data.renewalsRemaining ?? 0;
+      toast({
+        title: "Claim renewed",
+        description: remaining > 0
+          ? `Extended 30 more days. You have ${remaining} renewal${remaining === 1 ? '' : 's'} left.`
+          : "Extended 30 more days. This was your last renewal — the customer will return to the shared list after this period.",
+      });
+    },
+    onError: (error: any) => {
+      toast({ title: "Cannot renew", description: error.message, variant: "destructive" });
+    },
+  });
+
+  const { data: claimsData } = useQuery<{ claims: Array<{ customerId: string; userId: string; claimedAt: string; expiresAt: string; renewalCount: number; userFirstName?: string; userLastName?: string; userEmail?: string }> }>({
     queryKey: ['/api/spotlight/claims'],
     queryFn: async () => {
       const res = await fetch('/api/spotlight/claims', { credentials: 'include' });
@@ -3370,28 +3397,66 @@ export default function Spotlight() {
                           className="mt-2 inline-flex items-center gap-1 text-xs text-slate-500 hover:text-indigo-600 hover:bg-indigo-50 border border-slate-200 hover:border-indigo-200 rounded px-2 py-1 transition-colors"
                         >
                           <UserCheck className="w-3 h-3" />
-                          Claim
+                          Claim for 30 days
                         </button>
                       );
                     }
+                    const isOwner = authUser?.id === cardClaim.userId;
                     const claimUserName = [cardClaim.userFirstName, cardClaim.userLastName].filter(Boolean).join(' ') || cardClaim.userEmail || cardClaim.userId;
-                    const claimedMinsAgo = Math.floor((Date.now() - new Date(cardClaim.claimedAt).getTime()) / 60000);
-                    const claimedLabel = claimedMinsAgo < 60
-                      ? `${claimedMinsAgo}m ago`
-                      : `${Math.floor(claimedMinsAgo / 60)}h ago`;
+                    const daysLeft = Math.ceil((new Date(cardClaim.expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                    const renewalCount = cardClaim.renewalCount ?? 0;
+                    const renewalsLeft = 2 - renewalCount;
+                    const showRenewPrompt = isOwner && daysLeft <= 7;
+                    const canRenew = isOwner && renewalsLeft > 0;
                     return (
-                      <div className="mt-2 flex items-center gap-2 text-xs bg-amber-50 border border-amber-200 rounded px-2 py-1">
-                        <UserCheck className="w-3 h-3 text-amber-600" />
-                        <span className="text-amber-700 font-medium">Being handled by {claimUserName}</span>
-                        <span className="text-amber-500">— claimed {claimedLabel}</span>
-                        <button
-                          onClick={() => releaseMutation.mutate(task.customerId)}
-                          disabled={releaseMutation.isPending}
-                          className="ml-auto text-amber-600 hover:text-amber-800"
-                          title="Release claim"
-                        >
-                          <UserXIcon className="w-3 h-3" />
-                        </button>
+                      <div className={`mt-2 text-xs rounded px-2 py-1.5 border space-y-1.5 ${daysLeft <= 3 ? 'bg-orange-50 border-orange-200' : 'bg-amber-50 border-amber-200'}`}>
+                        <div className="flex items-center gap-2">
+                          <UserCheck className={`w-3 h-3 flex-shrink-0 ${daysLeft <= 3 ? 'text-orange-600' : 'text-amber-600'}`} />
+                          <span className={`font-medium ${daysLeft <= 3 ? 'text-orange-800' : 'text-amber-800'}`}>
+                            {isOwner ? 'You claimed this' : `Claimed by ${claimUserName}`}
+                          </span>
+                          <span className={`ml-auto font-medium tabular-nums ${daysLeft <= 7 ? 'text-orange-600' : 'text-slate-500'}`}>
+                            {daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}
+                          </span>
+                          {isOwner && (
+                            <button
+                              onClick={() => releaseMutation.mutate(task.customerId)}
+                              disabled={releaseMutation.isPending}
+                              className={`${daysLeft <= 3 ? 'text-orange-600 hover:text-orange-800' : 'text-amber-600 hover:text-amber-800'}`}
+                              title="Release claim — customer returns to shared list"
+                            >
+                              <UserXIcon className="w-3 h-3" />
+                            </button>
+                          )}
+                        </div>
+                        {isOwner && (
+                          <div className="flex items-center gap-2">
+                            {showRenewPrompt && canRenew ? (
+                              <>
+                                <span className="text-orange-700">
+                                  Expiring soon — renew for 30 more days?
+                                </span>
+                                <button
+                                  onClick={() => renewClaimMutation.mutate(task.customerId)}
+                                  disabled={renewClaimMutation.isPending}
+                                  className="ml-auto px-2 py-0.5 bg-amber-600 hover:bg-amber-700 text-white rounded text-xs font-medium"
+                                >
+                                  Renew ({renewalsLeft} left)
+                                </button>
+                              </>
+                            ) : renewalCount > 0 ? (
+                              <span className={`${renewalsLeft === 0 ? 'text-red-600 font-medium' : 'text-slate-400'}`}>
+                                {renewalsLeft === 0
+                                  ? `Final period — expires in ${daysLeft}d. Customer returns to shared list after.`
+                                  : `Renewal ${renewalCount}/2 used · ${renewalsLeft} renewal left`}
+                              </span>
+                            ) : (
+                              <span className="text-slate-400">
+                                {renewalsLeft} renewal{renewalsLeft !== 1 ? 's' : ''} available
+                              </span>
+                            )}
+                          </div>
+                        )}
                       </div>
                     );
                   })()}

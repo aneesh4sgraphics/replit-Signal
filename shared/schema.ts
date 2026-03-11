@@ -3252,6 +3252,7 @@ export const spotlightTeamClaims = pgTable("spotlight_team_claims", {
   claimedAt: timestamp("claimed_at", { withTimezone: true }).defaultNow(),
   expiresAt: timestamp("expires_at", { withTimezone: true }).notNull(),
   releasedAt: timestamp("released_at", { withTimezone: true }),
+  renewalCount: integer("renewal_count").default(0).notNull(),
 }, (table) => [
   index("idx_team_claims_customer").on(table.customerId),
 ]);

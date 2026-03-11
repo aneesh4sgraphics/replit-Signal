@@ -84,14 +84,17 @@ export default function SpotlightOverview() {
                     <th className="pb-2 pr-4">Customer</th>
                     <th className="pb-2 pr-4">Claimed By</th>
                     <th className="pb-2 pr-4">Claimed</th>
-                    <th className="pb-2">Expires</th>
+                    <th className="pb-2 pr-4">Expires</th>
+                    <th className="pb-2">Renewals</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-slate-100">
                   {activeClaims.map((claim: any) => {
                     const repName = [claim.userFirstName, claim.userLastName].filter(Boolean).join(' ') || claim.userEmail || claim.userId;
                     const customerName = claim.customerCompany || claim.customerEmail || claim.customerId;
-                    const expiresIn = Math.round((new Date(claim.expiresAt).getTime() - Date.now()) / 3600000);
+                    const daysLeft = Math.ceil((new Date(claim.expiresAt).getTime() - Date.now()) / (24 * 60 * 60 * 1000));
+                    const renewalCount = claim.renewalCount ?? 0;
+                    const renewalsLeft = 2 - renewalCount;
                     return (
                       <tr key={`${claim.customerId}-${claim.userId}`} className="py-2">
                         <td className="py-2 pr-4">
@@ -104,10 +107,17 @@ export default function SpotlightOverview() {
                           <Badge variant="secondary" className="text-xs">{repName}</Badge>
                         </td>
                         <td className="py-2 pr-4 text-slate-500">{formatRelativeTime(claim.claimedAt)}</td>
-                        <td className="py-2">
-                          <span className={`text-xs font-medium ${expiresIn < 2 ? 'text-red-600' : 'text-slate-500'}`}>
-                            {expiresIn > 0 ? `in ${expiresIn}h` : 'expired'}
+                        <td className="py-2 pr-4">
+                          <span className={`text-xs font-medium ${daysLeft <= 3 ? 'text-red-600' : daysLeft <= 7 ? 'text-orange-500' : 'text-slate-500'}`}>
+                            {daysLeft > 0 ? `${daysLeft}d left` : 'Expired'}
                           </span>
+                        </td>
+                        <td className="py-2">
+                          {renewalsLeft === 0 ? (
+                            <span className="text-xs text-red-600 font-medium">Final period</span>
+                          ) : (
+                            <span className="text-xs text-slate-400">{renewalsLeft} left</span>
+                          )}
                         </td>
                       </tr>
                     );

@@ -4416,7 +4416,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // ── Improvement 4: Team Visibility & Claiming ─────────────────────────────
 
-  // POST /api/spotlight/claim — claim a customer for 24 hours
+  // POST /api/spotlight/claim — claim a customer for 30 days (max 2 renewals)
   app.post("/api/spotlight/claim", isAuthenticated, async (req: any, res) => {
     try {
       const userId = req.user?.id;
@@ -4424,7 +4424,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       if (!customerId) return res.status(400).json({ error: "customerId is required" });
 
       const now = new Date();
-      const expiresAt = new Date(now.getTime() + 24 * 60 * 60 * 1000);
+      const expiresAt = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000); // 30 days
 
       // Release any existing active claim by this user for this customer
       await db
@@ -4440,13 +4440,55 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
       const [claim] = await db
         .insert(spotlightTeamClaims)
-        .values({ customerId, userId, expiresAt })
+        .values({ customerId, userId, expiresAt, renewalCount: 0 })
         .returning();
 
       res.json({ success: true, claim });
     } catch (error) {
       console.error("Spotlight claim error:", error);
       res.status(500).json({ error: "Failed to claim" });
+    }
+  });
+
+  // POST /api/spotlight/claim/:customerId/renew — renew a claim for another 30 days (max 2 times)
+  app.post("/api/spotlight/claim/:customerId/renew", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      const { customerId } = req.params;
+
+      // Find the active claim owned by this user
+      const now = new Date();
+      const [existing] = await db
+        .select()
+        .from(spotlightTeamClaims)
+        .where(
+          and(
+            eq(spotlightTeamClaims.customerId, customerId),
+            eq(spotlightTeamClaims.userId, userId),
+            isNull(spotlightTeamClaims.releasedAt)
+          )
+        )
+        .limit(1);
+
+      if (!existing) {
+        return res.status(404).json({ error: "No active claim found for this customer" });
+      }
+
+      if (existing.renewalCount >= 2) {
+        return res.status(400).json({ error: "Maximum renewals (2) reached. The customer will return to the shared list." });
+      }
+
+      const newExpiry = new Date(now.getTime() + 30 * 24 * 60 * 60 * 1000);
+      const [updated] = await db
+        .update(spotlightTeamClaims)
+        .set({ expiresAt: newExpiry, renewalCount: existing.renewalCount + 1 })
+        .where(eq(spotlightTeamClaims.id, existing.id))
+        .returning();
+
+      res.json({ success: true, claim: updated, renewalsRemaining: 2 - updated.renewalCount });
+    } catch (error) {
+      console.error("Spotlight renew claim error:", error);
+      res.status(500).json({ error: "Failed to renew claim" });
     }
   });
 
@@ -4486,6 +4528,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: spotlightTeamClaims.userId,
           claimedAt: spotlightTeamClaims.claimedAt,
           expiresAt: spotlightTeamClaims.expiresAt,
+          renewalCount: spotlightTeamClaims.renewalCount,
           userFirstName: users.firstName,
           userLastName: users.lastName,
           userEmail: users.email,
@@ -4520,6 +4563,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           userId: spotlightTeamClaims.userId,
           claimedAt: spotlightTeamClaims.claimedAt,
           expiresAt: spotlightTeamClaims.expiresAt,
+          renewalCount: spotlightTeamClaims.renewalCount,
           userFirstName: users.firstName,
           userLastName: users.lastName,
           customerCompany: customers.company,
