@@ -1431,7 +1431,7 @@ export default function Spotlight() {
         company: lead.company || '',
         phone: lead.phone || lead.mobile || '',
         email: lead.email || '',
-        pricingTier: '',
+        pricingTier: customer?.pricingTier || '',
         salesRepId: lead.salesRepId || '',
         customerType: lead.customerType || '',
       });
@@ -1478,6 +1478,9 @@ export default function Spotlight() {
       }
       if (fixDataFields.email.trim() && fixDataFields.email.trim() !== (lead.email || '')) {
         updates.email = fixDataFields.email.trim();
+      }
+      if (fixDataFields.pricingTier && fixDataFields.pricingTier !== (cust?.pricingTier || '')) {
+        updates.pricingTier = fixDataFields.pricingTier;
       }
       if (fixDataFields.customerType && fixDataFields.customerType !== (lead.customerType || '')) {
         updates.customerType = fixDataFields.customerType;
@@ -3948,7 +3951,10 @@ export default function Spotlight() {
                     ) : (
                       <Select 
                         onValueChange={(value) => {
-                          apiRequest('PUT', `/api/customers/${customer.id}`, { pricingTier: value })
+                          const pricingEndpoint = task.isLeadTask && task.leadId
+                            ? `/api/leads/${task.leadId}`
+                            : `/api/customers/${customer.id}`;
+                          apiRequest('PUT', pricingEndpoint, { pricingTier: value })
                             .then(() => {
                               toast({ title: `Pricing set to ${value}` });
                               queryClient.invalidateQueries({ queryKey: ['/api/spotlight/current'] });
