@@ -555,7 +555,7 @@ class SpotlightEngine {
     try {
       // Check spotlight_events for completed tasks TODAY that involve any form of customer/lead contact
       // Comprehensive list of outcomes that indicate contact was made
-      const contactOutcomesArray = ['email_sent','called','connected','voicemail','quoted','followed_up','sent_content','sent_email','sent','replied','qualified'];
+      const contactOutcomesList = sql.raw(`ARRAY['email_sent','called','connected','voicemail','quoted','followed_up','sent_content','sent_email','sent','replied','qualified']`);
       const completedToday = await db
         .select({ 
           customerId: spotlightEvents.customerId
@@ -566,8 +566,8 @@ class SpotlightEngine {
             gte(spotlightEvents.createdAt, today),
             eq(spotlightEvents.eventType, 'completed'),
             or(
-              sql`${spotlightEvents.metadata}->>'outcome' = ANY(${contactOutcomesArray}::text[])`,
-              sql`${spotlightEvents.metadata}->>'outcomeId' = ANY(${contactOutcomesArray}::text[])`
+              sql`${spotlightEvents.metadata}->>'outcome' = ANY(${contactOutcomesList})`,
+              sql`${spotlightEvents.metadata}->>'outcomeId' = ANY(${contactOutcomesList})`
             )
           )
         );

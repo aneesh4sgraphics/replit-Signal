@@ -57,12 +57,16 @@ interface BounceInfo {
 
 // Patterns that directly name the bounced address in context — checked first for precision.
 const CONTEXTUAL_BOUNCE_PATTERNS = [
-  // "Your message wasn't delivered to foo@bar.com because..."
-  /your message wasn't delivered to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
-  // "Your message to foo@bar.com couldn't be delivered"
-  /your message to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\s+couldn't be delivered/i,
+  // "Your message wasn't / wasn't delivered to foo@bar.com because..."
+  /your message (?:wasn[''\u2019]t|was not) delivered to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
+  // "Your message to foo@bar.com couldn't / couldn't be delivered"
+  /your message to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\s+(?:couldn[''\u2019]t|could not) be delivered/i,
   // "Delivery has failed to these recipients or groups:\n foo@bar.com"
   /delivery has failed to these recipients or groups:[\s\S]{0,200}?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
+  // "The email account that you tried to reach does not exist"  — email is then on a separate line
+  /tried to reach\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
+  // Generic: "to: foo@bar.com" in delivery-status plain text sections
+  /^to:\s*([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/im,
 ];
 
 function extractBouncedEmails(body: string, subject: string, ourEmail: string): BounceInfo[] {
@@ -324,6 +328,11 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
     console.log(`[Bounce Detector] Found ${messageList.data.messages.length} potential bounce messages`);
     
     let bouncesDetected = 0;
+    let skippedAlreadyProcessed = 0;
+    let skippedNotBounce = 0;
+    let skippedNoEmailExtracted = 0;
+    let skippedNoRecord = 0;
+    let skippedExistingBounce = 0;
     
     for (const msgInfo of messageList.data.messages) {
       if (!msgInfo.id) continue;
@@ -334,6 +343,7 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
         .limit(1);
       
       if (existing.length > 0) {
+        skippedAlreadyProcessed++;
         continue;
       }
       
@@ -349,38 +359,75 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
         const subjectHeader = headers.find(h => h.name?.toLowerCase() === 'subject')?.value || '';
         const dateHeader = headers.find(h => h.name?.toLowerCase() === 'date')?.value || '';
         
-        let bodyText = '';
-        const payload = message.data.payload;
-        if (payload?.body?.data) {
-          bodyText = Buffer.from(payload.body.data, 'base64').toString('utf-8');
-        } else if (payload?.parts) {
-          for (const part of payload.parts) {
-            if (part.mimeType === 'text/plain' && part.body?.data) {
-              bodyText = Buffer.from(part.body.data, 'base64').toString('utf-8');
-              break;
-            }
+        // Recursively collect all text parts and delivery-status parts
+        type MimePart = gmail_v1.Schema$MessagePart;
+        function collectParts(part: MimePart, plain: string[], html: string[], deliveryStatus: string[]): void {
+          if (part.mimeType === 'text/plain' && part.body?.data) {
+            plain.push(Buffer.from(part.body.data, 'base64').toString('utf-8'));
+          } else if (part.mimeType === 'text/html' && part.body?.data) {
+            const raw = Buffer.from(part.body.data, 'base64').toString('utf-8');
+            html.push(raw.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim());
+          } else if (part.mimeType === 'message/delivery-status' && part.body?.data) {
+            deliveryStatus.push(Buffer.from(part.body.data, 'base64').toString('utf-8'));
           }
-          if (!bodyText) {
-            for (const part of payload.parts) {
-              if (part.mimeType === 'text/html' && part.body?.data) {
-                const html = Buffer.from(part.body.data, 'base64').toString('utf-8');
-                bodyText = html.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim();
-                break;
-              }
-            }
+          if (part.parts) {
+            for (const child of part.parts) collectParts(child, plain, html, deliveryStatus);
           }
         }
+
+        const plainParts: string[] = [];
+        const htmlParts: string[] = [];
+        const deliveryStatusParts: string[] = [];
+        const payload = message.data.payload;
+        if (payload?.body?.data) {
+          plainParts.push(Buffer.from(payload.body.data, 'base64').toString('utf-8'));
+        }
+        if (payload?.parts) {
+          for (const part of payload.parts) collectParts(part, plainParts, htmlParts, deliveryStatusParts);
+        }
+
+        // Extract Final-Recipient from delivery-status for precision
+        let finalRecipient: string | null = null;
+        for (const ds of deliveryStatusParts) {
+          const match = /Final-Recipient:\s*rfc822;\s*([^\s\r\n]+)/i.exec(ds);
+          if (match?.[1]) { finalRecipient = match[1].trim().toLowerCase(); break; }
+        }
+
+        const bodyText = plainParts.join('\n') || htmlParts.join('\n');
         
+        console.log(`[Bounce Detector] Message ${msgInfo.id}: from="${fromHeader.substring(0, 60)}" subject="${subjectHeader.substring(0, 60)}"`);
+
         if (!isBounceMessage(fromHeader, subjectHeader, bodyText)) {
+          console.log(`[Bounce Detector]   → SKIP: not classified as bounce`);
+          skippedNotBounce++;
           continue;
         }
         
-        const bouncedEmailsFound = extractBouncedEmails(bodyText, subjectHeader, userEmail);
+        let bouncedEmailsFound = extractBouncedEmails(bodyText, subjectHeader, userEmail);
+
+        // If body parsing found nothing, use the Final-Recipient from delivery-status (most reliable)
+        if (bouncedEmailsFound.length === 0 && finalRecipient) {
+          const ourNorm = normalizeEmail(userEmail);
+          const frNorm = normalizeEmail(finalRecipient);
+          if (frNorm !== ourNorm) {
+            bouncedEmailsFound = [{ bouncedEmail: finalRecipient, originalSubject: subjectHeader, bounceReason: 'Address rejected or does not exist' }];
+          }
+        }
+
+        console.log(`[Bounce Detector]   → IS bounce. finalRecipient=${finalRecipient ?? 'none'}, extracted emails: [${bouncedEmailsFound.map(b => b.bouncedEmail).join(', ')}]`);
         
+        if (bouncedEmailsFound.length === 0) {
+          skippedNoEmailExtracted++;
+          console.log(`[Bounce Detector]   → SKIP: no email extracted from body or delivery-status`);
+          continue;
+        }
+
         for (const bounce of bouncedEmailsFound) {
           const match = await matchEmailToRecord(bounce.bouncedEmail);
+          console.log(`[Bounce Detector]   → matchEmailToRecord(${bounce.bouncedEmail}): type=${match.type}`);
           
           if (match.type === 'none') {
+            skippedNoRecord++;
             continue;
           }
           
@@ -393,6 +440,7 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
             .limit(1);
           
           if (existingBounce.length > 0) {
+            skippedExistingBounce++;
             continue;
           }
           
@@ -421,7 +469,7 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
       }
     }
     
-    console.log(`[Bounce Detector] Detected ${bouncesDetected} new bounced emails`);
+    console.log(`[Bounce Detector] Scan complete — stored: ${bouncesDetected}, skipped (already processed): ${skippedAlreadyProcessed}, skipped (not bounce): ${skippedNotBounce}, skipped (no email extracted): ${skippedNoEmailExtracted}, skipped (no matching record): ${skippedNoRecord}, skipped (existing bounce): ${skippedExistingBounce}`);
     return bouncesDetected;
     
   } catch (error) {
