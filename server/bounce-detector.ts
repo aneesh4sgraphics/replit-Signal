@@ -55,6 +55,16 @@ interface BounceInfo {
   bounceReason?: string;
 }
 
+// Patterns that directly name the bounced address in context — checked first for precision.
+const CONTEXTUAL_BOUNCE_PATTERNS = [
+  // "Your message wasn't delivered to foo@bar.com because..."
+  /your message wasn't delivered to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
+  // "Your message to foo@bar.com couldn't be delivered"
+  /your message to\s+([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})\s+couldn't be delivered/i,
+  // "Delivery has failed to these recipients or groups:\n foo@bar.com"
+  /delivery has failed to these recipients or groups:[\s\S]{0,200}?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/i,
+];
+
 function extractBouncedEmails(body: string, subject: string, ourEmail: string): BounceInfo[] {
   const results: BounceInfo[] = [];
   const ourEmailNormalized = normalizeEmail(ourEmail);
@@ -73,40 +83,47 @@ function extractBouncedEmails(body: string, subject: string, ourEmail: string): 
     'google.com',
   ]);
 
-  for (const pattern of EMAIL_EXTRACTION_PATTERNS) {
-    const regex = new RegExp(pattern.source, pattern.flags);
-    let match;
-    while ((match = regex.exec(body)) !== null) {
-      const email = match[1].toLowerCase().trim();
-      const normalized = normalizeEmail(email);
-      
-      if (seenEmails.has(normalized)) continue;
-      if (normalized === ourEmailNormalized) continue;
-      
-      const localPart = email.split('@')[0];
-      const domain = email.split('@')[1];
-      
-      if (systemEmails.has(localPart)) continue;
-      if (domainBlacklist.has(domain)) continue;
-      
-      seenEmails.add(normalized);
-      
-      let reason: string | undefined;
-      if (/(?:unknown|not found|does not exist)/i.test(body)) {
-        reason = 'Address does not exist';
-      } else if (/(?:rejected|refused)/i.test(body)) {
-        reason = 'Address rejected';
-      } else if (/(?:disabled|suspended)/i.test(body)) {
-        reason = 'Account disabled or suspended';
-      } else if (/(?:mailbox full|over quota)/i.test(body)) {
-        reason = 'Mailbox full';
+  const cleanedSubject = subject.replace(/^(?:Re:|Fwd:|Delivery Status Notification.*)/i, '').trim();
+
+  function addEmail(rawEmail: string) {
+    const email = rawEmail.toLowerCase().trim();
+    const normalized = normalizeEmail(email);
+    if (seenEmails.has(normalized)) return;
+    if (normalized === ourEmailNormalized) return;
+    const localPart = email.split('@')[0];
+    const domain = email.split('@')[1];
+    if (systemEmails.has(localPart)) return;
+    if (!domain || domainBlacklist.has(domain)) return;
+    seenEmails.add(normalized);
+
+    let reason: string | undefined;
+    if (/(?:unknown|not found|does not exist)/i.test(body)) {
+      reason = 'Address does not exist';
+    } else if (/(?:rejected|refused)/i.test(body)) {
+      reason = 'Address rejected';
+    } else if (/(?:disabled|suspended)/i.test(body)) {
+      reason = 'Account disabled or suspended';
+    } else if (/(?:mailbox full|over quota)/i.test(body)) {
+      reason = 'Mailbox full';
+    }
+
+    results.push({ bouncedEmail: email, originalSubject: cleanedSubject, bounceReason: reason });
+  }
+
+  // 1. Try contextual patterns first — these are the most precise
+  for (const pattern of CONTEXTUAL_BOUNCE_PATTERNS) {
+    const match = pattern.exec(body);
+    if (match?.[1]) addEmail(match[1]);
+  }
+
+  // 2. Fall back to general email extraction if nothing found yet
+  if (results.length === 0) {
+    for (const pattern of EMAIL_EXTRACTION_PATTERNS) {
+      const regex = new RegExp(pattern.source, pattern.flags);
+      let match;
+      while ((match = regex.exec(body)) !== null) {
+        if (match[1]) addEmail(match[1]);
       }
-      
-      results.push({
-        bouncedEmail: email,
-        originalSubject: subject.replace(/^(?:Re:|Fwd:|Delivery Status Notification.*)/i, '').trim(),
-        bounceReason: reason,
-      });
     }
   }
   
@@ -290,12 +307,13 @@ export async function scanForBouncedEmails(userId: string): Promise<number> {
     thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
     const dateStr = thirtyDaysAgo.toISOString().split('T')[0].replace(/-/g, '/');
     
-    const query = `from:(mailer-daemon OR postmaster OR "mail delivery subsystem") after:${dateStr}`;
+    const query = `("couldn't be delivered" OR "address not found" OR "delivery has failed" OR "wasn't delivered" OR "DSN" OR from:mailer-daemon OR from:postmaster) after:${dateStr}`;
     
     const messageList = await gmail.users.messages.list({
       userId: 'me',
       q: query,
       maxResults: 100,
+      includeSpamTrash: true,
     });
     
     if (!messageList.data.messages || messageList.data.messages.length === 0) {
