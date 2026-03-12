@@ -428,7 +428,6 @@ export async function getPendingBounces(userId?: string): Promise<any[]> {
     leadId: bouncedEmails.leadId,
     matchType: bouncedEmails.matchType,
     status: bouncedEmails.status,
-    customerName: customers.company,
     customerFirstName: customers.firstName,
     customerLastName: customers.lastName,
     customerEmail: customers.email,
@@ -452,8 +451,7 @@ export async function getPendingBounces(userId?: string): Promise<any[]> {
 
   return bounces.map(b => ({
     ...b,
-    displayName: b.customerName
-      || `${b.customerFirstName || ''} ${b.customerLastName || ''}`.trim()
+    displayName: `${b.customerFirstName || ''} ${b.customerLastName || ''}`.trim()
       || b.customerEmail
       || null,
   }));
