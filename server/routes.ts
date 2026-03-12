@@ -27759,12 +27759,23 @@ Analyze this bounced email and provide insights in JSON format:
     }
   });
 
-  // Trigger bounce scan manually (admin only)
+  // Trigger bounce scan manually (admin only) — POST and GET both supported
   app.post("/api/admin/trigger-bounce-scan", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const userId = req.user?.claims?.sub || req.user?.id;
       const count = await scanForBouncedEmails(userId);
       res.json({ success: true, bouncesFound: count });
+    } catch (error) {
+      console.error("[Admin] Bounce scan error:", error);
+      res.status(500).json({ error: "Bounce scan failed" });
+    }
+  });
+
+  app.get("/api/admin/trigger-bounce-scan", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const count = await scanForBouncedEmails(userId);
+      res.json({ success: true, found: count });
     } catch (error) {
       console.error("[Admin] Bounce scan error:", error);
       res.status(500).json({ error: "Bounce scan failed" });

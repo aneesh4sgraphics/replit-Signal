@@ -417,6 +417,8 @@ export default function Spotlight() {
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
   const [mergeFieldSelections, setMergeFieldSelections] = useState<Record<string, string>>({});
   const [mergeEmailSelections, setMergeEmailSelections] = useState<{ primary: string; secondary: string }>({ primary: '', secondary: '' });
+  const [bounceScanState, setBounceScanState] = useState<'idle' | 'scanning' | 'done'>('idle');
+  const [bounceScanResult, setBounceScanResult] = useState<number | null>(null);
   const [showProfilePanel, setShowProfilePanel] = useState(false);
   const [profileEditMode, setProfileEditMode] = useState(false);
   const [editingWebsite, setEditingWebsite] = useState(false);
@@ -2152,6 +2154,38 @@ export default function Spotlight() {
           {reason && (
             <div className="bg-[#F7F7F7] rounded-lg px-3 py-2 mb-6 inline-block">
               <span className="text-xs font-mono text-[#999999]">{reason}</span>
+            </div>
+          )}
+
+          {workTypeFocus === 'bounced_email' && (
+            <div className="mb-6">
+              <Button
+                onClick={async () => {
+                  setBounceScanState('scanning');
+                  setBounceScanResult(null);
+                  try {
+                    const res = await fetch('/api/admin/trigger-bounce-scan');
+                    const data = await res.json();
+                    setBounceScanResult(data.found ?? 0);
+                    setBounceScanState('done');
+                    refetch();
+                  } catch {
+                    setBounceScanState('idle');
+                  }
+                }}
+                disabled={bounceScanState === 'scanning'}
+                className="bg-amber-500 hover:bg-amber-600 text-white"
+              >
+                <RefreshCw className={`w-4 h-4 mr-2 ${bounceScanState === 'scanning' ? 'animate-spin' : ''}`} />
+                {bounceScanState === 'scanning' ? 'Scanning...' : 'Scan Gmail for Bounced Emails'}
+              </Button>
+              {bounceScanState === 'done' && bounceScanResult !== null && (
+                <p className="text-sm text-[#666666] mt-2">
+                  {bounceScanResult > 0
+                    ? `Found ${bounceScanResult} bounced email${bounceScanResult === 1 ? '' : 's'}`
+                    : 'No new bounces found'}
+                </p>
+              )}
             </div>
           )}
 
