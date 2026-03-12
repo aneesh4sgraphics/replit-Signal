@@ -168,6 +168,7 @@ import { APP_CONFIG, isAdminEmail, getUserRoleFromEmail, getAccessibleTiers, deb
 import { searchNotionProducts } from "./notion";
 import * as googleCalendar from "./google-calendar-client";
 import { autoTrackQuoteSent, autoTrackPriceListSent, autoTrackSampleShipped, findCustomerIdByEmail, findCustomerIdByName } from "./activity-tracker";
+import { scanForBouncedEmails } from "./bounce-detector";
 
 // Simple in-memory cache for frequently accessed data
 const cache = new Map<string, { data: any; timestamp: number }>();
@@ -27755,6 +27756,18 @@ Analyze this bounced email and provide insights in JSON format:
     } catch (error) {
       console.error("Error exporting database:", error);
       res.status(500).json({ error: "Failed to export database" });
+    }
+  });
+
+  // Trigger bounce scan manually (admin only)
+  app.post("/api/admin/trigger-bounce-scan", isAuthenticated, requireAdmin, async (req: any, res) => {
+    try {
+      const userId = req.user?.claims?.sub || req.user?.id;
+      const count = await scanForBouncedEmails(userId);
+      res.json({ success: true, bouncesFound: count });
+    } catch (error) {
+      console.error("[Admin] Bounce scan error:", error);
+      res.status(500).json({ error: "Bounce scan failed" });
     }
   });
 
