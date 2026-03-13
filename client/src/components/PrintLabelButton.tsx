@@ -9,6 +9,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/comp
 import { RadioGroup, RadioGroupItem } from "@/components/ui/radio-group";
 import { useToast } from "@/hooks/use-toast";
 import { apiRequest } from "@/lib/queryClient";
+import { useAuth } from "@/hooks/useAuth";
 import { Printer, Loader2, X, Users } from "lucide-react";
 
 export interface CustomerAddress {
@@ -63,10 +64,12 @@ export function LabelQueueProvider({ children }: { children: React.ReactNode }) 
   const [dialogOpen, setDialogOpen] = useState(false);
   const queryClient = useQueryClient();
   const { toast } = useToast();
+  const { isAuthenticated } = useAuth();
 
   const { data: queue = [], isLoading } = useQuery<ServerQueueItem[]>({
     queryKey: ['/api/label-queue'],
     refetchInterval: 30000,
+    enabled: isAuthenticated,
   });
 
   const invalidate = () => queryClient.invalidateQueries({ queryKey: ['/api/label-queue'] });

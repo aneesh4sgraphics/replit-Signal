@@ -77,6 +77,14 @@ function createSessionMiddleware(): ReturnType<typeof session> {
     ttl: Math.floor(SESSION_TTL / 1000),
     tableName: "sessions",
     pruneSessionInterval: 60 * 15,
+    errorLog: (err: Error) => {
+      console.error("[Auth] Session store error:", err.message);
+    },
+  });
+
+  // Log session store errors so we can diagnose production auth issues
+  (sessionStore as any).on?.('error', (err: Error) => {
+    console.error("[Auth] Session store event error:", err.message);
   });
 
   const isProduction = process.env.NODE_ENV === 'production' || !!process.env.REPLIT_DEPLOYMENT;

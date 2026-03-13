@@ -2,7 +2,6 @@ import { QueryClient, QueryFunction } from "@tanstack/react-query";
 
 const appLoadTime = Date.now();
 let globalAuthFailed = false;
-let autoLogoutTriggered = false;
 
 // Export function to check if auth has globally failed (for components to stop polling)
 export function isAuthFailed(): boolean {
@@ -12,40 +11,7 @@ export function isAuthFailed(): boolean {
 // Reset auth failed state (called after successful login)
 export function resetAuthFailed(): void {
   globalAuthFailed = false;
-  autoLogoutTriggered = false;
 }
-
-// Redirect to logout — clears the session server-side then sends user to the login page
-function triggerAutoLogout(): void {
-  if (autoLogoutTriggered) return;
-  autoLogoutTriggered = true;
-  globalAuthFailed = true;
-  // Small delay lets the current render cycle finish cleanly
-  setTimeout(() => {
-    window.location.href = '/api/logout';
-  }, 300);
-}
-
-function checkLoginGracePeriod(): boolean {
-  // Grace period after login
-  const authTimestamp = sessionStorage.getItem('authTimestamp');
-  if (authTimestamp) {
-    const loginTime = parseInt(authTimestamp, 10);
-    const gracePeriod = 15000; // Extended to 15 seconds for tab transitions
-    if (Date.now() - loginTime < gracePeriod) {
-      return true;
-    }
-  }
-  
-  // Grace period for initial app load (8 seconds)
-  // This prevents "session expired" toast during initial page load race conditions
-  if (Date.now() - appLoadTime < 8000) {
-    return true;
-  }
-  
-  return false;
-}
-
 
 export class ApiError extends Error {
   status?: number;
@@ -82,11 +48,6 @@ async function throwIfResNotOk(res: Response) {
       const parsed = JSON.parse(text);
       serverMessage = parsed.error || parsed.message || parsed.details || null;
     } catch {}
-
-    if (res.status === 401) {
-      console.log('[Auth] Session expired (mutation) — auto-logout triggered');
-      triggerAutoLogout();
-    }
 
     let message: string;
     if (res.status === 401) {
@@ -167,21 +128,18 @@ export const getQueryFn: <T>(options: {
       }
 
       if (res.status === 401 || res.status === 403) {
-        const now = Date.now();
-        const isInGracePeriod = checkLoginGracePeriod();
-        
-        if (isInGracePeriod && res.status === 401) {
-          throw new ApiError("Session initializing", {
-            status: res.status,
-            statusText: res.statusText,
-            url: res.url
-          });
-        }
-        
-        // On 401 outside the grace period, auto-logout and redirect to login
         if (res.status === 401) {
-          console.log('[Auth] Session expired — auto-logout triggered');
-          triggerAutoLogout();
+          // Mark auth as globally failed to stop retry loops
+          globalAuthFailed = true;
+          
+          // Instead of auto-logging out (which destroys the session and creates loops),
+          // invalidate the auth query so useAuth can detect the session state.
+          // If the session is truly gone, useAuth returns null → Router shows login page.
+          // If it was a transient error, the re-check will succeed and everything resumes.
+          setTimeout(() => {
+            // Re-check auth state — don't redirect to /api/logout which destroys the session
+            queryClient.invalidateQueries({ queryKey: ['/api/auth/user'] });
+          }, 200);
         }
 
         const message = res.status === 401

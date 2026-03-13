@@ -1,4 +1,5 @@
 import { useQuery } from "@tanstack/react-query";
+import { resetAuthFailed } from "@/lib/queryClient";
 
 interface AuthUser {
   id: string;
@@ -28,7 +29,16 @@ async function fetchAuthUser(): Promise<AuthUser | null> {
     throw new Error(`Auth check failed: ${res.status}`);
   }
 
-  return res.json();
+  const user = await res.json();
+
+  // Record successful auth timestamp so grace periods work correctly
+  // and reset the globalAuthFailed flag so background queries can resume
+  if (user) {
+    sessionStorage.setItem('authTimestamp', String(Date.now()));
+    resetAuthFailed();
+  }
+
+  return user;
 }
 
 export function useAuth() {
