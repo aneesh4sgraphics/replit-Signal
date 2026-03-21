@@ -82,13 +82,12 @@ if (process.env.REPLIT_DOMAINS) {
 const app = express();
 
 // Trust proxy for production deployments behind Replit's proxy/CDN
-// This is critical for:
-// - secure cookies (X-Forwarded-Proto header)
-// - rate limiting (X-Forwarded-For header for real client IP)
-// - correct req.protocol and req.ip values
+// Replit routes traffic through 2-3 proxy hops (CDN → Google Cloud LB → server).
+// Using 'true' trusts all X-Forwarded-For hops and exposes the real client IP,
+// which is critical for per-user rate limiting, secure cookies, and req.ip.
 if (isProduction) {
-  app.set('trust proxy', 1);
-  console.log('[Boot] trust proxy enabled for production');
+  app.set('trust proxy', true);
+  console.log('[Boot] trust proxy enabled for production (all hops)');
 }
 
 // Minimal public diagnostic endpoint — intentionally before auth middleware for debugging auth failures.
@@ -211,13 +210,21 @@ app.use((req, res, next) => {
   next();
 });
 
-// General rate limiter for all /api routes
+// General rate limiter for all /api routes.
+// This CRM makes 15+ API calls per page load plus background polling (label-queue every 30s),
+// so the limit must be generous enough for multiple active users without false positives.
+// With trust proxy=true, this is now correctly scoped per real client IP.
 const generalLimiter = rateLimit({
   windowMs: 60 * 1000, // 1 minute
-  max: 100, // 100 requests per minute per IP
+  max: 500, // 500 requests per minute per IP (~8 req/sec, comfortably above CRM page-load bursts)
   message: { error: 'Too many requests, please slow down and try again shortly' },
   standardHeaders: true,
   legacyHeaders: false,
+  skip: (req) => {
+    // Skip rate limiting for the auth check poll — it fires on every render cycle
+    // and should never trigger a rate limit error
+    return req.path === '/api/auth/user';
+  },
 });
 app.use('/api', generalLimiter);
 
