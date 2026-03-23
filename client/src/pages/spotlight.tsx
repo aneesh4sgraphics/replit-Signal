@@ -103,6 +103,8 @@ import {
   Moon,
   UserCheck,
   UserX as UserXIcon,
+  Inbox,
+  ClipboardCopy,
 } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from "@/components/ui/tooltip";
 import { SiShopify } from "react-icons/si";
@@ -432,6 +434,14 @@ export default function Spotlight() {
   const [missingFieldsToFix, setMissingFieldsToFix] = useState<string[]>([]);
   const [fixDataAutoComplete, setFixDataAutoComplete] = useState(false);
   const [availableEmails, setAvailableEmails] = useState<string[]>([]);
+  const [inboxSearchLoading, setInboxSearchLoading] = useState(false);
+  const [inboxSearchResult, setInboxSearchResult] = useState<{
+    found: boolean; phone?: string | null; address?: string | null; company?: string | null;
+    jobTitle?: string | null; confidence?: string; summary?: string;
+    emailsSearched?: number; sources?: { subject: string; from: string; date: string }[];
+    reason?: string;
+  } | null>(null);
+  const [inboxSearchWebSuggest, setInboxSearchWebSuggest] = useState(false);
   const [showMergeModal, setShowMergeModal] = useState(false);
   const [mergeData, setMergeData] = useState<{ sourceCustomer: any; targetCustomer: any; duplicateIds: string[] } | null>(null);
   const [mergeTarget, setMergeTarget] = useState<string | null>(null);
@@ -664,6 +674,9 @@ export default function Spotlight() {
     setBouncePersonPhone('');
     setBouncePersonTitle('');
     setBounceResolutionDone(null);
+    setInboxSearchLoading(false);
+    setInboxSearchResult(null);
+    setInboxSearchWebSuggest(false);
   }, [currentTaskId]);
   
   // Auto-trigger typo check when a bounce task card is displayed
@@ -4448,6 +4461,150 @@ export default function Spotlight() {
                   <p className="text-[11px] text-slate-400 text-center mt-1.5">
                     Fix missing fields to complete this task
                   </p>
+
+                  {/* Check Inbox Button */}
+                  {(() => {
+                    const isLead = task.isLeadTask || task.customerId?.startsWith('lead-');
+                    const contactEmail = isLead ? task.lead?.email : customer?.email;
+                    const contactName = isLead ? task.lead?.name : (customer ? [customer.firstName, customer.lastName].filter(Boolean).join(' ') : '');
+                    const missingPhone = isLead ? !task.lead?.phone : !customer?.phone;
+                    const missingAddress = !customer?.address;
+                    if (!missingPhone && !missingAddress) return null;
+
+                    const handleInboxSearch = async () => {
+                      if (inboxSearchLoading) return;
+                      setInboxSearchLoading(true);
+                      setInboxSearchResult(null);
+                      setInboxSearchWebSuggest(false);
+                      try {
+                        const res = await apiRequest('POST', '/api/spotlight/inbox-search-contact', {
+                          email: contactEmail || undefined,
+                          name: contactName || undefined,
+                        });
+                        const data = await res.json();
+                        setInboxSearchResult(data);
+                        if (!data.found) setInboxSearchWebSuggest(true);
+                      } catch {
+                        setInboxSearchResult({ found: false, reason: 'Search failed' });
+                        setInboxSearchWebSuggest(true);
+                      } finally {
+                        setInboxSearchLoading(false);
+                      }
+                    };
+
+                    return (
+                      <div className="mt-3 space-y-2">
+                        {!inboxSearchResult && (
+                          <button
+                            onClick={handleInboxSearch}
+                            disabled={inboxSearchLoading}
+                            className="w-full flex items-center justify-center gap-2 px-4 py-2.5 rounded-xl text-sm font-semibold transition-all bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 hover:border-indigo-300 active:scale-[0.98] disabled:opacity-60"
+                          >
+                            {inboxSearchLoading ? (
+                              <><Loader2 className="w-4 h-4 animate-spin" /> Searching inbox...</>
+                            ) : (
+                              <><Inbox className="w-4 h-4" /> Check Inbox for Missing Data</>
+                            )}
+                          </button>
+                        )}
+
+                        {/* Inbox Result - Found */}
+                        {inboxSearchResult?.found && (
+                          <div className="rounded-xl border border-emerald-200 bg-emerald-50 p-3 space-y-2">
+                            <div className="flex items-center gap-1.5 text-emerald-700 font-semibold text-xs">
+                              <CheckCircle2 className="w-3.5 h-3.5" />
+                              Found data in {inboxSearchResult.emailsSearched} email{inboxSearchResult.emailsSearched !== 1 ? 's' : ''}
+                              <span className="ml-auto text-[10px] font-normal text-emerald-600 capitalize">{inboxSearchResult.confidence} confidence</span>
+                            </div>
+                            <div className="grid grid-cols-1 gap-1 text-xs">
+                              {inboxSearchResult.phone && (
+                                <div className="flex items-center gap-2 bg-white rounded-lg px-2 py-1.5 border border-emerald-100">
+                                  <span className="text-slate-500 font-medium w-14 flex-shrink-0">Phone</span>
+                                  <span className="text-slate-800 font-mono font-semibold">{inboxSearchResult.phone}</span>
+                                </div>
+                              )}
+                              {inboxSearchResult.address && (
+                                <div className="flex items-center gap-2 bg-white rounded-lg px-2 py-1.5 border border-emerald-100">
+                                  <span className="text-slate-500 font-medium w-14 flex-shrink-0">Address</span>
+                                  <span className="text-slate-800">{inboxSearchResult.address}</span>
+                                </div>
+                              )}
+                              {inboxSearchResult.company && (
+                                <div className="flex items-center gap-2 bg-white rounded-lg px-2 py-1.5 border border-emerald-100">
+                                  <span className="text-slate-500 font-medium w-14 flex-shrink-0">Company</span>
+                                  <span className="text-slate-800">{inboxSearchResult.company}</span>
+                                </div>
+                              )}
+                              {inboxSearchResult.jobTitle && (
+                                <div className="flex items-center gap-2 bg-white rounded-lg px-2 py-1.5 border border-emerald-100">
+                                  <span className="text-slate-500 font-medium w-14 flex-shrink-0">Title</span>
+                                  <span className="text-slate-800">{inboxSearchResult.jobTitle}</span>
+                                </div>
+                              )}
+                            </div>
+                            {inboxSearchResult.summary && (
+                              <p className="text-[11px] text-emerald-700 italic">{inboxSearchResult.summary}</p>
+                            )}
+                            <button
+                              onClick={() => {
+                                const allMissing: string[] = [];
+                                if (!contactEmail && inboxSearchResult.company) allMissing.push('company');
+                                if (inboxSearchResult.phone) allMissing.push('phone');
+                                if (allMissing.length === 0) allMissing.push('all');
+                                handleFixData(allMissing, true);
+                                setTimeout(() => {
+                                  if (inboxSearchResult.phone) setFixDataFields(f => ({ ...f, phone: inboxSearchResult.phone! }));
+                                  if (inboxSearchResult.company) setFixDataFields(f => ({ ...f, company: inboxSearchResult.company! }));
+                                }, 50);
+                              }}
+                              className="w-full flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-emerald-600 text-white hover:bg-emerald-700 transition-all"
+                            >
+                              <ClipboardCopy className="w-3.5 h-3.5" />
+                              Pre-fill Contact Form
+                            </button>
+                          </div>
+                        )}
+
+                        {/* Inbox Result - Not Found / Web Search Prompt */}
+                        {inboxSearchWebSuggest && (
+                          <div className="rounded-xl border border-amber-200 bg-amber-50 p-3 space-y-2">
+                            <p className="text-xs text-amber-800 font-medium">
+                              {inboxSearchResult?.reason === 'No emails found for this contact'
+                                ? 'No emails with this contact in your inbox.'
+                                : 'Nothing useful found in inbox emails.'}
+                              {' '}Try searching online:
+                            </p>
+                            <div className="flex gap-2">
+                              <a
+                                href={`https://www.google.com/search?q=${encodeURIComponent((contactName || '') + ' ' + (contactEmail?.split('@')[1] || '') + ' phone address')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+                              >
+                                <Globe className="w-3.5 h-3.5 text-blue-500" />
+                                Google
+                              </a>
+                              <a
+                                href={`https://www.facebook.com/search/top?q=${encodeURIComponent(contactName || contactEmail || '')}`}
+                                target="_blank"
+                                rel="noopener noreferrer"
+                                className="flex-1 flex items-center justify-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold bg-white border border-slate-300 text-slate-700 hover:bg-slate-50 transition-all"
+                              >
+                                <Globe className="w-3.5 h-3.5 text-blue-600" />
+                                Facebook
+                              </a>
+                            </div>
+                            <button
+                              onClick={() => { setInboxSearchResult(null); setInboxSearchWebSuggest(false); handleInboxSearch(); }}
+                              className="w-full text-[11px] text-indigo-600 hover:text-indigo-800 font-medium py-1"
+                            >
+                              ↺ Search inbox again
+                            </button>
+                          </div>
+                        )}
+                      </div>
+                    );
+                  })()}
                 </div>
               )}
 

@@ -26416,6 +26416,140 @@ I noticed you've been ordering [current product]. I wanted to mention that many 
     }
   });
 
+  // Inbox Search - find contact data (phone, address, company) from Gmail history
+  app.post("/api/spotlight/inbox-search-contact", isAuthenticated, async (req: any, res) => {
+    try {
+      const userId = req.user?.id;
+      if (!userId) return res.status(401).json({ error: "Not authenticated" });
+
+      const { email, name } = req.body as { email?: string; name?: string };
+      if (!email && !name) return res.status(400).json({ error: "email or name required" });
+
+      // Build Gmail search query
+      const queryParts: string[] = [];
+      if (email) queryParts.push(`from:${email}`, `to:${email}`);
+      if (name && !email) queryParts.push(`"${name}"`);
+      const q = queryParts.join(' OR ');
+
+      // Search Gmail
+      const { default: gmailGoogle } = await import('googleapis').then(m => ({ default: m.google }));
+      const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
+      const xReplitToken = process.env.REPL_IDENTITY ? 'repl ' + process.env.REPL_IDENTITY
+        : process.env.WEB_REPL_RENEWAL ? 'depl ' + process.env.WEB_REPL_RENEWAL : null;
+
+      if (!xReplitToken || !hostname) {
+        return res.json({ found: false, reason: 'Gmail not configured' });
+      }
+
+      const connData = await fetch(`https://${hostname}/api/v2/connection?include_secrets=true&connector_names=google-mail`, {
+        headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken }
+      }).then(r => r.json()).then((d: any) => d.items?.[0]);
+
+      const accessToken = connData?.settings?.access_token || connData?.settings?.oauth?.credentials?.access_token;
+      if (!accessToken) return res.json({ found: false, reason: 'Gmail not connected' });
+
+      const oauth2 = new gmailGoogle.auth.OAuth2();
+      oauth2.setCredentials({ access_token: accessToken });
+      const gmail = gmailGoogle.gmail({ version: 'v1', auth: oauth2 });
+
+      const listRes = await gmail.users.messages.list({ userId: 'me', q, maxResults: 8 });
+      const messageIds = listRes.data.messages || [];
+
+      if (messageIds.length === 0) {
+        return res.json({ found: false, reason: 'No emails found for this contact' });
+      }
+
+      // Fetch full bodies of up to 5 messages
+      const bodies: string[] = [];
+      const sources: { subject: string; from: string; date: string }[] = [];
+
+      for (const msg of messageIds.slice(0, 5)) {
+        try {
+          const fullMsg = await gmail.users.messages.get({ userId: 'me', id: msg.id!, format: 'full' });
+          const headers = fullMsg.data.payload?.headers || [];
+          const getH = (n: string) => headers.find((h: any) => h.name === n)?.value || '';
+
+          let body = '';
+          const payload = fullMsg.data.payload;
+          if (payload?.body?.data) {
+            body = Buffer.from(payload.body.data, 'base64').toString('utf-8');
+          } else if (payload?.parts) {
+            const textPart = payload.parts.find((p: any) => p.mimeType === 'text/plain');
+            const htmlPart = payload.parts.find((p: any) => p.mimeType === 'text/html');
+            const part = textPart || htmlPart;
+            if (part?.body?.data) {
+              body = Buffer.from(part.body.data, 'base64').toString('utf-8');
+            }
+          }
+
+          if (body) {
+            // Strip HTML tags and truncate
+            const clean = body.replace(/<[^>]+>/g, ' ').replace(/\s+/g, ' ').trim().slice(0, 1200);
+            bodies.push(clean);
+            sources.push({ subject: getH('Subject'), from: getH('From'), date: getH('Date') });
+          }
+        } catch { /* skip failed messages */ }
+      }
+
+      if (bodies.length === 0) {
+        return res.json({ found: false, reason: 'Emails found but body could not be read' });
+      }
+
+      // Use AI to extract contact data from email content
+      const openaiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      if (!openaiKey) return res.json({ found: false, reason: 'AI not configured' });
+
+      const OpenAI = (await import('openai')).default;
+      const openai = new OpenAI({ apiKey: openaiKey });
+
+      const contactHint = name ? `Contact name: ${name}. Email: ${email || 'unknown'}.` : `Contact email: ${email}.`;
+      const prompt = `You are extracting contact information from email threads.
+${contactHint}
+Below are excerpts from email conversations with this contact. Extract any of the following if present:
+- phone number (mobile or office)
+- physical address (street, city, state, zip)
+- company name (if different from email domain)
+- job title / role
+
+Email excerpts:
+${bodies.map((b, i) => `--- Email ${i + 1} ---\n${b}`).join('\n\n')}
+
+Return ONLY a JSON object with these keys (use null for not found):
+{ "phone": string|null, "address": string|null, "company": string|null, "jobTitle": string|null, "confidence": "high"|"medium"|"low", "summary": string }`;
+
+      const aiRes = await openai.chat.completions.create({
+        model: 'gpt-4o-mini',
+        messages: [{ role: 'user', content: prompt }],
+        response_format: { type: 'json_object' },
+        max_tokens: 400,
+        temperature: 0.1
+      });
+
+      let extracted: { phone: string | null; address: string | null; company: string | null; jobTitle: string | null; confidence: string; summary: string } = {
+        phone: null, address: null, company: null, jobTitle: null, confidence: 'low', summary: 'No data extracted'
+      };
+      try {
+        extracted = JSON.parse(aiRes.choices[0]?.message?.content || '{}');
+      } catch { /* keep defaults */ }
+
+      const hasData = !!(extracted.phone || extracted.address || extracted.company || extracted.jobTitle);
+      return res.json({
+        found: hasData,
+        phone: extracted.phone,
+        address: extracted.address,
+        company: extracted.company,
+        jobTitle: extracted.jobTitle,
+        confidence: extracted.confidence,
+        summary: extracted.summary,
+        emailsSearched: sources.length,
+        sources
+      });
+    } catch (error: any) {
+      console.error('[InboxSearch] Error:', error);
+      res.json({ found: false, reason: error.message || 'Search failed' });
+    }
+  });
+
   // Bounce Investigation - Get bounce details with AI research
   app.get("/api/bounce-investigation/:bounceId", isAuthenticated, async (req: any, res) => {
     try {
