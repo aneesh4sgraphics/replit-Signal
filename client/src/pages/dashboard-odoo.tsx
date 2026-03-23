@@ -212,7 +212,8 @@ export default function Dashboard() {
   const { data: recentWinsData } = useQuery<{ wins: RecentWin[]; period: string }>({
     queryKey: ['/api/dashboard/recent-wins'],
     retry: 1,
-    staleTime: 5 * 60 * 1000,
+    staleTime: 60 * 1000,
+    refetchInterval: 3 * 60 * 1000,
   });
 
   interface OutboundKit {
