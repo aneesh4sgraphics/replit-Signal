@@ -425,7 +425,7 @@ export default function Spotlight() {
   const [bounceTypoResult, setBounceTypoResult] = useState<{ suggestion: string | null; confidence: number; reasoning: string } | null>(null);
   const [bounceTypoLoading, setBounceTypoLoading] = useState(false);
   const [bounceTypoCorrected, setBounceTypoCorrected] = useState('');
-  const [bounceCompanyResult, setBounceCompanyResult] = useState<{ verdict: string; explanation: string; websiteUrl?: string; linkedinSearchUrl: string; googleMapsUrl: string } | null>(null);
+  const [bounceCompanyResult, setBounceCompanyResult] = useState<{ verdict: string; explanation: string; evidence?: string[]; confidence?: number; dataNote?: string; websiteUrl?: string; linkedinSearchUrl: string; googleMapsUrl: string } | null>(null);
   const [bounceCompanyLoading, setBounceCompanyLoading] = useState(false);
   const [bouncePersonName, setBouncePersonName] = useState('');
   const [bouncePersonEmail, setBouncePersonEmail] = useState('');
@@ -4413,7 +4413,8 @@ export default function Spotlight() {
                   if (bounceTypoResult) return;
                   setBounceTypoLoading(true);
                   try {
-                    const data = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-typo`, {});
+                    const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-typo`, {});
+                    const data = await res.json();
                     setBounceTypoResult(data);
                     if (data.suggestion) setBounceTypoCorrected(data.suggestion);
                     else setBounceTypoCorrected(bouncedEmail);
@@ -4426,7 +4427,8 @@ export default function Spotlight() {
                   if (bounceCompanyResult) return;
                   setBounceCompanyLoading(true);
                   try {
-                    const data = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-company`, {});
+                    const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-company`, {});
+                    const data = await res.json();
                     setBounceCompanyResult(data);
                   } catch { setBounceCompanyResult({ verdict: 'uncertain', explanation: 'Check failed — use links below.', linkedinSearchUrl: '', googleMapsUrl: '' }); }
                   finally { setBounceCompanyLoading(false); }
@@ -4435,8 +4437,9 @@ export default function Spotlight() {
                 const handleFixEmail = async () => {
                   if (!bounceTypoCorrected.trim()) return;
                   try {
-                    const data = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/fix-email`, { correctedEmail: bounceTypoCorrected });
-                    setBounceResolutionDone({ snapshot: data.outreachHistorySnapshot });
+                    const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/fix-email`, { correctedEmail: bounceTypoCorrected });
+                    const data = await res.json();
+                    setBounceResolutionDone({ snapshot: data.outreachHistorySnapshot || null });
                     toast({ title: 'Email Fixed', description: `Updated to ${bounceTypoCorrected}${data.odooUpdated ? ' and synced to Odoo' : ''}` });
                     setTimeout(() => handleOutcome('keep'), 1500);
                   } catch (err: any) { toast({ title: 'Error', description: err.message, variant: 'destructive' }); }
@@ -4447,10 +4450,11 @@ export default function Spotlight() {
                     toast({ title: 'Required', description: 'Name and email are required', variant: 'destructive' }); return;
                   }
                   try {
-                    const data = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/replace-contact`, {
+                    const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/replace-contact`, {
                       name: bouncePersonName, email: bouncePersonEmail, phone: bouncePersonPhone, title: bouncePersonTitle
                     });
-                    setBounceResolutionDone({ snapshot: data.outreachHistorySnapshot });
+                    const data = await res.json();
+                    setBounceResolutionDone({ snapshot: data.outreachHistorySnapshot || null });
                     toast({ title: 'Contact Added', description: `${bouncePersonName} added to the company` });
                     setTimeout(() => handleOutcome('keep'), 1500);
                   } catch (err: any) { toast({ title: 'Error', description: err.message, variant: 'destructive' }); }
@@ -4586,7 +4590,23 @@ export default function Spotlight() {
                           {bounceCompanyResult && !bounceCompanyLoading && (
                             <div className="space-y-2">
                               <div className={`rounded p-2 text-xs border ${verdictColor}`}>
-                                <span className="font-bold">{verdictLabel}: </span>{bounceCompanyResult.explanation}
+                                <div className="flex items-center justify-between">
+                                  <span className="font-bold">{verdictLabel}</span>
+                                  {bounceCompanyResult.confidence !== undefined && (
+                                    <span className="opacity-70">{Math.round(bounceCompanyResult.confidence * 100)}% conf.</span>
+                                  )}
+                                </div>
+                                <p className="mt-0.5">{bounceCompanyResult.explanation}</p>
+                                {bounceCompanyResult.evidence && bounceCompanyResult.evidence.length > 0 && (
+                                  <ul className="mt-1 space-y-0.5">
+                                    {bounceCompanyResult.evidence.map((e: string, i: number) => (
+                                      <li key={i} className="flex gap-1 opacity-80"><span>•</span><span>{e}</span></li>
+                                    ))}
+                                  </ul>
+                                )}
+                                {bounceCompanyResult.dataNote && (
+                                  <p className="mt-1 italic opacity-60">{bounceCompanyResult.dataNote}</p>
+                                )}
                               </div>
                               <div className="flex gap-2 flex-wrap">
                                 {bounceCompanyResult.websiteUrl && (

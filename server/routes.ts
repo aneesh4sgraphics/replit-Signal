@@ -26681,6 +26681,11 @@ Analyze this bounced email and provide insights in JSON format:
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
+      const typoUserId = req.user?.claims?.sub || req.user?.id;
+      if (bounce.detectedBy !== typoUserId && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: not your bounce record' });
+      }
+
       const openaiApiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
       if (!openaiApiKey) {
         return res.json({ suggestion: null, confidence: 0, reasoning: 'AI not configured' });
@@ -26749,6 +26754,11 @@ If no typo is detected, set hasTypo to false and suggestion to null.`
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
+      const companyUserId = req.user?.claims?.sub || req.user?.id;
+      if (bounce.detectedBy !== companyUserId && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: not your bounce record' });
+      }
+
       let companyName = '';
       const emailDomain = bounce.bouncedEmail.split('@')[1] || '';
       if (bounce.customerId) {
@@ -26775,17 +26785,27 @@ If no typo is detected, set hasTypo to false and suggestion to null.`
           model: 'gpt-4o-mini',
           messages: [{
             role: 'user',
-            content: `Based on your training data, is the company "${companyName}" (domain: ${emailDomain}) still in business?
+            content: `You are a B2B company research assistant. A sales email to ${emailDomain} bounced. Research the company "${companyName}" based on your training data.
 
-Respond ONLY with valid JSON:
+Important: You do NOT have live web access. Base your answer only on what you know from training data.
+
+Return ONLY valid JSON:
 {
-  "verdict": "open",
-  "explanation": "1-2 sentence explanation"
+  "verdict": "open" | "closed" | "uncertain",
+  "explanation": "2-3 sentences: what you know about this company, when you last saw data about them, and why you think they're open/closed/uncertain",
+  "evidence": ["specific fact 1", "specific fact 2"],
+  "confidence": 0.0-1.0,
+  "dataNote": "Brief note about training data cutoff limitations"
 }
 
-Use "open" if likely still operating, "closed" if clearly shut down, "uncertain" if unknown or insufficient info. Be conservative — default to "uncertain" when unsure.`
+Rules:
+- "open": company was clearly operating recently in your training data
+- "closed": company went bankrupt, shut down, or was acquired and ceased operations
+- "uncertain": small/local business with little online presence, or you don't have reliable info
+- Always default to "uncertain" if you have any doubt
+- Keep explanation concise and factual — no speculation`
           }],
-          max_tokens: 150,
+          max_tokens: 300,
           temperature: 0.1,
         });
 
@@ -26801,6 +26821,9 @@ Use "open" if likely still operating, "closed" if clearly shut down, "uncertain"
         return res.json({
           verdict: ['open','closed','uncertain'].includes(parsed.verdict) ? parsed.verdict : 'uncertain',
           explanation: parsed.explanation || 'Could not determine company status.',
+          evidence: Array.isArray(parsed.evidence) ? parsed.evidence : [],
+          confidence: typeof parsed.confidence === 'number' ? parsed.confidence : 0.5,
+          dataNote: parsed.dataNote || 'Based on AI training data — verify with the links below.',
           websiteUrl,
           linkedinSearchUrl,
           googleMapsUrl,
@@ -26828,6 +26851,11 @@ Use "open" if likely still operating, "closed" if clearly shut down, "uncertain"
 
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
+
+      if (bounce.detectedBy !== userId && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: not your bounce record' });
+      }
+
       if (!bounce.customerId) return res.status(400).json({ error: 'No customer linked to this bounce' });
 
       const [customer] = await db.select().from(customers).where(eq(customers.id, bounce.customerId)).limit(1);
@@ -26893,6 +26921,10 @@ Use "open" if likely still operating, "closed" if clearly shut down, "uncertain"
 
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
+
+      if (bounce.detectedBy !== userId && req.user?.role !== 'admin') {
+        return res.status(403).json({ error: 'Forbidden: not your bounce record' });
+      }
 
       const newEmail = correctedEmail.trim().toLowerCase();
 

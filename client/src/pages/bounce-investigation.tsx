@@ -99,7 +99,7 @@ export default function BounceInvestigation() {
   const [typoResult, setTypoResult] = useState<{ suggestion: string | null; confidence: number; reasoning: string } | null>(null);
   const [typoLoading, setTypoLoading] = useState(false);
   const [typoCorrected, setTypoCorrected] = useState('');
-  const [companyResult, setCompanyResult] = useState<{ verdict: string; explanation: string; websiteUrl?: string; linkedinSearchUrl: string; googleMapsUrl: string } | null>(null);
+  const [companyResult, setCompanyResult] = useState<{ verdict: string; explanation: string; evidence?: string[]; confidence?: number; dataNote?: string; websiteUrl?: string; linkedinSearchUrl: string; googleMapsUrl: string } | null>(null);
   const [companyLoading, setCompanyLoading] = useState(false);
   const [personName, setPersonName] = useState('');
   const [personEmail, setPersonEmail] = useState('');
@@ -117,7 +117,8 @@ export default function BounceInvestigation() {
     if (typoResult) return;
     setTypoLoading(true);
     try {
-      const result = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-typo`, {});
+      const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-typo`, {});
+      const result = await res.json();
       setTypoResult(result);
       if (result.suggestion) setTypoCorrected(result.suggestion);
       else setTypoCorrected(data?.bounce.bouncedEmail || '');
@@ -133,7 +134,8 @@ export default function BounceInvestigation() {
     if (companyResult) return;
     setCompanyLoading(true);
     try {
-      const result = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-company`, {});
+      const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/check-company`, {});
+      const result = await res.json();
       setCompanyResult(result);
     } catch {
       setCompanyResult({ verdict: 'uncertain', explanation: 'Check failed — use links below.', linkedinSearchUrl: '', googleMapsUrl: '' });
@@ -143,8 +145,11 @@ export default function BounceInvestigation() {
   };
 
   const fixEmailMutation = useMutation({
-    mutationFn: () => apiRequest('POST', `/api/bounce-investigation/${bounceId}/fix-email`, { correctedEmail: typoCorrected }),
-    onSuccess: (result: any) => {
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/fix-email`, { correctedEmail: typoCorrected });
+      return res.json() as Promise<{ outreachHistorySnapshot?: string; odooUpdated?: boolean }>;
+    },
+    onSuccess: (result) => {
       setResolutionDone({ snapshot: result.outreachHistorySnapshot || null });
       toast({ title: 'Email Fixed', description: `Updated to ${typoCorrected}${result.odooUpdated ? ' and synced to Odoo' : ''}` });
       queryClient.invalidateQueries({ queryKey: ['/api/bounce-investigation'] });
@@ -153,10 +158,13 @@ export default function BounceInvestigation() {
   });
 
   const replaceContactMutation = useMutation({
-    mutationFn: () => apiRequest('POST', `/api/bounce-investigation/${bounceId}/replace-contact`, {
-      name: personName, email: personEmail, phone: personPhone, title: personTitle,
-    }),
-    onSuccess: (result: any) => {
+    mutationFn: async () => {
+      const res = await apiRequest('POST', `/api/bounce-investigation/${bounceId}/replace-contact`, {
+        name: personName, email: personEmail, phone: personPhone, title: personTitle,
+      });
+      return res.json() as Promise<{ outreachHistorySnapshot?: string }>;
+    },
+    onSuccess: (result) => {
       setResolutionDone({ snapshot: result.outreachHistorySnapshot || null });
       toast({ title: 'Contact Added', description: `${personName} added to the company` });
       queryClient.invalidateQueries({ queryKey: ['/api/bounce-investigation'] });
@@ -174,6 +182,21 @@ export default function BounceInvestigation() {
       });
       queryClient.invalidateQueries({ queryKey: ['/api/bounce-investigation'] });
       setLocation('/');
+    },
+    onError: (err: Error) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
+  });
+
+  const updateRecordMutation = useMutation({
+    mutationFn: async () => {
+      if (!data?.record) throw new Error('No record');
+      const endpoint = data.record.type === 'lead' ? `/api/leads/${data.record.id}` : `/api/customers/${data.record.id}`;
+      const res = await apiRequest('PUT', endpoint, { name: editName, email: editEmail });
+      return res.json();
+    },
+    onSuccess: () => {
+      toast({ title: 'Saved', description: 'Record updated.' });
+      queryClient.invalidateQueries({ queryKey: ['/api/bounce-investigation'] });
+      setIsEditing(false);
     },
     onError: (err: Error) => toast({ title: 'Error', description: err.message, variant: 'destructive' }),
   });
@@ -496,8 +519,23 @@ export default function BounceInvestigation() {
                     {companyResult && !companyLoading && (
                       <div className="space-y-3">
                         <div className={`rounded-lg p-3 text-sm border ${verdictColor}`}>
-                          <div className="font-bold mb-1">{verdictLabel}</div>
+                          <div className="flex items-center justify-between mb-1">
+                            <div className="font-bold">{verdictLabel}</div>
+                            {companyResult.confidence !== undefined && (
+                              <span className="text-xs opacity-70">{Math.round(companyResult.confidence * 100)}% confidence</span>
+                            )}
+                          </div>
                           <p className="text-xs">{companyResult.explanation}</p>
+                          {companyResult.evidence && companyResult.evidence.length > 0 && (
+                            <ul className="mt-2 space-y-0.5">
+                              {companyResult.evidence.map((e, i) => (
+                                <li key={i} className="text-xs opacity-80 flex items-start gap-1"><span className="mt-0.5">•</span><span>{e}</span></li>
+                              ))}
+                            </ul>
+                          )}
+                          {companyResult.dataNote && (
+                            <p className="mt-2 text-xs italic opacity-60">{companyResult.dataNote}</p>
+                          )}
                         </div>
                         <div className="flex flex-col gap-1.5">
                           {companyResult.websiteUrl && (
@@ -568,8 +606,8 @@ export default function BounceInvestigation() {
                     <Input type="email" value={editEmail} onChange={(e) => setEditEmail(e.target.value)} />
                   </div>
                   <div className="flex gap-2">
-                    <Button size="sm" onClick={() => setIsEditing(false)}>
-                      <Save className="h-4 w-4 mr-1" /> Save
+                    <Button size="sm" onClick={() => updateRecordMutation.mutate()} disabled={updateRecordMutation.isPending}>
+                      <Save className="h-4 w-4 mr-1" /> {updateRecordMutation.isPending ? 'Saving...' : 'Save'}
                     </Button>
                     <Button size="sm" variant="outline" onClick={() => setIsEditing(false)}>
                       <X className="h-4 w-4 mr-1" /> Cancel
