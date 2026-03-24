@@ -33,8 +33,8 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { useAuth } from "@/hooks/useAuth";
 import { ConnectionPrompt } from "@/components/ConnectionPrompt";
-import { DailyProgressHero } from "@/components/DailyProgressHero";
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useMutation } from "@tanstack/react-query";
+import { apiRequest, queryClient } from "@/lib/queryClient";
 
 interface DashboardStats {
   totalQuotes: number;
@@ -235,6 +235,23 @@ export default function Dashboard() {
     enabled: showOutboundKitsDialog,
     staleTime: 60000,
   });
+
+  const { data: kanbanData } = useQuery<{
+    replied: any[];
+    samplesRequested: any[];
+    noResponse: any[];
+    issues: any[];
+  }>({
+    queryKey: ['/api/dashboard/kanban'],
+    refetchInterval: 60000,
+  });
+
+  const updateKanbanStage = useMutation({
+    mutationFn: async ({ leadId, stage }: { leadId: number; stage: string }) =>
+      apiRequest('PATCH', `/api/leads/${leadId}/kanban-stage`, { stage }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/dashboard/kanban'] }),
+  });
+
   const [, navigate] = useLocation();
 
   const openObjections = objections.filter(o => o.status === 'open').length;
@@ -347,16 +364,41 @@ export default function Dashboard() {
             <p style={{ fontSize: '14px', color: '#6B6B8C', margin: 0 }}>{dateString}</p>
           </div>
 
-          {/* Daily Progress Hero */}
+          {/* Sales Kanban */}
           <div style={{ marginBottom: '24px' }}>
-            <DailyProgressHero
-              completionPercent={crmStats?.totalActiveJourneys ? Math.round((crmStats.quotesLast30Days / Math.max(crmStats.totalActiveJourneys, 1)) * 100) : 0}
-              tasksToday={stats?.quotesThisMonth || 0}
-              overdueCount={crmStats?.pendingFeedback || 0}
-              hotLeadsCount={stats?.hotLeads || 0}
-              upcomingTasks={[]}
-              dailyGoal={10}
-            />
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+              {[
+                { key: 'replied', label: 'Emails Replied', color: '#D1FAE5', border: '#6EE7B7', dot: '#059669', emptyText: 'No replies yet' },
+                { key: 'samplesRequested', label: 'Samples Requested', color: '#DBEAFE', border: '#BFDBFE', dot: '#2563EB', emptyText: 'No samples sent' },
+                { key: 'noResponse', label: 'No Response', color: '#FEF9C3', border: '#FDE047', dot: '#D97706', emptyText: 'All leads active' },
+                { key: 'issues', label: 'Issues', color: '#FEE2E2', border: '#FECACA', dot: '#DC2626', emptyText: 'No issues logged' },
+              ].map(col => {
+                const items = kanbanData?.[col.key as keyof typeof kanbanData] || [];
+                return (
+                  <div key={col.key} style={{ background: col.color, border: `1px solid ${col.border}`, borderRadius: '12px', padding: '14px', minHeight: '180px' }}>
+                    <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+                      <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.dot, flexShrink: 0, display: 'inline-block' }} />
+                      <span style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>{col.label}</span>
+                      <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 600, color: col.dot, background: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: '10px' }}>{items.length}</span>
+                    </div>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+                      {items.length === 0 ? (
+                        <p style={{ fontSize: '12px', color: '#8A8A8A', fontStyle: 'italic', margin: 0 }}>{col.emptyText}</p>
+                      ) : (
+                        items.slice(0, 6).map((item: any) => (
+                          <div key={item.id} style={{ background: 'rgba(255,255,255,0.7)', borderRadius: '7px', padding: '6px 8px', fontSize: '12px', color: '#1A1A1A', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                            {item.company || item.name}
+                          </div>
+                        ))
+                      )}
+                      {items.length > 6 && (
+                        <p style={{ fontSize: '11px', color: '#8A8A8A', margin: 0, padding: '2px 0' }}>+{items.length - 6} more</p>
+                      )}
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
           </div>
 
           {/* Team Leaderboard - Admin Only */}
