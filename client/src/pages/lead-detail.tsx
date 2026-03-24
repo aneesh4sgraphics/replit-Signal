@@ -149,6 +149,9 @@ const activityTypeConfig: Record<string, { label: string; icon: typeof MessageSq
   meeting: { label: "Meeting", icon: Users, color: "bg-indigo-100 text-indigo-600" },
   note: { label: "Note", icon: FileText, color: "bg-amber-100 text-amber-600" },
   quote_sent: { label: "Quote Sent", icon: FileText, color: "bg-orange-100 text-orange-600" },
+  mailer_one_page: { label: "One-Page Mailer Sent", icon: Mail, color: "bg-orange-100 text-orange-600" },
+  mailer_envelope: { label: "Sample Envelope Sent", icon: Package, color: "bg-coral-100 text-orange-700" },
+  mailer_press_kit: { label: "Press Test Kit Sent", icon: Package, color: "bg-purple-100 text-purple-600" },
 };
 
 export default function LeadDetail() {
