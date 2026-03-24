@@ -27012,6 +27012,31 @@ Rules:
         return res.status(403).json({ error: 'Forbidden: not your bounce record' });
       }
 
+      // --- LEAD BOUNCE PATH ---
+      // A lead is a single-person record — updating the person means updating the lead directly
+      if (!bounce.customerId && bounce.leadId) {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, bounce.leadId)).limit(1);
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+        await db.update(leads).set({
+          name: name.trim(),
+          email: email.trim(),
+          emailNormalized: email.trim().toLowerCase(),
+          phone: phone?.trim() || lead.phone,
+          jobTitle: title?.trim() || lead.jobTitle,
+          updatedAt: new Date(),
+        }).where(eq(leads.id, bounce.leadId));
+        const outreachHistorySnapshotLead = bounce.outreachHistorySnapshot;
+        await db.update(bouncedEmails)
+          .set({ status: 'resolved', resolvedAt: new Date(), resolvedBy: userId, resolution: 'replaced_contact' })
+          .where(eq(bouncedEmails.id, bounceId));
+        spotlightEngine.invalidateAllPrefetchCaches();
+        return res.json({
+          success: true,
+          isLeadUpdate: true,
+          outreachHistorySnapshot: outreachHistorySnapshotLead ? JSON.parse(outreachHistorySnapshotLead) : null,
+        });
+      }
+
       if (!bounce.customerId) return res.status(400).json({ error: 'No customer linked to this bounce' });
 
       const [customer] = await db.select().from(customers).where(eq(customers.id, bounce.customerId)).limit(1);
