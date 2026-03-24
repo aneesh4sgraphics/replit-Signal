@@ -56,14 +56,6 @@ const USER_APP_RESTRICTIONS: Record<string, string[]> = {
     '/quick-quotes',
     '/price-list',
   ],
-  'aneesh@4sgraphics.com': [
-    '/',
-    '/leads',
-    '/odoo-contacts',
-    '/spotlight',
-    '/quick-quotes',
-    '/price-list',
-  ],
   'santiago@4sgraphics.com': [
     '/',
     '/leads',
