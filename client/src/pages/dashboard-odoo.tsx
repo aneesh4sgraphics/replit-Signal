@@ -418,6 +418,36 @@ export default function Dashboard() {
             </div>
           </div>
 
+          {moveMenu && (
+            <div
+              style={{ position: 'fixed', top: moveMenu.y, left: moveMenu.x, zIndex: 1000, background: '#FFFFFF', border: '1px solid #EBEBEB', borderRadius: '10px', padding: '6px', boxShadow: '0 4px 20px rgba(0,0,0,0.12)', minWidth: '180px' }}
+              onClick={(e) => e.stopPropagation()}
+            >
+              <p style={{ fontSize: '11px', color: '#8A8A8A', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em', padding: '4px 8px 6px', margin: 0 }}>Move to</p>
+              {[
+                { stage: 'replied', label: 'Emails Replied', color: '#059669', bg: '#D1FAE5' },
+                { stage: 'samples_requested', label: 'Samples Requested', color: '#2563EB', bg: '#DBEAFE' },
+                { stage: 'no_response', label: 'No Response', color: '#D97706', bg: '#FEF9C3' },
+                { stage: 'issue', label: 'Issue', color: '#DC2626', bg: '#FEE2E2' },
+                { stage: null, label: 'Remove from board', color: '#8A8A8A', bg: '#F4F3F0' },
+              ].map(opt => (
+                <button
+                  key={opt.stage || 'remove'}
+                  onClick={() => {
+                    updateKanbanStage.mutate({ leadId: moveMenu.leadId, stage: opt.stage as string });
+                    setMoveMenu(null);
+                  }}
+                  style={{ display: 'flex', alignItems: 'center', gap: '8px', width: '100%', padding: '7px 8px', borderRadius: '7px', border: 'none', background: 'transparent', cursor: 'pointer', fontSize: '13px', color: '#1A1A1A', textAlign: 'left' }}
+                  onMouseEnter={e => (e.currentTarget.style.background = opt.bg)}
+                  onMouseLeave={e => (e.currentTarget.style.background = 'transparent')}
+                >
+                  <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: opt.color, flexShrink: 0, display: 'inline-block' }} />
+                  {opt.label}
+                </button>
+              ))}
+            </div>
+          )}
+
           {/* Team Leaderboard - Admin Only */}
           {isAdmin && leaderboardData?.users && leaderboardData.users.length > 0 && (
             <div style={{
