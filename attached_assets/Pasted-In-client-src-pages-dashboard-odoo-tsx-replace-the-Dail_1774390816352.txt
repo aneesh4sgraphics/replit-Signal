@@ -1,0 +1,69 @@
+In client/src/pages/dashboard-odoo.tsx, replace the DailyProgressHero section with a 4-column sales kanban. Do NOT touch the Team Leaderboard or any other section.
+
+CHANGE 1 — Add kanban data query:
+Near the top of the component where other useQuery calls are, add:
+  const { data: kanbanData } = useQuery<{
+    replied: any[];
+    samplesRequested: any[];
+    noResponse: any[];
+    issues: any[];
+  }>({
+    queryKey: ['/api/dashboard/kanban'],
+    refetchInterval: 60000,
+  });
+
+CHANGE 2 — Add updateKanbanStage mutation:
+  const updateKanbanStage = useMutation({
+    mutationFn: async ({ leadId, stage }: { leadId: number; stage: string }) =>
+      apiRequest('PATCH', `/api/leads/${leadId}/kanban-stage`, { stage }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/dashboard/kanban'] }),
+  });
+
+CHANGE 3 — Replace DailyProgressHero block:
+Find this block:
+  <div style={{ marginBottom: '24px' }}>
+    <DailyProgressHero ... />
+  </div>
+
+Replace it entirely with:
+
+<div style={{ marginBottom: '24px' }}>
+  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(4, 1fr)', gap: '12px' }}>
+    {[
+      { key: 'replied', label: 'Emails Replied', color: '#D1FAE5', border: '#6EE7B7', dot: '#059669', emptyText: 'No replies yet' },
+      { key: 'samplesRequested', label: 'Samples Requested', color: '#DBEAFE', border: '#BFDBFE', dot: '#2563EB', emptyText: 'No samples sent' },
+      { key: 'noResponse', label: 'No Response', color: '#FEF9C3', border: '#FDE047', dot: '#D97706', emptyText: 'All leads active' },
+      { key: 'issues', label: 'Issues', color: '#FEE2E2', border: '#FECACA', dot: '#DC2626', emptyText: 'No issues logged' },
+    ].map(col => {
+      const items = kanbanData?.[col.key as keyof typeof kanbanData] || [];
+      return (
+        <div key={col.key} style={{ background: col.color, border: `1px solid ${col.border}`, borderRadius: '12px', padding: '14px', minHeight: '180px' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: '6px', marginBottom: '10px' }}>
+            <span style={{ width: '8px', height: '8px', borderRadius: '50%', background: col.dot, flexShrink: 0, display: 'inline-block' }} />
+            <span style={{ fontSize: '12px', fontWeight: 600, color: '#1A1A1A' }}>{col.label}</span>
+            <span style={{ marginLeft: 'auto', fontSize: '11px', fontWeight: 600, color: col.dot, background: 'rgba(255,255,255,0.6)', padding: '1px 7px', borderRadius: '10px' }}>{items.length}</span>
+          </div>
+          <div style={{ display: 'flex', flexDirection: 'column', gap: '5px' }}>
+            {items.length === 0 ? (
+              <p style={{ fontSize: '12px', color: '#8A8A8A', fontStyle: 'italic', margin: 0 }}>{col.emptyText}</p>
+            ) : (
+              items.slice(0, 6).map((item: any) => (
+                <div key={item.id} style={{ background: 'rgba(255,255,255,0.7)', borderRadius: '7px', padding: '6px 8px', fontSize: '12px', color: '#1A1A1A', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
+                  {item.company || item.name}
+                </div>
+              ))
+            )}
+            {items.length > 6 && (
+              <p style={{ fontSize: '11px', color: '#8A8A8A', margin: 0, padding: '2px 0' }}>+{items.length - 6} more</p>
+            )}
+          </div>
+        </div>
+      );
+    })}
+  </div>
+</div>
+
+CHANGE 4 — Remove the DailyProgressHero import if it is no longer used anywhere else in the file:
+Check if DailyProgressHero is used anywhere else in dashboard-odoo.tsx. If not, remove its import line.
+
+Do not change anything else in the file.

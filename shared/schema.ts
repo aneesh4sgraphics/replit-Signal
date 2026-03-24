@@ -249,6 +249,7 @@ export const customers = pgTable("customers", {
   pressTestSentAt: timestamp("press_test_sent_at"), // Track press test send date
   priceListSentAt: timestamp("price_list_sent_at"), // Track price list send date
   customerType: varchar("customer_type", { length: 50 }), // 'reseller' or 'printer'
+  salesKanbanStage: varchar("sales_kanban_stage", { length: 30 }), // 'replied', 'samples_requested', 'no_response', 'issue', or null (not in kanban)
   spotlightMeta: jsonb("spotlight_meta"), // Cached spotlight score + signal breakdown
   // Company grouping (Lead-Contact Parity v1)
   companyDomain: text("company_domain"), // e.g. "acme.com" — auto-derived from email
@@ -411,6 +412,7 @@ export const leads = pgTable("leads", {
   // Lead status and scoring
   stage: varchar("stage", { length: 50 }).notNull().default("new"), // 'new', 'contacted', 'qualified', 'nurturing', 'converted', 'lost'
   priority: varchar("priority", { length: 10 }).default("medium"), // 'low', 'medium', 'high', 'urgent'
+  salesKanbanStage: varchar("sales_kanban_stage", { length: 30 }), // 'replied', 'samples_requested', 'no_response', 'issue', or null (not in kanban)
   score: integer("score").default(0), // Lead score (0-100) based on engagement
   probability: integer("probability").default(10), // % chance of conversion
   expectedRevenue: decimal("expected_revenue", { precision: 10, scale: 2 }),

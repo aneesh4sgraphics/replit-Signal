@@ -1,0 +1,98 @@
+Make two backend changes. Do NOT touch any frontend files.
+
+CHANGE 1 — Add salesKanbanStage field to schema:
+In shared/schema.ts, find the leads table definition. Add this field in the "Lead status and scoring" section:
+  salesKanbanStage: varchar("sales_kanban_stage", { length: 30 }),
+  // Values: 'replied', 'samples_requested', 'no_response', 'issue', or null (not in kanban)
+
+Also find the customers table definition and add the same field:
+  salesKanbanStage: varchar("sales_kanban_stage", { length: 30 }),
+
+Then run: npx drizzle-kit generate && npx drizzle-kit migrate
+
+CHANGE 2 — Add /api/dashboard/kanban endpoint:
+In server/routes.ts, add this new endpoint before the final app.listen or exports:
+
+app.get("/api/dashboard/kanban", isAuthenticated, async (req: any, res) => {
+  try {
+    const thirtyDaysAgo = new Date();
+    thirtyDaysAgo.setDate(thirtyDaysAgo.getDate() - 30);
+    const tenDaysAgo = new Date();
+    tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+    // COLUMN 1: Replied — leads/customers who replied to a drip or email
+    const repliedLeads = await db
+      .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+      .from(leads)
+      .where(
+        or(
+          isNotNull(leads.firstEmailReplyAt),
+          eq(leads.salesKanbanStage, 'replied')
+        )
+      )
+      .orderBy(desc(leads.firstEmailReplyAt))
+      .limit(20);
+
+    // COLUMN 2: Samples Requested — press test kit sent or manually moved
+    const samplesLeads = await db
+      .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+      .from(leads)
+      .where(
+        or(
+          isNotNull(leads.pressTestKitSentAt),
+          isNotNull(leads.sampleSentAt),
+          eq(leads.salesKanbanStage, 'samples_requested')
+        )
+      )
+      .orderBy(desc(leads.pressTestKitSentAt))
+      .limit(20);
+
+    // COLUMN 3: No Response — emailed but no reply, last contact > 10 days ago
+    const noResponseLeads = await db
+      .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+      .from(leads)
+      .where(
+        or(
+          and(
+            isNotNull(leads.firstEmailSentAt),
+            isNull(leads.firstEmailReplyAt),
+            lt(leads.lastContactAt, tenDaysAgo)
+          ),
+          eq(leads.salesKanbanStage, 'no_response')
+        )
+      )
+      .orderBy(asc(leads.lastContactAt))
+      .limit(20);
+
+    // COLUMN 4: Issues — manually flagged
+    const issueLeads = await db
+      .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+      .from(leads)
+      .where(eq(leads.salesKanbanStage, 'issue'))
+      .limit(20);
+
+    res.json({
+      replied: repliedLeads,
+      samplesRequested: samplesLeads,
+      noResponse: noResponseLeads,
+      issues: issueLeads,
+    });
+  } catch (error) {
+    console.error("Error fetching kanban data:", error);
+    res.status(500).json({ error: "Failed to fetch kanban data" });
+  }
+});
+
+// Update kanban stage for a lead
+app.patch("/api/leads/:id/kanban-stage", isAuthenticated, async (req: any, res) => {
+  try {
+    const leadId = parseInt(req.params.id);
+    const { stage } = req.body;
+    await db.update(leads).set({ salesKanbanStage: stage }).where(eq(leads.id, leadId));
+    res.json({ success: true });
+  } catch (error) {
+    res.status(500).json({ error: "Failed to update kanban stage" });
+  }
+});
+
+Make sure isNotNull, lt, asc, desc, and or are imported from drizzle-orm in routes.ts if not already there.

@@ -28311,6 +28311,82 @@ Analyze this bounced email and provide insights in JSON format:
     }
   });
 
+  // Dashboard Kanban board data
+  app.get("/api/dashboard/kanban", isAuthenticated, async (req: any, res) => {
+    try {
+      const tenDaysAgo = new Date();
+      tenDaysAgo.setDate(tenDaysAgo.getDate() - 10);
+
+      const repliedLeads = await db
+        .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+        .from(leads)
+        .where(
+          or(
+            isNotNull(leads.firstEmailReplyAt),
+            eq(leads.salesKanbanStage, 'replied')
+          )
+        )
+        .orderBy(desc(leads.firstEmailReplyAt))
+        .limit(20);
+
+      const samplesLeads = await db
+        .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+        .from(leads)
+        .where(
+          or(
+            isNotNull(leads.pressTestKitSentAt),
+            isNotNull(leads.sampleSentAt),
+            eq(leads.salesKanbanStage, 'samples_requested')
+          )
+        )
+        .orderBy(desc(leads.pressTestKitSentAt))
+        .limit(20);
+
+      const noResponseLeads = await db
+        .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+        .from(leads)
+        .where(
+          or(
+            and(
+              isNotNull(leads.firstEmailSentAt),
+              isNull(leads.firstEmailReplyAt),
+              lt(leads.lastContactAt, tenDaysAgo)
+            ),
+            eq(leads.salesKanbanStage, 'no_response')
+          )
+        )
+        .orderBy(asc(leads.lastContactAt))
+        .limit(20);
+
+      const issueLeads = await db
+        .select({ id: leads.id, name: leads.name, company: leads.company, type: sql<string>`'lead'`, salesKanbanStage: leads.salesKanbanStage })
+        .from(leads)
+        .where(eq(leads.salesKanbanStage, 'issue'))
+        .limit(20);
+
+      res.json({
+        replied: repliedLeads,
+        samplesRequested: samplesLeads,
+        noResponse: noResponseLeads,
+        issues: issueLeads,
+      });
+    } catch (error) {
+      console.error("Error fetching kanban data:", error);
+      res.status(500).json({ error: "Failed to fetch kanban data" });
+    }
+  });
+
+  app.patch("/api/leads/:id/kanban-stage", isAuthenticated, async (req: any, res) => {
+    try {
+      const leadId = parseInt(req.params.id);
+      const { stage } = req.body;
+      await db.update(leads).set({ salesKanbanStage: stage }).where(eq(leads.id, leadId));
+      res.json({ success: true });
+    } catch (error) {
+      res.status(500).json({ error: "Failed to update kanban stage" });
+    }
+  });
+
   // Catch-all for unmatched API routes - return JSON 404 instead of HTML
   app.use('/api/*', (req, res) => {
     res.status(404).json({ error: `API endpoint not found: ${req.path}` });
