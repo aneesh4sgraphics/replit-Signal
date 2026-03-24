@@ -421,6 +421,13 @@ export const leads = pgTable("leads", {
   sampleSentAt: timestamp("sample_sent_at"),
   priceListSentAt: timestamp("price_list_sent_at"),
   catalogSentAt: timestamp("catalog_sent_at"),
+  // Physical mailer tracking
+  onePageMailerSentAt: timestamp("one_page_mailer_sent_at"),
+  sampleEnvelopeSentAt: timestamp("sample_envelope_sent_at"),
+  pressTestKitSentAt: timestamp("press_test_kit_sent_at"),
+  lastMailerSentAt: timestamp("last_mailer_sent_at"),
+  lastMailerType: varchar("last_mailer_type", { length: 50 }),
+  mailerTriggerEmailOpenCount: integer("mailer_trigger_email_open_count").default(0),
   firstContactAt: timestamp("first_contact_at"),
   lastContactAt: timestamp("last_contact_at"),
   totalTouchpoints: integer("total_touchpoints").default(0), // Number of interactions
