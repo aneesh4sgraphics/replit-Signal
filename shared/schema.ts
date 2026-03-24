@@ -510,6 +510,21 @@ export const insertLeadActivitySchema = createInsertSchema(leadActivities).omit(
 export type LeadActivity = typeof leadActivities.$inferSelect;
 export type InsertLeadActivity = z.infer<typeof insertLeadActivitySchema>;
 
+export const LEAD_ACTIVITY_TYPES = [
+  'email_sent',
+  'email_opened',
+  'email_replied',
+  'call_made',
+  'note_added',
+  'stage_changed',
+  'mailer_one_page',
+  'mailer_envelope',
+  'mailer_press_kit',
+  'sample_sent',
+  'meeting',
+] as const;
+export type LeadActivityType = typeof LEAD_ACTIVITY_TYPES[number];
+
 export const sentQuotes = pgTable("sent_quotes", {
   id: serial("id").primaryKey(),
   quoteNumber: varchar("quote_number", { length: 50 }).notNull(),
