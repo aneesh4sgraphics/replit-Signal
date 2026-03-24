@@ -567,6 +567,114 @@ export default function LeadDetail() {
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         <div className="lg:col-span-2 space-y-6">
           <Card className="bg-white/80 backdrop-blur-sm border-slate-200/50">
+            <CardHeader className="pb-3 flex flex-row items-center justify-between">
+              <CardTitle className="text-lg">Activity Timeline</CardTitle>
+              <Dialog open={isAddActivityOpen} onOpenChange={setIsAddActivityOpen}>
+                <DialogTrigger asChild>
+                  <Button size="sm">
+                    <Plus className="w-4 h-4 mr-2" /> Add Activity
+                  </Button>
+                </DialogTrigger>
+                <DialogContent>
+                  <DialogHeader>
+                    <DialogTitle>Log Activity</DialogTitle>
+                  </DialogHeader>
+                  <div className="space-y-4 py-4">
+                    <div className="space-y-2">
+                      <Label>Activity Type</Label>
+                      <Select value={newActivity.activityType} onValueChange={(v) => setNewActivity(prev => ({ ...prev, activityType: v }))}>
+                        <SelectTrigger>
+                          <SelectValue />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="note">Note</SelectItem>
+                          <SelectItem value="email_sent">Email Sent</SelectItem>
+                          <SelectItem value="call_made">Call Made</SelectItem>
+                          <SelectItem value="meeting">Meeting</SelectItem>
+                          <SelectItem value="sample_sent">Sample Sent</SelectItem>
+                          <SelectItem value="quote_sent">Quote Sent</SelectItem>
+                        </SelectContent>
+                      </Select>
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Summary *</Label>
+                      <Input 
+                        placeholder="Brief summary of the activity"
+                        value={newActivity.summary}
+                        onChange={(e) => setNewActivity(prev => ({ ...prev, summary: e.target.value }))}
+                      />
+                    </div>
+                    <div className="space-y-2">
+                      <Label>Details</Label>
+                      <Textarea 
+                        placeholder="Additional details..."
+                        value={newActivity.details}
+                        onChange={(e) => setNewActivity(prev => ({ ...prev, details: e.target.value }))}
+                        rows={4}
+                      />
+                    </div>
+                  </div>
+                  <DialogFooter>
+                    <Button variant="outline" onClick={() => setIsAddActivityOpen(false)}>Cancel</Button>
+                    <Button 
+                      onClick={() => addActivityMutation.mutate(newActivity)}
+                      disabled={!newActivity.summary.trim() || addActivityMutation.isPending}
+                    >
+                      {addActivityMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
+                      Log Activity
+                    </Button>
+                  </DialogFooter>
+                </DialogContent>
+              </Dialog>
+            </CardHeader>
+            <CardContent>
+              {activities.length === 0 ? (
+                <div className="text-center py-8 text-slate-500">
+                  <MessageSquare className="w-12 h-12 mx-auto mb-3 text-slate-300" />
+                  <p>No activities recorded yet</p>
+                  <p className="text-sm">Log calls, emails, meetings, and notes to track your progress</p>
+                </div>
+              ) : (
+                <div className="space-y-4">
+                  {activities.map((activity) => {
+                    const activityInfo = getActivityInfo(activity.activityType);
+                    const ActivityIcon = activityInfo.icon;
+                    const isGmailExternal = activity.performedBy === 'gmail_external';
+                    return (
+                      <div key={activity.id} className={`flex gap-4 ${isGmailExternal ? 'p-3 rounded-lg bg-blue-50/40 border border-blue-100' : ''}`}>
+                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isGmailExternal ? 'bg-blue-100 text-blue-600' : activityInfo.color}`}>
+                          <ActivityIcon className="w-5 h-5" />
+                        </div>
+                        <div className="flex-1 min-w-0">
+                          <div className="flex items-center gap-2 mb-1 flex-wrap">
+                            <span className="font-medium text-slate-800">{activityInfo.label}</span>
+                            {isGmailExternal && (
+                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-600 bg-blue-50">
+                                Gmail
+                              </Badge>
+                            )}
+                            <span className="text-xs text-slate-400">{formatDateTime(activity.createdAt)}</span>
+                          </div>
+                          <p className="text-slate-700">{activity.summary}</p>
+                          {activity.details && !isGmailExternal && (
+                            <p className="text-sm text-slate-500 mt-1">{activity.details}</p>
+                          )}
+                          {isGmailExternal && (
+                            <p className="text-xs text-blue-600 mt-1">Sent from personal Gmail account</p>
+                          )}
+                          {activity.performedByName && !isGmailExternal && (
+                            <p className="text-xs text-slate-400 mt-1">by {activity.performedByName}</p>
+                          )}
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+
+          <Card className="bg-white/80 backdrop-blur-sm border-slate-200/50">
             <CardHeader className="pb-3">
               <CardTitle className="text-lg">Lead Information</CardTitle>
             </CardHeader>
@@ -774,114 +882,6 @@ export default function LeadDetail() {
                   </div>
                 );
               })()}
-            </CardContent>
-          </Card>
-
-          <Card className="bg-white/80 backdrop-blur-sm border-slate-200/50">
-            <CardHeader className="pb-3 flex flex-row items-center justify-between">
-              <CardTitle className="text-lg">Activity Timeline</CardTitle>
-              <Dialog open={isAddActivityOpen} onOpenChange={setIsAddActivityOpen}>
-                <DialogTrigger asChild>
-                  <Button size="sm">
-                    <Plus className="w-4 h-4 mr-2" /> Add Activity
-                  </Button>
-                </DialogTrigger>
-                <DialogContent>
-                  <DialogHeader>
-                    <DialogTitle>Log Activity</DialogTitle>
-                  </DialogHeader>
-                  <div className="space-y-4 py-4">
-                    <div className="space-y-2">
-                      <Label>Activity Type</Label>
-                      <Select value={newActivity.activityType} onValueChange={(v) => setNewActivity(prev => ({ ...prev, activityType: v }))}>
-                        <SelectTrigger>
-                          <SelectValue />
-                        </SelectTrigger>
-                        <SelectContent>
-                          <SelectItem value="note">Note</SelectItem>
-                          <SelectItem value="email_sent">Email Sent</SelectItem>
-                          <SelectItem value="call_made">Call Made</SelectItem>
-                          <SelectItem value="meeting">Meeting</SelectItem>
-                          <SelectItem value="sample_sent">Sample Sent</SelectItem>
-                          <SelectItem value="quote_sent">Quote Sent</SelectItem>
-                        </SelectContent>
-                      </Select>
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Summary *</Label>
-                      <Input 
-                        placeholder="Brief summary of the activity"
-                        value={newActivity.summary}
-                        onChange={(e) => setNewActivity(prev => ({ ...prev, summary: e.target.value }))}
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <Label>Details</Label>
-                      <Textarea 
-                        placeholder="Additional details..."
-                        value={newActivity.details}
-                        onChange={(e) => setNewActivity(prev => ({ ...prev, details: e.target.value }))}
-                        rows={4}
-                      />
-                    </div>
-                  </div>
-                  <DialogFooter>
-                    <Button variant="outline" onClick={() => setIsAddActivityOpen(false)}>Cancel</Button>
-                    <Button 
-                      onClick={() => addActivityMutation.mutate(newActivity)}
-                      disabled={!newActivity.summary.trim() || addActivityMutation.isPending}
-                    >
-                      {addActivityMutation.isPending && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
-                      Log Activity
-                    </Button>
-                  </DialogFooter>
-                </DialogContent>
-              </Dialog>
-            </CardHeader>
-            <CardContent>
-              {activities.length === 0 ? (
-                <div className="text-center py-8 text-slate-500">
-                  <MessageSquare className="w-12 h-12 mx-auto mb-3 text-slate-300" />
-                  <p>No activities recorded yet</p>
-                  <p className="text-sm">Log calls, emails, meetings, and notes to track your progress</p>
-                </div>
-              ) : (
-                <div className="space-y-4">
-                  {activities.map((activity) => {
-                    const activityInfo = getActivityInfo(activity.activityType);
-                    const ActivityIcon = activityInfo.icon;
-                    const isGmailExternal = activity.performedBy === 'gmail_external';
-                    return (
-                      <div key={activity.id} className={`flex gap-4 ${isGmailExternal ? 'p-3 rounded-lg bg-blue-50/40 border border-blue-100' : ''}`}>
-                        <div className={`w-10 h-10 rounded-full flex items-center justify-center flex-shrink-0 ${isGmailExternal ? 'bg-blue-100 text-blue-600' : activityInfo.color}`}>
-                          <ActivityIcon className="w-5 h-5" />
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <div className="flex items-center gap-2 mb-1 flex-wrap">
-                            <span className="font-medium text-slate-800">{activityInfo.label}</span>
-                            {isGmailExternal && (
-                              <Badge variant="outline" className="text-xs border-blue-300 text-blue-600 bg-blue-50">
-                                Gmail
-                              </Badge>
-                            )}
-                            <span className="text-xs text-slate-400">{formatDateTime(activity.createdAt)}</span>
-                          </div>
-                          <p className="text-slate-700">{activity.summary}</p>
-                          {activity.details && !isGmailExternal && (
-                            <p className="text-sm text-slate-500 mt-1">{activity.details}</p>
-                          )}
-                          {isGmailExternal && (
-                            <p className="text-xs text-blue-600 mt-1">Sent from personal Gmail account</p>
-                          )}
-                          {activity.performedByName && !isGmailExternal && (
-                            <p className="text-xs text-slate-400 mt-1">by {activity.performedByName}</p>
-                          )}
-                        </div>
-                      </div>
-                    );
-                  })}
-                </div>
-              )}
             </CardContent>
           </Card>
         </div>
@@ -1366,6 +1366,19 @@ export default function LeadDetail() {
           </DialogFooter>
         </DialogContent>
       </Dialog>
+
+      <div style={{position:'sticky', bottom:'1rem', display:'flex', justifyContent:'flex-end', paddingRight:'1rem', pointerEvents:'none'}}>
+        <button
+          style={{pointerEvents:'all'}}
+          className="bg-slate-800 text-white text-sm font-medium px-4 py-2.5 rounded-full shadow-lg hover:bg-slate-700 transition-colors"
+          onClick={() => {
+            setNewActivity({ activityType: 'call_made', summary: '', details: '' });
+            setIsAddActivityOpen(true);
+          }}
+        >
+          + Log interaction
+        </button>
+      </div>
     </div>
   );
 }
