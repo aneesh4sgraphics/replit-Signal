@@ -113,6 +113,8 @@ interface Lead {
   primaryContactEmail: string | null;
   customerType: string | null;
   pricingTier: string | null;
+  salesRepId: string | null;
+  salesRepName: string | null;
   odooPartnerId: number | null;
   createdAt: string;
   updatedAt: string;
@@ -292,6 +294,11 @@ export default function LeadDetail() {
     enabled: !!leadId,
   });
 
+  const { data: salesReps = [] } = useQuery<{ id: string; name: string; email: string }[]>({
+    queryKey: ['/api/sales-reps'],
+    staleTime: 30 * 60 * 1000,
+  });
+
   const enrollDripMutation = useMutation({
     mutationFn: async (campaignId: number) => {
       const res = await apiRequest('POST', `/api/drip-campaigns/${campaignId}/assignments`, { leadIds: [Number(leadId)] });
@@ -388,6 +395,8 @@ export default function LeadDetail() {
         probability: lead.probability,
         priority: lead.priority,
         pricingTier: lead.pricingTier,
+        salesRepId: lead.salesRepId,
+        salesRepName: lead.salesRepName,
         preferredContact: lead.preferredContact,
         bestTimeToCall: lead.bestTimeToCall,
       });
@@ -655,6 +664,16 @@ export default function LeadDetail() {
                       </span>
                     ) : (
                       <span className="text-xs text-slate-400 italic">No pricing tier set</span>
+                    )}
+                  </div>
+                  <div className="flex items-center gap-3">
+                    <User className="w-4 h-4 text-slate-400" />
+                    {lead.salesRepName ? (
+                      <span className="inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium bg-blue-50 text-blue-700 border border-blue-200">
+                        {lead.salesRepName}
+                      </span>
+                    ) : (
+                      <span className="text-xs text-slate-400 italic">Unassigned</span>
                     )}
                   </div>
                 </div>
@@ -1224,6 +1243,21 @@ export default function LeadDetail() {
                   <SelectItem value="__none__">Not set</SelectItem>
                   {PRICING_TIERS.map(tier => (
                     <SelectItem key={tier} value={tier}>{tier}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-2">
+              <Label>Sales rep</Label>
+              <Select
+                value={editForm.salesRepId || '__none__'}
+                onValueChange={(v) => setEditForm(prev => ({ ...prev, salesRepId: v === '__none__' ? null : v, salesRepName: salesReps.find(r => r.id === v)?.name || prev.salesRepName }))}
+              >
+                <SelectTrigger><SelectValue placeholder="Assign rep..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">Unassigned</SelectItem>
+                  {salesReps.map(rep => (
+                    <SelectItem key={rep.id} value={rep.id}>{rep.name}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
