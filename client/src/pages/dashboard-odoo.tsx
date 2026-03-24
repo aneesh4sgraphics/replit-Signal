@@ -230,6 +230,7 @@ export default function Dashboard() {
     createdAt: string;
   }
   const [showOutboundKitsDialog, setShowOutboundKitsDialog] = useState(false);
+  const [moveMenu, setMoveMenu] = useState<{ leadId: number; x: number; y: number } | null>(null);
   const { data: outboundKitsData, isLoading: isLoadingKits } = useQuery<{ kits: OutboundKit[] }>({
     queryKey: ['/api/dashboard/outbound-kits'],
     enabled: showOutboundKitsDialog,
@@ -251,6 +252,13 @@ export default function Dashboard() {
       apiRequest('PATCH', `/api/leads/${leadId}/kanban-stage`, { stage }),
     onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/dashboard/kanban'] }),
   });
+
+  useEffect(() => {
+    if (!moveMenu) return;
+    const close = () => setMoveMenu(null);
+    window.addEventListener('click', close);
+    return () => window.removeEventListener('click', close);
+  }, [moveMenu]);
 
   const [, navigate] = useLocation();
 
@@ -386,8 +394,17 @@ export default function Dashboard() {
                         <p style={{ fontSize: '12px', color: '#8A8A8A', fontStyle: 'italic', margin: 0 }}>{col.emptyText}</p>
                       ) : (
                         items.slice(0, 6).map((item: any) => (
-                          <div key={item.id} style={{ background: 'rgba(255,255,255,0.7)', borderRadius: '7px', padding: '6px 8px', fontSize: '12px', color: '#1A1A1A', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                            {item.company || item.name}
+                          <div
+                            key={item.id}
+                            style={{ background: 'rgba(255,255,255,0.7)', borderRadius: '7px', padding: '6px 8px', fontSize: '12px', color: '#1A1A1A', fontWeight: 500, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4px' }}
+                            title="Click to move to another column"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setMoveMenu(moveMenu?.leadId === item.id ? null : { leadId: item.id, x: e.clientX, y: e.clientY });
+                            }}
+                          >
+                            <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{item.company || item.name}</span>
+                            <span style={{ fontSize: '10px', color: '#8A8A8A', flexShrink: 0 }}>···</span>
                           </div>
                         ))
                       )}
