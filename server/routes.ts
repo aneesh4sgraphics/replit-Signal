@@ -26845,7 +26845,8 @@ Analyze this bounced email and provide insights in JSON format:
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
       const typoUserId = req.user?.claims?.sub || req.user?.id;
-      if (bounce.detectedBy !== typoUserId && req.user?.role !== 'admin') {
+      const typoDbUser = await storage.getUser(typoUserId);
+      if (bounce.detectedBy !== typoUserId && typoDbUser?.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: not your bounce record' });
       }
 
@@ -26866,7 +26867,8 @@ Analyze this bounced email and provide insights in JSON format:
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
       const companyUserId = req.user?.claims?.sub || req.user?.id;
-      if (bounce.detectedBy !== companyUserId && req.user?.role !== 'admin') {
+      const companyDbUser = await storage.getUser(companyUserId);
+      if (bounce.detectedBy !== companyUserId && companyDbUser?.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: not your bounce record' });
       }
 
@@ -26905,7 +26907,8 @@ Analyze this bounced email and provide insights in JSON format:
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
-      if (bounce.detectedBy !== userId && req.user?.role !== 'admin') {
+      const replaceDbUser = await storage.getUser(userId);
+      if (bounce.detectedBy !== userId && replaceDbUser?.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: not your bounce record' });
       }
 
@@ -27028,7 +27031,8 @@ Analyze this bounced email and provide insights in JSON format:
       const [bounce] = await db.select().from(bouncedEmails).where(eq(bouncedEmails.id, bounceId)).limit(1);
       if (!bounce) return res.status(404).json({ error: 'Bounce not found' });
 
-      if (bounce.detectedBy !== userId && req.user?.role !== 'admin') {
+      const fixEmailDbUser = await storage.getUser(userId);
+      if (bounce.detectedBy !== userId && fixEmailDbUser?.role !== 'admin') {
         return res.status(403).json({ error: 'Forbidden: not your bounce record' });
       }
 
