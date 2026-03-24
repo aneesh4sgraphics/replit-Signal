@@ -1677,37 +1677,37 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
         {/* Quotes */}
         <button
           onClick={() => setActiveTab('quotes-prices')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#EEF2FF] border-[#C7D2FE] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#E8EDFF] border-[#C7D2FE] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#4338CA] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <FileText className="h-4 w-4" />
             Quotes
           </span>
-          <span className="text-base font-semibold text-[#3730A3]">{sentQuotes.length + (odooStats?.quotesCount || 0)}</span>
+          <span className="text-base font-semibold text-[#1A1A1A]">{sentQuotes.length + (odooStats?.quotesCount || 0)}</span>
         </button>
 
         {/* Sales (Odoo) */}
         <button
           onClick={() => setActiveTab('orders')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#F0FDF4] border-[#BBF7D0] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#DCFCE7] border-[#BBF7D0] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#16A34A] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <ShoppingCart className="h-4 w-4" />
             Sales
           </span>
-          <span className="text-base font-semibold text-[#15803D]">{odooStats?.salesCount || customer.totalOrders || 0}</span>
+          <span className="text-base font-semibold text-[#1A1A1A]">{odooStats?.salesCount || customer.totalOrders || 0}</span>
         </button>
 
         {/* Invoiced (Odoo) */}
         <button
           onClick={() => setActiveTab('orders')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#ECFDF5] border-[#6EE7B7] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#D1FAE5] border-[#6EE7B7] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#059669] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <Receipt className="h-4 w-4" />
             Invoiced
           </span>
-          <span className="text-base font-semibold text-[#047857]">
+          <span className="text-base font-semibold text-[#1A1A1A]">
             ${((odooStats?.invoiced || 0) / 1000).toFixed(1)}k
           </span>
         </button>
@@ -1715,13 +1715,13 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
         {/* Due (Odoo) */}
         <button
           onClick={() => setActiveTab('orders')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#FFFBEB] border-[#FCD34D] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#FEF9C3] border-[#FDE047] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#D97706] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <Clock className="h-4 w-4" />
             Due
           </span>
-          <span className="text-base font-semibold text-[#B45309]">
+          <span className="text-base font-semibold text-[#1A1A1A]">
             ${((odooStats?.due || 0) / 1000).toFixed(1)}k
           </span>
         </button>
@@ -1729,37 +1729,37 @@ export default function ClientDetailView({ customer, companyContacts = [], onBac
         {/* Emails */}
         <button
           onClick={() => setActiveTab('emails')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#EFF6FF] border-[#BFDBFE] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#DBEAFE] border-[#BFDBFE] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#2563EB] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <Mail className="h-4 w-4" />
             Emails
           </span>
-          <span className="text-base font-semibold text-[#1D4ED8]">{emailSends.length}</span>
+          <span className="text-base font-semibold text-[#1A1A1A]">{emailSends.length}</span>
         </button>
 
         {/* Samples */}
         <button
           onClick={() => setActiveTab('samples')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#FDF4FF] border-[#E9D5FF] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#F3E8FF] border-[#E9D5FF] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#9333EA] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <FlaskConical className="h-4 w-4" />
             Samples
           </span>
-          <span className="text-base font-semibold text-[#7E22CE]">{sampleRequests.length}</span>
+          <span className="text-base font-semibold text-[#1A1A1A]">{sampleRequests.length}</span>
         </button>
 
         {/* Swatch */}
         <button
           onClick={() => setActiveTab('swatch-book')}
-          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#FFF7ED] border-[#FED7AA] hover:brightness-95 transition-all"
+          className="flex flex-col items-center px-4 py-2.5 rounded-xl border cursor-pointer min-w-[78px] bg-[#FFE4CC] border-[#FED7AA] hover:brightness-95 transition-all"
         >
-          <span className="flex items-center gap-1 text-xs font-medium text-[#EA580C] mb-1">
+          <span className="flex items-center gap-1 text-xs font-medium text-[#4A4A4A] mb-1">
             <Palette className="h-4 w-4" />
             Swatch
           </span>
-          <span className="text-base font-semibold text-[#C2410C]">{swatchShipments.length}</span>
+          <span className="text-base font-semibold text-[#1A1A1A]">{swatchShipments.length}</span>
         </button>
         
         {/* Press Profiles */}
