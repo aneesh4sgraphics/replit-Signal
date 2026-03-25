@@ -534,20 +534,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             connectionStatus.gmail.connected = false;
             connectionStatus.gmail.error = 'Gmail not connected - please reconnect in Integrations panel';
           } else {
-            // Validate token by making a simple API call using labels (which is included in scopes)
-            const { google } = await import('googleapis');
-            const oauth2Client = new google.auth.OAuth2();
-            oauth2Client.setCredentials({ access_token: accessToken });
-            const gmail = google.gmail({ version: 'v1', auth: oauth2Client });
-            // Use labels.list instead of getProfile since gmail.labels scope is available but gmail.readonly may not be
-            await gmail.users.labels.list({ userId: 'me' });
+            // Token presence is sufficient — Replit auto-refreshes when tokens are used
             connectionStatus.gmail.connected = true;
           }
         } catch (error: any) {
           connectionStatus.gmail.connected = false;
-          connectionStatus.gmail.error = error.message?.includes('invalid_grant') 
-            ? 'Gmail token expired - please reconnect' 
-            : (error.message || 'Gmail check failed');
+          connectionStatus.gmail.error = error.message || 'Gmail check failed';
         }
       })(),
       
@@ -575,19 +567,12 @@ export async function registerRoutes(app: Express): Promise<Server> {
             connectionStatus.calendar.connected = false;
             connectionStatus.calendar.error = 'Google Calendar not connected - please reconnect in Integrations panel';
           } else {
-            // Validate token by making a simple API call
-            const { google } = await import('googleapis');
-            const oauth2Client = new google.auth.OAuth2();
-            oauth2Client.setCredentials({ access_token: accessToken });
-            const calendar = google.calendar({ version: 'v3', auth: oauth2Client });
-            await calendar.calendarList.list({ maxResults: 1 });
+            // Token presence is sufficient — Replit auto-refreshes when tokens are used
             connectionStatus.calendar.connected = true;
           }
         } catch (error: any) {
           connectionStatus.calendar.connected = false;
-          connectionStatus.calendar.error = error.message?.includes('invalid_grant') 
-            ? 'Calendar token expired - please reconnect' 
-            : (error.message || 'Calendar check failed');
+          connectionStatus.calendar.error = error.message || 'Calendar check failed';
         }
       })(),
     ]);

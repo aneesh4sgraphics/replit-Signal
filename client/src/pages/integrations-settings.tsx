@@ -27,7 +27,7 @@ export default function IntegrationsSettings() {
   const { data: status, isLoading, refetch, isFetching } = useQuery<ConnectionStatus>({
     queryKey: ['/api/integrations/status'],
     refetchOnWindowFocus: false,
-    staleTime: 30 * 1000,
+    staleTime: 5 * 60 * 1000,
   });
 
   const { data: userPrefs } = useQuery<{ spotlightDigestEnabled: boolean }>({
