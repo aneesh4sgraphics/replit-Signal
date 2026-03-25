@@ -326,11 +326,11 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
                   )}
                   <span
                     className="w-9 h-9 rounded-md flex items-center justify-center flex-shrink-0 transition-all duration-150"
-                    style={isActive ? { backgroundColor: bg } : undefined}
+                    style={{ backgroundColor: isActive ? bg : `${bg}22` }}
                   >
                     <Icon
-                      className="h-5 w-5"
-                      style={isActive ? { color: fg } : undefined}
+                      className="h-5 w-5 transition-colors duration-150"
+                      style={{ color: isActive ? fg : bg }}
                     />
                   </span>
                   {sidebarExpanded && (

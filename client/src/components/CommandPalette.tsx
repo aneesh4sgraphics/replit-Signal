@@ -86,7 +86,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/spotlight-overview', icon: ClockIcon, label: 'Spotlight Overview', keywords: ['spotlight', 'overview', 'claims', 'snooze', 'manager', 'team'], adminOnly: true, iconBg: '#4F46E5', iconColor: '#FFFFFF' },
   { path: '/admin', icon: UsersIcon, label: 'Users', keywords: ['admin', 'management', 'roles'], adminOnly: true, iconBg: '#E03D3E', iconColor: '#FFFFFF' },
   { path: '/activity-logs', icon: ActivityIcon, label: 'Activity', keywords: ['logs', 'history', 'audit'], adminOnly: true, iconBg: '#DFAB00', iconColor: '#37352F' },
-  { path: '/product-pricing-management', icon: DatabaseIcon, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true, iconBg: '#AD1972', iconColor: '#FFFFFF' },
+  { path: '/product-pricing-management', icon: DatabaseIcon, label: 'Products', keywords: ['inventory', 'catalog', 'items'], adminOnly: true, iconBg: '#0284C7', iconColor: '#FFFFFF' },
   { path: '/pdf-settings', icon: PdfIcon, label: 'PDF Settings', keywords: ['pdf', 'export', 'documents'], adminOnly: true, iconBg: '#64473A', iconColor: '#FFFFFF' },
 ];
 

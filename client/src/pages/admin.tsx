@@ -475,6 +475,11 @@ export default function Admin() {
           </Card>
         </Link>
 
+        {/* Odoo Sync Actions */}
+        <div className="mb-6">
+          <OdooPullPricingCard />
+        </div>
+
         {/* Team Leaderboard Section */}
         <Card className="glass-card border-0 shadow-lg mb-8">
           <CardHeader className="border-b">
@@ -688,9 +693,6 @@ export default function Admin() {
 
         {/* Data Management Section */}
         <div className="max-w-md mx-auto space-y-6">
-          {/* Odoo Sync Actions */}
-          <OdooPullPricingCard />
-
           {/* Data Export */}
           <Card className="glass-card border-0 shadow-lg">
             <CardHeader className="border-b">
