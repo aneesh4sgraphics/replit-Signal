@@ -106,6 +106,20 @@ Features requested but not yet built — carry forward to future sessions.
 - **Odoo push** (lead push-to-odoo): two-phase sync — checks local `companies.odooCompanyPartnerId` first; if missing, creates Odoo company partner and saves back; falls back to name search if no local company record
 - **By Company view** in Contacts page: third toggle in view switcher (Building2 icon), groups contacts by `companyDomain` into collapsible company cards; standalone contacts shown last
 
+## Sales Rep Dropdown — Consistent Rules (IMPORTANT)
+
+**Single source of truth:** Every sales rep dropdown in the app MUST use `/api/sales-reps` — never `/api/users`.
+This applies to: `ClientDetailView.tsx`, `spotlight.tsx`, `lead-detail.tsx`, `quote-calculator.tsx`, `odoo-company-detail.tsx`.
+
+**Server-side filter** (`refreshSalesRepsCache` in `server/routes.ts`):
+- Source is always Odoo (`odooClient.getUsers()`); local `users` table is only a fallback when Odoo is unreachable.
+- Excluded logins (never shown): `admin`, `public`, `__system__`, `default`, `test`, `ashv`, `info`, `noreply`, `no-reply`, `support`, `sales`, `billing`, `demo`.
+- Company-alias pattern: names with a hyphen but no space (e.g. `4SGraphics-Info`) are excluded.
+- Raw-login echo: names ≤4 chars that are all-lowercase are excluded.
+- Only accounts with a real email (contains `@`) are included.
+
+**If a rep's name is appearing in raw/lowercase form** (e.g. `patricio`, `santiago`), the fix is to update their display name in Odoo to include their full first + last name.
+
 ## External Dependencies
 
 - **Odoo V19 ERP:** Used for customer data, product catalogs, pricelists, and orders.

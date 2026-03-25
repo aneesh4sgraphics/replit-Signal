@@ -1126,21 +1126,11 @@ export default function Spotlight() {
 
   // Helper to get display name from sales rep
   const getSalesRepDisplayName = (rep: { name?: string; email: string; firstName?: string; lastName?: string }) => {
-    // Special handling for info@4sgraphics.com
-    if (rep.email?.toLowerCase() === 'info@4sgraphics.com') {
-      return '4SGraphics-Info';
-    }
-    // Use name directly if available (from unified API)
-    if (rep.name) {
-      return rep.name;
-    }
-    if (rep.firstName && rep.lastName) {
-      return `${rep.firstName} ${rep.lastName}`;
-    }
-    if (rep.firstName) {
-      return rep.firstName;
-    }
-    // Derive from email: aneesh@4sgraphics.com -> Aneesh
+    // Use name directly if available (from /api/sales-reps, already cleaned)
+    if (rep.name) return rep.name;
+    if (rep.firstName && rep.lastName) return `${rep.firstName} ${rep.lastName}`;
+    if (rep.firstName) return rep.firstName;
+    // Last-resort: capitalise email prefix
     const emailPrefix = rep.email?.split('@')[0] || '';
     return emailPrefix.charAt(0).toUpperCase() + emailPrefix.slice(1).toLowerCase();
   };

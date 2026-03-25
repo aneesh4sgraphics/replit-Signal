@@ -1817,12 +1817,28 @@ export async function registerRoutes(app: Express): Promise<Server> {
         const users = await odooClient.getUsers();
         // Keep only users with a valid real email — filters out system/bot accounts
         // Also exclude common non-person logins (admin, public, __system__)
-        const excludedLogins = new Set(['admin', 'public', '__system__', 'default']);
+        // Logins that are never real sales reps
+        const excludedLogins = new Set([
+          'admin', 'public', '__system__', 'default',
+          'test', 'ashv', 'info', 'noreply', 'no-reply',
+          'support', 'sales', 'billing', 'demo',
+        ]);
         odooSalesReps = users
           .filter(u => {
             const email = (u.email || '').trim();
             const login = (u.login || '').trim().toLowerCase();
-            return email.includes('@') && !excludedLogins.has(login);
+            const name  = (u.name  || '').trim();
+            // Must have a real email address
+            if (!email.includes('@')) return false;
+            // Must not be a system / bot / test account
+            if (excludedLogins.has(login)) return false;
+            // Must have a real display name
+            if (!name || name.length < 2) return false;
+            // Company-alias pattern: "4SGraphics-Info", "My-Company" – hyphen with no spaces
+            if (name.includes('-') && !name.includes(' ')) return false;
+            // Raw-login echo: name is very short (≤4 chars) and all-lowercase
+            if (name.length <= 4 && name === name.toLowerCase()) return false;
+            return true;
           })
           .map(u => ({
             id: String(u.id),
@@ -1838,8 +1854,17 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return;
       }
       const allUsers = await storage.getAllUsers();
+      const localExcluded = new Set(['admin', 'public', '__system__', 'default', 'test', 'ashv', 'info', 'noreply', 'support', 'sales', 'billing', 'demo']);
       const salesReps = allUsers
-        .filter(u => u.status === 'approved')
+        .filter(u => {
+          if (u.status !== 'approved') return false;
+          const emailPrefix = (u.email || '').split('@')[0].toLowerCase();
+          if (localExcluded.has(emailPrefix)) return false;
+          const name = `${u.firstName || ''} ${u.lastName || ''}`.trim();
+          // Skip users without a real first+last name and a recognizable email prefix
+          if (!name && emailPrefix.length <= 4) return false;
+          return true;
+        })
         .map(u => ({
           id: u.id,
           name: `${u.firstName || ''} ${u.lastName || ''}`.trim() || u.email.split('@')[0],
