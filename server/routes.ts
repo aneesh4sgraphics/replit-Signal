@@ -7165,8 +7165,14 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.status(400).json({ error: 'No image file provided' });
       }
 
-      const anthropicKey = process.env.ANTHROPIC_API_KEY || process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY;
-      const openaiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
+      // Prefer Replit-managed integration keys (won't have quota issues) over user's own keys
+      const anthropicKey = process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY || process.env.ANTHROPIC_API_KEY;
+      const openaiKey = process.env.AI_INTEGRATIONS_OPENAI_API_KEY || process.env.OPENAI_API_KEY;
+
+      const backend = anthropicKey ? `Anthropic (${process.env.AI_INTEGRATIONS_ANTHROPIC_API_KEY ? 'integration' : 'user-key'})`
+        : openaiKey ? `OpenAI (${process.env.AI_INTEGRATIONS_OPENAI_API_KEY ? 'integration' : 'user-key'})`
+        : 'none';
+      console.log(`[Screenshot Extract] Using AI backend: ${backend}`);
 
       const base64Image = req.file.buffer.toString('base64');
       const mimeType = req.file.mimetype as 'image/jpeg' | 'image/png' | 'image/gif' | 'image/webp';
@@ -7210,9 +7216,10 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         rawText = (response.content[0] as any)?.text || '{}';
       } else if (openaiKey) {
         // Fallback to OpenAI GPT-4o
+        const usingIntegrationKey = !!(process.env.AI_INTEGRATIONS_OPENAI_API_KEY);
         const openaiClient = new OpenAI({
           apiKey: openaiKey,
-          ...((!process.env.OPENAI_API_KEY && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL)
+          ...(usingIntegrationKey && process.env.AI_INTEGRATIONS_OPENAI_BASE_URL
             ? { baseURL: process.env.AI_INTEGRATIONS_OPENAI_BASE_URL }
             : {}),
         });
@@ -7248,7 +7255,9 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       res.json({ data: extracted });
     } catch (error: any) {
       console.error('[Screenshot Extract] Error:', error?.message || error);
-      const msg = error?.status === 401 ? 'OpenAI API key is invalid'
+      const isQuotaError = error?.status === 429 && (error?.message || '').toLowerCase().includes('quota');
+      const msg = error?.status === 401 ? 'AI API key is invalid or not configured'
+        : isQuotaError ? 'AI quota exceeded — contact your administrator to configure a valid API key'
         : error?.status === 429 ? 'AI rate limit reached — try again in a moment'
         : error?.status === 400 ? 'Image could not be processed — try a clearer screenshot'
         : 'Failed to extract contact information';
