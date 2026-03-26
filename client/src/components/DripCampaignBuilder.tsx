@@ -210,9 +210,11 @@ export default function DripCampaignBuilder() {
   const assignCustomersMutation = useMutation({
     mutationFn: async ({ campaignId, customerIds, leadIds }: { campaignId: number; customerIds?: string[]; leadIds?: string[] }) => {
       if (leadIds) {
-        return await apiRequest("POST", `/api/drip-campaigns/${campaignId}/assignments`, { leadIds });
+        const res = await apiRequest("POST", `/api/drip-campaigns/${campaignId}/assignments`, { leadIds });
+        return res.json();
       }
-      return await apiRequest("POST", `/api/drip-campaigns/${campaignId}/assignments`, { customerIds });
+      const res = await apiRequest("POST", `/api/drip-campaigns/${campaignId}/assignments`, { customerIds });
+      return res.json();
     },
     onSuccess: (data: any) => {
       queryClient.invalidateQueries({ queryKey: ["/api/drip-campaigns"] });

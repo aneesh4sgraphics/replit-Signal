@@ -2233,6 +2233,7 @@ export default function Spotlight() {
       'MISSING_PRIMARY_EMAILS': { title: 'Missing Email Addresses', icon: Mail, iconBg: 'bg-orange-100', iconColor: 'text-orange-600' },
       'ALL_CONTACTED_TODAY': { title: 'Everyone Reached Today', icon: CheckCircle, iconBg: 'bg-green-100', iconColor: 'text-green-600' },
       'FILTERS_TOO_STRICT': { title: `No ${currentFocusLabel} Tasks`, icon: Target, iconBg: 'bg-purple-100', iconColor: 'text-purple-600' },
+      'NO_TASKS_AVAILABLE': { title: 'All Tasks Claimed', icon: RefreshCw, iconBg: 'bg-blue-100', iconColor: 'text-blue-600' },
     };
 
     const cfg = reason ? reasonConfig[reason] : null;

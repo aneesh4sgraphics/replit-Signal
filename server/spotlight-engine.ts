@@ -1862,8 +1862,13 @@ class SpotlightEngine {
     }
   }
 
-  async getNextTask(userId: string, forceBucket?: string, workType?: string): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean; emptyReason?: string; emptyDetail?: string }> {
+  async getNextTask(userId: string, forceBucket?: string, workType?: string, _depth = 0): Promise<{ task: SpotlightTask | null; session: SpotlightSession; allDone: boolean; isPaused?: boolean; emptyReason?: string; emptyDetail?: string }> {
     const startTime = Date.now();
+    if (_depth >= 15) {
+      const session = await this.getSessionAsync(userId);
+      console.warn(`[Spotlight] getNextTask depth limit reached for user ${userId}, returning no task`);
+      return { task: null, session, allDone: false, emptyReason: 'NO_TASKS_AVAILABLE', emptyDetail: 'All available tasks are currently being handled. Check back shortly.' };
+    }
     const session = await this.getSessionAsync(userId);
     
     if (session.isPaused) {
@@ -1912,7 +1917,7 @@ class SpotlightEngine {
           if (!claimSuccess) {
             excludeIds.push(task.customerId);
             session.skippedCustomerIds.push(task.customerId);
-            return this.getNextTask(userId, forceBucket, workType);
+            return this.getNextTask(userId, forceBucket, workType, _depth + 1);
           }
           const enrichedTask = await this.enrichTaskWithCounts(task);
           console.log(`[Spotlight] Generated task (workType) in ${Date.now() - startTime}ms`);
@@ -1953,7 +1958,7 @@ class SpotlightEngine {
           if (bucketData) {
             bucketData.completed = bucketData.target;
           }
-          return this.getNextTask(userId);
+          return this.getNextTask(userId, undefined, undefined, _depth + 1);
         }
       }
       
@@ -1962,7 +1967,7 @@ class SpotlightEngine {
       if (!claimSuccess) {
         excludeIds.push(task.customerId);
         session.skippedCustomerIds.push(task.customerId);
-        return this.getNextTask(userId);
+        return this.getNextTask(userId, undefined, undefined, _depth + 1);
       }
       
       const enrichedTask = await this.enrichTaskWithCounts(task);
@@ -2650,7 +2655,7 @@ class SpotlightEngine {
           .where(and(
             eq(gmailMessages.direction, 'inbound'),
             eq(gmailMessages.customerId, stale.customer.id),
-            gt(gmailMessages.sentAt, stale.lastStepSentAt)
+            gt(gmailMessages.sentAt, new Date(stale.lastStepSentAt))
           ))
           .limit(1);
         
@@ -2663,12 +2668,13 @@ class SpotlightEngine {
           .where(and(
             eq(spotlightEvents.customerId, stale.customer.id),
             sql`${spotlightEvents.taskId} LIKE 'follow_ups::drip_stale_%'`,
-            gte(spotlightEvents.createdAt, stale.lastStepSentAt)
+            gte(spotlightEvents.createdAt, new Date(stale.lastStepSentAt))
           ))
           .limit(1);
         
         if (alreadyHandled.length === 0) {
-          const daysSinceLastEmail = Math.floor((Date.now() - (stale.lastStepSentAt?.getTime() || 0)) / (1000 * 60 * 60 * 24));
+          const lastStepDate = new Date(stale.lastStepSentAt);
+          const daysSinceLastEmail = Math.floor((Date.now() - (lastStepDate.getTime() || 0)) / (1000 * 60 * 60 * 24));
           
           return {
             id: `follow_ups::drip_stale_${stale.assignmentId}::${stale.customer.id}::drip_stale_followup`,
@@ -2681,7 +2687,7 @@ class SpotlightEngine {
             customer: stale.customer,
             context: {
               campaignName: stale.campaignName,
-              lastEmailSentAt: stale.lastStepSentAt?.toISOString(),
+              lastEmailSentAt: new Date(stale.lastStepSentAt).toISOString(),
               emailsSent: stale.totalStepsSent,
               daysSinceLastEmail,
               sourceType: 'drip_stale',
