@@ -3342,119 +3342,82 @@ export async function registerRoutes(app: Express): Promise<Server> {
         return res.json({ hasWins: false, paths: [] });
       }
 
-      // Build the full interaction timeline for each win
-      const paths = [];
+      // Batch-fetch all interaction data up to the latest win order in 3 queries
+      const lastWinDate = new Date(winOrders[winOrders.length - 1].shopifyCreatedAt!);
 
-      for (const order of winOrders) {
-        const orderDate = new Date(order.shopifyCreatedAt!);
-        const steps: any[] = [];
-
-        // Get all emails sent before this order
-        const emails = await db.select({
+      const [allEmails, allLabels, allActivities] = await Promise.all([
+        db.select({
           id: emailSends.id,
           subject: emailSends.subject,
           sentAt: emailSends.sentAt,
           sentBy: emailSends.sentBy,
-        })
-          .from(emailSends)
-          .where(and(
-            eq(emailSends.customerId, customerId),
-            eq(emailSends.status, 'sent'),
-            lte(emailSends.sentAt, orderDate)
-          ))
-          .orderBy(asc(emailSends.sentAt));
+        }).from(emailSends).where(and(
+          eq(emailSends.customerId, customerId),
+          eq(emailSends.status, 'sent'),
+          lte(emailSends.sentAt, lastWinDate)
+        )).orderBy(asc(emailSends.sentAt)),
 
-        for (const email of emails) {
-          steps.push({
-            type: 'email',
-            label: 'Email Sent',
-            detail: email.subject || 'No subject',
-            date: email.sentAt,
-            by: email.sentBy,
-          });
-        }
-
-        // Get all label prints (mailers, swatch books, press test kits) before this order
-        const labels = await db.select({
+        db.select({
           id: labelPrints.id,
           labelType: labelPrints.labelType,
           createdAt: labelPrints.createdAt,
           printedByUserName: labelPrints.printedByUserName,
-        })
-          .from(labelPrints)
-          .where(and(
-            eq(labelPrints.customerId, customerId),
-            lte(labelPrints.createdAt, orderDate)
-          ))
-          .orderBy(asc(labelPrints.createdAt));
+        }).from(labelPrints).where(and(
+          eq(labelPrints.customerId, customerId),
+          lte(labelPrints.createdAt, lastWinDate)
+        )).orderBy(asc(labelPrints.createdAt)),
 
-        for (const label of labels) {
-          const typeLabels: Record<string, string> = {
-            swatch_book: 'Swatch Book Sent',
-            press_test_kit: 'Press Test Kit Sent',
-            mailer: 'Mailer Sent',
-            letter: 'Letter Sent',
-            other: 'Mail Sent',
-          };
-          steps.push({
-            type: label.labelType,
-            label: typeLabels[label.labelType] || 'Mail Sent',
-            detail: label.labelType.replace(/_/g, ' '),
-            date: label.createdAt,
-            by: label.printedByUserName,
-          });
-        }
-
-        // Get relevant activity events before this order (calls, samples, quotes)
-        const activities = await db.select({
+        db.select({
           id: customerActivityEvents.id,
           eventType: customerActivityEvents.eventType,
           title: customerActivityEvents.title,
           eventDate: customerActivityEvents.eventDate,
           createdByName: customerActivityEvents.createdByName,
           amount: customerActivityEvents.amount,
-        })
-          .from(customerActivityEvents)
-          .where(and(
-            eq(customerActivityEvents.customerId, customerId),
-            lte(customerActivityEvents.eventDate, orderDate),
-            inArray(customerActivityEvents.eventType, [
-              'call_made', 'quote_sent', 'sample_shipped', 'sample_delivered',
-              'sample_feedback', 'meeting_completed', 'quote_accepted'
-            ])
-          ))
-          .orderBy(asc(customerActivityEvents.eventDate));
+        }).from(customerActivityEvents).where(and(
+          eq(customerActivityEvents.customerId, customerId),
+          lte(customerActivityEvents.eventDate, lastWinDate),
+          inArray(customerActivityEvents.eventType, [
+            'call_made', 'quote_sent', 'sample_shipped', 'sample_delivered',
+            'sample_feedback', 'meeting_completed', 'quote_accepted'
+          ])
+        )).orderBy(asc(customerActivityEvents.eventDate)),
+      ]);
 
-        for (const act of activities) {
-          const actLabels: Record<string, string> = {
-            call_made: 'Phone Call',
-            quote_sent: 'Quote Sent',
-            sample_shipped: 'Sample Shipped',
-            sample_delivered: 'Sample Delivered',
-            sample_feedback: 'Sample Feedback',
-            meeting_completed: 'Meeting',
-            quote_accepted: 'Quote Accepted',
-          };
-          steps.push({
-            type: act.eventType,
-            label: actLabels[act.eventType] || act.eventType,
-            detail: act.title,
-            date: act.eventDate,
-            by: act.createdByName,
-          });
+      const TYPE_LABELS: Record<string, string> = {
+        swatch_book: 'Swatch Book Sent', press_test_kit: 'Press Test Kit Sent',
+        mailer: 'Mailer Sent', letter: 'Letter Sent', other: 'Mail Sent',
+      };
+      const ACT_LABELS: Record<string, string> = {
+        call_made: 'Phone Call', quote_sent: 'Quote Sent', sample_shipped: 'Sample Shipped',
+        sample_delivered: 'Sample Delivered', sample_feedback: 'Sample Feedback',
+        meeting_completed: 'Meeting', quote_accepted: 'Quote Accepted',
+      };
+
+      // Build paths by filtering pre-fetched data per order
+      const paths = [];
+      for (const order of winOrders) {
+        const orderDate = new Date(order.shopifyCreatedAt!);
+        const steps: any[] = [];
+
+        for (const email of allEmails) {
+          if (email.sentAt && new Date(email.sentAt) <= orderDate) {
+            steps.push({ type: 'email', label: 'Email Sent', detail: email.subject || 'No subject', date: email.sentAt, by: email.sentBy });
+          }
+        }
+        for (const label of allLabels) {
+          if (label.createdAt && new Date(label.createdAt) <= orderDate) {
+            steps.push({ type: label.labelType, label: TYPE_LABELS[label.labelType] || 'Mail Sent', detail: label.labelType.replace(/_/g, ' '), date: label.createdAt, by: label.printedByUserName });
+          }
+        }
+        for (const act of allActivities) {
+          if (act.eventDate && new Date(act.eventDate) <= orderDate) {
+            steps.push({ type: act.eventType, label: ACT_LABELS[act.eventType] || act.eventType, detail: act.title, date: act.eventDate, by: act.createdByName });
+          }
         }
 
-        // Sort all steps chronologically
         steps.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-
-        // Add the order itself as the final step
-        steps.push({
-          type: 'order',
-          label: 'Order Placed',
-          detail: `Order ${order.orderNumber} — $${parseFloat(order.totalPrice || '0').toFixed(2)}`,
-          date: order.shopifyCreatedAt,
-          by: null,
-        });
+        steps.push({ type: 'order', label: 'Order Placed', detail: `Order ${order.orderNumber} — $${parseFloat(order.totalPrice || '0').toFixed(2)}`, date: order.shopifyCreatedAt, by: null });
 
         paths.push({
           orderId: order.id,
@@ -3463,7 +3426,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
           orderDate: order.shopifyCreatedAt,
           financialStatus: order.financialStatus,
           steps,
-          daysToWin: Math.round((orderDate.getTime() - new Date(steps[0].date).getTime()) / (1000 * 60 * 60 * 24)),
+          daysToWin: steps.length > 1 ? Math.round((orderDate.getTime() - new Date(steps[0].date).getTime()) / (1000 * 60 * 60 * 24)) : 0,
         });
       }
 

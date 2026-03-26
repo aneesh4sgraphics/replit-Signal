@@ -1042,7 +1042,7 @@ export class DatabaseStorage implements IStorage {
 
   // Customers
   async getCustomers(): Promise<Customer[]> {
-    return await db.select().from(customers);
+    return await db.select(this.customerListFields).from(customers) as Customer[];
   }
 
   // List-only fields for customer list views (excludes notes, large text fields)

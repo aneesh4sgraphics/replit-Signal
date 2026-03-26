@@ -2032,7 +2032,12 @@ export const shopifyOrders = pgTable("shopify_orders", {
   odooOrderId: integer("odoo_order_id"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_shopify_orders_customer_id").on(table.customerId),
+  index("IDX_shopify_orders_shopify_customer_id").on(table.shopifyCustomerId),
+  index("IDX_shopify_orders_financial_status").on(table.financialStatus),
+  index("IDX_shopify_orders_created_at").on(table.shopifyCreatedAt),
+]);
 
 export const insertShopifyOrderSchema = createInsertSchema(shopifyOrders).omit({
   id: true,
@@ -2547,7 +2552,12 @@ export const dripCampaignAssignments = pgTable("drip_campaign_assignments", {
   assignedBy: varchar("assigned_by", { length: 255 }),
   metadata: jsonb("metadata").$type<Record<string, any>>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_drip_assignments_campaign_id").on(table.campaignId),
+  index("IDX_drip_assignments_customer_id").on(table.customerId),
+  index("IDX_drip_assignments_lead_id").on(table.leadId),
+  index("IDX_drip_assignments_status").on(table.status),
+]);
 
 export const insertDripCampaignAssignmentSchema = createInsertSchema(dripCampaignAssignments).omit({
   id: true,
@@ -2571,7 +2581,13 @@ export const dripCampaignStepStatus = pgTable("drip_campaign_step_status", {
   retryCount: integer("retry_count").default(0),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
-});
+}, (table) => [
+  index("IDX_drip_step_status_assignment_id").on(table.assignmentId),
+  index("IDX_drip_step_status_step_id").on(table.stepId),
+  index("IDX_drip_step_status_status").on(table.status),
+  index("IDX_drip_step_status_scheduled_for").on(table.scheduledFor),
+  index("IDX_drip_step_status_sent_at").on(table.sentAt),
+]);
 
 export const insertDripCampaignStepStatusSchema = createInsertSchema(dripCampaignStepStatus).omit({
   id: true,
