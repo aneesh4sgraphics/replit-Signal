@@ -579,34 +579,67 @@ export const isAuthenticated: RequestHandler = async (req: Request, res: Respons
     const bufferSeconds = 60;
 
     if (now > user.expires_at + bufferSeconds) {
-      if (!user.refresh_token) {
-        console.log(`[Auth] No refresh token available for ${user.email} - session cannot be renewed`);
-        return res.status(401).json({ message: "Session expired" });
-      }
-
-      try {
-        const config = await getOidcConfig();
-        const tokenResponse = await client.refreshTokenGrant(config, user.refresh_token);
-        updateUserTokens(user, tokenResponse);
-        
-        // Persist refreshed tokens to the session
+      // Helper: extend the session's expires_at without a new OIDC token.
+      // Safe because we don't use the OIDC access token for any API calls post-login.
+      // Our own session TTL (7-day rolling) is the real auth gate.
+      const extendSessionExpiry = () => {
+        const newExpiry = Math.floor(Date.now() / 1000) + 3600; // +1 hour
+        user.expires_at = newExpiry;
         if ((req.session as any)?.passport?.user) {
-          (req.session as any).passport.user.access_token = user.access_token;
-          (req.session as any).passport.user.refresh_token = user.refresh_token;
-          (req.session as any).passport.user.expires_at = user.expires_at;
-          (req.session as any).passport.user.claims = user.claims;
-          
-          // Save session asynchronously (don't block the request)
+          (req.session as any).passport.user.expires_at = newExpiry;
           req.session.save((err) => {
-            if (err) console.error("[Auth] Failed to save refreshed tokens to session:", err);
-            else console.log("[Auth] Refreshed tokens saved to session");
+            if (err) console.error("[Auth] Failed to save extended session:", err);
           });
         }
-        
-        console.log("[Auth] Token refreshed successfully");
-      } catch (error) {
-        console.error("[Auth] Token refresh failed:", error);
-        return res.status(401).json({ message: "Session expired" });
+      };
+
+      if (!user.refresh_token) {
+        // No refresh token — extend the session rather than kicking the user out.
+        // This happens when Replit rotates tokens after a new deployment.
+        console.log(`[Auth] No refresh token for ${user.email} — extending session expiry.`);
+        extendSessionExpiry();
+      } else {
+        try {
+          const config = await getOidcConfig();
+          const tokenResponse = await client.refreshTokenGrant(config, user.refresh_token);
+          updateUserTokens(user, tokenResponse);
+          
+          // Persist refreshed tokens to the session
+          if ((req.session as any)?.passport?.user) {
+            (req.session as any).passport.user.access_token = user.access_token;
+            (req.session as any).passport.user.refresh_token = user.refresh_token;
+            (req.session as any).passport.user.expires_at = user.expires_at;
+            (req.session as any).passport.user.claims = user.claims;
+            req.session.save((err) => {
+              if (err) console.error("[Auth] Failed to save refreshed tokens to session:", err);
+              else console.log("[Auth] Refreshed tokens saved to session");
+            });
+          }
+          console.log("[Auth] Token refreshed successfully");
+        } catch (error: any) {
+          // Detect invalid_grant: Replit's OIDC token was revoked (e.g. new deployment).
+          // Rather than kicking the user out, extend their session — they are still the
+          // same authenticated user within our 7-day session window.
+          const isInvalidGrant =
+            error?.error === 'invalid_grant' ||
+            error?.cause?.error === 'invalid_grant' ||
+            (error?.message || '').toLowerCase().includes('invalid_grant') ||
+            (error?.message || '').toLowerCase().includes('grant request is invalid');
+
+          if (isInvalidGrant) {
+            console.log(`[Auth] OIDC token invalid_grant for ${user.email} — extending session without OIDC refresh (deployment rotation).`);
+            // Clear the stale refresh token so we don't attempt to use it again
+            user.refresh_token = undefined;
+            if ((req.session as any)?.passport?.user) {
+              (req.session as any).passport.user.refresh_token = null;
+            }
+            extendSessionExpiry();
+          } else {
+            // Genuine auth failure (network error, misconfiguration, etc.) — log and fail
+            console.error("[Auth] Token refresh failed (non-recoverable):", error);
+            return res.status(401).json({ message: "Session expired" });
+          }
+        }
       }
     }
   }
