@@ -2324,7 +2324,7 @@ export default function Spotlight() {
   
   // For Lead tasks, use lead data for email/address; for customers use customer data
   const effectiveEmail = task.isLeadTask ? (task.lead?.email || customer.email) : customer.email;
-  const effectiveAddress = task.isLeadTask ? (task.lead?.address || customer.address1) : customer.address1;
+  const effectiveAddress = task.isLeadTask ? (task.lead?.street || task.lead?.address || customer.address1) : customer.address1;
   
   // Calculate remaining for the day
   const remaining = (session?.totalTarget || 30) - (session?.totalCompleted || 0);
@@ -3876,7 +3876,7 @@ export default function Spotlight() {
                       <div className="flex items-center gap-1">
                         <a 
                           href={task.isLeadTask && task.lead?.city
-                            ? `https://maps.google.com/?q=${encodeURIComponent(`${task.lead.address || ''}, ${task.lead.city || ''} ${task.lead.state || ''} ${task.lead.zip || ''}`)}`
+                            ? `https://maps.google.com/?q=${encodeURIComponent(`${task.lead.street || task.lead.address || ''}, ${task.lead.city || ''} ${task.lead.state || ''} ${task.lead.zip || ''}`)}`
                             : `https://maps.google.com/?q=${encodeURIComponent(`${customer.address1 || ''}, ${customer.city || ''} ${customer.province || ''} ${customer.zip || ''}`)}`
                           }
                           target="_blank"
