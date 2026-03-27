@@ -15850,7 +15850,8 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
     try {
       const id = parseInt(req.params.id);
       const data = req.body;
-      
+      const userId = req.user?.claims?.sub || req.user?.id;
+
       // Normalize email if updated
       if (data.email) {
         data.emailNormalized = normalizeEmail(data.email);
@@ -15860,6 +15861,13 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       }
       
       data.updatedAt = new Date();
+
+      // If the email is being changed, fetch the old lead to compare
+      let oldEmail: string | null = null;
+      if (data.email) {
+        const [existing] = await db.select({ email: leads.email }).from(leads).where(eq(leads.id, id)).limit(1);
+        oldEmail = existing?.email ?? null;
+      }
       
       const result = await db.update(leads)
         .set(data)
@@ -15868,6 +15876,17 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       
       if (result.length === 0) {
         return res.status(404).json({ error: "Lead not found" });
+      }
+
+      // If the email changed, auto-resolve any pending bounces for this lead so Spotlight
+      // stops surfacing the stale bounce card
+      if (data.email && oldEmail && data.email.toLowerCase() !== oldEmail.toLowerCase()) {
+        await db.update(bouncedEmails)
+          .set({ status: 'resolved', resolvedAt: new Date(), resolvedBy: userId, resolution: 'email_updated' })
+          .where(and(
+            eq(bouncedEmails.leadId, id),
+            inArray(bouncedEmails.status, ['pending', 'investigating'])
+          ));
       }
 
       // Invalidate Spotlight prefetch caches so the next task fetch reads fresh lead data
