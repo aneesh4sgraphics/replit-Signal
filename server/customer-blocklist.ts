@@ -1,5 +1,6 @@
 export const BLOCKED_COMPANY_KEYWORDS = [
-  'cargo', 'freight', 'logistics', 'consolidator', 'consolidators',
+  'cargo', 'freight', 'shipping', 'ship', 'ocean',
+  'logistics', 'consolidator', 'consolidators',
   '3pl', 'third party logistics', 'trucking', 'drayage', 'intermodal', 'ltl', 'ftl',
   'customs broker', 'forwarder', 'forwarding', 'cold chain', 'supply chain',
 ];

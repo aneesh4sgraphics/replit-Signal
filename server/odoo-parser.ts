@@ -4,6 +4,14 @@ import ExcelJS from 'exceljs';
 import { nanoid } from 'nanoid';
 import { deriveRegionTag } from './odoo';
 
+const FREIGHT_KEYWORDS = ['freight', 'shipping', 'ocean', 'ship'];
+
+export function isFreightContact(name: string): boolean {
+  if (!name) return false;
+  const lower = name.toLowerCase();
+  return FREIGHT_KEYWORDS.some(kw => lower.includes(kw));
+}
+
 interface ParsedOdooRow {
   completeName: string;
   phone: string;
@@ -154,6 +162,11 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
         }
 
         const { company, firstName, lastName } = splitCompleteName(parsedOdoo.completeName);
+
+        if (isFreightContact(company) || isFreightContact(parsedOdoo.completeName)) {
+          console.log(`[Odoo Parser] Skipping freight/shipping contact: ${parsedOdoo.completeName}`);
+          continue;
+        }
 
         let customerId = nanoid(12);
         

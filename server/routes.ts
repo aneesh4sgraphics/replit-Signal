@@ -14,7 +14,7 @@ import { registerObjectStorageRoutes } from "./replit_integrations/object_storag
 import { z } from "zod";
 // Removed: parseProductData import - legacy CSV parser no longer used
 import { parseCustomerCSV } from "./customer-parser";
-import { parseOdooExcel } from "./odoo-parser";
+import { parseOdooExcel, isFreightContact } from "./odoo-parser";
 import { odooClient } from "./odoo";
 import { isBlockedCompany, getBlockedKeywordMatch, BLOCKED_COMPANY_KEYWORDS } from "./customer-blocklist";
 import { autoAssignSalesRepIfNeeded } from "./sales-rep-auto-assign";
@@ -16971,12 +16971,23 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       const toUpdate: { odooLeadId: number; data: any }[] = [];
       let skippedExistingCustomer = 0;
       
+      let skippedFreight = 0;
+
       // Process all leads (fast in-memory filtering)
       for (const ol of odooLeads) {
         // Skip leads whose email already exists in customers (Contacts)
         const leadEmailNormalized = ol.email_from ? normalizeEmail(ol.email_from) : null;
         if (leadEmailNormalized && customerEmailSet.has(leadEmailNormalized.toLowerCase())) {
           skippedExistingCustomer++;
+          continue;
+        }
+
+        // Skip freight/shipping/ocean contacts
+        const leadCompany = ol.partner_name || '';
+        const leadName = ol.contact_name || ol.name || '';
+        if (isFreightContact(leadCompany) || isFreightContact(leadName)) {
+          console.log(`[Leads Import] Skipping freight/shipping contact: ${leadCompany || leadName}`);
+          skippedFreight++;
           continue;
         }
         
@@ -17059,7 +17070,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         }
       }
       
-      console.log(`[Leads] Import complete: ${imported} new, ${updated} updated, ${skippedExistingCustomer} skipped (already in Contacts)`);
+      console.log(`[Leads] Import complete: ${imported} new, ${updated} updated, ${skippedExistingCustomer} skipped (already in Contacts), ${skippedFreight} skipped (freight/shipping/ocean)`);
 
       // --- Cleanup: delete local leads whose Odoo ID no longer exists in Odoo ---
       // These were deleted in Odoo, so remove them here too (skip converted leads)
@@ -17092,6 +17103,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         deleted,
         skipped: 0,
         skippedExistingCustomer,
+        skippedFreight,
         total: odooLeads.length
       });
     } catch (error) {
