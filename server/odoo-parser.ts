@@ -2,6 +2,7 @@ import { storage } from "./storage";
 import { InsertCustomer } from "../shared/schema";
 import ExcelJS from 'exceljs';
 import { nanoid } from 'nanoid';
+import { deriveRegionTag } from './odoo';
 
 interface ParsedOdooRow {
   completeName: string;
@@ -14,6 +15,8 @@ interface ParsedOdooRow {
   state: string;
   country: string;
   zip: string;
+  jobTitle: string;
+  comment: string;
 }
 
 function parseOdooRow(row: Record<string, ExcelJS.CellValue>): ParsedOdooRow | null {
@@ -33,6 +36,8 @@ function parseOdooRow(row: Record<string, ExcelJS.CellValue>): ParsedOdooRow | n
   const state = getValue('State') || getValue('State/Province') || getValue('Province');
   const country = getValue('Country');
   const zip = getValue('Zip') || getValue('ZIP') || getValue('Postal Code');
+  const jobTitle = getValue('Job Position') || getValue('Function') || getValue('Job Title');
+  const comment = getValue('Notes') || getValue('Comment') || getValue('Internal Notes');
 
   if (!completeName && !email && !phone) {
     console.log('Skipping row with no identifiable information');
@@ -49,7 +54,9 @@ function parseOdooRow(row: Record<string, ExcelJS.CellValue>): ParsedOdooRow | n
     city,
     state,
     country,
-    zip
+    zip,
+    jobTitle,
+    comment,
   };
 }
 
@@ -178,11 +185,15 @@ export async function parseOdooExcel(fileBuffer: Buffer): Promise<{
           acceptsSmsMarketing: false,
           totalSpent: "0",
           totalOrders: 0,
-          note: '',
           taxExempt: false,
           tags: parsedOdoo.salesperson ? `Salesperson: ${parsedOdoo.salesperson}` : '',
-          sources: ['odoo']
+          sources: ['odoo'],
+          jobTitle: parsedOdoo.jobTitle || null,
+          note: parsedOdoo.comment || null,
         };
+
+        const derivedRegion = deriveRegionTag(parsedOdoo.country, null);
+        console.log(`[Odoo Import] Row ${i + 2}: derivedRegionTag=${derivedRegion} (country="${parsedOdoo.country}")`);
 
         parsedCustomers.push({ customerData, lineNumber: i + 2 });
 

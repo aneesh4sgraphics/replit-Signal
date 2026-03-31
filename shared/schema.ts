@@ -186,6 +186,46 @@ export const companies = pgTable("companies", {
   odooSyncedAt: timestamp("odoo_synced_at"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
+
+  // Identity enrichment
+  tradeName: varchar("trade_name", { length: 255 }),
+  industryType: varchar("industry_type", { length: 100 }),
+  companyType: varchar("company_type", { length: 100 }),
+
+  // Full address
+  country: varchar("country", { length: 100 }),
+  stateProvince: varchar("state_province", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  addressLine1: varchar("address_line1", { length: 255 }),
+  addressLine2: varchar("address_line2", { length: 255 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  regionTag: varchar("region_tag", { length: 100 }),
+
+  // Contact info
+  mainPhone: varchar("main_phone", { length: 50 }),
+  generalEmail: varchar("general_email", { length: 255 }),
+  linkedinPage: varchar("linkedin_page", { length: 500 }),
+
+  // Equipment & sales profile
+  printerBrands: text("printer_brands"),
+  mediaInterests: text("media_interests"),
+  annualVolumeEst: varchar("annual_volume_est", { length: 50 }),
+  currency: varchar("currency", { length: 10 }),
+
+  // Relationship
+  status: varchar("status", { length: 50 }),
+  priority: varchar("priority", { length: 20 }),
+  assignedTo: varchar("assigned_to", { length: 255 }),
+  source: varchar("source", { length: 100 }),
+  referredBy: varchar("referred_by", { length: 255 }),
+  firstContactDate: timestamp("first_contact_date"),
+  lastActivityDate: timestamp("last_activity_date"),
+  nextFollowUp: timestamp("next_follow_up"),
+
+  // Notes
+  companyNotes: text("company_notes"),
+  salesNotes: text("sales_notes"),
+  companyTags: varchar("company_tags", { length: 500 }),
 }, (table) => [
   index("idx_companies_domain").on(table.domain),
 ]);
@@ -468,6 +508,26 @@ export const leads = pgTable("leads", {
   // Company grouping (Lead-Contact Parity v1)
   companyDomain: text("company_domain"), // e.g. "acme.com" — auto-derived from email
   companyId: integer("company_id").references(() => companies.id), // FK → companies
+
+  // Missing contact channels
+  whatsapp: varchar("whatsapp", { length: 50 }),
+  linkedinProfile: varchar("linkedin_profile", { length: 500 }),
+  preferredLanguage: varchar("preferred_language", { length: 50 }),
+  bestContactMethod: varchar("best_contact_method", { length: 50 }),
+
+  // Personal intel
+  hobbiesInterests: text("hobbies_interests"),
+  familyPersonalNotes: text("family_personal_notes"),
+  birthdayAnniversary: varchar("birthday_anniversary", { length: 50 }),
+  lastGiftGesture: text("last_gift_gesture"),
+
+  // Relationship depth
+  relationshipWarmth: varchar("relationship_warmth", { length: 50 }),
+  metAtEvent: varchar("met_at_event", { length: 255 }),
+
+  // Region tag
+  regionTag: varchar("region_tag", { length: 100 }),
+
   // Timestamps
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
