@@ -1,0 +1,179 @@
+Make the following changes across three files. DO NOT remove or rename any existing columns, fields, or logic. All changes are purely additive. After all edits, run: npm run db:push
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 1: shared/schema.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+ADD these nullable columns to the existing `companies` table (after the existing `updatedAt` column):
+
+  // Identity enrichment
+  tradeName: varchar("trade_name", { length: 255 }),
+  industryType: varchar("industry_type", { length: 100 }),
+  companyType: varchar("company_type", { length: 100 }),
+
+  // Full address
+  country: varchar("country", { length: 100 }),
+  stateProvince: varchar("state_province", { length: 100 }),
+  city: varchar("city", { length: 100 }),
+  addressLine1: varchar("address_line1", { length: 255 }),
+  addressLine2: varchar("address_line2", { length: 255 }),
+  postalCode: varchar("postal_code", { length: 20 }),
+  regionTag: varchar("region_tag", { length: 100 }),
+
+  // Contact info
+  mainPhone: varchar("main_phone", { length: 50 }),
+  generalEmail: varchar("general_email", { length: 255 }),
+  linkedinPage: varchar("linkedin_page", { length: 500 }),
+
+  // Equipment & sales profile
+  printerBrands: text("printer_brands"),
+  mediaInterests: text("media_interests"),
+  annualVolumeEst: varchar("annual_volume_est", { length: 50 }),
+  currency: varchar("currency", { length: 10 }),
+
+  // Relationship
+  status: varchar("status", { length: 50 }),
+  priority: varchar("priority", { length: 20 }),
+  assignedTo: varchar("assigned_to", { length: 255 }),
+  source: varchar("source", { length: 100 }),
+  referredBy: varchar("referred_by", { length: 255 }),
+  firstContactDate: timestamp("first_contact_date"),
+  lastActivityDate: timestamp("last_activity_date"),
+  nextFollowUp: timestamp("next_follow_up"),
+
+  // Notes
+  companyNotes: text("company_notes"),
+  salesNotes: text("sales_notes"),
+  companyTags: varchar("company_tags", { length: 500 }),
+
+ADD these nullable columns to the existing `leads` table (after the existing `companyId` column):
+
+  // Missing contact channels
+  whatsapp: varchar("whatsapp", { length: 50 }),
+  linkedinProfile: varchar("linkedin_profile", { length: 500 }),
+  preferredLanguage: varchar("preferred_language", { length: 50 }),
+  bestContactMethod: varchar("best_contact_method", { length: 50 }),
+
+  // Personal intel
+  hobbiesInterests: text("hobbies_interests"),
+  familyPersonalNotes: text("family_personal_notes"),
+  birthdayAnniversary: varchar("birthday_anniversary", { length: 50 }),
+  lastGiftGesture: text("last_gift_gesture"),
+
+  // Relationship depth
+  relationshipWarmth: varchar("relationship_warmth", { length: 50 }),
+  metAtEvent: varchar("met_at_event", { length: 255 }),
+
+  // Region tag
+  regionTag: varchar("region_tag", { length: 100 }),
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 2: server/odoo.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+No structural changes. Add one helper function at the bottom of the file (before the closing export):
+
+// Derives a SIGNAL region tag from an Odoo country name or code
+export function deriveRegionTag(countryName: string | null, countryCode: string | null): string {
+  if (!countryName && !countryCode) return 'Other';
+  const n = (countryName || '').toLowerCase();
+  const c = (countryCode || '').toLowerCase();
+  if (c === 'us' || n.includes('united states')) return 'Miami-USA';
+  if (c === 'hn' || n.includes('honduras')) return 'Honduras';
+  if (c === 'tt' || n.includes('trinidad')) return 'Trinidad';
+  if (['jm','bb','bs','gy','sr','lc','vc','gd','dm','ag','kn','bz'].includes(c)) return 'Caribbean';
+  if (['mx','gt','sv','ni','cr','pa','co','ve','ec','pe','bo','cl','ar','uy','py','br','do','cu','ht','pr'].includes(c)) return 'LatAm';
+  return 'Other';
+}
+
+Also: add 'comment' and 'function' to the PARTNER_FIELDS array if not already present.
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+FILE 3: server/routes.ts
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+CHANGE 1 — pushLeadToOdooContact: Company creation payload
+Find the block where a new Odoo company is created (around line 16313):
+  const companyPayload: any = { name: localCompany.name, is_company: true, type: 'contact' };
+  if (localCompany.domain) companyPayload.website = `https://${localCompany.domain}`;
+
+Replace with:
+  const companyPayload: any = { name: localCompany.name, is_company: true, type: 'contact' };
+  if (localCompany.domain) companyPayload.website = `https://${localCompany.domain}`;
+  if ((localCompany as any).mainPhone) companyPayload.phone = (localCompany as any).mainPhone;
+  if ((localCompany as any).generalEmail) companyPayload.email = (localCompany as any).generalEmail;
+  if ((localCompany as any).city) companyPayload.city = (localCompany as any).city;
+  if ((localCompany as any).addressLine1) companyPayload.street = (localCompany as any).addressLine1;
+  if ((localCompany as any).country) {
+    const countries = await odooClient.getCountries();
+    const match = countries.find(c => c.name.toLowerCase() === (localCompany as any).country.toLowerCase() || c.code.toLowerCase() === (localCompany as any).country.toLowerCase());
+    if (match) companyPayload.country_id = match.id;
+  }
+
+CHANGE 2 — pushLeadToOdooContact: Contact payload
+Find the block that builds the contact payload (around line 16340 — starts with `const payload: any = {`).
+After the existing `if (lead.mobile) payload.comment = ...` line, add:
+
+  // Append WhatsApp to comment if present
+  if ((lead as any).whatsapp) {
+    payload.comment = payload.comment
+      ? payload.comment + `\nWhatsApp: ${(lead as any).whatsapp}`
+      : `WhatsApp: ${(lead as any).whatsapp}`;
+  }
+  // Use LinkedIn as website fallback if no website set
+  if (!(lead as any).website && (lead as any).linkedinProfile) {
+    payload.website = (lead as any).linkedinProfile;
+  }
+  // Push internal notes to Odoo comment if no other comment set
+  if (!payload.comment && lead.internalNotes) {
+    payload.comment = lead.internalNotes;
+  }
+
+CHANGE 3 — Customer record created after push
+Find the db.insert(customers).values({ block that runs after createPartner (around line 16360).
+After the existing fields, add:
+  jobTitle: lead.jobTitle || null,
+  companyDomain: lead.companyDomain || null,
+  companyId: lead.companyId || null,
+
+CHANGE 4 — Odoo import: parseOdooRow in server/odoo-parser.ts
+In the parseOdooRow function, add these two new fields to the returned ParsedOdooRow interface and object:
+
+Add to the ParsedOdooRow interface:
+  jobTitle: string;
+  comment: string;
+
+Add to the getValue calls inside parseOdooRow:
+  const jobTitle = getValue('Job Position') || getValue('Function') || getValue('Job Title');
+  const comment = getValue('Notes') || getValue('Comment') || getValue('Internal Notes');
+
+Add to the return object:
+  jobTitle,
+  comment,
+
+CHANGE 5 — Odoo import: write jobTitle and note to DB
+In the parseOdooExcel function, find the customerData: InsertCustomer = { block.
+Add after the existing tags line:
+  jobTitle: parsedOdoo.jobTitle || null,
+  note: parsedOdoo.comment || null,
+
+CHANGE 6 — Odoo import: derive regionTag on import
+In the parseOdooExcel function, after customerData is built, add:
+  import { deriveRegionTag } from './odoo';
+  // Derive region tag from country
+  (customerData as any).regionTag_derived = deriveRegionTag(parsedOdoo.country, null);
+
+Note: regionTag_derived is for logging only — the actual regionTag goes on the companies record, not customers. When the companies record is created/updated for this customer, set companies.regionTag = deriveRegionTag(country, null).
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+AFTER ALL CHANGES:
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+Run: npm run db:push
+
+Then confirm:
+"Done. Added X columns to companies table, Y columns to leads table via db:push.
+Updated pushLeadToOdooContact to push company address, phone, email, WhatsApp, LinkedIn, and internal notes.
+Updated odoo-parser to import jobTitle and comment fields.
+Added deriveRegionTag() helper to odoo.ts.
+No existing data was modified."
