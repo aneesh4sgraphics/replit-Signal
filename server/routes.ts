@@ -161,6 +161,7 @@ import {
   mailerTypes,
   companies,
   insertCompanySchema,
+  sketchboardEntries,
 } from "@shared/schema";
 // Removed: pricingData import - legacy table removed
 import { addPricingRoutes } from "./routes-pricing";
@@ -369,6 +370,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
     await db.execute(sql`ALTER TABLE user_gmail_connections ADD COLUMN IF NOT EXISTS last_sent_sync_at timestamp`);
   } catch (err) {
     console.error("Migration error (user_gmail_connections.last_sent_sync_at):", err);
+  }
+
+  // Boot-time migration: create sketchboard_entries table
+  try {
+    await db.execute(sql`
+      CREATE TABLE IF NOT EXISTS sketchboard_entries (
+        id serial PRIMARY KEY,
+        user_id varchar NOT NULL REFERENCES users(id) ON DELETE CASCADE,
+        "column" varchar(20) NOT NULL,
+        customer_name varchar(255) NOT NULL,
+        note varchar(255),
+        sort_order integer NOT NULL DEFAULT 0,
+        created_at timestamp DEFAULT now()
+      )
+    `);
+    await db.execute(sql`
+      CREATE INDEX IF NOT EXISTS "IDX_sketchboard_user_column" ON sketchboard_entries(user_id, "column")
+    `);
+  } catch (err) {
+    console.error("Migration error (sketchboard_entries):", err);
   }
   
   // Initialize default follow-up configurations on startup
@@ -28392,6 +28413,104 @@ Analyze this bounced email and provide insights in JSON format:
       res.json({ success: true });
     } catch (error) {
       res.status(500).json({ error: "Failed to update kanban stage" });
+    }
+  });
+
+
+  // ========================================
+  // Sketchboard API Routes
+  // ========================================
+
+  // Get all entries for the logged-in user (optionally by column)
+  app.get('/api/sketchboard/entries', isAuthenticated, requireApproval, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+      const VALID_COLUMNS = ['working_on', 'waiting_on', 'decide_on'];
+      const rawColumn = typeof req.query.column === 'string' ? req.query.column : undefined;
+      const column = rawColumn && VALID_COLUMNS.includes(rawColumn) ? rawColumn : undefined;
+      const entries = await storage.getSketchboardEntries(userId, column);
+      res.json(entries);
+    } catch (error) {
+      console.error('Error fetching sketchboard entries:', error);
+      res.status(500).json({ error: 'Failed to fetch entries' });
+    }
+  });
+
+  // Add an entry to a column
+  app.post('/api/sketchboard/entries', isAuthenticated, requireApproval, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+      const { column, customerName, note } = req.body;
+      if (!column || !customerName) {
+        return res.status(400).json({ error: 'column and customerName are required' });
+      }
+      if (!customerName.trim()) {
+        return res.status(400).json({ error: 'customerName cannot be empty' });
+      }
+      const VALID_COLUMNS = ['working_on', 'waiting_on', 'decide_on'];
+      if (!VALID_COLUMNS.includes(column)) {
+        return res.status(400).json({ error: 'Invalid column' });
+      }
+      const count = await storage.getSketchboardColumnCount(userId, column);
+      if (count >= 15) {
+        return res.status(422).json({ error: 'COLUMN_FULL', message: 'Column is at capacity (15 max)', count });
+      }
+      const entry = await storage.createSketchboardEntry({
+        userId,
+        column,
+        customerName: customerName.trim(),
+        note: note?.trim() || null,
+      });
+      res.status(201).json(entry);
+    } catch (error) {
+      console.error('Error creating sketchboard entry:', error);
+      res.status(500).json({ error: 'Failed to create entry' });
+    }
+  });
+
+  // Update an entry
+  app.patch('/api/sketchboard/entries/:id', isAuthenticated, requireApproval, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid entry id' });
+      const { note, sortOrder, customerName } = req.body;
+      const updated = await storage.updateSketchboardEntry(id, userId, {
+        ...(customerName !== undefined && { customerName }),
+        ...(note !== undefined && { note: note?.trim() || null }),
+        ...(sortOrder !== undefined && { sortOrder }),
+      });
+      if (!updated) return res.status(404).json({ error: 'Entry not found' });
+      res.json(updated);
+    } catch (error) {
+      console.error('Error updating sketchboard entry:', error);
+      res.status(500).json({ error: 'Failed to update entry' });
+    }
+  });
+
+  // Delete an entry
+  app.delete('/api/sketchboard/entries/:id', isAuthenticated, requireApproval, async (req, res) => {
+    try {
+      const userId = req.user?.claims?.sub;
+      if (!userId) return res.status(401).json({ error: 'Not authenticated' });
+      const id = parseInt(req.params.id);
+      if (isNaN(id)) return res.status(400).json({ error: 'Invalid entry id' });
+      // Get the entry's column before deleting so we can normalize sort order after
+      const [toDelete] = await db.select({ column: sketchboardEntries.column })
+        .from(sketchboardEntries)
+        .where(and(eq(sketchboardEntries.id, id), eq(sketchboardEntries.userId, userId)));
+      if (!toDelete) return res.status(404).json({ error: 'Entry not found' });
+      const deleted = await storage.deleteSketchboardEntry(id, userId);
+      if (!deleted) return res.status(404).json({ error: 'Entry not found' });
+      // Re-normalize sort orders to close the gap
+      await storage.normalizeSketchboardSortOrder(userId, toDelete.column);
+      res.json({ success: true });
+    } catch (error) {
+      console.error('Error deleting sketchboard entry:', error);
+      res.status(500).json({ error: 'Failed to delete entry' });
     }
   });
 

@@ -37,6 +37,7 @@ import {
   RefreshIcon,
   LogoutIcon,
   PackageIcon,
+  SketchboardIcon,
 } from '@/components/HandDrawnIcons';
 
 type IconComponent = React.FC<{ className?: string }>;
@@ -65,6 +66,7 @@ export const NAV_ITEMS: NavItem[] = [
   { path: '/odoo-contacts', icon: ClientsIcon, label: 'Clients', group: 'core', keywords: ['customers', 'contacts', 'database', 'odoo', 'partners'], iconBg: '#693FA5', iconColor: '#FFFFFF' },
   { path: '/leads', icon: SparkleIcon, label: 'Leads', group: 'core', keywords: ['leads', 'prospects', 'pipeline', 'sales', 'trust', 'new'], iconBg: '#10B981', iconColor: '#FFFFFF' },
   { path: '/opportunities', icon: OpportunityIcon, label: 'Opportunities', group: 'tools', keywords: ['opportunities', 'scoring', 'prospects', 'samples', 'upsell', 'follow-up', 'machine', 'fit'], iconBg: '#F59E0B', iconColor: '#FFFFFF' },
+  { path: '/sketchboard', icon: SketchboardIcon, label: 'Sketchboard', group: 'core', keywords: ['sketchboard', 'daily', 'working', 'waiting', 'decide', 'scratchpad', 'kanban', 'focus'], iconBg: '#4F46E5', iconColor: '#FFFFFF' },
   { path: '/calendar', icon: CalendarIcon, label: 'Calendar', group: 'tools', keywords: ['calendar', 'tasks', 'events', 'schedule', 'google', 'meetings'], iconBg: '#E03D3E', iconColor: '#FFFFFF' },
   { path: '/odoo-products', icon: PackageIcon, label: 'Products', group: 'tools', keywords: ['products', 'inventory', 'catalog', 'items', 'odoo', 'sku'], iconBg: '#0E7B6C', iconColor: '#FFFFFF' },
   { path: '/customer-margins', icon: TrendingUp as IconComponent, label: 'Customer Margins', group: 'tools', keywords: ['margin', 'margins', 'profit', 'customer', 'average', 'search', 'profitability'], iconBg: '#7C3AED', iconColor: '#FFFFFF' },

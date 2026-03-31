@@ -3693,6 +3693,31 @@ export const insertSampleShipmentSchema = createInsertSchema(sampleShipments).om
 export type SampleShipment = typeof sampleShipments.$inferSelect;
 export type InsertSampleShipment = z.infer<typeof insertSampleShipmentSchema>;
 
+// Sketchboard entries — daily scratchpad for sales reps (Working/Waiting/Decide)
+export const sketchboardEntries = pgTable("sketchboard_entries", {
+  id: serial("id").primaryKey(),
+  userId: varchar("user_id").notNull().references(() => users.id, { onDelete: "cascade" }),
+  column: varchar("column", { length: 20 }).notNull(), // 'working_on' | 'waiting_on' | 'decide_on'
+  customerName: varchar("customer_name", { length: 255 }).notNull(),
+  note: varchar("note", { length: 255 }), // optional one-line tag/note
+  sortOrder: integer("sort_order").notNull().default(0),
+  createdAt: timestamp("created_at").defaultNow(),
+}, (table) => [
+  index("IDX_sketchboard_user_column").on(table.userId, table.column),
+]);
+
+export const insertSketchboardEntrySchema = createInsertSchema(sketchboardEntries).omit({
+  id: true,
+  createdAt: true,
+}).extend({
+  sortOrder: z.number().int().optional(),
+});
+export type SketchboardEntry = typeof sketchboardEntries.$inferSelect;
+export type InsertSketchboardEntry = z.infer<typeof insertSketchboardEntrySchema>;
+
+export const SKETCHBOARD_COLUMNS = ['working_on', 'waiting_on', 'decide_on'] as const;
+export type SketchboardColumn = typeof SKETCHBOARD_COLUMNS[number];
+
 export const UPS_GROUND_TRANSIT_DAYS: Record<string, number> = {
   'FL': 1,
   'GA': 2, 'AL': 2, 'SC': 2,

@@ -199,6 +199,10 @@ import {
   // Label Queue
   labelQueue,
   type LabelQueueItem,
+  // Sketchboard
+  sketchboardEntries,
+  type SketchboardEntry,
+  type InsertSketchboardEntry,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -543,6 +547,14 @@ export interface IStorage {
   createEmailTemplate(data: InsertEmailTemplate): Promise<EmailTemplate>;
   updateEmailTemplate(id: number, data: Partial<InsertEmailTemplate>): Promise<EmailTemplate | undefined>;
   deleteEmailTemplate(id: number): Promise<void>;
+
+  // Sketchboard
+  getSketchboardEntries(userId: string, column?: string): Promise<SketchboardEntry[]>;
+  createSketchboardEntry(data: InsertSketchboardEntry): Promise<SketchboardEntry>;
+  updateSketchboardEntry(id: number, userId: string, data: Partial<InsertSketchboardEntry>): Promise<SketchboardEntry | undefined>;
+  deleteSketchboardEntry(id: number, userId: string): Promise<boolean>;
+  getSketchboardColumnCount(userId: string, column: string): Promise<number>;
+  normalizeSketchboardSortOrder(userId: string, column: string): Promise<void>;
 
   // Label Queue (shared cross-user)
   getLabelQueue(): Promise<LabelQueueItem[]>;
@@ -3776,6 +3788,65 @@ export class DatabaseStorage implements IStorage {
     await db.update(users)
       .set({ lastActivityAt: new Date() })
       .where(eq(users.id, userId));
+  }
+
+  // ========================================
+  // Sketchboard Methods
+  // ========================================
+
+  async getSketchboardEntries(userId: string, column?: string): Promise<SketchboardEntry[]> {
+    const conditions = [eq(sketchboardEntries.userId, userId)];
+    if (column) {
+      conditions.push(eq(sketchboardEntries.column, column));
+    }
+    return await db.select()
+      .from(sketchboardEntries)
+      .where(and(...conditions))
+      .orderBy(sketchboardEntries.sortOrder, sketchboardEntries.createdAt);
+  }
+
+  async createSketchboardEntry(data: InsertSketchboardEntry): Promise<SketchboardEntry> {
+    // Assign sortOrder as max(sortOrder)+1 to avoid duplicates with count-based approach
+    const maxResult = await db.select({ maxOrder: sql<number>`coalesce(max(sort_order), -1)::int` })
+      .from(sketchboardEntries)
+      .where(and(eq(sketchboardEntries.userId, data.userId), eq(sketchboardEntries.column, data.column)));
+    const nextOrder = (maxResult[0]?.maxOrder ?? -1) + 1;
+    const { sortOrder: _ignored, ...rest } = data;
+    const [entry] = await db.insert(sketchboardEntries).values({ ...rest, sortOrder: nextOrder }).returning();
+    return entry;
+  }
+
+  async updateSketchboardEntry(id: number, userId: string, data: Partial<InsertSketchboardEntry>): Promise<SketchboardEntry | undefined> {
+    const [entry] = await db.update(sketchboardEntries)
+      .set(data)
+      .where(and(eq(sketchboardEntries.id, id), eq(sketchboardEntries.userId, userId)))
+      .returning();
+    return entry;
+  }
+
+  async deleteSketchboardEntry(id: number, userId: string): Promise<boolean> {
+    const result = await db.delete(sketchboardEntries)
+      .where(and(eq(sketchboardEntries.id, id), eq(sketchboardEntries.userId, userId)));
+    return (result.rowCount ?? 0) > 0;
+  }
+
+  async normalizeSketchboardSortOrder(userId: string, column: string): Promise<void> {
+    const entries = await db.select({ id: sketchboardEntries.id })
+      .from(sketchboardEntries)
+      .where(and(eq(sketchboardEntries.userId, userId), eq(sketchboardEntries.column, column)))
+      .orderBy(sketchboardEntries.sortOrder, sketchboardEntries.createdAt);
+    for (let i = 0; i < entries.length; i++) {
+      await db.update(sketchboardEntries)
+        .set({ sortOrder: i })
+        .where(eq(sketchboardEntries.id, entries[i].id));
+    }
+  }
+
+  async getSketchboardColumnCount(userId: string, column: string): Promise<number> {
+    const result = await db.select({ count: sql<number>`count(*)::int` })
+      .from(sketchboardEntries)
+      .where(and(eq(sketchboardEntries.userId, userId), eq(sketchboardEntries.column, column)));
+    return result[0]?.count ?? 0;
   }
 }
 
