@@ -16358,9 +16358,11 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
     if (!lead.website && lead.linkedinProfile) {
       payload.website = lead.linkedinProfile;
     }
-    // Push internal notes to Odoo comment if no other comment set
-    if (!payload.comment && lead.internalNotes) {
-      payload.comment = lead.internalNotes;
+    // Append internal notes to Odoo comment if present
+    if (lead.internalNotes) {
+      payload.comment = payload.comment
+        ? payload.comment + `\nNotes: ${lead.internalNotes}`
+        : lead.internalNotes;
     }
 
     const newPartnerId = await odooClient.createPartner(payload);
