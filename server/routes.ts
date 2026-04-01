@@ -14410,13 +14410,14 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   app.patch("/api/drip-campaigns/:id", isAuthenticated, requireAdmin, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
-      const { name, description, isActive, triggerType } = req.body;
+      const { name, description, isActive, triggerType, settings } = req.body;
       
       const updateData: any = {};
       if (name !== undefined) updateData.name = name;
       if (description !== undefined) updateData.description = description;
       if (isActive !== undefined) updateData.isActive = isActive;
       if (triggerType !== undefined) updateData.triggerType = triggerType;
+      if (settings !== undefined) updateData.settings = settings;
       
       const campaign = await storage.updateDripCampaign(id, updateData);
       if (!campaign) {

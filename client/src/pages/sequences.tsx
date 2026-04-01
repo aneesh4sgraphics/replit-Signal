@@ -1,972 +1,1159 @@
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
-import { useAuth } from '@/hooks/useAuth';
-import { useToast } from '@/hooks/use-toast';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
-import { Textarea } from '@/components/ui/textarea';
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Switch } from '@/components/ui/switch';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import {
-  Plus, ChevronLeft, Mail, Clock, Users, Zap, Play, Pause, X,
-  MoreHorizontal, Trash2, Edit2, Search, Check, UserPlus, ArrowRight,
-  RotateCcw, Ban, CheckCircle2,
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+  DialogFooter,
+} from '@/components/ui/dialog';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { useToast } from '@/hooks/use-toast';
+import {
+  ChevronLeft,
+  Star,
+  Share2,
+  HelpCircle,
+  MoreHorizontal,
+  Mail,
+  Plus,
+  ArrowDown,
+  Clock,
+  Trash2,
+  MoreVertical,
+  Users,
+  Settings,
+  Edit3,
+  Info,
+  Play,
+  AlertCircle,
+  Search,
+  CheckCircle2,
+  PauseCircle,
+  XCircle,
+  ChevronDown,
+  Zap,
+  User,
+  Building2,
 } from 'lucide-react';
-import type { DripCampaign, DripCampaignStep } from '@shared/schema';
 
-// ── Types ────────────────────────────────────────────────────────────────────
+// ─── Types ────────────────────────────────────────────────────────────────────
+interface DripCampaign {
+  id: number;
+  name: string;
+  description?: string | null;
+  isActive: boolean;
+  triggerType?: string;
+  settings?: {
+    sendingWindowStart?: string;
+    sendingWindowEnd?: string;
+    timezone?: string;
+    businessDaysOnly?: boolean;
+    unsubscribeLinkText?: string;
+    threadEmails?: boolean;
+    includeSenderSignature?: boolean;
+    exitOnReply?: boolean;
+  };
+  steps?: DripStep[];
+  createdAt?: string;
+}
 
-interface SequenceWithSteps extends DripCampaign {
-  steps?: DripCampaignStep[];
+interface DripStep {
+  id: number;
+  campaignId: number;
+  stepOrder: number;
+  name: string;
+  subject: string;
+  body: string;
+  delayAmount: number;
+  delayUnit: string;
+  isActive: boolean;
 }
 
 interface EnrichedAssignment {
   id: number;
   campaignId: number;
-  customerId: string | null;
-  leadId: number | null;
+  customerId?: string | null;
+  leadId?: number | null;
   status: string;
-  startedAt: string | null;
-  completedAt: string | null;
-  pausedAt: string | null;
-  cancelledAt: string | null;
-  assignedBy: string | null;
-  name: string;
-  email: string | null;
-  company: string | null;
-  type: 'lead' | 'customer';
-  stepsSent: number;
-  stepsTotal: number;
+  currentStepIndex: number;
+  enrolledAt?: string;
+  name?: string;
+  type?: 'lead' | 'customer';
+  stepsSent?: number;
+  stepsTotal?: number;
 }
-
-interface AssignmentCount { campaignId: number; count: number; leadCount?: number }
-
-// ── Constants ────────────────────────────────────────────────────────────────
 
 const TRIGGER_LABELS: Record<string, string> = {
   manual: 'Manual',
-  on_signup: 'On Signup',
   on_purchase: 'On Purchase',
   on_quote: 'On Quote Sent',
+  on_signup: 'On Sign-up',
 };
 
-const STATUS_CONFIG: Record<string, { label: string; className: string; icon: typeof CheckCircle2 }> = {
-  active: { label: 'Active', className: 'bg-green-100 text-green-700 border-green-200', icon: Play },
-  paused: { label: 'Paused', className: 'bg-yellow-100 text-yellow-700 border-yellow-200', icon: Pause },
-  completed: { label: 'Completed', className: 'bg-blue-100 text-blue-700 border-blue-200', icon: CheckCircle2 },
-  cancelled: { label: 'Cancelled', className: 'bg-red-100 text-red-700 border-red-200', icon: Ban },
-};
+const TIMEZONE_OPTIONS = [
+  { value: 'America/New_York', label: 'America/New_Y...' },
+  { value: 'America/Chicago', label: 'America/Chicago' },
+  { value: 'America/Denver', label: 'America/Denver' },
+  { value: 'America/Los_Angeles', label: 'America/Los_A...' },
+  { value: 'America/Phoenix', label: 'America/Phoenix' },
+  { value: 'UTC', label: 'UTC' },
+];
 
-function formatDelay(amount: number, unit: string) {
+const UNSUB_OPTIONS = [
+  { value: 'Stop hearing from me', label: 'Stop hearing from me' },
+  { value: 'Unsubscribe', label: 'Unsubscribe' },
+  { value: 'Opt-out', label: 'Opt-out' },
+  { value: 'None', label: 'None' },
+];
+
+// ─── Helpers ──────────────────────────────────────────────────────────────────
+function delayLabel(amount: number, unit: string): string {
   if (amount === 0) return 'immediately';
-  return `after ${amount} ${unit}`;
+  return `${amount} ${amount === 1 ? unit.replace(/s$/, '') : unit}`;
 }
 
-function timeAgo(dateStr: string | null) {
-  if (!dateStr) return '–';
-  const d = new Date(dateStr);
-  const diff = Math.floor((Date.now() - d.getTime()) / 1000);
-  if (diff < 60) return 'just now';
-  if (diff < 3600) return `${Math.floor(diff / 60)}m ago`;
-  if (diff < 86400) return `${Math.floor(diff / 3600)}h ago`;
-  return `${Math.floor(diff / 86400)}d ago`;
+function statusBadge(status: string) {
+  switch (status) {
+    case 'active':
+      return <Badge className="bg-green-100 text-green-700 border-0">Active</Badge>;
+    case 'paused':
+      return <Badge className="bg-yellow-100 text-yellow-700 border-0">Paused</Badge>;
+    case 'completed':
+      return <Badge className="bg-blue-100 text-blue-700 border-0">Completed</Badge>;
+    case 'cancelled':
+      return <Badge className="bg-gray-100 text-gray-600 border-0">Cancelled</Badge>;
+    default:
+      return <Badge variant="outline">{status}</Badge>;
+  }
 }
 
-// ── Main Component ────────────────────────────────────────────────────────────
+// ─── Step Card ────────────────────────────────────────────────────────────────
+function StepCard({
+  step,
+  index,
+  onUpdate,
+  onDelete,
+}: {
+  step: DripStep;
+  index: number;
+  onUpdate: (id: number, data: Partial<DripStep>) => void;
+  onDelete: (id: number) => void;
+}) {
+  const [subject, setSubject] = useState(step.subject);
+  const [body, setBody] = useState(step.body);
 
-export default function Sequences() {
-  const { user } = useAuth();
+  useEffect(() => { setSubject(step.subject); }, [step.subject]);
+  useEffect(() => { setBody(step.body); }, [step.body]);
+
+  return (
+    <div className="bg-white border border-gray-200 rounded-lg shadow-sm overflow-hidden">
+      {/* Card header */}
+      <div className="flex items-center justify-between px-4 py-2.5 bg-gray-50 border-b border-gray-100">
+        <div className="flex items-center gap-2">
+          <div className="w-5 h-5 rounded bg-indigo-100 flex items-center justify-center">
+            <Mail className="h-3 w-3 text-indigo-600" />
+          </div>
+          <span className="text-sm font-medium text-gray-700">
+            Step {index + 1}
+          </span>
+          <span className="text-sm text-gray-400">Automated email</span>
+        </div>
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+              <MoreVertical className="h-4 w-4 text-gray-400" />
+            </Button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="end">
+            <DropdownMenuSeparator />
+            <DropdownMenuItem
+              className="text-red-500"
+              onClick={() => onDelete(step.id)}
+            >
+              <Trash2 className="h-3.5 w-3.5 mr-2" />
+              Remove step
+            </DropdownMenuItem>
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Subject */}
+      <div className="flex items-center px-4 py-2.5 border-b border-gray-100">
+        <span className="text-xs font-medium text-gray-400 w-14 shrink-0">Subject</span>
+        <input
+          type="text"
+          className="flex-1 text-sm text-gray-800 bg-transparent outline-none placeholder:text-gray-300"
+          placeholder="Enter email subject…"
+          value={subject}
+          onChange={e => setSubject(e.target.value)}
+          onBlur={() => { if (subject !== step.subject) onUpdate(step.id, { subject }); }}
+        />
+      </div>
+
+      {/* Body */}
+      <div className="px-4 py-3">
+        <textarea
+          className="w-full text-sm text-gray-700 bg-transparent outline-none resize-none placeholder:text-gray-300 min-h-[80px]"
+          placeholder="Start typing, or pick a template (use ↑↓ to navigate)"
+          value={body}
+          onChange={e => setBody(e.target.value)}
+          onBlur={() => { if (body !== step.body) onUpdate(step.id, { body }); }}
+          rows={4}
+        />
+        <div className="mt-2 pt-2 border-t border-gray-100">
+          <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase mb-1">
+            Favorite Templates
+          </p>
+          <p className="text-xs text-gray-300">Templates that you favorite will appear here</p>
+          <div className="mt-2 flex items-center gap-1.5 text-xs text-indigo-500 cursor-pointer hover:text-indigo-700">
+            <div className="w-4 h-4 rounded border border-indigo-300 flex items-center justify-center">
+              <Mail className="h-2.5 w-2.5" />
+            </div>
+            View all templates
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// ─── Enroll Dialog ────────────────────────────────────────────────────────────
+function EnrollDialog({
+  open,
+  onClose,
+  campaignId,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaignId: number;
+}) {
   const { toast } = useToast();
-  const isAdmin = (user as any)?.role === 'admin';
+  const [type, setType] = useState<'lead' | 'customer'>('lead');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<Set<string>>(new Set());
 
-  const [view, setView] = useState<'list' | 'detail'>('list');
-  const [selected, setSelected] = useState<SequenceWithSteps | null>(null);
-  const [activeTab, setActiveTab] = useState<'steps' | 'people'>('steps');
-
-  // Dialogs
-  const [showCreateDialog, setShowCreateDialog] = useState(false);
-  const [editingSequence, setEditingSequence] = useState<DripCampaign | null>(null);
-  const [showStepDialog, setShowStepDialog] = useState(false);
-  const [editingStep, setEditingStep] = useState<DripCampaignStep | null>(null);
-  const [showEnrollDialog, setShowEnrollDialog] = useState(false);
-  const [showDeleteConfirm, setShowDeleteConfirm] = useState<number | null>(null);
-
-  // Forms
-  const [seqForm, setSeqForm] = useState({ name: '', description: '', triggerType: 'manual', isActive: false });
-  const [stepForm, setStepForm] = useState({ name: '', subject: '', body: '', delayAmount: 0, delayUnit: 'days' });
-
-  // Enroll dialog state
-  const [enrollTarget, setEnrollTarget] = useState<'leads' | 'customers'>('leads');
-  const [enrollSearch, setEnrollSearch] = useState('');
-  const [selectedEnrollIds, setSelectedEnrollIds] = useState<string[]>([]);
-
-  // ── Data queries ─────────────────────────────────────────────────────────
-
-  const { data: sequences = [], isLoading } = useQuery<DripCampaign[]>({
-    queryKey: ['/api/drip-campaigns'],
+  const { data: leads = [] } = useQuery<any[]>({
+    queryKey: ['/api/leads', { limit: 100 }],
+    enabled: open && type === 'lead',
   });
 
-  const { data: counts = [] } = useQuery<AssignmentCount[]>({
-    queryKey: ['/api/drip-campaigns/assignment-counts'],
+  const { data: customers = [] } = useQuery<any[]>({
+    queryKey: ['/api/customers', { limit: 100 }],
+    enabled: open && type === 'customer',
   });
 
-  const { data: detail } = useQuery<SequenceWithSteps>({
-    queryKey: ['/api/drip-campaigns', selected?.id],
-    enabled: !!selected?.id,
-  });
+  const items = type === 'lead'
+    ? leads.filter((l: any) => (l.name || l.firstName || '').toLowerCase().includes(search.toLowerCase()))
+    : (customers as any[]).filter((c: any) => (c.company || '').toLowerCase().includes(search.toLowerCase()));
 
-  const { data: enrolledPeople = [] } = useQuery<EnrichedAssignment[]>({
-    queryKey: ['/api/drip-campaigns', selected?.id, 'assignments', 'enriched'],
-    queryFn: async () => {
-      if (!selected?.id) return [];
-      const res = await fetch(`/api/drip-campaigns/${selected.id}/assignments/enriched`, { credentials: 'include' });
-      return res.json();
+  const enroll = useMutation({
+    mutationFn: async () => {
+      const promises = Array.from(selected).map(id => {
+        const body = type === 'lead'
+          ? { leadId: parseInt(id), campaignId }
+          : { customerId: id, campaignId };
+        return apiRequest('POST', `/api/drip-campaigns/${campaignId}/assignments`, body);
+      });
+      await Promise.all(promises);
     },
-    enabled: !!selected?.id && activeTab === 'people',
-  });
-
-  const { data: leadsData = [] } = useQuery<any[]>({
-    queryKey: ['/api/leads'],
-    enabled: showEnrollDialog && enrollTarget === 'leads',
-  });
-
-  const { data: customersRaw } = useQuery<{ data: any[] }>({
-    queryKey: ['/api/customers', 'enroll', 'paginated'],
-    queryFn: async () => {
-      const res = await fetch('/api/customers?pageSize=200&page=1', { credentials: 'include' });
-      return res.json();
-    },
-    enabled: showEnrollDialog && enrollTarget === 'customers',
-  });
-  const customersData = customersRaw?.data ?? [];
-
-  const getCount = (id: number) => counts.find(c => c.campaignId === id);
-  const steps = detail?.steps ?? [];
-
-  // ── Mutations ─────────────────────────────────────────────────────────────
-
-  const createSeq = useMutation({
-    mutationFn: (data: typeof seqForm) => apiRequest('POST', '/api/drip-campaigns', data),
     onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', campaignId, 'assignments', 'enriched'] });
+      toast({ title: `${selected.size} contact(s) enrolled` });
+      setSelected(new Set());
+      onClose();
+    },
+    onError: () => toast({ title: 'Failed to enroll', variant: 'destructive' }),
+  });
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle>Enroll Recipients</DialogTitle>
+        </DialogHeader>
+
+        <div className="flex gap-2 mb-3">
+          {(['lead', 'customer'] as const).map(t => (
+            <Button
+              key={t}
+              variant={type === t ? 'default' : 'outline'}
+              size="sm"
+              onClick={() => { setType(t); setSelected(new Set()); }}
+              className="capitalize"
+            >
+              {t === 'lead' ? <User className="h-3.5 w-3.5 mr-1.5" /> : <Building2 className="h-3.5 w-3.5 mr-1.5" />}
+              {t}s
+            </Button>
+          ))}
+        </div>
+
+        <div className="relative mb-2">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
+          <Input
+            placeholder="Search…"
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            className="pl-9 h-8 text-sm"
+          />
+        </div>
+
+        <div className="border rounded-lg max-h-56 overflow-y-auto divide-y">
+          {items.slice(0, 50).map((item: any) => {
+            const id = String(type === 'lead' ? item.id : item.id);
+            const label = type === 'lead' ? (item.name || `${item.firstName || ''} ${item.lastName || ''}`.trim() || `Lead #${item.id}`) : (item.company || `Customer #${item.id}`);
+            return (
+              <label key={id} className="flex items-center gap-3 px-3 py-2 hover:bg-gray-50 cursor-pointer">
+                <input
+                  type="checkbox"
+                  checked={selected.has(id)}
+                  onChange={e => {
+                    const n = new Set(selected);
+                    e.target.checked ? n.add(id) : n.delete(id);
+                    setSelected(n);
+                  }}
+                  className="rounded"
+                />
+                <span className="text-sm text-gray-800">{label}</span>
+              </label>
+            );
+          })}
+          {items.length === 0 && (
+            <p className="text-sm text-gray-400 text-center py-6">No results</p>
+          )}
+        </div>
+
+        <DialogFooter className="mt-4">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button
+            disabled={selected.size === 0 || enroll.isPending}
+            onClick={() => enroll.mutate()}
+          >
+            Enroll {selected.size > 0 ? `(${selected.size})` : ''}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── New Sequence Dialog ───────────────────────────────────────────────────────
+function NewSequenceDialog({
+  open,
+  onClose,
+  onCreated,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onCreated: (id: number) => void;
+}) {
+  const { toast } = useToast();
+  const [name, setName] = useState('');
+
+  const create = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/drip-campaigns', { name: name || 'Untitled Sequence', isActive: false, triggerType: 'manual' }),
+    onSuccess: async (res: any) => {
+      const data = await res.json();
       queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns'] });
-      setShowCreateDialog(false);
-      setSeqForm({ name: '', description: '', triggerType: 'manual', isActive: false });
-      toast({ title: 'Sequence created' });
+      onCreated(data.id);
+      setName('');
+      onClose();
     },
     onError: () => toast({ title: 'Failed to create sequence', variant: 'destructive' }),
   });
 
-  const updateSeq = useMutation({
-    mutationFn: ({ id, data }: { id: number; data: any }) => apiRequest('PATCH', `/api/drip-campaigns/${id}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns'] });
-      if (selected) queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected.id] });
-      setEditingSequence(null);
-      toast({ title: 'Sequence updated' });
-    },
-    onError: () => toast({ title: 'Failed to update sequence', variant: 'destructive' }),
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-sm">
+        <DialogHeader>
+          <DialogTitle>New Sequence</DialogTitle>
+        </DialogHeader>
+        <Input
+          placeholder="Sequence name…"
+          value={name}
+          onChange={e => setName(e.target.value)}
+          onKeyDown={e => e.key === 'Enter' && create.mutate()}
+          autoFocus
+        />
+        <DialogFooter className="mt-2">
+          <Button variant="outline" onClick={onClose}>Cancel</Button>
+          <Button onClick={() => create.mutate()} disabled={create.isPending}>
+            Create
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
+// ─── Main Component ───────────────────────────────────────────────────────────
+export default function SequencesPage() {
+  const { toast } = useToast();
+  const [selectedId, setSelectedId] = useState<number | null>(null);
+  const [activeTab, setActiveTab] = useState<'editor' | 'recipients' | 'settings'>('editor');
+  const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showEnroll, setShowEnroll] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [addingStep, setAddingStep] = useState(false);
+  const [newStepName, setNewStepName] = useState('');
+
+  // ── Queries ──────────────────────────────────────────────────────────────
+  const { data: campaigns = [], isLoading } = useQuery<DripCampaign[]>({
+    queryKey: ['/api/drip-campaigns'],
   });
 
-  const deleteSeq = useMutation({
-    mutationFn: (id: number) => apiRequest('DELETE', `/api/drip-campaigns/${id}`),
+  const { data: currentSeq } = useQuery<DripCampaign>({
+    queryKey: ['/api/drip-campaigns', selectedId],
+    enabled: selectedId !== null,
+  });
+
+  const { data: enrichedAssignments = [] } = useQuery<EnrichedAssignment[]>({
+    queryKey: ['/api/drip-campaigns', selectedId, 'assignments', 'enriched'],
+    queryFn: async () => {
+      const res = await fetch(`/api/drip-campaigns/${selectedId}/assignments/enriched`);
+      return res.json();
+    },
+    enabled: selectedId !== null,
+  });
+
+  // Local settings state (right panel), synced when campaign loads
+  const [localSettings, setLocalSettings] = useState<NonNullable<DripCampaign['settings']>>({
+    sendingWindowStart: '09:00',
+    sendingWindowEnd: '17:00',
+    timezone: 'America/New_York',
+    businessDaysOnly: true,
+    unsubscribeLinkText: 'Stop hearing from me',
+    threadEmails: true,
+    includeSenderSignature: true,
+    exitOnReply: true,
+  });
+
+  useEffect(() => {
+    if (currentSeq?.settings) {
+      setLocalSettings(s => ({ ...s, ...currentSeq.settings }));
+    }
+  }, [currentSeq?.id]);
+
+  // Name/description inline editing
+  const [localName, setLocalName] = useState('');
+  const [localDesc, setLocalDesc] = useState('');
+  useEffect(() => {
+    if (currentSeq) {
+      setLocalName(currentSeq.name);
+      setLocalDesc(currentSeq.description || '');
+    }
+  }, [currentSeq?.id]);
+
+  // ── Mutations ─────────────────────────────────────────────────────────────
+  const updateCampaign = useMutation({
+    mutationFn: (data: Partial<DripCampaign>) =>
+      apiRequest('PATCH', `/api/drip-campaigns/${selectedId}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns'] }),
+    onError: () => toast({ title: 'Save failed', variant: 'destructive' }),
+  });
+
+  const deleteCampaign = useMutation({
+    mutationFn: () => apiRequest('DELETE', `/api/drip-campaigns/${selectedId}`),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns'] });
-      setShowDeleteConfirm(null);
-      setView('list');
-      setSelected(null);
+      setSelectedId(null);
       toast({ title: 'Sequence deleted' });
     },
-    onError: () => toast({ title: 'Failed to delete sequence', variant: 'destructive' }),
+    onError: () => toast({ title: 'Delete failed', variant: 'destructive' }),
   });
 
   const createStep = useMutation({
-    mutationFn: (data: typeof stepForm & { campaignId: number }) =>
-      apiRequest('POST', `/api/drip-campaigns/${data.campaignId}/steps`, data),
+    mutationFn: (data: any) => apiRequest('POST', `/api/drip-campaigns/${selectedId}/steps`, data),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected?.id] });
-      setShowStepDialog(false);
-      setEditingStep(null);
-      setStepForm({ name: '', subject: '', body: '', delayAmount: 0, delayUnit: 'days' });
-      toast({ title: 'Step added' });
+      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selectedId] });
+      setAddingStep(false);
+      setNewStepName('');
     },
     onError: () => toast({ title: 'Failed to add step', variant: 'destructive' }),
   });
 
   const updateStep = useMutation({
-    mutationFn: ({ stepId, data }: { stepId: number; data: any }) =>
-      apiRequest('PATCH', `/api/drip-campaigns/${selected?.id}/steps/${stepId}`, data),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected?.id] });
-      setShowStepDialog(false);
-      setEditingStep(null);
-      setStepForm({ name: '', subject: '', body: '', delayAmount: 0, delayUnit: 'days' });
-      toast({ title: 'Step updated' });
-    },
+    mutationFn: ({ stepId, data }: { stepId: number; data: Partial<DripStep> }) =>
+      apiRequest('PATCH', `/api/drip-campaigns/${selectedId}/steps/${stepId}`, data),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selectedId] }),
     onError: () => toast({ title: 'Failed to update step', variant: 'destructive' }),
   });
 
   const deleteStep = useMutation({
-    mutationFn: (stepId: number) => apiRequest('DELETE', `/api/drip-campaigns/${selected?.id}/steps/${stepId}`),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected?.id] });
-      toast({ title: 'Step deleted' });
-    },
+    mutationFn: (stepId: number) =>
+      apiRequest('DELETE', `/api/drip-campaigns/${selectedId}/steps/${stepId}`),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selectedId] }),
     onError: () => toast({ title: 'Failed to delete step', variant: 'destructive' }),
   });
 
-  const enroll = useMutation({
-    mutationFn: async ({ campaignId, ids }: { campaignId: number; ids: string[] }) => {
-      const body = enrollTarget === 'leads'
-        ? { leadIds: ids }
-        : { customerIds: ids };
-      const res = await apiRequest('POST', `/api/drip-campaigns/${campaignId}/assignments`, body);
-      return res.json();
-    },
-    onSuccess: (data: any) => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns/assignment-counts'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected?.id, 'assignments', 'enriched'] });
-      setShowEnrollDialog(false);
-      setSelectedEnrollIds([]);
-      setEnrollSearch('');
-      toast({ title: `${data.created ?? selectedEnrollIds.length} contact(s) enrolled` });
-    },
-    onError: () => toast({ title: 'Failed to enroll contacts', variant: 'destructive' }),
-  });
-
   const updateAssignment = useMutation({
-    mutationFn: ({ assignmentId, status }: { assignmentId: number; status: string }) =>
-      apiRequest('PATCH', `/api/drip-campaigns/assignments/${assignmentId}`, { status }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selected?.id, 'assignments', 'enriched'] });
-      queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns/assignment-counts'] });
-      toast({ title: 'Status updated' });
-    },
-    onError: () => toast({ title: 'Failed to update status', variant: 'destructive' }),
+    mutationFn: ({ id, status }: { id: number; status: string }) =>
+      apiRequest('PATCH', `/api/drip-campaigns/assignments/${id}`, { status }),
+    onSuccess: () => queryClient.invalidateQueries({ queryKey: ['/api/drip-campaigns', selectedId, 'assignments', 'enriched'] }),
   });
 
-  // ── Helpers ───────────────────────────────────────────────────────────────
+  // ── Settings save helper ──────────────────────────────────────────────────
+  function saveSettings(patch: NonNullable<DripCampaign['settings']>) {
+    const merged = { ...localSettings, ...patch };
+    setLocalSettings(merged);
+    updateCampaign.mutate({ settings: merged });
+  }
 
-  const openSeqDetail = (seq: DripCampaign) => {
-    setSelected(seq);
-    setView('detail');
-    setActiveTab('steps');
-  };
+  const steps = (currentSeq?.steps || []).sort((a, b) => a.stepOrder - b.stepOrder);
 
-  const openStepEditor = (step?: DripCampaignStep) => {
-    if (step) {
-      setEditingStep(step);
-      setStepForm({ name: step.name, subject: step.subject, body: step.body, delayAmount: step.delayAmount, delayUnit: step.delayUnit || 'days' });
-    } else {
-      setEditingStep(null);
-      setStepForm({ name: '', subject: '', body: '', delayAmount: 0, delayUnit: 'days' });
-    }
-    setShowStepDialog(true);
-  };
-
-  const handleSaveStep = () => {
-    if (!selected) return;
-    if (editingStep) {
-      updateStep.mutate({ stepId: editingStep.id, data: stepForm });
-    } else {
-      createStep.mutate({ ...stepForm, campaignId: selected.id });
-    }
-  };
-
-  const filteredEnrollList = (() => {
-    const q = enrollSearch.toLowerCase();
-    if (enrollTarget === 'leads') {
-      return leadsData.filter((l: any) =>
-        l.name?.toLowerCase().includes(q) || l.company?.toLowerCase().includes(q)
-      ).slice(0, 60);
-    }
-    return customersData.filter((c: any) =>
-      c.company?.toLowerCase().includes(q) ||
-      c.email?.toLowerCase().includes(q) ||
-      `${c.firstName} ${c.lastName}`.toLowerCase().includes(q)
-    ).slice(0, 60);
-  })();
-
-  const toggleEnroll = (id: string) =>
-    setSelectedEnrollIds(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-
-  // ── LIST VIEW ──────────────────────────────────────────────────────────────
-
-  if (view === 'list') {
+  // ─────────────────────────────────────────────────────────────────────────
+  // LIST VIEW
+  // ─────────────────────────────────────────────────────────────────────────
+  if (!selectedId) {
     return (
-      <div>
-        {/* Page header */}
-        <div className="flex items-center justify-between mb-6">
-          <div>
-            <h1 className="text-2xl font-semibold text-gray-900">Sequences</h1>
-            <p className="text-sm text-gray-500 mt-0.5">
-              Automated multi-step email sequences for leads and customers
-            </p>
+      <div className="flex flex-col h-full bg-gray-50">
+        {/* Header */}
+        <div className="flex items-center justify-between px-6 py-4 bg-white border-b">
+          <div className="flex items-center gap-2">
+            <Zap className="h-5 w-5 text-indigo-500" />
+            <h1 className="text-lg font-semibold text-gray-900">Sequences</h1>
+            <span className="text-sm text-gray-400 ml-2">{campaigns.length} sequences</span>
           </div>
-          {isAdmin && (
-            <Button onClick={() => setShowCreateDialog(true)} className="gap-2">
-              <Plus className="h-4 w-4" />
-              New Sequence
-            </Button>
+          <Button
+            size="sm"
+            onClick={() => setShowNewDialog(true)}
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+          >
+            <Plus className="h-4 w-4 mr-1.5" />
+            New Sequence
+          </Button>
+        </div>
+
+        {/* Table */}
+        <div className="flex-1 overflow-auto px-6 py-4">
+          {isLoading ? (
+            <div className="flex items-center justify-center h-40 text-gray-400">Loading…</div>
+          ) : campaigns.length === 0 ? (
+            <div className="flex flex-col items-center justify-center h-60 gap-3 text-center">
+              <div className="w-12 h-12 rounded-full bg-indigo-50 flex items-center justify-center">
+                <Zap className="h-6 w-6 text-indigo-400" />
+              </div>
+              <p className="text-sm font-medium text-gray-700">No sequences yet</p>
+              <p className="text-xs text-gray-400">Create your first automated email sequence</p>
+              <Button size="sm" onClick={() => setShowNewDialog(true)}>
+                <Plus className="h-4 w-4 mr-1.5" />
+                New Sequence
+              </Button>
+            </div>
+          ) : (
+            <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+              <table className="w-full text-sm">
+                <thead>
+                  <tr className="border-b bg-gray-50">
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs">Name</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs">Trigger</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs">Status</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs">Steps</th>
+                    <th className="text-left px-4 py-3 font-medium text-gray-500 text-xs">Created</th>
+                  </tr>
+                </thead>
+                <tbody className="divide-y divide-gray-100">
+                  {campaigns.map(c => (
+                    <tr
+                      key={c.id}
+                      className="hover:bg-gray-50 cursor-pointer transition-colors"
+                      onClick={() => { setSelectedId(c.id); setActiveTab('editor'); }}
+                    >
+                      <td className="px-4 py-3 font-medium text-gray-800">{c.name}</td>
+                      <td className="px-4 py-3 text-gray-500">
+                        {TRIGGER_LABELS[c.triggerType || 'manual'] || c.triggerType}
+                      </td>
+                      <td className="px-4 py-3">
+                        {c.isActive
+                          ? <Badge className="bg-green-100 text-green-700 border-0 text-xs">Active</Badge>
+                          : <Badge className="bg-gray-100 text-gray-500 border-0 text-xs">Draft</Badge>}
+                      </td>
+                      <td className="px-4 py-3 text-gray-500">{(c.steps || []).length}</td>
+                      <td className="px-4 py-3 text-gray-400 text-xs">
+                        {c.createdAt ? new Date(c.createdAt).toLocaleDateString() : '—'}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
           )}
         </div>
 
-        {/* Sequence grid */}
-        {isLoading ? (
-          <div className="text-center py-20 text-gray-400">
-            <div className="h-6 w-6 border-2 border-gray-300 border-t-indigo-500 rounded-full animate-spin mx-auto mb-3" />
-            <p className="text-sm">Loading sequences…</p>
-          </div>
-        ) : sequences.length === 0 ? (
-          <div className="text-center py-20 text-gray-400">
-            <div className="w-16 h-16 rounded-full bg-indigo-50 flex items-center justify-center mx-auto mb-4">
-              <Zap className="h-8 w-8 text-indigo-400" />
-            </div>
-            <h3 className="text-base font-medium text-gray-700 mb-1">No sequences yet</h3>
-            <p className="text-sm mb-4">Create your first sequence to start automating outreach</p>
-            {isAdmin && (
-              <Button onClick={() => setShowCreateDialog(true)} variant="outline" className="gap-2">
-                <Plus className="h-4 w-4" />
-                Create Sequence
-              </Button>
-            )}
-          </div>
-        ) : (
-          <div className="grid gap-3">
-            {sequences.map(seq => {
-              const cnt = getCount(seq.id);
-              const total = (cnt?.count ?? 0) + (cnt?.leadCount ?? 0);
-              return (
-                <div
-                  key={seq.id}
-                  onClick={() => openSeqDetail(seq)}
-                  className="group flex items-center gap-4 px-5 py-4 bg-white rounded-xl border border-gray-200 hover:border-indigo-300 hover:shadow-sm cursor-pointer transition-all"
-                >
-                  {/* Status dot */}
-                  <div className={`w-2.5 h-2.5 rounded-full flex-shrink-0 ${seq.isActive ? 'bg-green-500' : 'bg-gray-300'}`} />
-
-                  {/* Info */}
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 flex-wrap">
-                      <span className="font-semibold text-gray-900">{seq.name}</span>
-                      <Badge variant="outline" className="text-xs capitalize px-1.5 py-0">
-                        {TRIGGER_LABELS[seq.triggerType || 'manual']}
-                      </Badge>
-                      {seq.isActive
-                        ? <Badge className="text-xs bg-green-100 text-green-700 border border-green-200 px-1.5 py-0">Active</Badge>
-                        : <Badge variant="secondary" className="text-xs px-1.5 py-0">Draft</Badge>
-                      }
-                    </div>
-                    <p className="text-sm text-gray-500 mt-0.5 truncate">{seq.description || 'No description'}</p>
-                  </div>
-
-                  {/* Stats */}
-                  <div className="flex items-center gap-5 text-sm text-gray-500 flex-shrink-0">
-                    <div className="flex items-center gap-1.5 text-center">
-                      <Users className="h-3.5 w-3.5" />
-                      <span className="font-medium text-gray-700">{total}</span>
-                      <span className="hidden sm:inline">enrolled</span>
-                    </div>
-                    <ArrowRight className="h-4 w-4 text-gray-300 group-hover:text-indigo-400 transition-colors" />
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        )}
-
-        {/* Create sequence dialog */}
-        <Dialog open={showCreateDialog} onOpenChange={setShowCreateDialog}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>{editingSequence ? 'Edit Sequence' : 'New Sequence'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label>Name</Label>
-                <Input
-                  value={seqForm.name}
-                  onChange={e => setSeqForm(p => ({ ...p, name: e.target.value }))}
-                  placeholder="e.g. Welcome Series"
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Description <span className="text-gray-400 font-normal">(optional)</span></Label>
-                <Textarea
-                  value={seqForm.description}
-                  onChange={e => setSeqForm(p => ({ ...p, description: e.target.value }))}
-                  placeholder="What is this sequence for?"
-                  rows={2}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Trigger</Label>
-                <Select value={seqForm.triggerType} onValueChange={v => setSeqForm(p => ({ ...p, triggerType: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manual — enroll contacts by hand</SelectItem>
-                    <SelectItem value="on_signup">On Customer Signup</SelectItem>
-                    <SelectItem value="on_purchase">On Purchase</SelectItem>
-                    <SelectItem value="on_quote">On Quote Sent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-              <div className="flex items-center gap-3">
-                <Switch
-                  checked={seqForm.isActive}
-                  onCheckedChange={v => setSeqForm(p => ({ ...p, isActive: v }))}
-                />
-                <span className="text-sm text-gray-600">Activate immediately</span>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowCreateDialog(false)}>Cancel</Button>
-              <Button
-                onClick={() => createSeq.mutate(seqForm)}
-                disabled={!seqForm.name.trim() || createSeq.isPending}
-              >
-                {createSeq.isPending ? 'Creating…' : 'Create Sequence'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
+        <NewSequenceDialog
+          open={showNewDialog}
+          onClose={() => setShowNewDialog(false)}
+          onCreated={id => setSelectedId(id)}
+        />
       </div>
     );
   }
 
-  // ── DETAIL VIEW ─────────────────────────────────────────────────────────────
+  // ─────────────────────────────────────────────────────────────────────────
+  // DETAIL VIEW (Attio-style)
+  // ─────────────────────────────────────────────────────────────────────────
+  if (!currentSeq) {
+    return <div className="flex items-center justify-center h-full text-gray-400">Loading sequence…</div>;
+  }
 
-  if (view === 'detail' && selected) {
-    const currentSeq = detail ?? selected;
-    const cnt = getCount(selected.id);
-    const totalEnrolled = (cnt?.count ?? 0) + (cnt?.leadCount ?? 0);
-
-    return (
-      <div>
-        {/* Breadcrumb / back */}
-        <button
-          onClick={() => { setView('list'); setSelected(null); }}
-          className="flex items-center gap-1.5 text-sm text-gray-500 hover:text-gray-700 mb-5"
-        >
-          <ChevronLeft className="h-4 w-4" />
-          Sequences
-        </button>
-
-        {/* Header */}
-        <div className="flex items-start gap-4 mb-6">
-          <div className="flex-1 min-w-0">
-            <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-2xl font-semibold text-gray-900">{currentSeq.name}</h1>
-              {currentSeq.isActive
-                ? <Badge className="bg-green-100 text-green-700 border border-green-200">Active</Badge>
-                : <Badge variant="secondary">Draft</Badge>
-              }
-              <Badge variant="outline" className="capitalize">{TRIGGER_LABELS[currentSeq.triggerType || 'manual']}</Badge>
-            </div>
-            {currentSeq.description && (
-              <p className="text-sm text-gray-500 mt-1">{currentSeq.description}</p>
-            )}
-          </div>
-
-          {isAdmin && (
-            <div className="flex items-center gap-2 flex-shrink-0">
-              {/* Toggle active */}
-              <div className="flex items-center gap-2 px-3 py-1.5 rounded-lg border border-gray-200 bg-white">
-                <Switch
-                  checked={currentSeq.isActive}
-                  onCheckedChange={v => updateSeq.mutate({ id: selected.id, data: { isActive: v } })}
-                />
-                <span className="text-xs text-gray-500">{currentSeq.isActive ? 'Active' : 'Draft'}</span>
-              </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => {
-                  setSeqForm({ name: currentSeq.name, description: currentSeq.description || '', triggerType: currentSeq.triggerType || 'manual', isActive: currentSeq.isActive });
-                  setEditingSequence(currentSeq);
-                }}
+  return (
+    <div className="flex flex-col h-full bg-white">
+      {/* ── Top breadcrumb bar ─────────────────────────────────────────── */}
+      <div className="flex items-center justify-between px-4 py-2.5 border-b bg-white z-10">
+        <div className="flex items-center gap-1.5 text-sm">
+          <button
+            onClick={() => setSelectedId(null)}
+            className="flex items-center gap-1 text-gray-500 hover:text-gray-800 transition-colors"
+          >
+            <ChevronLeft className="h-4 w-4" />
+            Sequences
+          </button>
+          <span className="text-gray-300">/</span>
+          <span className="font-medium text-gray-800">{currentSeq.name}</span>
+          <button className="ml-1 text-gray-300 hover:text-yellow-400 transition-colors">
+            <Star className="h-4 w-4" />
+          </button>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button variant="ghost" size="sm" className="gap-1.5 text-sm text-gray-600">
+            <Share2 className="h-4 w-4" />
+            Share
+          </Button>
+          <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+            <HelpCircle className="h-4 w-4 text-gray-400" />
+          </Button>
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button variant="ghost" size="sm" className="w-8 h-8 p-0">
+                <MoreHorizontal className="h-4 w-4 text-gray-400" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                className="text-red-500"
+                onClick={() => setShowDeleteConfirm(true)}
               >
-                <Edit2 className="h-3.5 w-3.5 mr-1.5" />
-                Edit
-              </Button>
-              <Button variant="outline" size="sm" className="text-red-500 hover:text-red-700 hover:border-red-200" onClick={() => setShowDeleteConfirm(selected.id)}>
-                <Trash2 className="h-3.5 w-3.5" />
-              </Button>
-            </div>
-          )}
+                <Trash2 className="h-3.5 w-3.5 mr-2" />
+                Delete sequence
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
         </div>
+      </div>
 
-        {/* Stats bar */}
-        <div className="flex items-center gap-6 mb-6 px-4 py-3 bg-gray-50 rounded-xl border border-gray-100">
-          <div>
-            <p className="text-xs text-gray-400">Steps</p>
-            <p className="text-lg font-semibold text-gray-900">{steps.length}</p>
-          </div>
-          <div className="w-px h-8 bg-gray-200" />
-          <div>
-            <p className="text-xs text-gray-400">Enrolled</p>
-            <p className="text-lg font-semibold text-gray-900">{totalEnrolled}</p>
-          </div>
-          {enrolledPeople.length > 0 && (
-            <>
-              <div className="w-px h-8 bg-gray-200" />
-              <div>
-                <p className="text-xs text-gray-400">Active</p>
-                <p className="text-lg font-semibold text-green-600">
-                  {enrolledPeople.filter(p => p.status === 'active').length}
-                </p>
-              </div>
-              <div className="w-px h-8 bg-gray-200" />
-              <div>
-                <p className="text-xs text-gray-400">Completed</p>
-                <p className="text-lg font-semibold text-blue-600">
-                  {enrolledPeople.filter(p => p.status === 'completed').length}
-                </p>
-              </div>
-            </>
-          )}
-          <div className="ml-auto">
-            {isAdmin && (
-              <Button size="sm" onClick={() => { setShowEnrollDialog(true); setSelectedEnrollIds([]); setEnrollSearch(''); }} className="gap-1.5">
-                <UserPlus className="h-3.5 w-3.5" />
-                Enroll People
-              </Button>
-            )}
-          </div>
-        </div>
-
+      {/* ── Sub-nav: Tabs + Enable toggle + Enroll button ──────────────── */}
+      <div className="flex items-center justify-between px-4 py-1.5 border-b bg-white">
         {/* Tabs */}
-        <Tabs value={activeTab} onValueChange={v => setActiveTab(v as any)}>
-          <TabsList className="mb-4">
-            <TabsTrigger value="steps">Steps ({steps.length})</TabsTrigger>
-            <TabsTrigger value="people">People ({totalEnrolled})</TabsTrigger>
-          </TabsList>
+        <div className="flex items-center gap-0">
+          {(['editor', 'recipients', 'settings'] as const).map(tab => (
+            <button
+              key={tab}
+              onClick={() => setActiveTab(tab)}
+              className={`flex items-center gap-1.5 px-3 py-2 text-sm font-medium border-b-2 transition-colors ${
+                activeTab === tab
+                  ? 'border-indigo-600 text-indigo-700'
+                  : 'border-transparent text-gray-500 hover:text-gray-700'
+              }`}
+            >
+              {tab === 'editor' && <Edit3 className="h-3.5 w-3.5" />}
+              {tab === 'recipients' && <Users className="h-3.5 w-3.5" />}
+              {tab === 'settings' && <Settings className="h-3.5 w-3.5" />}
+              <span className="capitalize">{tab}</span>
+              {tab === 'recipients' && (
+                <span className="ml-0.5 text-xs text-gray-400">{enrichedAssignments.length}</span>
+              )}
+            </button>
+          ))}
+        </div>
 
-          {/* ── STEPS TAB ── */}
-          <TabsContent value="steps">
-            <div className="space-y-0">
-              {steps.length === 0 ? (
-                <div className="text-center py-16 text-gray-400 border-2 border-dashed rounded-xl">
-                  <Mail className="h-8 w-8 mx-auto mb-3 opacity-40" />
-                  <p className="text-sm font-medium text-gray-500">No steps yet</p>
-                  <p className="text-xs mb-4">Add an email step to get started</p>
-                  {isAdmin && (
-                    <Button size="sm" variant="outline" onClick={() => openStepEditor()} className="gap-1.5">
-                      <Plus className="h-3.5 w-3.5" />
-                      Add First Step
+        {/* Right controls */}
+        <div className="flex items-center gap-3">
+          <div className="flex items-center gap-2">
+            <Switch
+              checked={currentSeq.isActive}
+              onCheckedChange={v => updateCampaign.mutate({ isActive: v })}
+            />
+            <span className="text-sm text-gray-600">Enable sequence</span>
+          </div>
+          <Button
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white"
+            onClick={() => setShowEnroll(true)}
+          >
+            Enroll recipients
+          </Button>
+        </div>
+      </div>
+
+      {/* ── Main content area ───────────────────────────────────────────── */}
+      <div className="flex flex-1 overflow-hidden">
+
+        {/* ── Center / Editor column ─────────────────────────────────── */}
+        <div className="flex-1 overflow-y-auto bg-gray-50">
+
+          {/* ── EDITOR TAB ──────────────────────────────────────────── */}
+          {activeTab === 'editor' && (
+            <div className="flex flex-col items-center py-6 px-4 min-h-full">
+
+              {/* Not published banner */}
+              {!currentSeq.isActive && (
+                <div className="w-full max-w-2xl mb-5">
+                  <div className="flex items-center justify-between bg-blue-50 border border-blue-200 rounded-lg px-4 py-2.5">
+                    <div className="flex items-center gap-2">
+                      <Info className="h-4 w-4 text-blue-500" />
+                      <span className="text-sm text-blue-700">This sequence has not yet been published</span>
+                    </div>
+                    <Button
+                      size="sm"
+                      className="bg-indigo-600 hover:bg-indigo-700 text-white h-7 text-xs"
+                      onClick={() => updateCampaign.mutate({ isActive: true })}
+                    >
+                      Publish sequence
                     </Button>
-                  )}
-                </div>
-              ) : (
-                <div className="relative">
-                  {/* Vertical connector line */}
-                  <div className="absolute left-5 top-6 bottom-0 w-px bg-gray-200 z-0" style={{ bottom: '2.5rem' }} />
-
-                  {steps.map((step, idx) => (
-                    <div key={step.id} className="relative z-10 mb-0">
-                      {/* Delay indicator (between steps) */}
-                      {idx > 0 && (
-                        <div className="flex items-center gap-2 ml-10 py-2 text-xs text-gray-400">
-                          <Clock className="h-3 w-3 flex-shrink-0" />
-                          {formatDelay(step.delayAmount, step.delayUnit || 'days')}
-                        </div>
-                      )}
-
-                      <div className="flex items-start gap-4">
-                        {/* Step node */}
-                        <div className="flex-shrink-0 w-10 h-10 rounded-full bg-indigo-100 border-2 border-white shadow flex items-center justify-center">
-                          <Mail className="h-4 w-4 text-indigo-600" />
-                        </div>
-
-                        {/* Step card */}
-                        <div className="flex-1 mb-3 bg-white border border-gray-200 rounded-xl p-4 hover:border-gray-300 transition-colors">
-                          <div className="flex items-start gap-3">
-                            <div className="flex-1 min-w-0">
-                              <div className="flex items-center gap-2 mb-0.5">
-                                <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">Step {idx + 1}</span>
-                                {idx === 0 && (
-                                  <span className="text-xs px-1.5 py-0 rounded bg-indigo-50 text-indigo-600 border border-indigo-100">
-                                    Day 0
-                                  </span>
-                                )}
-                              </div>
-                              <p className="font-medium text-gray-900">{step.name}</p>
-                              <p className="text-sm text-gray-500 mt-0.5 truncate">{step.subject}</p>
-                            </div>
-                            {isAdmin && (
-                              <div className="flex items-center gap-1 flex-shrink-0">
-                                <button
-                                  onClick={() => openStepEditor(step)}
-                                  className="p-1.5 rounded hover:bg-gray-100 text-gray-400 hover:text-gray-600 transition-colors"
-                                >
-                                  <Edit2 className="h-3.5 w-3.5" />
-                                </button>
-                                <button
-                                  onClick={() => deleteStep.mutate(step.id)}
-                                  className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                                >
-                                  <Trash2 className="h-3.5 w-3.5" />
-                                </button>
-                              </div>
-                            )}
-                          </div>
-                        </div>
-                      </div>
-                    </div>
-                  ))}
-
-                  {/* Add step */}
-                  {isAdmin && (
-                    <div className="flex items-center gap-4">
-                      <div className="flex-shrink-0 w-10 h-10 rounded-full bg-gray-100 border-2 border-dashed border-gray-300 flex items-center justify-center">
-                        <Plus className="h-4 w-4 text-gray-400" />
-                      </div>
-                      <button
-                        onClick={() => openStepEditor()}
-                        className="flex-1 py-3 px-4 border-2 border-dashed border-gray-200 rounded-xl text-sm text-gray-400 hover:border-indigo-300 hover:text-indigo-500 hover:bg-indigo-50/50 transition-all text-left"
-                      >
-                        + Add step
-                      </button>
-                    </div>
-                  )}
+                  </div>
                 </div>
               )}
-            </div>
-          </TabsContent>
 
-          {/* ── PEOPLE TAB ── */}
-          <TabsContent value="people">
-            {enrolledPeople.length === 0 ? (
-              <div className="text-center py-16 text-gray-400 border-2 border-dashed rounded-xl">
-                <Users className="h-8 w-8 mx-auto mb-3 opacity-40" />
-                <p className="text-sm font-medium text-gray-500">No one enrolled yet</p>
-                <p className="text-xs mb-4">Enroll leads or customers to start the sequence</p>
-                {isAdmin && (
-                  <Button size="sm" variant="outline" onClick={() => setShowEnrollDialog(true)} className="gap-1.5">
-                    <UserPlus className="h-3.5 w-3.5" />
-                    Enroll People
-                  </Button>
-                )}
-              </div>
-            ) : (
-              <div className="bg-white border border-gray-200 rounded-xl overflow-hidden">
-                <table className="w-full text-sm">
-                  <thead className="bg-gray-50 border-b border-gray-200">
-                    <tr>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Contact</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Type</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Status</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Progress</th>
-                      <th className="text-left px-4 py-3 text-xs font-semibold text-gray-500 uppercase tracking-wider">Enrolled</th>
-                      {isAdmin && <th className="px-4 py-3" />}
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-gray-100">
-                    {enrolledPeople.map(person => {
-                      const sc = STATUS_CONFIG[person.status] ?? STATUS_CONFIG.active;
-                      const Icon = sc.icon;
-                      return (
-                        <tr key={person.id} className="hover:bg-gray-50 transition-colors">
-                          <td className="px-4 py-3">
-                            <div>
-                              <p className="font-medium text-gray-900">{person.name}</p>
-                              {person.email && <p className="text-xs text-gray-400">{person.email}</p>}
-                            </div>
-                          </td>
-                          <td className="px-4 py-3">
-                            <Badge variant="outline" className={`text-xs capitalize ${person.type === 'lead' ? 'text-purple-700 border-purple-200' : 'text-blue-700 border-blue-200'}`}>
-                              {person.type}
-                            </Badge>
-                          </td>
-                          <td className="px-4 py-3">
-                            <span className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium border ${sc.className}`}>
-                              <Icon className="h-3 w-3" />
-                              {sc.label}
-                            </span>
-                          </td>
-                          <td className="px-4 py-3">
-                            <div className="flex items-center gap-2">
-                              <div className="flex-1 bg-gray-100 rounded-full h-1.5 w-16">
-                                <div
-                                  className="bg-indigo-500 h-1.5 rounded-full transition-all"
-                                  style={{ width: person.stepsTotal > 0 ? `${(person.stepsSent / person.stepsTotal) * 100}%` : '0%' }}
-                                />
-                              </div>
-                              <span className="text-xs text-gray-400">{person.stepsSent}/{person.stepsTotal || steps.length}</span>
-                            </div>
-                          </td>
-                          <td className="px-4 py-3 text-xs text-gray-400">{timeAgo(person.startedAt)}</td>
-                          {isAdmin && (
-                            <td className="px-4 py-3">
-                              <div className="flex items-center gap-1 justify-end">
-                                {person.status === 'active' && (
-                                  <button
-                                    onClick={() => updateAssignment.mutate({ assignmentId: person.id, status: 'paused' })}
-                                    title="Pause"
-                                    className="p-1.5 rounded hover:bg-yellow-50 text-gray-400 hover:text-yellow-600 transition-colors"
-                                  >
-                                    <Pause className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                                {person.status === 'paused' && (
-                                  <button
-                                    onClick={() => updateAssignment.mutate({ assignmentId: person.id, status: 'active' })}
-                                    title="Resume"
-                                    className="p-1.5 rounded hover:bg-green-50 text-gray-400 hover:text-green-600 transition-colors"
-                                  >
-                                    <RotateCcw className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                                {['active', 'paused'].includes(person.status) && (
-                                  <button
-                                    onClick={() => updateAssignment.mutate({ assignmentId: person.id, status: 'cancelled' })}
-                                    title="Cancel"
-                                    className="p-1.5 rounded hover:bg-red-50 text-gray-400 hover:text-red-500 transition-colors"
-                                  >
-                                    <X className="h-3.5 w-3.5" />
-                                  </button>
-                                )}
-                              </div>
-                            </td>
-                          )}
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
-              </div>
-            )}
-          </TabsContent>
-        </Tabs>
-
-        {/* ── Step editor dialog ── */}
-        <Dialog open={showStepDialog} onOpenChange={setShowStepDialog}>
-          <DialogContent className="sm:max-w-2xl max-h-[90vh] overflow-y-auto">
-            <DialogHeader>
-              <DialogTitle>{editingStep ? 'Edit Step' : 'Add Step'}</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="grid grid-cols-2 gap-4">
-                <div className="space-y-1.5">
-                  <Label>Step name</Label>
-                  <Input
-                    value={stepForm.name}
-                    onChange={e => setStepForm(p => ({ ...p, name: e.target.value }))}
-                    placeholder="e.g. Intro email"
-                    autoFocus
-                  />
-                </div>
-                <div className="space-y-1.5">
-                  <Label>Delay before sending</Label>
-                  <div className="flex gap-2">
-                    <Input
-                      type="number"
-                      min="0"
-                      value={stepForm.delayAmount}
-                      onChange={e => setStepForm(p => ({ ...p, delayAmount: parseInt(e.target.value) || 0 }))}
-                      className="w-20"
-                    />
-                    <Select value={stepForm.delayUnit} onValueChange={v => setStepForm(p => ({ ...p, delayUnit: v }))}>
-                      <SelectTrigger className="flex-1"><SelectValue /></SelectTrigger>
-                      <SelectContent>
-                        <SelectItem value="minutes">Minutes</SelectItem>
-                        <SelectItem value="hours">Hours</SelectItem>
-                        <SelectItem value="days">Days</SelectItem>
-                        <SelectItem value="weeks">Weeks</SelectItem>
-                      </SelectContent>
-                    </Select>
+              {/* Start trigger row */}
+              <div className="w-full max-w-2xl mb-4">
+                <div className="flex items-center gap-2 text-sm text-gray-500">
+                  <div className="w-4 h-4 rounded-full border-2 border-gray-300 flex items-center justify-center">
+                    <div className="w-1.5 h-1.5 rounded-full bg-gray-400" />
                   </div>
-                  <p className="text-xs text-gray-400">
-                    {stepForm.delayAmount === 0 ? 'Sends immediately when enrolled' : `Sends ${stepForm.delayAmount} ${stepForm.delayUnit} after the previous step`}
-                  </p>
+                  <span>Start</span>
+                  <button className="inline-flex items-center gap-1 font-medium text-gray-800 hover:text-indigo-600 transition-colors">
+                    immediately
+                    <ChevronDown className="h-3.5 w-3.5" />
+                  </button>
+                  <span>after enrollment</span>
+                  <ChevronDown className="h-3.5 w-3.5 text-gray-400" />
                 </div>
               </div>
-              <div className="space-y-1.5">
-                <Label>Email subject</Label>
-                <Input
-                  value={stepForm.subject}
-                  onChange={e => setStepForm(p => ({ ...p, subject: e.target.value }))}
-                  placeholder="Subject line…"
-                />
-                <p className="text-xs text-gray-400">Use <code className="bg-gray-100 px-1 rounded">{'{{client.firstName}}'}</code> for personalization</p>
-              </div>
-              <div className="space-y-1.5">
-                <Label>Email body</Label>
-                <Textarea
-                  value={stepForm.body}
-                  onChange={e => setStepForm(p => ({ ...p, body: e.target.value }))}
-                  placeholder="Write your email here. Supports HTML and template variables like {{client.firstName}}, {{client.company}}…"
-                  rows={10}
-                  className="font-mono text-sm"
-                />
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowStepDialog(false)}>Cancel</Button>
-              <Button
-                onClick={handleSaveStep}
-                disabled={!stepForm.name.trim() || !stepForm.subject.trim() || createStep.isPending || updateStep.isPending}
-              >
-                {createStep.isPending || updateStep.isPending ? 'Saving…' : editingStep ? 'Save Changes' : 'Add Step'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
 
-        {/* ── Edit sequence dialog ── */}
-        <Dialog open={!!editingSequence} onOpenChange={v => { if (!v) setEditingSequence(null); }}>
-          <DialogContent className="sm:max-w-md">
-            <DialogHeader>
-              <DialogTitle>Edit Sequence</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-4 py-2">
-              <div className="space-y-1.5">
-                <Label>Name</Label>
-                <Input
-                  value={seqForm.name}
-                  onChange={e => setSeqForm(p => ({ ...p, name: e.target.value }))}
-                  autoFocus
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Description</Label>
-                <Textarea
-                  value={seqForm.description}
-                  onChange={e => setSeqForm(p => ({ ...p, description: e.target.value }))}
-                  rows={2}
-                />
-              </div>
-              <div className="space-y-1.5">
-                <Label>Trigger</Label>
-                <Select value={seqForm.triggerType} onValueChange={v => setSeqForm(p => ({ ...p, triggerType: v }))}>
-                  <SelectTrigger><SelectValue /></SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="manual">Manual</SelectItem>
-                    <SelectItem value="on_signup">On Customer Signup</SelectItem>
-                    <SelectItem value="on_purchase">On Purchase</SelectItem>
-                    <SelectItem value="on_quote">On Quote Sent</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setEditingSequence(null)}>Cancel</Button>
-              <Button
-                onClick={() => editingSequence && updateSeq.mutate({ id: editingSequence.id, data: seqForm })}
-                disabled={!seqForm.name.trim() || updateSeq.isPending}
-              >
-                {updateSeq.isPending ? 'Saving…' : 'Save Changes'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ── Delete confirm ── */}
-        <Dialog open={showDeleteConfirm !== null} onOpenChange={v => { if (!v) setShowDeleteConfirm(null); }}>
-          <DialogContent className="sm:max-w-sm">
-            <DialogHeader>
-              <DialogTitle>Delete Sequence?</DialogTitle>
-            </DialogHeader>
-            <p className="text-sm text-gray-500 py-2">
-              This will permanently delete the sequence, all its steps, and all enrollment records. This cannot be undone.
-            </p>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowDeleteConfirm(null)}>Cancel</Button>
-              <Button
-                variant="destructive"
-                onClick={() => showDeleteConfirm && deleteSeq.mutate(showDeleteConfirm)}
-                disabled={deleteSeq.isPending}
-              >
-                {deleteSeq.isPending ? 'Deleting…' : 'Delete'}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-
-        {/* ── Enroll contacts dialog ── */}
-        <Dialog open={showEnrollDialog} onOpenChange={v => { setShowEnrollDialog(v); if (!v) { setSelectedEnrollIds([]); setEnrollSearch(''); } }}>
-          <DialogContent className="sm:max-w-lg max-h-[90vh]">
-            <DialogHeader>
-              <DialogTitle>Enroll in "{currentSeq.name}"</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-3">
-              {/* Leads / Customers toggle */}
-              <div className="flex gap-1 p-1 bg-gray-100 rounded-lg">
-                {(['leads', 'customers'] as const).map(t => (
-                  <button
-                    key={t}
-                    onClick={() => { setEnrollTarget(t); setSelectedEnrollIds([]); }}
-                    className={`flex-1 py-1.5 rounded-md text-sm font-medium transition-colors capitalize ${enrollTarget === t ? 'bg-white shadow-sm text-gray-900' : 'text-gray-500'}`}
-                  >
-                    {t}
-                  </button>
+              {/* Steps */}
+              <div className="w-full max-w-2xl flex flex-col gap-0">
+                {steps.map((step, idx) => (
+                  <div key={step.id} className="flex flex-col">
+                    {/* Delay indicator between steps (not before first) */}
+                    {idx > 0 && (
+                      <div className="flex flex-col items-center py-2">
+                        <div className="w-px h-4 bg-gray-300" />
+                        <div className="flex items-center gap-1.5 my-1 px-3 py-1 rounded-full bg-white border border-gray-200 text-xs text-gray-500 shadow-sm">
+                          <Clock className="h-3 w-3" />
+                          Wait {delayLabel(step.delayAmount, step.delayUnit)}
+                        </div>
+                        <div className="w-px h-4 bg-gray-300" />
+                      </div>
+                    )}
+                    <StepCard
+                      step={step}
+                      index={idx}
+                      onUpdate={(id, data) => updateStep.mutate({ stepId: id, data })}
+                      onDelete={id => deleteStep.mutate(id)}
+                    />
+                  </div>
                 ))}
               </div>
 
-              <div className="relative">
-                <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-                <Input
-                  value={enrollSearch}
-                  onChange={e => setEnrollSearch(e.target.value)}
-                  placeholder="Search…"
-                  className="pl-9"
+              {/* Add step */}
+              <div className="w-full max-w-2xl mt-4 flex flex-col items-center">
+                <div className="w-px h-5 bg-gray-300" />
+                {addingStep ? (
+                  <div className="bg-white border border-gray-200 rounded-lg shadow-sm p-4 w-full">
+                    <p className="text-xs font-semibold text-gray-500 mb-2">New Step</p>
+                    <Input
+                      placeholder="Step name (e.g. Introduction email)"
+                      value={newStepName}
+                      onChange={e => setNewStepName(e.target.value)}
+                      className="mb-3 text-sm"
+                      autoFocus
+                      onKeyDown={e => {
+                        if (e.key === 'Enter') {
+                          createStep.mutate({
+                            name: newStepName || 'Step',
+                            subject: '',
+                            body: '',
+                            delayAmount: steps.length === 0 ? 0 : 3,
+                            delayUnit: 'days',
+                            stepOrder: steps.length + 1,
+                          });
+                        }
+                        if (e.key === 'Escape') setAddingStep(false);
+                      }}
+                    />
+                    <div className="flex gap-2">
+                      <Button
+                        size="sm"
+                        disabled={createStep.isPending}
+                        onClick={() => createStep.mutate({
+                          name: newStepName || 'Step',
+                          subject: '',
+                          body: '',
+                          delayAmount: steps.length === 0 ? 0 : 3,
+                          delayUnit: 'days',
+                          stepOrder: steps.length + 1,
+                        })}
+                      >
+                        Add step
+                      </Button>
+                      <Button variant="ghost" size="sm" onClick={() => setAddingStep(false)}>Cancel</Button>
+                    </div>
+                  </div>
+                ) : (
+                  <button
+                    onClick={() => setAddingStep(true)}
+                    className="flex items-center gap-2 px-4 py-2 rounded-full border border-dashed border-gray-300 bg-white text-sm text-gray-500 hover:border-indigo-400 hover:text-indigo-600 transition-colors shadow-sm"
+                  >
+                    <Plus className="h-4 w-4" />
+                    Add step to sequence
+                  </button>
+                )}
+              </div>
+            </div>
+          )}
+
+          {/* ── RECIPIENTS TAB ──────────────────────────────────────── */}
+          {activeTab === 'recipients' && (
+            <div className="p-6">
+              {enrichedAssignments.length === 0 ? (
+                <div className="flex flex-col items-center justify-center h-48 gap-3 text-center">
+                  <Users className="h-8 w-8 text-gray-300" />
+                  <p className="text-sm text-gray-500">No recipients enrolled yet</p>
+                  <Button size="sm" onClick={() => setShowEnroll(true)}>
+                    <Plus className="h-4 w-4 mr-1.5" />
+                    Enroll recipients
+                  </Button>
+                </div>
+              ) : (
+                <div className="bg-white border border-gray-200 rounded-lg overflow-hidden">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b bg-gray-50">
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Name</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Type</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Status</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Progress</th>
+                        <th className="text-left px-4 py-3 text-xs font-medium text-gray-500">Enrolled</th>
+                        <th className="px-4 py-3" />
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-gray-100">
+                      {enrichedAssignments.map(a => (
+                        <tr key={a.id} className="hover:bg-gray-50">
+                          <td className="px-4 py-3 font-medium text-gray-800">
+                            {a.name || `#${a.id}`}
+                          </td>
+                          <td className="px-4 py-3 text-gray-500 capitalize">
+                            {a.type || '—'}
+                          </td>
+                          <td className="px-4 py-3">{statusBadge(a.status)}</td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-2">
+                              <div className="w-20 h-1.5 bg-gray-100 rounded-full overflow-hidden">
+                                <div
+                                  className="h-full bg-indigo-500 rounded-full"
+                                  style={{ width: `${a.stepsTotal ? (a.stepsSent || 0) / a.stepsTotal * 100 : 0}%` }}
+                                />
+                              </div>
+                              <span className="text-xs text-gray-400">
+                                {a.stepsSent || 0}/{a.stepsTotal || steps.length}
+                              </span>
+                            </div>
+                          </td>
+                          <td className="px-4 py-3 text-gray-400 text-xs">
+                            {a.enrolledAt ? new Date(a.enrolledAt).toLocaleDateString() : '—'}
+                          </td>
+                          <td className="px-4 py-3">
+                            <div className="flex items-center gap-1">
+                              {a.status === 'active' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-yellow-600"
+                                  onClick={() => updateAssignment.mutate({ id: a.id, status: 'paused' })}
+                                >
+                                  <PauseCircle className="h-3.5 w-3.5 mr-1" />
+                                  Pause
+                                </Button>
+                              )}
+                              {a.status === 'paused' && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-green-600"
+                                  onClick={() => updateAssignment.mutate({ id: a.id, status: 'active' })}
+                                >
+                                  <Play className="h-3.5 w-3.5 mr-1" />
+                                  Resume
+                                </Button>
+                              )}
+                              {(a.status === 'active' || a.status === 'paused') && (
+                                <Button
+                                  variant="ghost"
+                                  size="sm"
+                                  className="h-7 px-2 text-xs text-red-500"
+                                  onClick={() => updateAssignment.mutate({ id: a.id, status: 'cancelled' })}
+                                >
+                                  <XCircle className="h-3.5 w-3.5 mr-1" />
+                                  Cancel
+                                </Button>
+                              )}
+                            </div>
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+
+          {/* ── SETTINGS TAB ────────────────────────────────────────── */}
+          {activeTab === 'settings' && (
+            <div className="p-6 max-w-md">
+              <div className="bg-white border border-gray-200 rounded-lg p-4 space-y-4">
+                <div>
+                  <label className="text-xs font-medium text-gray-500 mb-1 block">Trigger Type</label>
+                  <Select
+                    value={currentSeq.triggerType || 'manual'}
+                    onValueChange={v => updateCampaign.mutate({ triggerType: v })}
+                  >
+                    <SelectTrigger className="text-sm h-9">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {Object.entries(TRIGGER_LABELS).map(([v, l]) => (
+                        <SelectItem key={v} value={v}>{l}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="pt-4 border-t">
+                  <p className="text-xs font-medium text-red-500 mb-2">Danger Zone</p>
+                  <Button
+                    variant="outline"
+                    size="sm"
+                    className="text-red-500 border-red-200 hover:bg-red-50"
+                    onClick={() => setShowDeleteConfirm(true)}
+                  >
+                    <Trash2 className="h-3.5 w-3.5 mr-1.5" />
+                    Delete this sequence
+                  </Button>
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* ── Right settings panel ────────────────────────────────────── */}
+        {(activeTab === 'editor' || activeTab === 'recipients') && (
+          <div className="w-72 border-l border-gray-200 bg-white overflow-y-auto shrink-0">
+            <div className="p-4 space-y-5">
+
+              {/* Sequence name */}
+              <div>
+                <input
+                  type="text"
+                  className="w-full font-semibold text-gray-900 text-base bg-transparent outline-none border-0 p-0 placeholder:text-gray-300"
+                  value={localName}
+                  onChange={e => setLocalName(e.target.value)}
+                  onBlur={() => {
+                    if (localName !== currentSeq.name) {
+                      updateCampaign.mutate({ name: localName });
+                    }
+                  }}
+                  placeholder="Sequence name"
+                />
+                <textarea
+                  className="w-full text-sm text-gray-400 bg-transparent outline-none resize-none mt-1 placeholder:text-gray-300"
+                  rows={2}
+                  placeholder="Add a description…"
+                  value={localDesc}
+                  onChange={e => setLocalDesc(e.target.value)}
+                  onBlur={() => {
+                    if (localDesc !== (currentSeq.description || '')) {
+                      updateCampaign.mutate({ description: localDesc });
+                    }
+                  }}
                 />
               </div>
 
-              <div className="border rounded-lg max-h-72 overflow-y-auto">
-                {filteredEnrollList.length === 0 ? (
-                  <div className="p-8 text-center text-sm text-gray-400">No results found</div>
-                ) : (
-                  filteredEnrollList.map((item: any) => {
-                    const id = String(item.id);
-                    const label = enrollTarget === 'leads'
-                      ? item.name
-                      : (item.company || `${item.firstName ?? ''} ${item.lastName ?? ''}`.trim() || item.email || id);
-                    const sub = enrollTarget === 'leads' ? item.company : item.email;
-                    const selected = selectedEnrollIds.includes(id);
-                    return (
-                      <div
-                        key={id}
-                        onClick={() => toggleEnroll(id)}
-                        className={`flex items-center gap-3 px-3 py-2.5 cursor-pointer hover:bg-gray-50 border-b last:border-b-0 ${selected ? 'bg-indigo-50' : ''}`}
-                      >
-                        <div className={`w-4 h-4 rounded flex items-center justify-center flex-shrink-0 border transition-colors ${selected ? 'bg-indigo-600 border-indigo-600' : 'border-gray-300'}`}>
-                          {selected && <Check className="h-3 w-3 text-white" />}
-                        </div>
-                        <div className="flex-1 min-w-0">
-                          <p className="text-sm font-medium text-gray-900 truncate">{label}</p>
-                          {sub && <p className="text-xs text-gray-400 truncate">{sub}</p>}
-                        </div>
-                      </div>
-                    );
-                  })
-                )}
+              {/* Delivery */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold text-gray-800 mb-3">Delivery</p>
+
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-1.5">Sending window</p>
+                  <div className="flex items-center gap-1.5">
+                    <select
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-indigo-400"
+                      value={localSettings.sendingWindowStart || '09:00'}
+                      onChange={e => saveSettings({ sendingWindowStart: e.target.value })}
+                    >
+                      {['06:00','07:00','08:00','09:00','10:00','11:00','12:00'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <span className="text-gray-400 text-xs">-</span>
+                    <select
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-indigo-400"
+                      value={localSettings.sendingWindowEnd || '17:00'}
+                      onChange={e => saveSettings({ sendingWindowEnd: e.target.value })}
+                    >
+                      {['12:00','13:00','14:00','15:00','16:00','17:00','18:00','19:00','20:00'].map(t => (
+                        <option key={t} value={t}>{t}</option>
+                      ))}
+                    </select>
+                    <select
+                      className="flex-1 text-xs border border-gray-200 rounded px-2 py-1.5 bg-white text-gray-700 focus:outline-none focus:border-indigo-400"
+                      value={localSettings.timezone || 'America/New_York'}
+                      onChange={e => saveSettings({ timezone: e.target.value })}
+                    >
+                      {TIMEZONE_OPTIONS.map(tz => (
+                        <option key={tz.value} value={tz.value}>{tz.label}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-sm text-gray-700">Business days only</span>
+                    <HelpCircle className="h-3.5 w-3.5 text-gray-300" />
+                  </div>
+                  <Switch
+                    checked={!!localSettings.businessDaysOnly}
+                    onCheckedChange={v => saveSettings({ businessDaysOnly: v })}
+                  />
+                </div>
               </div>
 
-              {selectedEnrollIds.length > 0 && (
-                <p className="text-sm text-indigo-600 font-medium">{selectedEnrollIds.length} selected</p>
-              )}
-            </div>
-            <DialogFooter>
-              <Button variant="outline" onClick={() => setShowEnrollDialog(false)}>Cancel</Button>
-              <Button
-                onClick={() => enroll.mutate({ campaignId: selected.id, ids: selectedEnrollIds })}
-                disabled={selectedEnrollIds.length === 0 || enroll.isPending || steps.length === 0}
-                title={steps.length === 0 ? 'Add at least one step first' : ''}
-              >
-                {enroll.isPending ? 'Enrolling…' : `Enroll ${selectedEnrollIds.length > 0 ? `(${selectedEnrollIds.length})` : ''}`}
-              </Button>
-            </DialogFooter>
-          </DialogContent>
-        </Dialog>
-      </div>
-    );
-  }
+              {/* Email */}
+              <div className="border-t pt-4">
+                <p className="text-sm font-semibold text-gray-800 mb-3">Email</p>
 
-  return null;
+                <div className="mb-3">
+                  <p className="text-xs text-gray-500 mb-1.5">Unsubscribe link</p>
+                  <Select
+                    value={localSettings.unsubscribeLinkText || 'Stop hearing from me'}
+                    onValueChange={v => saveSettings({ unsubscribeLinkText: v })}
+                  >
+                    <SelectTrigger className="text-xs h-8">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {UNSUB_OPTIONS.map(o => (
+                        <SelectItem key={o.value} value={o.value} className="text-sm">{o.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+
+                <div className="flex items-center justify-between mb-3">
+                  <span className="text-sm text-gray-700">Thread emails</span>
+                  <Switch
+                    checked={!!localSettings.threadEmails}
+                    onCheckedChange={v => saveSettings({ threadEmails: v })}
+                  />
+                </div>
+
+                <div className="flex items-center justify-between">
+                  <span className="text-sm text-gray-700">Include sender signature</span>
+                  <Switch
+                    checked={!!localSettings.includeSenderSignature}
+                    onCheckedChange={v => saveSettings({ includeSenderSignature: v })}
+                  />
+                </div>
+              </div>
+
+              {/* Exit criteria */}
+              <div className="border-t pt-4">
+                <div className="flex items-center justify-between mb-3">
+                  <p className="text-sm font-semibold text-gray-800">Exit criteria</p>
+                  <button className="text-gray-400 hover:text-gray-600">
+                    <Plus className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <div className="flex items-center gap-2 px-3 py-2 bg-gray-50 rounded-lg">
+                  <CheckCircle2 className="h-4 w-4 text-gray-400" />
+                  <div className="flex items-center justify-between flex-1">
+                    <span className="text-sm text-gray-700">Reply received</span>
+                    <Switch
+                      checked={!!localSettings.exitOnReply}
+                      onCheckedChange={v => saveSettings({ exitOnReply: v })}
+                    />
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+
+      {/* ── Dialogs ─────────────────────────────────────────────────────── */}
+      <EnrollDialog
+        open={showEnroll}
+        onClose={() => setShowEnroll(false)}
+        campaignId={selectedId}
+      />
+
+      <AlertDialog open={showDeleteConfirm} onOpenChange={setShowDeleteConfirm}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete sequence?</AlertDialogTitle>
+            <AlertDialogDescription>
+              This will permanently delete "{currentSeq.name}" and all its steps and enrollments.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-red-600 hover:bg-red-700"
+              onClick={() => { setShowDeleteConfirm(false); deleteCampaign.mutate(); }}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      <NewSequenceDialog
+        open={showNewDialog}
+        onClose={() => setShowNewDialog(false)}
+        onCreated={id => setSelectedId(id)}
+      />
+    </div>
+  );
 }

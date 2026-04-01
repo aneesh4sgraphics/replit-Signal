@@ -2560,6 +2560,16 @@ export const dripCampaigns = pgTable("drip_campaigns", {
   isActive: boolean("is_active").default(false),
   triggerType: varchar("trigger_type", { length: 50 }).default("manual"), // manual, on_signup, on_purchase, on_quote
   createdBy: varchar("created_by", { length: 255 }),
+  settings: jsonb("settings").$type<{
+    sendingWindowStart?: string;   // "09:00"
+    sendingWindowEnd?: string;     // "17:00"
+    timezone?: string;             // "America/New_York"
+    businessDaysOnly?: boolean;
+    unsubscribeLinkText?: string;
+    threadEmails?: boolean;
+    includeSenderSignature?: boolean;
+    exitOnReply?: boolean;
+  }>().default({}),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 });
