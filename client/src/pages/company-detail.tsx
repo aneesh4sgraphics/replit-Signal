@@ -711,7 +711,7 @@ function RightSidebar({ overview, contacts }: { overview: CompanyOverview; conta
       )}
       <div>
         <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-          Team Members ({contacts.length})
+          People ({contacts.length})
         </h3>
         <div className="space-y-1.5 max-h-[300px] overflow-y-auto">
           {contacts.length === 0 ? (
@@ -858,7 +858,7 @@ export default function CompanyDetail() {
               <TabsTrigger value="activity" className="text-xs px-3">Activity</TabsTrigger>
               <TabsTrigger value="emails" className="text-xs px-3">Emails</TabsTrigger>
               <TabsTrigger value="calls" className="text-xs px-3">Calls</TabsTrigger>
-              <TabsTrigger value="team" className="text-xs px-3">Team</TabsTrigger>
+              <TabsTrigger value="team" className="text-xs px-3">People</TabsTrigger>
               <TabsTrigger value="notes" className="text-xs px-3">Notes</TabsTrigger>
               <TabsTrigger value="tasks" className="text-xs px-3">Tasks</TabsTrigger>
               <TabsTrigger value="files" className="text-xs px-3">Files</TabsTrigger>
