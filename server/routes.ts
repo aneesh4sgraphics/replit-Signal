@@ -16494,6 +16494,38 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
 
       const officialNamesLower = new Set(officialRaw.map(c => c.name.toLowerCase()));
 
+      // ── Last interaction for orphan companies (by company name) ─────────────
+      const actByNameRaw = await db
+        .select({
+          company: customers.company,
+          lastDate: sql<string>`MAX(${customerActivityEvents.eventDate})`,
+        })
+        .from(customerActivityEvents)
+        .innerJoin(customers, eq(customerActivityEvents.customerId, customers.id))
+        .where(sql`${customers.companyId} IS NULL AND ${customers.company} IS NOT NULL`)
+        .groupBy(customers.company);
+
+      const emlByNameRaw = await db
+        .select({
+          company: customers.company,
+          lastDate: sql<string>`MAX(${gmailMessages.sentAt})`,
+        })
+        .from(gmailMessages)
+        .innerJoin(customers, eq(gmailMessages.customerId, customers.id))
+        .where(and(
+          sql`${customers.companyId} IS NULL`,
+          sql`${customers.company} IS NOT NULL`,
+          sql`${gmailMessages.sentAt} IS NOT NULL`
+        ))
+        .groupBy(customers.company);
+
+      const actByNameMap = new Map<string, Date>(
+        actByNameRaw.filter(r => r.company && r.lastDate).map(r => [r.company!.toLowerCase(), new Date(r.lastDate)])
+      );
+      const emlByNameMap = new Map<string, Date>(
+        emlByNameRaw.filter(r => r.company && r.lastDate).map(r => [r.company!.toLowerCase(), new Date(r.lastDate)])
+      );
+
       for (const row of orphanStats) {
         if (!row.company) continue;
         if (officialNamesLower.has(row.company.toLowerCase())) continue;
