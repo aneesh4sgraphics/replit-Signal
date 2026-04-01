@@ -732,6 +732,32 @@ export default function LeadDetail() {
                     )}
                   </div>
                 ))}
+                {/* Emails Sent — count-based coloring */}
+                {(() => {
+                  const count = allEmails.length;
+                  const isGreen = count >= 6;
+                  const isYellow = count >= 2 && count < 6;
+                  return (
+                    <div className="flex items-center justify-between px-4 py-3">
+                      <div className="flex items-center gap-2.5">
+                        <Mail className="w-4 h-4 text-gray-400" />
+                        <span className="text-sm text-gray-700">Emails Sent</span>
+                      </div>
+                      {count === 0 ? (
+                        <span className="text-xs text-gray-400">None yet</span>
+                      ) : (
+                        <div className={`flex items-center gap-1.5 ${isGreen ? "text-green-600" : isYellow ? "text-yellow-600" : "text-gray-500"}`}>
+                          {isGreen && <CheckCircle2 className="w-4 h-4" />}
+                          <span className={`text-xs font-semibold px-2 py-0.5 rounded-full ${
+                            isGreen ? "bg-green-50 text-green-700" : isYellow ? "bg-yellow-50 text-yellow-700" : "bg-gray-100 text-gray-600"
+                          }`}>
+                            {count} sent
+                          </span>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })()}
               </div>
             </div>
 
