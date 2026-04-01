@@ -1124,7 +1124,14 @@ export class DatabaseStorage implements IStorage {
       conditions.push(eq(customers.pricingTier, filters.pricingTier));
     }
     if (filters?.province) {
-      conditions.push(eq(customers.province, filters.province));
+      // Match all DB variants via provinceVariants (array) or single value.
+      // e.g. for "Florida": ["Florida","Florida (US)","Florida (CA)","FL","FL ","FL (US)"]
+      const variants: string[] = (filters as any).provinceVariants ?? [filters.province];
+      if (variants.length === 1) {
+        conditions.push(ilike(customers.province, variants[0]));
+      } else {
+        conditions.push(or(...variants.map(v => ilike(customers.province, v)))!);
+      }
     }
     if (filters?.isHotProspect !== undefined) {
       conditions.push(eq(customers.isHotProspect, filters.isHotProspect));

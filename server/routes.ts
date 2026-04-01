@@ -5754,7 +5754,10 @@ export async function registerRoutes(app: Express): Promise<Server> {
         
         if (req.query.salesRepId) filters.salesRepId = req.query.salesRepId as string;
         if (req.query.pricingTier) filters.pricingTier = req.query.pricingTier as string;
-        if (req.query.province) filters.province = req.query.province as string;
+        if (req.query.province) {
+          filters.province = req.query.province as string;
+          (filters as any).provinceVariants = stateFilterVariants(req.query.province as string);
+        }
         if (req.query.isHotProspect === 'true') filters.isHotProspect = true;
         if (req.query.isHotProspect === 'false') filters.isHotProspect = false;
         if (req.query.isCompany === 'true') filters.isCompany = true;
@@ -15814,6 +15817,36 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   // ========================================
 
   // Get all leads with optional filtering
+  // ── State normalization helpers ────────────────────────────────────────────
+  const US_STATE_ABBR_TO_NAME: Record<string, string> = {
+    AL:'Alabama', AK:'Alaska', AZ:'Arizona', AR:'Arkansas', CA:'California',
+    CO:'Colorado', CT:'Connecticut', DE:'Delaware', DC:'District of Columbia',
+    FL:'Florida', GA:'Georgia', HI:'Hawaii', ID:'Idaho', IL:'Illinois',
+    IN:'Indiana', IA:'Iowa', KS:'Kansas', KY:'Kentucky', LA:'Louisiana',
+    ME:'Maine', MD:'Maryland', MA:'Massachusetts', MI:'Michigan', MN:'Minnesota',
+    MS:'Mississippi', MO:'Missouri', MT:'Montana', NE:'Nebraska', NV:'Nevada',
+    NH:'New Hampshire', NJ:'New Jersey', NM:'New Mexico', NY:'New York',
+    NC:'North Carolina', ND:'North Dakota', OH:'Ohio', OK:'Oklahoma',
+    OR:'Oregon', PA:'Pennsylvania', RI:'Rhode Island', SC:'South Carolina',
+    SD:'South Dakota', TN:'Tennessee', TX:'Texas', UT:'Utah', VT:'Vermont',
+    VA:'Virginia', WA:'Washington', WV:'West Virginia', WI:'Wisconsin',
+    WY:'Wyoming', PR:'Puerto Rico', VI:'Virgin Islands',
+  };
+
+  // Normalize a raw DB state value → canonical name ("FL " / "Florida (US)" → "Florida")
+  function normalizeStateName(raw: string): string {
+    const s = raw.trim().replace(/\s*\([A-Z]{2}\)\s*$/, '').trim();
+    return US_STATE_ABBR_TO_NAME[s.toUpperCase()] || (s.charAt(0).toUpperCase() + s.slice(1).toLowerCase().replace(/(?<=\s)\w/g, c => c.toUpperCase()));
+  }
+
+  // Return all DB variants that should match a canonical state name for filtering
+  function stateFilterVariants(canonical: string): string[] {
+    const abbr = Object.entries(US_STATE_ABBR_TO_NAME).find(([, n]) => n.toLowerCase() === canonical.toLowerCase())?.[0];
+    const variants = new Set<string>([canonical, `${canonical} (US)`, `${canonical} (CA)`]);
+    if (abbr) { variants.add(abbr); variants.add(`${abbr} `); variants.add(`${abbr} (US)`); }
+    return Array.from(variants);
+  }
+
   // Get unique states/provinces used by customers and leads (for label state filter)
   app.get("/api/label-states", isAuthenticated, async (req: any, res) => {
     try {
@@ -15825,10 +15858,20 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
           .where(sql`${leads.state} is not null and trim(${leads.state}) <> ''`)
           .orderBy(leads.state),
       ]);
-      const combined = Array.from(new Set([
+      // Normalize all values and deduplicate
+      const seen = new Set<string>();
+      const combined: string[] = [];
+      for (const raw of [
         ...customerProvinces.map(r => r.val as string),
         ...leadStates.map(r => r.val as string),
-      ])).sort();
+      ]) {
+        const canonical = normalizeStateName(raw);
+        if (canonical && !seen.has(canonical.toLowerCase())) {
+          seen.add(canonical.toLowerCase());
+          combined.push(canonical);
+        }
+      }
+      combined.sort();
       res.json(combined);
     } catch (error) {
       console.error("Error fetching label states:", error);
@@ -15852,7 +15895,12 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         conditions.push(eq(leads.salesRepId, salesRepId as string));
       }
       if (stateFilter) {
-        conditions.push(ilike(leads.state, stateFilter as string));
+        const variants = stateFilterVariants(stateFilter as string);
+        if (variants.length === 1) {
+          conditions.push(ilike(leads.state, variants[0]));
+        } else {
+          conditions.push(or(...variants.map(v => ilike(leads.state, v)))!);
+        }
       }
       if (search) {
         const searchTerm = `%${search}%`;
