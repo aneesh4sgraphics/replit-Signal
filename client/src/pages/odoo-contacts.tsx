@@ -613,11 +613,12 @@ export default function OdooContacts() {
 
   // Get display name
   const getDisplayName = (contact: Contact) => {
-    if (contact.company) return contact.company;
-    if (contact.firstName || contact.lastName) {
-      return `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    if (contact.isCompany) {
+      return contact.company || contact.firstName || 'Unnamed Company';
     }
-    return contact.email || 'Unnamed Contact';
+    const personName = `${contact.firstName || ''} ${contact.lastName || ''}`.trim();
+    if (personName) return personName;
+    return contact.company || contact.email || 'Unnamed Contact';
   };
 
   // Get initials

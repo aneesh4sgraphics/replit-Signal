@@ -15734,6 +15734,8 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       
       if (stage && stage !== 'all') {
         conditions.push(eq(leads.stage, stage as string));
+      } else {
+        conditions.push(sql`${leads.stage} != 'converted'`);
       }
       if (salesRepId) {
         conditions.push(eq(leads.salesRepId, salesRepId as string));
@@ -15779,6 +15781,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         stage: leads.stage,
         count: sql<number>`count(*)::int`
       }).from(leads)
+        .where(sql`${leads.stage} != 'converted'`)
         .groupBy(leads.stage);
       
       const totalLeads = stats.reduce((sum, s) => sum + (Number(s.count) || 0), 0);
@@ -16458,6 +16461,59 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
           connectionStrength: calcConnectionStrength(lastDate),
         };
       });
+
+      // ── 2. Orphan company names from customers (no linked companies record) ─
+      // Only include customers marked as companies (isCompany=true) in Odoo
+      const orphanStats = await db
+        .select({
+          company: customers.company,
+          contactCount: sql<number>`COUNT(*)`,
+          lifetimeSales: sql<string>`COALESCE(SUM(${customers.totalSpent}::decimal), 0)`,
+          totalOrders: sql<number>`COALESCE(SUM(${customers.totalOrders}), 0)`,
+          primarySalesRep: sql<string>`MODE() WITHIN GROUP (ORDER BY ${customers.salesRepName})`,
+          primaryPricingTier: sql<string>`MODE() WITHIN GROUP (ORDER BY ${customers.pricingTier})`,
+          city: sql<string>`MODE() WITHIN GROUP (ORDER BY ${customers.city})`,
+          province: sql<string>`MODE() WITHIN GROUP (ORDER BY ${customers.province})`,
+        })
+        .from(customers)
+        .where(and(
+          sql`${customers.companyId} IS NULL`,
+          sql`${customers.company} IS NOT NULL`,
+          sql`TRIM(${customers.company}) != ''`,
+          eq(customers.isCompany, true)
+        ))
+        .groupBy(customers.company);
+
+      const officialNamesLower = new Set(officialRaw.map(c => c.name.toLowerCase()));
+
+      for (const row of orphanStats) {
+        if (!row.company) continue;
+        if (officialNamesLower.has(row.company.toLowerCase())) continue;
+        const nameLower = row.company.toLowerCase();
+        const lastDate = latestOf(
+          actByNameMap.get(nameLower),
+          emlByNameMap.get(nameLower),
+        );
+        result.push({
+          id: null,
+          name: row.company,
+          source: 'contact',
+          city: row.city ?? null,
+          stateProvince: row.province ?? null,
+          domain: null,
+          mainPhone: null,
+          generalEmail: null,
+          addressLine1: null,
+          country: null,
+          contactCount: Number(row.contactCount),
+          lifetimeSales: parseFloat(row.lifetimeSales ?? '0'),
+          totalOrders: Number(row.totalOrders),
+          primarySalesRep: row.primarySalesRep ?? null,
+          primaryPricingTier: row.primaryPricingTier ?? null,
+          lastInteractionDate: lastDate?.toISOString() ?? null,
+          connectionStrength: calcConnectionStrength(lastDate),
+        });
+      }
 
       // Filter + sort
       const filtered = search

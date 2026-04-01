@@ -5,6 +5,7 @@ import { Avatar, AvatarFallback } from '@/components/ui/avatar';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppUsage, AppUsageProvider } from '@/hooks/useAppUsage';
 import { CommandPalette, useCommandPalette } from './CommandPalette';
+import FloatingCallLogger from './FloatingCallLogger';
 import {
   Search,
   Settings,
@@ -446,6 +447,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
       </main>
 
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
+      <FloatingCallLogger />
     </div>
   );
 }

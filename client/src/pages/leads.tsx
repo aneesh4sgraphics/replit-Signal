@@ -145,7 +145,6 @@ const STAGES = [
   { value: 'qualified', label: 'Qualified', color: 'bg-green-100 text-green-700' },
   { value: 'nurturing', label: 'Nurturing', color: 'bg-amber-100 text-amber-700' },
   { value: 'contact_later', label: 'Contact Later', color: 'bg-orange-100 text-orange-700' },
-  { value: 'converted', label: 'Converted', color: 'bg-emerald-100 text-emerald-700' },
   { value: 'not_a_fit', label: 'Not a Fit', color: 'bg-slate-100 text-slate-600' },
   { value: 'lost', label: 'Lost', color: 'bg-red-100 text-red-700' },
 ];
@@ -1499,7 +1498,7 @@ export default function LeadsPage() {
               </div>
               
               {/* Funnel Summary */}
-              <div className="mt-8 pt-6 border-t border-slate-200 grid grid-cols-4 gap-4">
+              <div className="mt-8 pt-6 border-t border-slate-200 grid grid-cols-3 gap-4">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-slate-800">{leads.length}</div>
                   <div className="text-sm text-slate-500">Total Leads</div>
@@ -1509,12 +1508,6 @@ export default function LeadsPage() {
                     {leads.filter(l => l.stage === 'qualified').length}
                   </div>
                   <div className="text-sm text-slate-500">Qualified</div>
-                </div>
-                <div className="text-center">
-                  <div className="text-2xl font-bold text-emerald-600">
-                    {leads.filter(l => l.stage === 'converted').length}
-                  </div>
-                  <div className="text-sm text-slate-500">Converted</div>
                 </div>
                 <div className="text-center">
                   <div className="text-2xl font-bold text-purple-600">
