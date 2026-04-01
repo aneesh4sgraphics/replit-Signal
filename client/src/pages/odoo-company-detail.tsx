@@ -555,7 +555,7 @@ export default function OdooCompanyDetail() {
     { key: "activity", label: "Activity", count: nonNoteEvents.length || undefined },
     { key: "emails", label: "Emails", count: emailEvents.length || undefined },
     { key: "notes", label: "Notes", count: noteEvents.length || undefined },
-    { key: "contacts", label: "Contacts", count: contactsData?.contacts?.length || undefined },
+    ...(company.isCompany ? [{ key: "contacts" as TabKey, label: "Contacts", count: contactsData?.contacts?.length || undefined }] : []),
     { key: "business", label: "Business" },
   ];
 
