@@ -19,6 +19,7 @@ interface OdooKpis {
   avgMargin: number | null;
   invoiceCount: number | null;
   outstanding: number | null;
+  lifetimeSales: number | null;
 }
 
 interface CompanyData {
@@ -174,12 +175,20 @@ function OverviewTab({ overview }: { overview: CompanyOverview }) {
 
   return (
     <div className="space-y-4">
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
         <KpiTile
           label="Connection Strength"
           value={STRENGTH_CONFIG[overview.connectionStrength]?.label || 'Unknown'}
           icon={Activity}
           subtext={overview.lastInteractionDate ? `Last: ${fmtRelative(overview.lastInteractionDate)}` : undefined}
+        />
+        <KpiTile
+          label="Lifetime Sales"
+          value={hasOdooLink ? (kpis.lifetimeSales != null ? fmt$(kpis.lifetimeSales) : '—') : '—'}
+          icon={DollarSign}
+          color="bg-green-50 border-green-200"
+          textColor="text-green-700"
+          subtext={!hasOdooLink ? noOdooSubtext : (kpis.lifetimeSales != null ? 'Net of credit memos' : undefined)}
         />
         <KpiTile
           label="Avg. Margin %"
@@ -203,21 +212,6 @@ function OverviewTab({ overview }: { overview: CompanyOverview }) {
           textColor="text-red-700"
           subtext={!hasOdooLink ? noOdooSubtext : undefined}
         />
-      </div>
-
-      <div className="grid grid-cols-3 gap-3">
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs text-gray-400 mb-1">Lifetime Sales</p>
-          <p className="text-xl font-bold text-gray-900">{fmt$(overview.lifetimeSales || 0)}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs text-gray-400 mb-1">Total Orders</p>
-          <p className="text-xl font-bold text-gray-900">{(overview.totalOrders || 0).toLocaleString()}</p>
-        </div>
-        <div className="rounded-xl border bg-white p-4">
-          <p className="text-xs text-gray-400 mb-1">Contacts</p>
-          <p className="text-xl font-bold text-gray-900">{(overview.contactCount || 0).toLocaleString()}</p>
-        </div>
       </div>
     </div>
   );

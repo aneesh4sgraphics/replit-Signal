@@ -16754,16 +16754,21 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       const lastInteraction = latestOf(lastActRow[0]?.lastDate, lastEmailRow[0]?.lastDate, company.lastActivityDate ?? undefined);
       const connectionStrength = calcConnectionStrength(lastInteraction);
 
-      let odooKpis: { avgMargin: number | null; invoiceCount: number | null; outstanding: number | null } = {
-        avgMargin: null, invoiceCount: null, outstanding: null,
+      let odooKpis: { avgMargin: number | null; invoiceCount: number | null; outstanding: number | null; lifetimeSales: number | null } = {
+        avgMargin: null, invoiceCount: null, outstanding: null, lifetimeSales: null,
       };
 
       if (company.odooCompanyPartnerId) {
         try {
           const invoices = await odooClient.getInvoicesByPartner(company.odooCompanyPartnerId);
           const posted = invoices.filter((inv: any) => inv.state === 'posted');
-          odooKpis.invoiceCount = posted.filter((inv: any) => inv.move_type === 'out_invoice').length;
-          odooKpis.outstanding = posted.reduce((sum: number, inv: any) => sum + (inv.amount_residual || 0), 0);
+          const postedInvoices = posted.filter((inv: any) => inv.move_type === 'out_invoice');
+          const postedRefunds  = posted.filter((inv: any) => inv.move_type === 'out_refund');
+          odooKpis.invoiceCount   = postedInvoices.length;
+          odooKpis.outstanding    = posted.reduce((sum: number, inv: any) => sum + (inv.amount_residual || 0), 0);
+          const totalSales  = postedInvoices.reduce((sum: number, inv: any) => sum + (inv.amount_total || 0), 0);
+          const totalRefunds = postedRefunds.reduce((sum: number, inv: any) => sum + (inv.amount_total || 0), 0);
+          odooKpis.lifetimeSales = totalSales - totalRefunds;
         } catch (e: any) {
           console.error(`[Company Detail] Odoo KPI fetch error for partner ${company.odooCompanyPartnerId}:`, e.message);
         }
@@ -16807,12 +16812,16 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         odooClient.getInvoicesByPartner(pid).catch(() => [] as any[]),
       ]);
 
+      const postedInvoices2 = Array.isArray(invoices) ? invoices.filter((i: any) => i.move_type === 'out_invoice' && i.state === 'posted') : [];
+      const postedRefunds2  = Array.isArray(invoices) ? invoices.filter((i: any) => i.move_type === 'out_refund'  && i.state === 'posted') : [];
+      const lifetimeSalesFromInvoices = postedInvoices2.reduce((s: number, i: any) => s + (i.amount_total || 0), 0)
+                                      - postedRefunds2.reduce((s: number, i: any) => s + (i.amount_total || 0), 0);
       res.json({
         odooAvailable: true,
         averageMargin: metrics?.averageMargin ?? null,
         totalOutstanding: metrics?.totalOutstanding ?? null,
-        lifetimeSales: metrics?.lifetimeSales ?? null,
-        invoiceCount: Array.isArray(invoices) ? invoices.filter((i: any) => i.move_type === 'out_invoice' && i.state === 'posted').length : null,
+        lifetimeSales: lifetimeSalesFromInvoices,
+        invoiceCount: postedInvoices2.length,
       });
     } catch (error) {
       console.error("Error fetching Odoo metrics:", error);
