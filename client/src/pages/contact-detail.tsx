@@ -19,7 +19,7 @@ import {
   ArrowLeft, Mail, Phone, MapPin, User, Building2, Activity,
   PhoneCall, StickyNote, CheckSquare, FolderOpen, AtSign,
   ArrowUpRight, ArrowDownLeft, Edit, Loader2, Plus, X,
-  Heart, TrendingUp,
+  Heart, TrendingUp, DollarSign, FileText, BarChart2,
 } from "lucide-react";
 
 // ─── Helpers ──────────────────────────────────────────────────────────────────
@@ -70,9 +70,24 @@ interface ContactEmail {
   sentAt: string | null;
 }
 
+interface CompanyRecord {
+  id: number;
+  name: string;
+  odooCompanyPartnerId: number | null;
+}
+
+interface OdooMetrics {
+  odooAvailable: boolean;
+  averageMargin: number | null;
+  totalOutstanding: number | null;
+  lifetimeSales: number | null;
+  invoiceCount: number | null;
+}
+
 interface ContactDetailData {
   contact: CustomerContact;
   company: Company | null;
+  companyRecord: CompanyRecord | null;
   emails: ContactEmail[];
 }
 
@@ -139,6 +154,18 @@ export default function ContactDetail() {
     enabled: !!contactId,
   });
 
+  const linkedCompanyId = data?.companyRecord?.id;
+  const { data: odooMetrics } = useQuery<OdooMetrics>({
+    queryKey: ["/api/companies", linkedCompanyId, "odoo-metrics"],
+    queryFn: async () => {
+      const res = await fetch(`/api/companies/${linkedCompanyId}/odoo-metrics`, { credentials: "include" });
+      if (!res.ok) throw new Error("Failed");
+      return res.json();
+    },
+    enabled: !!linkedCompanyId,
+    staleTime: 5 * 60 * 1000,
+  });
+
   // ── Mutations ────────────────────────────────────────────────────────────────
   const updateMutation = useMutation({
     mutationFn: async (form: Partial<CustomerContact>) => {
@@ -197,8 +224,11 @@ export default function ContactDetail() {
     );
   }
 
-  const { contact, company, emails } = data;
+  const { contact, company, companyRecord, emails } = data;
   const strength = connectionStrength(contact);
+  const fmt$ = (n: number | null | undefined) =>
+    n != null ? `$${n.toLocaleString("en-US", { minimumFractionDigits: 0, maximumFractionDigits: 0 })}` : "—";
+  const hasOdoo = !!companyRecord?.odooCompanyPartnerId && odooMetrics?.odooAvailable;
 
   // Parse notes into lines
   const noteLines = (contact.notes || "").split(/\n\n+/).filter(Boolean);
@@ -376,6 +406,64 @@ export default function ContactDetail() {
                 </HighlightTile>
               </div>
             </div>
+
+            {/* Business Performance — from linked company's Odoo data */}
+            {companyRecord && (
+              <div>
+                <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide mb-3 flex items-center gap-1.5">
+                  <BarChart2 className="h-3.5 w-3.5" /> Business Performance
+                  {companyRecord && (
+                    <Link href={`/companies/${companyRecord.id}`}>
+                      <span className="normal-case font-normal text-blue-500 text-xs hover:underline cursor-pointer ml-1">
+                        {companyRecord.name} ↗
+                      </span>
+                    </Link>
+                  )}
+                </h2>
+                <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Lifetime Sales</p>
+                      <DollarSign className="h-3.5 w-3.5 text-green-400" />
+                    </div>
+                    <p className="text-xl font-bold text-green-700">
+                      {hasOdoo ? fmt$(odooMetrics!.lifetimeSales) : "—"}
+                    </p>
+                    {hasOdoo && odooMetrics!.lifetimeSales != null && (
+                      <p className="text-[10px] text-gray-400 mt-0.5">Net of credit memos</p>
+                    )}
+                    {!hasOdoo && <p className="text-[10px] text-gray-400 mt-0.5">Not linked to Odoo</p>}
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Avg. Margin</p>
+                      <TrendingUp className="h-3.5 w-3.5 text-blue-400" />
+                    </div>
+                    <p className="text-xl font-bold text-blue-700">
+                      {hasOdoo && odooMetrics!.averageMargin != null ? `${odooMetrics!.averageMargin.toFixed(1)}%` : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Invoices</p>
+                      <FileText className="h-3.5 w-3.5 text-gray-300" />
+                    </div>
+                    <p className="text-xl font-bold text-gray-900">
+                      {hasOdoo && odooMetrics!.invoiceCount != null ? odooMetrics!.invoiceCount.toLocaleString() : "—"}
+                    </p>
+                  </div>
+                  <div className="rounded-xl border bg-white p-4">
+                    <div className="flex items-center justify-between mb-1">
+                      <p className="text-[11px] font-medium text-gray-400 uppercase tracking-wide">Outstanding</p>
+                      <DollarSign className="h-3.5 w-3.5 text-red-300" />
+                    </div>
+                    <p className="text-xl font-bold text-red-600">
+                      {hasOdoo ? fmt$(odooMetrics!.totalOutstanding) : "—"}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            )}
 
             {/* Emails preview on overview */}
             {emails.length > 0 && (
