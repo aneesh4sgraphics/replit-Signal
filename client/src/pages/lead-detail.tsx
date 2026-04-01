@@ -941,6 +941,9 @@ export default function LeadDetail() {
                           {email.direction === "inbound" ? ((email as any).fromName || (email as any).fromEmail) : ((email as any).fromName || "You")}
                         </span>
                         <div className="flex items-center gap-2 shrink-0">
+                          {(email as any).isDrip && (
+                            <span className="text-xs bg-violet-50 text-violet-600 border border-violet-100 rounded px-1.5 py-0.5">Drip</span>
+                          )}
                           {(email as any).isFromActivity && (
                             <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded px-1.5 py-0.5">Gmail</span>
                           )}

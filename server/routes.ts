@@ -13374,12 +13374,14 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         .orderBy(desc(gmailMessages.sentAt))
         .limit(limitNum);
       }
-      // Query by lead ID - look up lead email first
+      // Query by lead ID — merge gmail_messages + email_sends for this lead
       else if (leadId) {
-        const lead = await db.select({ email: leads.email }).from(leads).where(eq(leads.id, parseInt(leadId as string))).limit(1);
+        const leadIdNum = parseInt(leadId as string);
+        const lead = await db.select({ email: leads.email }).from(leads).where(eq(leads.id, leadIdNum)).limit(1);
+        let gmailRows: any[] = [];
         if (lead.length > 0 && lead[0].email) {
           const normalizedEmail = lead[0].email.toLowerCase().replace(/\s/g, '');
-          emails = await db.select({
+          gmailRows = await db.select({
             id: gmailMessages.id,
             direction: gmailMessages.direction,
             fromEmail: gmailMessages.fromEmail,
@@ -13399,6 +13401,40 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
           .orderBy(desc(gmailMessages.sentAt))
           .limit(limitNum);
         }
+
+        // Also pull drip/manual email_sends for this lead (use offset ID to avoid collision)
+        const dripRows = await db.select({
+          id: emailSends.id,
+          recipientEmail: emailSends.recipientEmail,
+          subject: emailSends.subject,
+          sentAt: emailSends.sentAt,
+          sentBy: emailSends.sentBy,
+        })
+        .from(emailSends)
+        .where(and(eq(emailSends.leadId, leadIdNum), eq(emailSends.status, 'sent')))
+        .orderBy(desc(emailSends.sentAt))
+        .limit(limitNum);
+
+        const dripMapped = dripRows.map(r => ({
+          id: 1000000 + r.id, // offset to avoid collision with gmail message IDs
+          direction: 'outbound',
+          fromEmail: null,
+          fromName: '4S Graphics',
+          toEmail: r.recipientEmail,
+          subject: r.subject,
+          snippet: r.sentBy === 'drip-worker' ? 'Drip campaign email' : 'Sent email',
+          sentAt: r.sentAt?.toISOString() ?? null,
+          isDrip: true,
+        }));
+
+        // Merge and sort by sentAt desc
+        const gmailSubjectSet = new Set(gmailRows.map(r => (r.subject || '').toLowerCase().trim()));
+        const dedupedDrip = dripMapped.filter(r => !gmailSubjectSet.has((r.subject || '').toLowerCase().trim()));
+        emails = [...gmailRows, ...dedupedDrip].sort((a, b) => {
+          const aTime = a.sentAt ? new Date(a.sentAt).getTime() : 0;
+          const bTime = b.sentAt ? new Date(b.sentAt).getTime() : 0;
+          return bTime - aTime;
+        });
       }
       
       res.json(emails);
