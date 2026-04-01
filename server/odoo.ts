@@ -704,14 +704,32 @@ class OdooClient {
   }
 
   async getInvoicesByPartner(partnerId: number): Promise<any[]> {
-    // Get customer invoices from account.move
-    return this.searchRead('account.move', [
-      ['partner_id', '=', partnerId],
-      ['move_type', 'in', ['out_invoice', 'out_refund']]
-    ], [
-      'id', 'name', 'partner_id', 'state', 'invoice_date', 'amount_total',
-      'amount_residual', 'payment_state', 'invoice_origin', 'ref',
-    ], { limit: 100, order: 'invoice_date desc' });
+    // Use child_of so invoices billed to child contacts (e.g. "Mac Papers, Brandon Conlee")
+    // are included, not just the parent company. Also try commercial_partner_id for any
+    // partners not in the child_of tree. Limit 2000 covers any realistic account.
+    const [byHierarchy, byCommercial] = await Promise.all([
+      this.searchRead('account.move', [
+        ['partner_id', 'child_of', partnerId],
+        ['move_type', 'in', ['out_invoice', 'out_refund']]
+      ], [
+        'id', 'name', 'partner_id', 'state', 'move_type', 'invoice_date', 'amount_total',
+        'amount_residual', 'payment_state', 'invoice_origin', 'ref',
+      ], { limit: 2000, order: 'invoice_date desc' }),
+      this.searchRead('account.move', [
+        ['partner_id.commercial_partner_id', '=', partnerId],
+        ['move_type', 'in', ['out_invoice', 'out_refund']]
+      ], [
+        'id', 'name', 'partner_id', 'state', 'move_type', 'invoice_date', 'amount_total',
+        'amount_residual', 'payment_state', 'invoice_origin', 'ref',
+      ], { limit: 2000, order: 'invoice_date desc' }),
+    ]);
+    // Merge and deduplicate by invoice ID
+    const seen = new Set<number>();
+    const merged: any[] = [];
+    for (const inv of [...byHierarchy, ...byCommercial]) {
+      if (!seen.has(inv.id)) { seen.add(inv.id); merged.push(inv); }
+    }
+    return merged;
   }
 
   async getInvoiceLinesForPartner(partnerId: number): Promise<Array<{

@@ -16762,7 +16762,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         try {
           const invoices = await odooClient.getInvoicesByPartner(company.odooCompanyPartnerId);
           const posted = invoices.filter((inv: any) => inv.state === 'posted');
-          odooKpis.invoiceCount = posted.length;
+          odooKpis.invoiceCount = posted.filter((inv: any) => inv.move_type === 'out_invoice').length;
           odooKpis.outstanding = posted.reduce((sum: number, inv: any) => sum + (inv.amount_residual || 0), 0);
         } catch (e: any) {
           console.error(`[Company Detail] Odoo KPI fetch error for partner ${company.odooCompanyPartnerId}:`, e.message);
@@ -16812,7 +16812,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         averageMargin: metrics?.averageMargin ?? null,
         totalOutstanding: metrics?.totalOutstanding ?? null,
         lifetimeSales: metrics?.lifetimeSales ?? null,
-        invoiceCount: Array.isArray(invoices) ? invoices.length : null,
+        invoiceCount: Array.isArray(invoices) ? invoices.filter((i: any) => i.move_type === 'out_invoice' && i.state === 'posted').length : null,
       });
     } catch (error) {
       console.error("Error fetching Odoo metrics:", error);
