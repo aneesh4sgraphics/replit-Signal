@@ -218,11 +218,18 @@ export async function runBatchDedup(verbose = false): Promise<{
           .where(eq(leadActivities.leadId, lead.id));
 
         for (const act of leadActs) {
+          // Clean internal gmailMsgId keys from details before storing as description
+          const rawDetails = act.details || '';
+          const cleanDescription = (() => {
+            if (!rawDetails || !rawDetails.startsWith('gmailMsgId=')) return rawDetails || act.summary;
+            const m = rawDetails.match(/^gmailMsgId=[^|]+\|to:(.+)$/);
+            return m ? `Sent to: ${m[1]}` : '';
+          })();
           await db.insert(customerActivityEvents).values({
             customerId,
             eventType: "note",
             title: `[Lead history] ${act.summary}`,
-            description: act.details || act.summary,
+            description: cleanDescription || undefined,
             sourceType: "lead_merge",
             sourceId: String(act.id),
             createdBy: act.performedBy || undefined,

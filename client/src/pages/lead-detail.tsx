@@ -414,16 +414,25 @@ export default function LeadDetail() {
   const gmailSubjects = new Set(leadEmails.map(e => (e.subject || "").toLowerCase().trim()));
   const activityEmailRows = emailActivities
     .filter(a => !gmailSubjects.has((a.summary || "").toLowerCase().trim()))
-    .map(a => ({
-      id: `act-${a.id}`,
-      subject: a.summary || "(email sent)",
-      snippet: a.details || "",
-      direction: "outbound" as const,
-      sentAt: a.performedAt,
-      fromName: "You",
-      fromEmail: "",
-      isFromActivity: true,
-    }));
+    .map(a => {
+      const rawDetails = a.details || "";
+      const cleanSnippet = (() => {
+        const m = rawDetails.match(/^gmailMsgId=[^|]+\|to:(.+)$/);
+        if (m) return `To: ${m[1]}`;
+        if (rawDetails.startsWith('gmailMsgId=')) return '';
+        return rawDetails;
+      })();
+      return {
+        id: `act-${a.id}`,
+        subject: a.summary || "(email sent)",
+        snippet: cleanSnippet,
+        direction: "outbound" as const,
+        sentAt: a.performedAt,
+        fromName: "You",
+        fromEmail: "",
+        isFromActivity: true,
+      };
+    });
   const allEmails = [
     ...leadEmails.map(e => ({ ...e, isFromActivity: false })),
     ...activityEmailRows,

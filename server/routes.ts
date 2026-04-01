@@ -13284,12 +13284,29 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       }
       
       // Return fields that frontend expects: id, eventType, title, description, createdAt, createdByName, metadata
+      const cleanGmailId = (raw: string | null | undefined): string => {
+        if (!raw) return '';
+        // "gmailMsgId=<id>|to:<email>" → "Sent to: <email>"
+        const m = raw.match(/^gmailMsgId=[^|]+\|to:(.+)$/);
+        if (m) return `Sent to: ${m[1]}`;
+        // Strip any other raw gmailMsgId patterns
+        if (raw.startsWith('gmailMsgId=')) return '';
+        return raw;
+      };
+
+      const cleanTitle = (raw: string | null | undefined): string => {
+        if (!raw) return '';
+        // Remove "[Lead history] " prefix for cleaner display
+        return raw.replace(/^\[Lead history\] /, '');
+      };
+
       const transformed = events.map(e => ({
         id: e.id,
         eventType: e.eventType,
-        title: e.title || '',
-        description: e.description || '',
+        title: cleanTitle(e.title),
+        description: cleanGmailId(e.description),
         createdAt: e.eventDate?.toISOString() || e.createdAt?.toISOString() || new Date().toISOString(),
+        eventDate: e.eventDate?.toISOString() || null,
         createdByName: e.createdByName || null,
         sourceType: e.sourceType,
         sourceId: e.sourceId,
