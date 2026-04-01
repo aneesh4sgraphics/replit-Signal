@@ -149,7 +149,7 @@ function NavLink({ item, isActive, onClick }: { item: NavItemDef; isActive: bool
     >
       <Icon
         className="h-[15px] w-[15px] flex-shrink-0"
-        style={{ color: isActive ? item.iconColor : '#9ca3af' }}
+        style={{ color: item.iconColor, opacity: isActive ? 1 : 0.7 }}
       />
       <span className="truncate leading-snug">{item.label}</span>
     </Link>
