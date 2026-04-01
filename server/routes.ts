@@ -15674,9 +15674,31 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   // ========================================
 
   // Get all leads with optional filtering
+  // Get unique states/provinces used by customers and leads (for label state filter)
+  app.get("/api/label-states", isAuthenticated, async (req: any, res) => {
+    try {
+      const [customerProvinces, leadStates] = await Promise.all([
+        db.selectDistinct({ val: customers.province }).from(customers)
+          .where(sql`${customers.province} is not null and trim(${customers.province}) <> ''`)
+          .orderBy(customers.province),
+        db.selectDistinct({ val: leads.state }).from(leads)
+          .where(sql`${leads.state} is not null and trim(${leads.state}) <> ''`)
+          .orderBy(leads.state),
+      ]);
+      const combined = Array.from(new Set([
+        ...customerProvinces.map(r => r.val as string),
+        ...leadStates.map(r => r.val as string),
+      ])).sort();
+      res.json(combined);
+    } catch (error) {
+      console.error("Error fetching label states:", error);
+      res.status(500).json({ error: "Failed to fetch states" });
+    }
+  });
+
   app.get("/api/leads", isAuthenticated, async (req: any, res) => {
     try {
-      const { stage, salesRepId, search, limit = 100, offset = 0 } = req.query;
+      const { stage, salesRepId, search, state: stateFilter, limit = 100, offset = 0 } = req.query;
       
       let query = db.select().from(leads);
       const conditions: any[] = [];
@@ -15686,6 +15708,9 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       }
       if (salesRepId) {
         conditions.push(eq(leads.salesRepId, salesRepId as string));
+      }
+      if (stateFilter) {
+        conditions.push(ilike(leads.state, stateFilter as string));
       }
       if (search) {
         const searchTerm = `%${search}%`;

@@ -4,6 +4,9 @@ import { Search, Printer, Plus, Check, Building2, Zap, MapPin, X } from 'lucide-
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { useLabelQueue, type CustomerAddress } from '@/components/PrintLabelButton';
 import { useDebounce } from '@/hooks/useDebounce';
 
@@ -64,15 +67,27 @@ function formatLocation(city?: string | null, province?: string | null, zip?: st
 
 export default function CustomerLabels() {
   const [search, setSearch] = useState('');
+  const [selectedState, setSelectedState] = useState<string>('');
   const debouncedSearch = useDebounce(search, 300);
   const { queue, addToQueue, isInQueue, openPrintDialog } = useLabelQueue();
 
-  const enabled = debouncedSearch.trim().length >= 2;
+  // Load available states from both customers and leads
+  const { data: availableStates = [] } = useQuery<string[]>({
+    queryKey: ['/api/label-states'],
+    staleTime: 300000,
+  });
+
+  // Enable queries when there's a text search OR a state is selected
+  const hasSearch = debouncedSearch.trim().length >= 2;
+  const hasStateFilter = selectedState !== '' && selectedState !== 'all';
+  const enabled = hasSearch || hasStateFilter;
 
   const { data: customersData, isLoading: customersLoading } = useQuery<{ customers: Customer[] }>({
-    queryKey: ['/api/customers', 'label-search', debouncedSearch],
+    queryKey: ['/api/customers', 'label-search', debouncedSearch, selectedState],
     queryFn: async () => {
-      const params = new URLSearchParams({ search: debouncedSearch, pageSize: '12', page: '1' });
+      const params = new URLSearchParams({ pageSize: '50', page: '1' });
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (hasStateFilter) params.set('province', selectedState);
       const res = await fetch(`/api/customers?${params}`, { credentials: 'include' });
       return res.json();
     },
@@ -80,10 +95,12 @@ export default function CustomerLabels() {
     staleTime: 30000,
   });
 
-  const { data: leadsData, isLoading: leadsLoading } = useQuery<Lead[]>({
-    queryKey: ['/api/leads', 'label-search', debouncedSearch],
+  const { data: leadsData, isLoading: leadsLoading } = useQuery<{ leads: Lead[]; total: number }>({
+    queryKey: ['/api/leads', 'label-search', debouncedSearch, selectedState],
     queryFn: async () => {
-      const params = new URLSearchParams({ search: debouncedSearch });
+      const params = new URLSearchParams({ limit: '50' });
+      if (debouncedSearch.trim()) params.set('search', debouncedSearch.trim());
+      if (hasStateFilter) params.set('state', selectedState);
       const res = await fetch(`/api/leads?${params}`, { credentials: 'include' });
       return res.json();
     },
@@ -92,7 +109,7 @@ export default function CustomerLabels() {
   });
 
   const customers = customersData?.customers ?? [];
-  const leads = leadsData ?? [];
+  const leads = leadsData?.leads ?? [];
   const isLoading = customersLoading || leadsLoading;
   const hasResults = customers.length > 0 || leads.length > 0;
 
@@ -149,31 +166,69 @@ export default function CustomerLabels() {
         )}
       </div>
 
-      {/* Search */}
-      <div className="relative mb-4">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400" />
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search clients or leads by name, company, or city…"
-          className="pl-9 h-10 bg-white"
-          autoFocus
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
-          >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+      {/* Search + State filter row */}
+      <div className="flex items-center gap-2 mb-4">
+        {/* Text search */}
+        <div className="relative flex-1">
+          <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+          <Input
+            value={search}
+            onChange={e => setSearch(e.target.value)}
+            placeholder="Search by name, company, or city…"
+            className="pl-9 h-10 bg-white"
+            autoFocus
+          />
+          {search && (
+            <button
+              onClick={() => setSearch('')}
+              className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+            >
+              <X className="h-4 w-4" />
+            </button>
+          )}
+        </div>
+
+        {/* State filter */}
+        <Select
+          value={selectedState || 'all'}
+          onValueChange={v => setSelectedState(v === 'all' ? '' : v)}
+        >
+          <SelectTrigger className={`w-[155px] h-10 bg-white text-sm ${hasStateFilter ? 'border-indigo-400 ring-1 ring-indigo-200' : ''}`}>
+            <MapPin className="h-3.5 w-3.5 text-gray-400 mr-1.5 flex-shrink-0" />
+            <SelectValue placeholder="All States" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All States</SelectItem>
+            {availableStates.map(s => (
+              <SelectItem key={s} value={s}>{s}</SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
       </div>
+
+      {/* Active state pill */}
+      {hasStateFilter && (
+        <div className="flex items-center gap-2 mb-3">
+          <span className="text-xs text-gray-500">Showing all contacts &amp; leads in</span>
+          <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-indigo-100 text-indigo-700 text-xs font-medium border border-indigo-200">
+            <MapPin className="h-3 w-3" />
+            {selectedState}
+            <button
+              onClick={() => setSelectedState('')}
+              className="ml-0.5 hover:text-indigo-900"
+            >
+              <X className="h-3 w-3" />
+            </button>
+          </span>
+        </div>
+      )}
 
       {/* Results */}
       {!enabled && (
         <div className="text-center py-16 text-gray-400">
           <Search className="h-8 w-8 mx-auto mb-3 opacity-40" />
-          <p className="text-sm">Type at least 2 characters to search</p>
+          <p className="text-sm">Type at least 2 characters to search,</p>
+          <p className="text-sm">or select a state to browse by location</p>
         </div>
       )}
 
@@ -186,7 +241,13 @@ export default function CustomerLabels() {
 
       {enabled && !isLoading && !hasResults && (
         <div className="text-center py-16 text-gray-400">
-          <p className="text-sm">No clients or leads found for "{debouncedSearch}"</p>
+          <p className="text-sm">
+            {hasSearch && hasStateFilter
+              ? `No clients or leads found in "${selectedState}" matching "${debouncedSearch}"`
+              : hasStateFilter
+              ? `No clients or leads found in "${selectedState}"`
+              : `No clients or leads found for "${debouncedSearch}"`}
+          </p>
         </div>
       )}
 
