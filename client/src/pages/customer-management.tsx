@@ -5,7 +5,7 @@ import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, Building2, X, MapPin, Globe, Phone, Mail,
   Users, TrendingUp, ShoppingCart, DollarSign, ChevronRight,
-  User, BarChart3, Filter, Clock,
+  User, BarChart3, Filter, Clock, ArrowUpDown,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Button } from '@/components/ui/button';
@@ -92,6 +92,8 @@ interface Customer {
   isCompany: boolean;
 }
 
+type SortOption = 'name' | 'strength_desc' | 'strength_asc' | 'last_contacted_desc' | 'last_contacted_asc';
+
 interface Filters {
   state: string | null;
   source: 'all' | 'odoo' | 'contact';
@@ -99,6 +101,7 @@ interface Filters {
   pricingTier: string | null;
   salesRep: string | null;
   hasContacts: boolean | null;
+  sort: SortOption;
 }
 
 function initials(name: string) {
@@ -416,6 +419,10 @@ function CompanyCardItem({ company, onClick }: { company: CompanyCard; onClick: 
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
+const STRENGTH_ORDER: Record<string, number> = {
+  very_strong: 0, strong: 1, moderate: 2, weak: 3, cold: 4,
+};
+
 const DEFAULT_FILTERS: Filters = {
   state: null,
   source: 'all',
@@ -423,6 +430,7 @@ const DEFAULT_FILTERS: Filters = {
   pricingTier: null,
   salesRep: null,
   hasContacts: null,
+  sort: 'name',
 };
 
 export default function CustomerManagement() {
@@ -457,7 +465,7 @@ export default function CustomerManagement() {
 
   // Apply client-side filters
   const companies = useMemo(() => {
-    return allCompanies.filter(c => {
+    const filtered = allCompanies.filter(c => {
       if (filters.source !== 'all' && c.source !== filters.source) return false;
       if (filters.state && c.stateProvince !== filters.state) return false;
       if (filters.hasSales === true && c.lifetimeSales <= 0) return false;
@@ -468,6 +476,38 @@ export default function CustomerManagement() {
       if (filters.hasContacts === false && c.contactCount > 0) return false;
       return true;
     });
+
+    const sorted = [...filtered];
+    if (filters.sort === 'name') {
+      sorted.sort((a, b) => a.name.localeCompare(b.name));
+    } else if (filters.sort === 'strength_desc') {
+      sorted.sort((a, b) => {
+        const av = STRENGTH_ORDER[a.connectionStrength ?? 'cold'] ?? 4;
+        const bv = STRENGTH_ORDER[b.connectionStrength ?? 'cold'] ?? 4;
+        return av !== bv ? av - bv : a.name.localeCompare(b.name);
+      });
+    } else if (filters.sort === 'strength_asc') {
+      sorted.sort((a, b) => {
+        const av = STRENGTH_ORDER[a.connectionStrength ?? 'cold'] ?? 4;
+        const bv = STRENGTH_ORDER[b.connectionStrength ?? 'cold'] ?? 4;
+        return av !== bv ? bv - av : a.name.localeCompare(b.name);
+      });
+    } else if (filters.sort === 'last_contacted_desc') {
+      sorted.sort((a, b) => {
+        if (!a.lastInteractionDate && !b.lastInteractionDate) return a.name.localeCompare(b.name);
+        if (!a.lastInteractionDate) return 1;
+        if (!b.lastInteractionDate) return -1;
+        return new Date(b.lastInteractionDate).getTime() - new Date(a.lastInteractionDate).getTime();
+      });
+    } else if (filters.sort === 'last_contacted_asc') {
+      sorted.sort((a, b) => {
+        if (!a.lastInteractionDate && !b.lastInteractionDate) return a.name.localeCompare(b.name);
+        if (!a.lastInteractionDate) return 1;
+        if (!b.lastInteractionDate) return -1;
+        return new Date(a.lastInteractionDate).getTime() - new Date(b.lastInteractionDate).getTime();
+      });
+    }
+    return sorted;
   }, [allCompanies, filters]);
 
   const activeFiltersCount = [
@@ -516,6 +556,22 @@ export default function CustomerManagement() {
               </button>
             )}
           </div>
+          <Select
+            value={filters.sort}
+            onValueChange={v => setFilters(f => ({ ...f, sort: v as SortOption }))}
+          >
+            <SelectTrigger className="h-9 w-auto gap-1.5 text-sm border bg-white pl-2.5 pr-2">
+              <ArrowUpDown className="h-3.5 w-3.5 text-gray-500 shrink-0" />
+              <SelectValue />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="name">Name (A–Z)</SelectItem>
+              <SelectItem value="strength_desc">Strongest first</SelectItem>
+              <SelectItem value="strength_asc">Weakest first</SelectItem>
+              <SelectItem value="last_contacted_desc">Last contacted (newest)</SelectItem>
+              <SelectItem value="last_contacted_asc">Last contacted (oldest)</SelectItem>
+            </SelectContent>
+          </Select>
           <Button
             variant={showFilters ? 'secondary' : 'outline'}
             size="sm"
