@@ -1012,18 +1012,35 @@ ${plainTextBody}`;
     creditLimit: number;
     totalReceivable: number;
     totalInvoiced: number;
+    resolvedPartnerId: number;  // the company partner ID used for invoice/outstanding totals
   } | null> {
     try {
       const partners = await this.searchRead('res.partner', [['id', '=', partnerId]], [
         'id', 'name', 'user_id', 'property_payment_term_id', 'property_product_pricelist',
-        'credit_limit', 'credit', 'debit', 'total_invoiced',
+        'credit_limit', 'credit', 'debit', 'total_invoiced', 'parent_id',
       ], { limit: 1 });
 
       if (!partners || partners.length === 0) {
         return null;
       }
 
-      const partner = partners[0];
+      let partner = partners[0];
+      let resolvedPartnerId = partnerId;
+
+      // If this partner is a contact person under a company, fetch the parent's financials
+      // (invoices and outstanding are tracked at the company level in Odoo)
+      if (partner.parent_id) {
+        const parentId = partner.parent_id[0];
+        resolvedPartnerId = parentId;
+        const parentPartners = await this.searchRead('res.partner', [['id', '=', parentId]], [
+          'id', 'credit', 'total_invoiced',
+        ], { limit: 1 });
+        if (parentPartners && parentPartners.length > 0) {
+          partner = { ...partner, credit: parentPartners[0].credit, total_invoiced: parentPartners[0].total_invoiced };
+          console.log(`[Odoo] Partner ${partnerId} is a contact under company ${parentId}; using parent's financials`);
+        }
+      }
+
       return {
         salesPerson: partner.user_id ? partner.user_id[1] : null,
         paymentTerms: partner.property_payment_term_id ? partner.property_payment_term_id[1] : null,
@@ -1031,6 +1048,7 @@ ${plainTextBody}`;
         creditLimit: partner.credit_limit || 0,
         totalReceivable: partner.credit || 0,
         totalInvoiced: partner.total_invoiced || 0,
+        resolvedPartnerId,
       };
     } catch (error: any) {
       console.error(`[Odoo] Error fetching partner business details for ${partnerId}:`, error.message);
@@ -1178,8 +1196,10 @@ ${plainTextBody}`;
       // Use Odoo's computed fields directly - matches what Odoo shows on contact page
       // totalInvoiced = "Invoiced" amount in Odoo
       // totalReceivable (credit) = "Due" amount in Odoo
+      // resolvedPartnerId = company partner ID (parent) if this is a contact person
       const lifetimeSales = partnerDetails.totalInvoiced;
       const totalOutstanding = partnerDetails.totalReceivable;
+      const resolvedPartnerId = partnerDetails.resolvedPartnerId ?? partnerId;
 
       // Aggregate products by product ID (SKU) to find top products
       const productAggregates = new Map<number, { name: string; quantity: number; totalSpent: number }>();
@@ -1205,13 +1225,14 @@ ${plainTextBody}`;
       
       try {
         // Fetch confirmed sale orders with margin fields
+        // Use resolvedPartnerId so contact persons inherit their parent company's orders
         // Include amount_total so we can calculate margin_percent if needed
         const saleOrders = await this.searchRead('sale.order', [
-          ['partner_id', '=', partnerId],
+          ['partner_id', 'child_of', resolvedPartnerId],
           ['state', 'in', ['sale', 'done']],
         ], ['id', 'name', 'margin_percent', 'margin', 'amount_total'], { limit: 500 });
         
-        console.log(`[Odoo] Partner ${partnerId}: Found ${saleOrders.length} confirmed sale orders`);
+        console.log(`[Odoo] Partner ${partnerId} (resolved: ${resolvedPartnerId}): Found ${saleOrders.length} confirmed sale orders`);
         
         // Log a sample order to see what data is returned
         if (saleOrders.length > 0) {
