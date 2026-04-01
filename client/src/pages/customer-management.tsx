@@ -1,14 +1,20 @@
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useQuery } from '@tanstack/react-query';
+import { AnimatePresence, motion } from 'framer-motion';
 import {
   Search, Building2, X, MapPin, Globe, Phone, Mail,
   Users, TrendingUp, ShoppingCart, DollarSign, ChevronRight,
-  User, BarChart3,
+  User, BarChart3, Filter, Flame,
 } from 'lucide-react';
 import { Input } from '@/components/ui/input';
+import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import {
+  Select, SelectContent, SelectItem, SelectTrigger, SelectValue,
+} from '@/components/ui/select';
 import { useDebounce } from '@/hooks/useDebounce';
+import { PRICING_TIERS } from '@shared/schema';
 
 interface CompanyCard {
   id: number | null;
@@ -48,6 +54,15 @@ interface Customer {
   isCompany: boolean;
 }
 
+interface Filters {
+  state: string | null;
+  source: 'all' | 'odoo' | 'contact';
+  hasSales: boolean | null;
+  pricingTier: string | null;
+  salesRep: string | null;
+  hasContacts: boolean | null;
+}
+
 function initials(name: string) {
   return name.split(/\s+/).slice(0, 2).map(w => w[0]).join('').toUpperCase() || '?';
 }
@@ -77,7 +92,7 @@ function TierBadge({ tier }: { tier: string | null }) {
   );
 }
 
-// ─── Contacts panel inside the Sheet ──────────────────────────────────────────
+// ─── Contacts panel ────────────────────────────────────────────────────────────
 function CompanyContacts({ company }: { company: CompanyCard }) {
   const queryKey = company.id
     ? ['/api/companies', company.id, 'contacts']
@@ -107,9 +122,7 @@ function CompanyContacts({ company }: { company: CompanyCard }) {
   }
 
   if (contacts.length === 0) {
-    return (
-      <p className="text-sm text-gray-400 italic py-4 text-center">No contacts linked to this company</p>
-    );
+    return <p className="text-sm text-gray-400 italic py-4 text-center">No contacts linked to this company</p>;
   }
 
   return (
@@ -123,7 +136,6 @@ function CompanyContacts({ company }: { company: CompanyCard }) {
         return (
           <div key={c.id} className="rounded-lg border border-gray-100 p-3 bg-gray-50 hover:bg-white transition-colors">
             <div className="flex items-start gap-3">
-              {/* Avatar */}
               <div className="flex-shrink-0 h-9 w-9 rounded-full bg-indigo-100 flex items-center justify-center text-indigo-700 text-xs font-semibold">
                 {initials(name)}
               </div>
@@ -181,20 +193,15 @@ function CompanyContacts({ company }: { company: CompanyCard }) {
 
 // ─── Company detail Sheet ──────────────────────────────────────────────────────
 function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClose: () => void }) {
-  const open = !!company;
   if (!company) return null;
 
-  const avgOrderValue = company.totalOrders > 0
-    ? company.lifetimeSales / company.totalOrders
-    : 0;
-
+  const avgOrderValue = company.totalOrders > 0 ? company.lifetimeSales / company.totalOrders : 0;
   const address = [company.addressLine1, company.city, company.stateProvince, company.country]
     .filter(Boolean).join(', ');
 
   return (
-    <Sheet open={open} onOpenChange={v => { if (!v) onClose(); }}>
+    <Sheet open={!!company} onOpenChange={v => { if (!v) onClose(); }}>
       <SheetContent className="w-full sm:max-w-lg overflow-y-auto p-0" side="right">
-        {/* Header */}
         <div className="sticky top-0 z-10 bg-white border-b border-gray-100 px-6 py-5">
           <SheetHeader>
             <SheetTitle className="flex items-center gap-3">
@@ -214,7 +221,6 @@ function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClo
         </div>
 
         <div className="px-6 py-5 space-y-6">
-          {/* Contact info */}
           {(address || company.mainPhone || company.generalEmail) && (
             <div className="space-y-1.5">
               {address && (
@@ -238,7 +244,6 @@ function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClo
             </div>
           )}
 
-          {/* Financial metrics */}
           <div>
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">Company Financials</h3>
             <div className="grid grid-cols-2 gap-2.5">
@@ -271,7 +276,6 @@ function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClo
                 <p className="text-xl font-bold text-gray-900">{company.contactCount}</p>
               </div>
             </div>
-            {/* Sales rep + pricing tier */}
             {(company.primarySalesRep || company.primaryPricingTier) && (
               <div className="flex items-center gap-3 mt-2.5 px-3 py-2 rounded-lg bg-indigo-50 border border-indigo-100">
                 {company.primarySalesRep && (
@@ -293,7 +297,6 @@ function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClo
             )}
           </div>
 
-          {/* Contacts */}
           <div>
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               Contacts ({company.contactCount})
@@ -307,7 +310,7 @@ function CompanySheet({ company, onClose }: { company: CompanyCard | null; onClo
 }
 
 // ─── Business card ─────────────────────────────────────────────────────────────
-function CompanyCard({ company, onClick }: { company: CompanyCard; onClick: () => void }) {
+function CompanyCardItem({ company, onClick }: { company: CompanyCard; onClick: () => void }) {
   const location = [company.city, company.stateProvince].filter(Boolean).join(', ');
   const hasFinancials = company.lifetimeSales > 0 || company.totalOrders > 0;
 
@@ -316,7 +319,6 @@ function CompanyCard({ company, onClick }: { company: CompanyCard; onClick: () =
       onClick={onClick}
       className="w-full text-left bg-white rounded-xl border border-gray-100 hover:border-indigo-200 hover:shadow-md transition-all p-4 group"
     >
-      {/* Card header */}
       <div className="flex items-start gap-3 mb-3">
         <div className="flex-shrink-0 h-10 w-10 rounded-xl bg-indigo-100 flex items-center justify-center text-indigo-700 text-sm font-bold group-hover:bg-indigo-200 transition-colors">
           {initials(company.name)}
@@ -336,7 +338,6 @@ function CompanyCard({ company, onClick }: { company: CompanyCard; onClick: () =
         <ChevronRight className="h-4 w-4 text-gray-300 group-hover:text-indigo-400 flex-shrink-0 mt-0.5 transition-colors" />
       </div>
 
-      {/* Financial stats row */}
       {hasFinancials ? (
         <div className="grid grid-cols-3 gap-1.5 mb-2.5">
           <div className="rounded-lg bg-gray-50 px-2 py-1.5 text-center">
@@ -360,7 +361,6 @@ function CompanyCard({ company, onClick }: { company: CompanyCard; onClick: () =
         </div>
       )}
 
-      {/* Footer row */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-1.5">
           {company.primarySalesRep && (
@@ -379,12 +379,23 @@ function CompanyCard({ company, onClick }: { company: CompanyCard; onClick: () =
 }
 
 // ─── Main page ─────────────────────────────────────────────────────────────────
+const DEFAULT_FILTERS: Filters = {
+  state: null,
+  source: 'all',
+  hasSales: null,
+  pricingTier: null,
+  salesRep: null,
+  hasContacts: null,
+};
+
 export default function CustomerManagement() {
   const [search, setSearch] = useState('');
   const debouncedSearch = useDebounce(search, 250);
   const [selected, setSelected] = useState<CompanyCard | null>(null);
+  const [showFilters, setShowFilters] = useState(false);
+  const [filters, setFilters] = useState<Filters>(DEFAULT_FILTERS);
 
-  const { data: companies = [], isLoading } = useQuery<CompanyCard[]>({
+  const { data: allCompanies = [], isLoading } = useQuery<CompanyCard[]>({
     queryKey: ['/api/companies/directory', debouncedSearch],
     queryFn: async () => {
       const params = new URLSearchParams();
@@ -397,38 +408,212 @@ export default function CustomerManagement() {
     staleTime: 60000,
   });
 
+  // Derive filter options from loaded data
+  const uniqueStates = useMemo(() =>
+    Array.from(new Set(allCompanies.map(c => c.stateProvince).filter(Boolean) as string[])).sort(),
+    [allCompanies]
+  );
+  const uniqueSalesReps = useMemo(() =>
+    Array.from(new Set(allCompanies.map(c => c.primarySalesRep).filter(Boolean) as string[])).sort(),
+    [allCompanies]
+  );
+
+  // Apply client-side filters
+  const companies = useMemo(() => {
+    return allCompanies.filter(c => {
+      if (filters.source !== 'all' && c.source !== filters.source) return false;
+      if (filters.state && c.stateProvince !== filters.state) return false;
+      if (filters.hasSales === true && c.lifetimeSales <= 0) return false;
+      if (filters.hasSales === false && c.lifetimeSales > 0) return false;
+      if (filters.pricingTier && c.primaryPricingTier?.toLowerCase() !== filters.pricingTier.toLowerCase()) return false;
+      if (filters.salesRep && c.primarySalesRep !== filters.salesRep) return false;
+      if (filters.hasContacts === true && c.contactCount === 0) return false;
+      if (filters.hasContacts === false && c.contactCount > 0) return false;
+      return true;
+    });
+  }, [allCompanies, filters]);
+
+  const activeFiltersCount = [
+    filters.state !== null ? 1 : 0,
+    filters.source !== 'all' ? 1 : 0,
+    filters.hasSales !== null ? 1 : 0,
+    filters.pricingTier !== null ? 1 : 0,
+    filters.salesRep !== null ? 1 : 0,
+    filters.hasContacts !== null ? 1 : 0,
+  ].reduce((a, b) => a + b, 0);
+
+  const clearFilters = () => setFilters(DEFAULT_FILTERS);
+
   return (
     <div>
       {/* Page header */}
-      <div className="mb-5 flex items-center justify-between">
+      <div className="mb-4 flex items-center justify-between">
         <div>
           <h1 className="text-2xl font-semibold text-gray-900">Companies</h1>
           {!isLoading && (
             <p className="text-sm text-gray-400 mt-0.5">
-              {companies.length} {companies.length === 1 ? 'company' : 'companies'}
+              {companies.length} of {allCompanies.length} {allCompanies.length === 1 ? 'company' : 'companies'}
               {debouncedSearch && ` matching "${debouncedSearch}"`}
             </p>
           )}
         </div>
       </div>
 
-      {/* Search */}
-      <div className="relative mb-5 max-w-sm">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
-        <Input
-          value={search}
-          onChange={e => setSearch(e.target.value)}
-          placeholder="Search companies…"
-          className="pl-9 h-9 bg-white"
-        />
-        {search && (
-          <button
-            onClick={() => setSearch('')}
-            className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+      {/* Search + filter toolbar */}
+      <div className="mb-4">
+        <div className="flex items-center gap-2">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-gray-400 pointer-events-none" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder="Search companies…"
+              className="pl-9 h-9 bg-white"
+            />
+            {search && (
+              <button
+                onClick={() => setSearch('')}
+                className="absolute right-3 top-1/2 -translate-y-1/2 text-gray-400 hover:text-gray-600"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            )}
+          </div>
+          <Button
+            variant={showFilters ? 'secondary' : 'outline'}
+            size="sm"
+            className="gap-2 h-9"
+            onClick={() => setShowFilters(v => !v)}
           >
-            <X className="h-4 w-4" />
-          </button>
-        )}
+            <Filter className="h-4 w-4" />
+            Filters
+            {activeFiltersCount > 0 && (
+              <Badge className="ml-0.5 h-5 w-5 p-0 flex items-center justify-center text-[10px] bg-indigo-600">
+                {activeFiltersCount}
+              </Badge>
+            )}
+          </Button>
+        </div>
+
+        {/* Filter panel */}
+        <AnimatePresence>
+          {showFilters && (
+            <motion.div
+              initial={{ height: 0, opacity: 0 }}
+              animate={{ height: 'auto', opacity: 1 }}
+              exit={{ height: 0, opacity: 0 }}
+              transition={{ duration: 0.2 }}
+              className="overflow-hidden"
+            >
+              <div className="pt-3 flex flex-wrap items-center gap-2.5">
+                {/* Source */}
+                <Select
+                  value={filters.source}
+                  onValueChange={v => setFilters(f => ({ ...f, source: v as Filters['source'] }))}
+                >
+                  <SelectTrigger className="w-[140px] h-9 bg-white text-sm">
+                    <SelectValue placeholder="Source" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Sources</SelectItem>
+                    <SelectItem value="odoo">Odoo</SelectItem>
+                    <SelectItem value="contact">From Contacts</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* State/Province */}
+                {uniqueStates.length > 0 && (
+                  <Select
+                    value={filters.state || 'all'}
+                    onValueChange={v => setFilters(f => ({ ...f, state: v === 'all' ? null : v }))}
+                  >
+                    <SelectTrigger className="w-[160px] h-9 bg-white text-sm">
+                      <SelectValue placeholder="State/Province" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All States</SelectItem>
+                      {uniqueStates.map(s => (
+                        <SelectItem key={s} value={s}>{s}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Pricing Tier */}
+                <Select
+                  value={filters.pricingTier || 'all'}
+                  onValueChange={v => setFilters(f => ({ ...f, pricingTier: v === 'all' ? null : v }))}
+                >
+                  <SelectTrigger className="w-[155px] h-9 bg-white text-sm">
+                    <SelectValue placeholder="Pricing Tier" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">All Tiers</SelectItem>
+                    {PRICING_TIERS.map(t => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {/* Sales Rep */}
+                {uniqueSalesReps.length > 0 && (
+                  <Select
+                    value={filters.salesRep || 'all'}
+                    onValueChange={v => setFilters(f => ({ ...f, salesRep: v === 'all' ? null : v }))}
+                  >
+                    <SelectTrigger className="w-[175px] h-9 bg-white text-sm">
+                      <SelectValue placeholder="Sales Rep" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">All Sales Reps</SelectItem>
+                      {uniqueSalesReps.map(r => (
+                        <SelectItem key={r} value={r}>{r}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+
+                {/* Has Sales */}
+                <Select
+                  value={filters.hasSales === null ? 'all' : filters.hasSales ? 'yes' : 'no'}
+                  onValueChange={v => setFilters(f => ({ ...f, hasSales: v === 'all' ? null : v === 'yes' }))}
+                >
+                  <SelectTrigger className="w-[145px] h-9 bg-white text-sm">
+                    <SelectValue placeholder="Sales" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any Sales</SelectItem>
+                    <SelectItem value="yes">Has Sales</SelectItem>
+                    <SelectItem value="no">No Sales</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Has Contacts */}
+                <Select
+                  value={filters.hasContacts === null ? 'all' : filters.hasContacts ? 'yes' : 'no'}
+                  onValueChange={v => setFilters(f => ({ ...f, hasContacts: v === 'all' ? null : v === 'yes' }))}
+                >
+                  <SelectTrigger className="w-[155px] h-9 bg-white text-sm">
+                    <SelectValue placeholder="Contacts" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Any Contacts</SelectItem>
+                    <SelectItem value="yes">Has Contacts</SelectItem>
+                    <SelectItem value="no">No Contacts</SelectItem>
+                  </SelectContent>
+                </Select>
+
+                {/* Clear */}
+                {activeFiltersCount > 0 && (
+                  <Button variant="ghost" size="sm" onClick={clearFilters} className="text-gray-500 h-9">
+                    <X className="h-4 w-4 mr-1" />
+                    Clear
+                  </Button>
+                )}
+              </div>
+            </motion.div>
+          )}
+        </AnimatePresence>
       </div>
 
       {/* Loading */}
@@ -444,8 +629,15 @@ export default function CustomerManagement() {
         <div className="text-center py-20 text-gray-400">
           <Building2 className="h-10 w-10 mx-auto mb-3 opacity-30" />
           <p className="text-sm">
-            {debouncedSearch ? `No companies match "${debouncedSearch}"` : 'No companies found'}
+            {debouncedSearch || activeFiltersCount > 0
+              ? 'No companies match the current filters'
+              : 'No companies found'}
           </p>
+          {activeFiltersCount > 0 && (
+            <Button variant="ghost" size="sm" onClick={clearFilters} className="mt-2 text-gray-500">
+              Clear filters
+            </Button>
+          )}
         </div>
       )}
 
@@ -453,7 +645,7 @@ export default function CustomerManagement() {
       {!isLoading && companies.length > 0 && (
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
           {companies.map((c, i) => (
-            <CompanyCard
+            <CompanyCardItem
               key={`${c.source}-${c.id ?? c.name}-${i}`}
               company={c}
               onClick={() => setSelected(c)}

@@ -159,11 +159,11 @@ export default function OdooContacts() {
   const [editingField, setEditingField] = useState<{ id: string; field: string } | null>(null);
   const [editValue, setEditValue] = useState('');
   
-  // Filters - Default to showing only companies
+  // Filters - Contacts page always shows people only; isCompany is locked to false
   const [filters, setFilters] = useState(() => {
     const saved = ss?.filters;
     return {
-      isCompany: saved?.isCompany !== undefined ? saved.isCompany : (true as boolean | null),
+      isCompany: false as boolean | null,
       pricingTier: saved?.pricingTier ?? (null as string | null),
       hasEmail: saved?.hasEmail ?? (null as boolean | null),
       hasWebsite: saved?.hasWebsite ?? (null as boolean | null),
@@ -283,7 +283,7 @@ export default function OdooContacts() {
     if (searchQuery && !searchActiveFilterSnapshot) {
       setSearchActiveFilterSnapshot({ ...filters });
       setFilters({
-        isCompany: null,
+        isCompany: false,
         pricingTier: null,
         hasEmail: null,
         hasWebsite: null,
@@ -306,7 +306,7 @@ export default function OdooContacts() {
     limit: pageSize.toString(),
   });
   if (debouncedSearch) queryParams.set('search', debouncedSearch);
-  if (filters.isCompany !== null) queryParams.set('isCompany', filters.isCompany.toString());
+  queryParams.set('isCompany', 'false'); // Contacts page always shows people only
   if (filters.isHotProspect === true) queryParams.set('isHotProspect', 'true');
 
   // Fetch contacts with server-side pagination
@@ -769,9 +769,8 @@ export default function OdooContacts() {
 
   const uniqueProvinces = Array.from(new Set(contacts.map(c => c.province).filter(Boolean) as string[])).sort();
 
-  // Active filters count
+  // Active filters count (isCompany is always false so not counted)
   const activeFiltersCount = [
-    filters.isCompany !== null && filters.isCompany !== true ? 1 : 0,
     filters.pricingTier !== null ? 1 : 0,
     filters.hasEmail !== null ? 1 : 0,
     filters.hasWebsite !== null ? 1 : 0,
@@ -784,7 +783,7 @@ export default function OdooContacts() {
 
   const clearFilters = () => {
     setFilters({
-      isCompany: null,
+      isCompany: false,
       pricingTier: null,
       hasEmail: null,
       hasWebsite: null,
@@ -1023,24 +1022,6 @@ export default function OdooContacts() {
                 className="overflow-hidden"
               >
                 <div className="pt-4 flex flex-wrap items-center gap-3">
-                  {/* Type Filter */}
-                  <Select
-                    value={filters.isCompany === null ? 'all' : filters.isCompany ? 'company' : 'person'}
-                    onValueChange={(v) => setFilters(f => ({ 
-                      ...f, 
-                      isCompany: v === 'all' ? null : v === 'company' 
-                    }))}
-                  >
-                    <SelectTrigger className="w-[140px] bg-white">
-                      <SelectValue placeholder="Type" />
-                    </SelectTrigger>
-                    <SelectContent>
-                      <SelectItem value="all">All Types</SelectItem>
-                      <SelectItem value="company">Companies</SelectItem>
-                      <SelectItem value="person">People</SelectItem>
-                    </SelectContent>
-                  </Select>
-
                   {/* Pricing Tier Filter */}
                   <Select
                     value={filters.pricingTier || 'all'}
