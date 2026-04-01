@@ -2,16 +2,14 @@ import { useState, useEffect } from 'react';
 import { Link, useLocation } from 'wouter';
 import logoPath from '@assets/4s_logo_Clean_120x_1764801255491.png';
 import { Avatar, AvatarFallback } from '@/components/ui/avatar';
-import type { User } from '@shared/schema';
 import { useAuth } from '@/hooks/useAuth';
 import { useAppUsage, AppUsageProvider } from '@/hooks/useAppUsage';
-import { CommandPalette, useCommandPalette, NAV_ITEMS } from './CommandPalette';
+import { CommandPalette, useCommandPalette } from './CommandPalette';
 import {
   Search,
   Settings,
   ChevronDown,
   ChevronRight,
-  LogOut,
   Menu,
   Home,
   LayoutDashboard,
@@ -19,27 +17,28 @@ import {
   Mail,
   BarChart3,
   Users,
-  Zap,
-  Database,
+  Building2,
   Target,
   Sparkles,
   Package,
   Truck,
   Tag,
-  Calculator,
   TrendingUp,
   Calendar,
-  AlertTriangle,
   BookOpen,
   ListChecks,
-  MapPin,
-  ShoppingBag,
   Activity,
   Layers,
   RefreshCw,
   Settings2,
   DollarSign,
   Clock,
+  Contact,
+  Zap,
+  Lightbulb,
+  ShoppingBag,
+  Database,
+  LogOut,
 } from 'lucide-react';
 import {
   DropdownMenu,
@@ -75,48 +74,46 @@ interface NavItemDef {
   adminOnly?: boolean;
 }
 
+// ── Top pinned items (always visible, no section header) ──────────────────────
 const TOP_ITEMS: NavItemDef[] = [
-  { path: '/', label: 'Home', icon: Home, iconColor: '#6366f1' },
-  { path: '/tasks', label: 'Tasks', icon: ListChecks, iconColor: '#f59e0b' },
-  { path: '/email-app', label: 'Emails', icon: Mail, iconColor: '#10b981' },
-  { path: '/reports', label: 'Reports', icon: BarChart3, iconColor: '#3b82f6' },
+  { path: '/dashboard', label: 'Home', icon: Home, iconColor: '#6366f1' },
+  { path: '/', label: 'Spotlight', icon: Sparkles, iconColor: '#f59e0b' },
 ];
 
+// ── Main flat list (no section header) ───────────────────────────────────────
+const MAIN_ITEMS: NavItemDef[] = [
+  { path: '/leads', label: 'Leads', icon: Zap, iconColor: '#10b981' },
+  { path: '/odoo-contacts', label: 'Contacts', icon: Contact, iconColor: '#6366f1' },
+  { path: '/customer-management', label: 'Companies', icon: Building2, iconColor: '#8b5cf6' },
+  { path: '/opportunities', label: 'Opportunities', icon: Target, iconColor: '#f59e0b' },
+  { path: '/quick-quotes', label: 'QuickQuotes', icon: DollarSign, iconColor: '#d97706' },
+  { path: '/price-list', label: 'Price List', icon: FileText, iconColor: '#ca8a04' },
+  { path: '/saved-quotes', label: 'Saved Quotes', icon: BookOpen, iconColor: '#be185d' },
+  { path: '/competitor-pricing', label: 'Market Prices', icon: TrendingUp, iconColor: '#0c6e99' },
+  { path: '/shipping-calculator', label: 'Shipping', icon: Truck, iconColor: '#d97706' },
+  { path: '/shipping-labels', label: 'Shipping Labels', icon: Package, iconColor: '#6366f1' },
+  { path: '/product-labels', label: 'Product Labels', icon: Tag, iconColor: '#0e7b6c' },
+];
+
+// ── Automations section (collapsible) ─────────────────────────────────────────
 const AUTOMATION_ITEMS: NavItemDef[] = [
+  { path: '/tasks', label: 'Tasks', icon: ListChecks, iconColor: '#f59e0b' },
   { path: '/crm-journey', label: 'CRM Journey', icon: Target, iconColor: '#8b5cf6' },
   { path: '/calendar', label: 'Calendar', icon: Calendar, iconColor: '#ef4444' },
 ];
 
-const RECORD_ITEMS: NavItemDef[] = [
-  { path: '/odoo-contacts', label: 'Clients', icon: Users, iconColor: '#6366f1' },
-  { path: '/leads', label: 'Leads', icon: Sparkles, iconColor: '#10b981' },
-  { path: '/opportunities', label: 'Opportunities', icon: Target, iconColor: '#f59e0b' },
-  { path: '/dashboard', label: 'Dashboard', icon: LayoutDashboard, iconColor: '#3b82f6' },
-  { path: '/admin', label: 'Users', icon: Users, iconColor: '#ef4444', adminOnly: true },
-];
-
-const TOOL_ITEMS: NavItemDef[] = [
-  { path: '/quick-quotes', label: 'QuickQuotes', icon: DollarSign, iconColor: '#d97706' },
-  { path: '/saved-quotes', label: 'Saved Quotes', icon: BookOpen, iconColor: '#be185d' },
-  { path: '/price-list', label: 'Price List', icon: FileText, iconColor: '#ca8a04' },
-  { path: '/area-pricer', label: 'SqM Calculator', icon: Calculator, iconColor: '#64748b' },
-  { path: '/competitor-pricing', label: 'Market Prices', icon: TrendingUp, iconColor: '#0c6e99' },
-  { path: '/customer-margins', label: 'Customer Margins', icon: BarChart3, iconColor: '#7c3aed' },
-  { path: '/shipping-calculator', label: 'Shipping', icon: Truck, iconColor: '#d97706' },
-  { path: '/shipping-labels', label: 'Shipping Labels', icon: Package, iconColor: '#6366f1' },
-  { path: '/product-labels', label: 'Product Labels', icon: Tag, iconColor: '#0e7b6c' },
-  { path: '/objections', label: 'Objections', icon: AlertTriangle, iconColor: '#d97706' },
-];
-
+// ── Admin section (collapsible, admin only) ───────────────────────────────────
 const ADMIN_ITEMS: NavItemDef[] = [
+  { path: '/integrations', label: 'Integrations', icon: Settings2, iconColor: '#0c6e99', adminOnly: true },
+  { path: '/email-app', label: 'Email Studio', icon: Mail, iconColor: '#ad1972', adminOnly: true },
+  { path: '/reports', label: 'Reports', icon: BarChart3, iconColor: '#3b82f6', adminOnly: true },
+  { path: '/admin', label: 'Users', icon: Users, iconColor: '#ef4444', adminOnly: true },
+  { path: '/customer-margins', label: 'Customer Margins', icon: BarChart3, iconColor: '#7c3aed', adminOnly: true },
   { path: '/spotlight-overview', label: 'Spotlight Overview', icon: Clock, iconColor: '#4f46e5', adminOnly: true },
   { path: '/activity-logs', label: 'Activity', icon: Activity, iconColor: '#d97706', adminOnly: true },
-  { path: '/product-pricing-management', label: 'Products DB', icon: Database, iconColor: '#0284c7', adminOnly: true },
-  { path: '/pdf-settings', label: 'PDF Settings', icon: FileText, iconColor: '#64473a', adminOnly: true },
+  { path: '/product-pricing-management', label: 'Products Pricing', icon: Database, iconColor: '#0284c7', adminOnly: true },
   { path: '/product-mapping', label: 'Product Mapping', icon: Layers, iconColor: '#d97706', adminOnly: true },
-  { path: '/integrations', label: 'Integrations', icon: Settings2, iconColor: '#0c6e99', adminOnly: true },
-  { path: '/odoo-settings', label: 'Odoo', icon: RefreshCw, iconColor: '#693fa5', adminOnly: true },
-  { path: '/shopify-settings', label: 'Shopify', icon: ShoppingBag, iconColor: '#0e7b6c', adminOnly: true },
+  { path: '/pdf-settings', label: 'PDF Settings', icon: FileText, iconColor: '#64473a', adminOnly: true },
 ];
 
 function getUserInitials(email: string | undefined): string {
@@ -131,27 +128,23 @@ function getUserInitials(email: string | undefined): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-function NavItem({ item, isActive, onClick }: { item: NavItemDef; isActive: boolean; onClick?: () => void }) {
+function NavLink({ item, isActive, onClick }: { item: NavItemDef; isActive: boolean; onClick?: () => void }) {
   const Icon = item.icon;
   return (
     <Link
       href={item.path}
       onClick={onClick}
-      className={`flex items-center gap-2.5 px-2 py-1.5 rounded-md text-sm transition-colors duration-100 group ${
+      className={`flex items-center gap-2.5 px-2 py-[5px] rounded-md text-sm transition-colors duration-100 ${
         isActive
-          ? 'bg-[#F0F0F0] text-gray-900 font-medium'
+          ? 'bg-gray-100 text-gray-900 font-medium'
           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
       }`}
     >
-      <span
-        className="w-5 h-5 flex items-center justify-center rounded flex-shrink-0"
-      >
-        <Icon
-          className="h-4 w-4"
-          style={{ color: isActive ? item.iconColor : '#9ca3af' }}
-        />
-      </span>
-      <span className="truncate">{item.label}</span>
+      <Icon
+        className="h-[15px] w-[15px] flex-shrink-0"
+        style={{ color: isActive ? item.iconColor : '#9ca3af' }}
+      />
+      <span className="truncate leading-snug">{item.label}</span>
     </Link>
   );
 }
@@ -185,10 +178,10 @@ function CollapsibleSection({
   };
 
   return (
-    <div className="mt-1">
+    <div className="mt-3">
       <button
         onClick={toggle}
-        className="flex items-center gap-1.5 w-full px-2 py-1 text-xs font-medium text-gray-400 uppercase tracking-wider hover:text-gray-500 transition-colors"
+        className="flex items-center gap-1.5 w-full px-2 py-1 text-[11px] font-semibold text-gray-400 uppercase tracking-wider hover:text-gray-500 transition-colors"
       >
         {open
           ? <ChevronDown className="h-3 w-3 flex-shrink-0" />
@@ -197,9 +190,9 @@ function CollapsibleSection({
         {label}
       </button>
       {open && (
-        <div className="mt-0.5 space-y-0.5">
+        <div className="mt-0.5 space-y-px">
           {visibleItems.map(item => (
-            <NavItem
+            <NavLink
               key={item.path}
               item={item}
               isActive={location === item.path}
@@ -233,22 +226,22 @@ function SidebarContent({
 }) {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const userEmail = user?.email as string | undefined;
-  const visibleTopItems = filterAppsByUser(TOP_ITEMS, userEmail);
+  const visibleMainItems = filterAppsByUser(MAIN_ITEMS, userEmail);
 
   return (
     <div className="h-full flex flex-col bg-white select-none">
       {/* Header */}
-      <div className="flex items-center justify-between px-3 py-3 border-b border-gray-100">
+      <div className="flex items-center justify-between px-3 h-11 border-b border-gray-100 flex-shrink-0">
         <div className="flex items-center gap-2 min-w-0">
-          <img src={logoPath} alt="4S Graphics" className="w-6 h-6 object-contain flex-shrink-0" />
-          <span className="text-sm font-semibold text-gray-800 truncate">4S Graphics, inc</span>
-          <ChevronDown className="h-3.5 w-3.5 text-gray-400 flex-shrink-0" />
+          <img src={logoPath} alt="4S Graphics" className="w-5 h-5 object-contain flex-shrink-0" />
+          <span className="text-[13px] font-semibold text-gray-800 truncate">4S Graphics, inc</span>
+          <ChevronDown className="h-3 w-3 text-gray-400 flex-shrink-0" />
         </div>
-        <div className="flex items-center gap-0.5">
+        <div className="flex items-center gap-0.5 flex-shrink-0">
           <button
             onClick={onOpenCommand}
             className="p-1.5 rounded-md hover:bg-gray-100 transition-colors"
-            title="Search"
+            title="Search (⌘K)"
           >
             <Search className="h-3.5 w-3.5 text-gray-400" />
           </button>
@@ -263,7 +256,11 @@ function SidebarContent({
                 <RefreshCw className="h-3.5 w-3.5 mr-2 text-gray-500" />
                 Reset App Data
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onLogout} disabled={isLoggingOut} className="cursor-pointer text-sm text-red-600 focus:text-red-600">
+              <DropdownMenuItem
+                onClick={onLogout}
+                disabled={isLoggingOut}
+                className="cursor-pointer text-sm text-red-600 focus:text-red-600"
+              >
                 <LogOut className="h-3.5 w-3.5 mr-2" />
                 {isLoggingOut ? 'Logging out...' : 'Log out'}
               </DropdownMenuItem>
@@ -273,18 +270,35 @@ function SidebarContent({
       </div>
 
       {/* Nav */}
-      <nav className="flex-1 overflow-y-auto px-2 py-2 space-y-0.5">
-        {/* Top-level items */}
-        {visibleTopItems.map(item => (
-          <NavItem
-            key={item.path}
-            item={item}
-            isActive={location === item.path}
-            onClick={onNavClick}
-          />
-        ))}
+      <nav className="flex-1 overflow-y-auto px-2 py-2">
+        {/* Top pinned items */}
+        <div className="space-y-px mb-1">
+          {TOP_ITEMS.map(item => (
+            <NavLink
+              key={item.path}
+              item={item}
+              isActive={location === item.path}
+              onClick={onNavClick}
+            />
+          ))}
+        </div>
 
-        {/* Automations section */}
+        {/* Divider */}
+        <div className="my-2 border-t border-gray-100" />
+
+        {/* Main flat list */}
+        <div className="space-y-px">
+          {visibleMainItems.map(item => (
+            <NavLink
+              key={item.path}
+              item={item}
+              isActive={location === item.path}
+              onClick={onNavClick}
+            />
+          ))}
+        </div>
+
+        {/* Automations collapsible */}
         <CollapsibleSection
           label="Automations"
           items={AUTOMATION_ITEMS}
@@ -294,27 +308,7 @@ function SidebarContent({
           onNavClick={onNavClick}
         />
 
-        {/* Records section */}
-        <CollapsibleSection
-          label="Records"
-          items={RECORD_ITEMS}
-          isAdmin={isAdmin}
-          location={location}
-          storageKey="4s-nav-records"
-          onNavClick={onNavClick}
-        />
-
-        {/* Tools / Lists section */}
-        <CollapsibleSection
-          label="Lists"
-          items={TOOL_ITEMS}
-          isAdmin={isAdmin}
-          location={location}
-          storageKey="4s-nav-lists"
-          onNavClick={onNavClick}
-        />
-
-        {/* Admin section */}
+        {/* Admin collapsible */}
         {isAdmin && (
           <CollapsibleSection
             label="Admin"
@@ -328,8 +322,8 @@ function SidebarContent({
       </nav>
 
       {/* Footer */}
-      <div className="px-2 py-2 border-t border-gray-100">
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors cursor-default">
+      <div className="px-2 py-2 border-t border-gray-100 flex-shrink-0">
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-gray-50 transition-colors">
           <Avatar className="h-5 w-5 flex-shrink-0">
             <AvatarFallback className="bg-gray-800 text-white text-[9px] font-semibold">
               {userInitials}
@@ -339,9 +333,7 @@ function SidebarContent({
             <p className="text-xs font-medium text-gray-700 truncate leading-none">
               {user?.firstName || user?.email?.split('@')[0] || 'User'}
             </p>
-            <p className="text-[10px] text-gray-400 truncate mt-0.5">
-              {user?.email}
-            </p>
+            <p className="text-[10px] text-gray-400 truncate mt-0.5">{user?.email}</p>
           </div>
         </div>
       </div>
@@ -403,7 +395,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
 
   return (
     <div className="min-h-screen flex bg-[#F8F8F8]">
-      {/* Mobile sidebar */}
+      {/* Mobile trigger */}
       {isMobile && (
         <Sheet>
           <SheetTrigger asChild>
@@ -414,11 +406,8 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
               <Menu className="h-4 w-4 text-gray-600" />
             </button>
           </SheetTrigger>
-          <SheetContent side="left" className="w-[260px] p-0">
-            <SidebarContent
-              {...sidebarProps}
-              onNavClick={() => {}}
-            />
+          <SheetContent side="left" className="w-[224px] p-0">
+            <SidebarContent {...sidebarProps} onNavClick={() => {}} />
           </SheetContent>
         </Sheet>
       )}
