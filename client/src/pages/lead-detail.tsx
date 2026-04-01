@@ -232,7 +232,8 @@ export default function LeadDetail() {
       if (!res.ok) return [];
       return res.json();
     },
-    enabled: !!leadId && activeTab === "emails",
+    enabled: !!leadId,
+    staleTime: 2 * 60 * 1000,
   });
 
   const { data: dripCampaigns = [] } = useQuery<{ id: number; name: string; description: string | null; isActive: boolean }[]>({
@@ -405,13 +406,33 @@ export default function LeadDetail() {
   const activities = lead.activities || [];
   const notes = activities.filter(a => a.activityType === "note");
   const nonNoteActivities = activities.filter(a => a.activityType !== "note");
+  const emailActivities = activities.filter(a => a.activityType === "email_sent");
   const stageInfo = stageConfig[lead.stage] || { label: lead.stage, color: "bg-gray-100 text-gray-600" };
   const address = [lead.street, lead.street2, lead.city, lead.state, lead.zip, lead.country].filter(Boolean).join(", ");
+
+  // Merge Gmail messages with email_sent activities (activities as fallback when gmail msg not found)
+  const gmailSubjects = new Set(leadEmails.map(e => (e.subject || "").toLowerCase().trim()));
+  const activityEmailRows = emailActivities
+    .filter(a => !gmailSubjects.has((a.summary || "").toLowerCase().trim()))
+    .map(a => ({
+      id: `act-${a.id}`,
+      subject: a.summary || "(email sent)",
+      snippet: a.details || "",
+      direction: "outbound" as const,
+      sentAt: a.performedAt,
+      fromName: "You",
+      fromEmail: "",
+      isFromActivity: true,
+    }));
+  const allEmails = [
+    ...leadEmails.map(e => ({ ...e, isFromActivity: false })),
+    ...activityEmailRows,
+  ].sort((a, b) => new Date(b.sentAt).getTime() - new Date(a.sentAt).getTime());
 
   const TABS: TabDef[] = [
     { key: "overview", label: "Overview", icon: TrendingUp },
     { key: "activity", label: "Activity", icon: Activity, count: nonNoteActivities.length || undefined },
-    { key: "emails", label: "Emails", icon: Mail, count: leadEmails.length || undefined },
+    { key: "emails", label: "Emails", icon: Mail, count: allEmails.length || undefined },
     { key: "calls", label: "Calls", icon: PhoneCall, count: 0 },
     { key: "notes", label: "Notes", icon: StickyNote, count: notes.length || undefined },
     { key: "tasks", label: "Tasks", icon: CheckSquare, count: 0 },
@@ -855,7 +876,7 @@ export default function LeadDetail() {
           <div className="max-w-3xl">
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
-                Emails {leadEmails.length > 0 && <span className="normal-case font-normal text-gray-400">({leadEmails.length})</span>}
+                Emails {allEmails.length > 0 && <span className="normal-case font-normal text-gray-400">({allEmails.length})</span>}
               </h2>
               {lead.email && (
                 <Button size="sm" variant="outline" onClick={() => emailComposer.open({
@@ -866,15 +887,15 @@ export default function LeadDetail() {
                 </Button>
               )}
             </div>
-            {emailsLoading ? (
+            {emailsLoading && allEmails.length === 0 ? (
               <div className="space-y-3">
                 {[1, 2, 3].map(i => <Skeleton key={i} className="h-16 rounded-lg" />)}
               </div>
-            ) : leadEmails.length === 0 ? (
+            ) : allEmails.length === 0 ? (
               <EmptyState icon={Mail} title="No emails yet" sub={lead.email ? "Email history will appear here" : "No email address on this lead"} />
             ) : (
               <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
-                {leadEmails.map((email) => (
+                {allEmails.map((email) => (
                   <div key={email.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
                     <div className={`mt-0.5 shrink-0 ${email.direction === "inbound" ? "text-blue-500" : "text-gray-400"}`}>
                       {email.direction === "inbound" ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
@@ -882,12 +903,17 @@ export default function LeadDetail() {
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium text-gray-800 truncate">
-                          {email.direction === "inbound" ? (email.fromName || email.fromEmail) : (email.fromName || "You")}
+                          {email.direction === "inbound" ? ((email as any).fromName || (email as any).fromEmail) : ((email as any).fromName || "You")}
                         </span>
-                        <span className="text-xs text-gray-400 shrink-0">{relativeTime(email.sentAt)}</span>
+                        <div className="flex items-center gap-2 shrink-0">
+                          {(email as any).isFromActivity && (
+                            <span className="text-xs bg-blue-50 text-blue-600 border border-blue-100 rounded px-1.5 py-0.5">Gmail</span>
+                          )}
+                          <span className="text-xs text-gray-400">{relativeTime(email.sentAt)}</span>
+                        </div>
                       </div>
                       <p className="text-xs font-medium text-gray-600 truncate mt-0.5">{email.subject || "(no subject)"}</p>
-                      {email.snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{email.snippet}</p>}
+                      {(email as any).snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{(email as any).snippet}</p>}
                     </div>
                   </div>
                 ))}
