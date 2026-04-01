@@ -608,11 +608,6 @@ export default function CompanyDetail() {
   }
 
   return (
-      </div>
-    );
-  }
-
-  return (
     <div className="max-w-7xl mx-auto">
       <div className="mb-5 flex items-center gap-4">
         <button

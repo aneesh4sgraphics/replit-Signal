@@ -108,9 +108,9 @@ function HighlightTile({ label, icon: Icon, children }: { label: string; icon: a
 function KpiTile({ label, value, sub, color }: { label: string; value: string | React.ReactNode; sub?: string; color: string }) {
   return (
     <div className={`rounded-xl border p-4 ${color}`}>
-      <p className="text-xs font-medium opacity-70 mb-1">{label}</p>
-      <p className="text-xl font-bold">{value}</p>
-      {sub && <p className="text-xs opacity-60 mt-0.5">{sub}</p>}
+      <div className="text-xs font-medium opacity-70 mb-1">{label}</div>
+      <div className="text-xl font-bold">{value}</div>
+      {sub && <div className="text-xs opacity-60 mt-0.5">{sub}</div>}
     </div>
   );
 }
@@ -529,7 +529,7 @@ export default function OdooCompanyDetail() {
             <div><Skeleton className="h-7 w-48 mb-2" /><Skeleton className="h-4 w-32" /></div>
           </div>
         </div>
-        <div className="max-w-3xl mx-auto px-6 py-6 space-y-4">
+        <div className="px-6 py-6 space-y-4">
           {[1,2,3].map(i => <Skeleton key={i} className="h-20 rounded-lg" />)}
         </div>
       </div>
@@ -564,7 +564,7 @@ export default function OdooCompanyDetail() {
 
       {/* ── STICKY HEADER ──────────────────────────────────────────────────── */}
       <div className="sticky top-0 z-40 bg-white border-b border-gray-100 shadow-sm">
-        <div className="max-w-5xl mx-auto px-6 pt-4 pb-0">
+        <div className="px-6 pt-4 pb-0">
 
           {/* Breadcrumb */}
           <div className="flex items-center gap-1.5 text-xs text-gray-400 mb-3">
@@ -663,7 +663,7 @@ export default function OdooCompanyDetail() {
       </div>
 
       {/* ── TAB CONTENT ────────────────────────────────────────────────────── */}
-      <div className="max-w-3xl mx-auto px-6 py-6 space-y-6">
+      <div className="px-6 py-6 space-y-6">
 
         {/* ── OVERVIEW ─────────────────────────────────────────────────────── */}
         {activeTab === "overview" && (
@@ -792,7 +792,7 @@ export default function OdooCompanyDetail() {
 
         {/* ── ACTIVITY ─────────────────────────────────────────────────────── */}
         {activeTab === "activity" && (
-          <div className="max-w-3xl">
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Activity Timeline</h2>
               <Button size="sm" variant="default" onClick={() => setIsLogActivityOpen(true)} className="bg-gray-900 hover:bg-gray-800 h-8 text-xs gap-1">
@@ -828,7 +828,7 @@ export default function OdooCompanyDetail() {
 
         {/* ── EMAILS ───────────────────────────────────────────────────────── */}
         {activeTab === "emails" && (
-          <div className="max-w-3xl">
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Emails {emailEvents.length > 0 && <span className="normal-case font-normal text-gray-400">({emailEvents.length})</span>}</h2>
               {company.email && (
@@ -860,7 +860,7 @@ export default function OdooCompanyDetail() {
 
         {/* ── NOTES ────────────────────────────────────────────────────────── */}
         {activeTab === "notes" && (
-          <div className="max-w-3xl">
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">Notes</h2>
               <Button size="sm" variant="outline" onClick={() => setIsNewNoteOpen(true)}>
@@ -901,7 +901,7 @@ export default function OdooCompanyDetail() {
 
         {/* ── CONTACTS ─────────────────────────────────────────────────────── */}
         {activeTab === "contacts" && (
-          <div className="max-w-3xl">
+          <div>
             <div className="flex items-center justify-between mb-4">
               <h2 className="text-sm font-semibold text-gray-500 uppercase tracking-wide">
                 Contacts {contactsData?.contacts?.length ? <span className="normal-case font-normal text-gray-400">({contactsData.contacts.length})</span> : ""}
