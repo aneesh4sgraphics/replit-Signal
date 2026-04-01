@@ -147,10 +147,12 @@ function NavLink({ item, isActive, onClick }: { item: NavItemDef; isActive: bool
           : 'text-gray-500 hover:bg-gray-50 hover:text-gray-700'
       }`}
     >
-      <Icon
-        className="h-[15px] w-[15px] flex-shrink-0"
-        style={{ color: item.iconColor, opacity: isActive ? 1 : 0.7 }}
-      />
+      <span
+        className="flex-shrink-0 h-[22px] w-[22px] rounded-[5px] flex items-center justify-center"
+        style={{ backgroundColor: item.iconColor }}
+      >
+        <Icon className="h-[13px] w-[13px] text-white" style={{ color: '#ffffff' }} />
+      </span>
       <span className="truncate leading-snug">{item.label}</span>
     </Link>
   );
