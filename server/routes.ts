@@ -522,13 +522,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       })(),
       
-      // Check Gmail connection using the same client used for sending
+      // Check Gmail connection — true if the user has a personal OAuth connection OR the shared connector works
       (async () => {
         try {
+          const authUserId = req.user?.id;
+
+          // 1. Check per-user OAuth first (most common path)
+          if (authUserId) {
+            const { getUserGmailConnection } = await import('./user-gmail-oauth');
+            const userConn = await getUserGmailConnection(authUserId);
+            if (userConn?.isActive) {
+              connectionStatus.gmail.connected = true;
+              return;
+            }
+          }
+
+          // 2. Fall back to shared Replit connector
           const { checkGmailConnection } = await import('./gmail-client');
           const ok = await checkGmailConnection();
           connectionStatus.gmail.connected = ok;
-          if (!ok) connectionStatus.gmail.error = 'Gmail not connected - please reconnect in Integrations panel';
+          if (!ok) connectionStatus.gmail.error = 'Gmail not connected - click Connect Gmail to link your account';
         } catch (error: any) {
           connectionStatus.gmail.connected = false;
           connectionStatus.gmail.error = error.message || 'Gmail check failed';
