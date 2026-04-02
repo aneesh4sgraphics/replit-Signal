@@ -1,63 +1,214 @@
-# Quote Calculator & CRM Application
+# replit-Signal CRM — 4S Graphics
 
 ## Overview
-This full-stack TypeScript sales management application streamlines sales processes, enhances customer relationship management, and optimizes pricing for a specialty products business. It integrates with Odoo ERP, Gmail, and Shopify to provide comprehensive sales, quoting, and CRM functionalities.
+Full-stack TypeScript sales management and CRM application for 4S Graphics. Streamlines sales workflows, enhances customer relationship management, optimizes pricing, and provides daily AI-assisted coaching for sales reps.
 
 **Key Capabilities:**
-- Generate detailed quotes with tiered pricing and PDF output.
-- Manage customer relationships, including journey tracking and machine profiles.
-- Visualize and manage leads through a sales pipeline.
-- Provide daily coaching for sales representatives via the SPOTLIGHT system.
-- Conduct email drip campaigns and track engagement.
-- Offer an AI chatbot with hybrid RAG for support.
-- Employ a "Best Price Engine" for margin protection and volume discounts.
+- Generate detailed quotes with tiered pricing and PDF output
+- Manage customer relationships including journey tracking and machine profiles
+- Visualize and manage leads through a sales pipeline (Sales Kanban)
+- Daily task coaching for sales reps via the SPOTLIGHT system
+- Drip email campaigns with engagement tracking
+- Task Inbox with auto-generated tasks from calls, emails, and drip sequences
+- Bounced email detection and hygiene tasks
+- Best Price Engine for margin protection and volume discounts
+- Integration with Odoo ERP, Gmail, Google Calendar, and Shopify
+
+---
 
 ## User Preferences
-- **Communication style**: Simple, everyday language
-- **Avoid**: Technical jargon in user-facing text
-- **UI priority**: Clean, professional, low eye-strain
+- **Communication style**: Simple, everyday language — no technical jargon
+- **UI priority**: Clean, professional, low eye-strain ("Pastel & Soft" theme)
+- **Sales rep dropdowns**: Always use `/api/sales-reps` — never `/api/users`
+
+---
 
 ## System Architecture
 
-**Core Technologies:**
-- **Frontend:** React with TypeScript, using TanStack Query.
-- **Backend:** Node.js with Express.js, written in TypeScript.
-- **Database:** PostgreSQL, managed with Drizzle ORM.
+### Core Technologies
+- **Frontend:** React + TypeScript, TanStack Query v5, Wouter routing, shadcn/ui + Tailwind CSS
+- **Backend:** Node.js + Express.js, TypeScript
+- **Database:** PostgreSQL (Neon), managed with Drizzle ORM
+- **Auth:** Replit Auth (OIDC) with session cookies
 
-**Key Architectural Decisions & Features:**
-- **UI/UX Design:** "Pastel & Soft" theme with a cream background, glassmorphism cards, and muted purple accents for reduced eye strain.
-- **Data Flow:** Clear separation between frontend, backend, database, and external APIs.
-- **Odoo V19 Integration:** Synchronizes customer, product, pricelist, and order data, distinguishing between Odoo "Customers" (companies) and "Contacts" (individuals). Handles Odoo V19 field limitations.
-- **Email as Universal ID:** Normalized email format for consistent cross-platform user identification.
-- **SPOTLIGHT Coaching System:** Generates prioritized daily tasks for sales reps.
-    - **Sequenced Task Pattern:** 50 tasks/day in 5 repeating cycles focusing on data hygiene, quote follow-up, trust-building, and lapsed customer engagement.
-    - **Fallback Priority:** Connect with leads, follow up on quotes, contact customers, send mailers/samples when primary buckets are exhausted.
-    - **Task Buckets:** Organizes tasks by difficulty and type.
-    - **Lead Integration:** Integrates leads based on urgency and stage.
-    - **Cross-User Contact Prevention:** Prevents multiple reps from contacting the same entity simultaneously.
-    - **Territory Skip Tracking:** Allows reps to mark "Not My Territory" for reassignment or admin review.
-    - **Bounced Email Detection:** Scans Gmail for bounce notifications, creating high-priority hygiene tasks.
-    - **Remind Me Again Today:** Defers tasks to a "Later Today Scratch Pad."
-    - **Session State Persistence:** Preserves progress across sessions.
-    - **Performance Optimization:** Task prefetch cache, exclude list caching, piggyback pattern for responses, and `setQueryData` for instant UI updates.
-    - **DRIP Email Integration:** Surfaces urgent drip campaign replies and stale follow-ups as high-priority tasks.
-    - **Differentiated Task Cards:** Visually distinct task cards with color-coded badges for email event types (e.g., PO, Samples) and coaching tips.
-    - **Email Intelligence → Spotlight Bridge:** Email Event Extractor (regex) and Gmail Insights (OpenAI-analyzed) feed sales signals into Spotlight tasks.
-    - **Odoo Quotation/Sample Order Follow-up:** Generates follow-up tasks for pending Odoo quotes and sample orders based on specific criteria.
-    - **Coaching Compliance Metric:** Executive culture metric (weighted composite score of task completion, timeliness, calls vs. goal) with color-coded performance indicators and detailed breakdowns.
-    - **Today's Progress Bars:** Five dedicated progress bars tracking daily activities: Quotes FollowedUp, SwatchBooks, Calls, Emails, and Data Hygiene.
-- **Shared Batch Address Label Printing:** Team-wide queue for printing address labels for contacts/leads. Supports 4x6 Thermal and Letter 30-up formats. Logs activity based on item sent.
-- **Win Path Visualization:** Displays the chronological sequence of interactions leading to Shopify orders on customer detail pages, including interaction counts and time-from-first-touch.
-- **Automatic Lead-to-Customer Conversion:** Automatically converts leads to customers when a Shopify order (over $50) is placed by a matching email, logging activity and mapping lead fields.
-- **Lead-Contact Parity & Company Auto-Linking:** `companies` table links `leads` and `customers` to shared company records. Company domain extracted from email. Odoo synchronization for companies is two-phase.
-- **Sales Rep Dropdown Consistency:** All sales rep dropdowns consistently use `/api/sales-reps`, which pulls from Odoo and applies server-side filters to exclude non-sales users or internal accounts.
-- **Odoo Pricelist → Local `pricingTier` Sync:** Correctly maps Odoo's `property_product_pricelist` to the local `customers.pricing_tier` during import and resync to prevent false-positive hygiene tasks.
-- **Gmail Sent Mail Auto-Activity Sync:** Automatically logs sent emails from Gmail as activity events on corresponding customer/lead records.
+### Key Files
+| File | Purpose |
+|---|---|
+| `server/routes.ts` | All API routes (~30,700 lines) |
+| `server/spotlight-engine.ts` | Spotlight task generation engine (~6,600 lines) |
+| `server/storage.ts` | Database access layer |
+| `server/drip-email-worker.ts` | Drip campaign background worker |
+| `shared/schema.ts` | Drizzle ORM schema + Zod insert types |
+| `client/src/App.tsx` | Route definitions and providers |
+| `client/src/pages/task-inbox.tsx` | Task Inbox page |
+| `client/src/pages/spotlight.tsx` | Spotlight daily task engine UI |
+| `client/src/pages/sequences.tsx` | Drip Campaign / Sequences page |
+| `client/src/components/FloatingCallLogger.tsx` | Floating call logger widget |
+| `client/src/components/CustomerJourneyPanel.tsx` | Customer journey side panel |
+| `client/src/pages/integrations-settings.tsx` | Gmail/Calendar/Odoo integration settings |
+
+---
+
+## Critical Rules & Known Pitfalls
+
+### Database Schema
+- `customers` table: **NO `name` column** — company name is in `company` field
+- `customerContacts` table: **NO `title` column** — use `role`
+- `leads` table address field: `street` (NOT `address`)
+- `follow_up_tasks` table: has both `customerId` and `leadId` columns
+- `emailSends` table: has `leadId`, `customerId`, `subject`, `sentAt`, `status`
+- **NEVER change primary key ID column types** (serial ↔ varchar breaks migrations)
+
+### Auth & Users
+- **Dev user ID:** `dev-user-123`
+- **Production Aneesh ID:** `45980257` | patricio: `45163473` | santiago: `45165274`
+- Production auth middleware does **NOT** populate `req.user.role` — always use `storage.getUser(userId)` for role checks
+- All sales rep dropdowns must use `/api/sales-reps` — never `/api/users`
+
+### API Patterns
+- `routes.ts` is 30,700+ lines — use `sed -n 'X,Yp'` for targeted reads
+- TanStack Query v5: always use object form `useQuery({ queryKey: [...] })`
+- Mutations must invalidate cache by `queryKey` using `queryClient` from `@lib/queryClient`
+- Array query keys for hierarchical invalidation: `['/api/recipes', id]` not `` [`/api/recipes/${id}`] ``
+
+### Gmail OAuth
+- Gmail OAuth **only works on production URL** `https://4sgraphics.replit.app`
+- Dev preview returns 403 from Google — this is expected behavior
+- OAuth connect flow: `GET /api/gmail-oauth/connect` → Google → callback
+
+### Tiptap / Rich Text
+- `@tiptap/react` does **NOT** export `BubbleMenu` — use inline state tracking instead
+
+### Logo
+- Served at `window.location.origin + '/4s-logo.png'` (`client/public/4s-logo.png`)
+- Email signature width: 60px
+
+---
+
+## Feature Details
+
+### SPOTLIGHT Task Engine
+Generates prioritized daily tasks for sales reps (50 tasks/day in 5 repeating cycles).
+
+- **Task Buckets:** Data hygiene, quote follow-up, trust-building, lapsed customer engagement
+- **Fallback Priority:** Connect leads → follow up quotes → contact customers → send mailers/samples
+- **Lead Integration:** Leads appear based on urgency and stage
+- **Cross-User Contact Prevention:** Prevents multiple reps contacting the same entity
+- **Territory Skip Tracking:** "Not My Territory" marks for reassignment
+- **Bounced Email Detection:** Scans Gmail for bounces, creates high-priority hygiene tasks
+- **Remind Me Again Today:** Defers tasks to "Later Today Scratch Pad"
+- **Session State Persistence:** Preserves progress across page refreshes
+- **Performance:** Task prefetch cache, `setQueryData` for instant UI updates, piggyback pattern
+- **DRIP Email Integration:** Surfaces urgent drip replies and stale follow-ups as high-priority tasks
+- **Email Intelligence Bridge:** Email Event Extractor (regex) + Gmail Insights (OpenAI) → Spotlight tasks
+- **Odoo Follow-up Tasks:** Generates tasks for pending Odoo quotes and sample orders
+- **Coaching Compliance Metric:** Weighted composite score (task completion, timeliness, calls vs. goal)
+- **Today's Progress Bars:** Quotes FollowedUp, SwatchBooks, Calls, Emails, Data Hygiene
+- **Known recurring issue:** `ReferenceError: repId is not defined` at `spotlight-engine.ts:4497` in `findEnablementTask` — fires on every page load, not yet resolved
+
+### Task Inbox (Auto-Task Generation)
+Auto-generates actionable follow-up tasks from multiple sources:
+
+- **Call logs:** AI-extracted tasks + manual date picker after each logged call
+- **Emails Not Replied:** 5-day threshold for emails with specific subject keywords (Price per Sheet, Pricing, Price List, Press Test Sheets, Press Kit, Samples) and Gmail-sent emails
+- **Drip sequence follow-up:** Auto-task 3 days after a drip sequence step completes
+- **Tasks navigation:** Visible in main sidebar at all times (not collapsed under Automations)
+
+### Drip Campaigns / Sequences
+- Background worker: `server/drip-email-worker.ts`
+- Sends Gmail emails on configured schedule intervals
+- Tracks engagement (opens, clicks, replies)
+- Surfaces urgent replies as Spotlight tasks
+
+### Customer Journey
+- Side panel: `client/src/components/CustomerJourneyPanel.tsx`
+- Supports `PUT` and `PATCH` (both aliased) on `PATCH /api/crm/journey-instances/:id`
+- ISO date string coercion applied for `completedAt` / `startedAt` fields
+
+### Sales Kanban / Opportunities
+- Full drag-and-drop pipeline board at `/opportunities`
+- Stage transitions logged as activities
+
+### Lead-Contact Parity & Companies
+- `companies` table links `leads` and `customers` to shared company records
+- Company domain auto-extracted from email
+- Odoo synchronization for companies is two-phase
+
+### Gmail Integration
+- **Connect Gmail:** Real OAuth button in Integrations Settings → triggers `/api/gmail-oauth/connect`
+- **Disconnect Gmail:** Revokes tokens and clears stored credentials
+- **Gmail Sent Mail Auto-Activity Sync:** Logs sent emails from Gmail as activity events on customer/lead records
+- **IMAP client:** `server/imap-client.ts` for reading inbox
+- **Sync worker:** `server/gmail-sync-worker.ts` runs on 30-minute interval
+
+### Shared Batch Address Label Printing
+- Team-wide queue for printing address labels (contacts/leads)
+- Formats: 4×6 Thermal and Letter 30-up
+- Logs activity based on item sent
+
+### Win Path Visualization
+- Chronological interaction sequence leading to Shopify orders on customer detail pages
+- Shows interaction counts and time-from-first-touch
+
+### Automatic Lead-to-Customer Conversion
+- Converts leads to customers when a Shopify order (>$50) is placed by matching email
+- Logs activity and maps lead fields
+
+### Best Price Engine
+- `server/best-price-engine.ts`
+- Margin protection and volume discount logic
+- Odoo Pricelist → local `pricingTier` sync
+
+---
 
 ## External Dependencies
 
-- **Odoo V19 ERP:** For customer data, product catalogs, pricelists, and orders.
-- **Gmail API:** For email intelligence, drip campaigns, engagement tracking, and bounce detection.
-- **OpenAI API:** Powers the AI chatbot with hybrid RAG.
-- **Shopify:** For e-commerce data and storefront management.
-- **PostgreSQL:** Primary database.
+| Service | Purpose |
+|---|---|
+| **Odoo V19 ERP** | Customer data, product catalogs, pricelists, orders |
+| **Gmail API** | Email intelligence, drip campaigns, engagement tracking, bounce detection |
+| **OpenAI API** | AI task extraction, email intelligence, chatbot RAG |
+| **Anthropic API** | Available via `ANTHROPIC_API_KEY` secret |
+| **Shopify** | E-commerce data, storefront management |
+| **Google Calendar** | Calendar integration for sales reps |
+| **Notion** | Knowledge base integration |
+| **PostgreSQL (Neon)** | Primary database |
+
+---
+
+## Background Workers (server/index.ts startup)
+
+| Worker | Schedule |
+|---|---|
+| `drip-email-worker` | Continuous (checks pending sends) |
+| `quote-followup-worker` | Periodic |
+| `data-retention` | Daily cleanup |
+| `odoo-sync-worker` | Daily Odoo sync |
+| `spotlightDigestWorker` | Periodic digest |
+| `gmail-sync-worker` | Every 30 minutes |
+| `taxonomy-seed` | On startup (idempotent) |
+| `spotlight-coaching-seed` | On startup (idempotent) |
+
+---
+
+## Recent Changes (April 2026)
+
+### April 2 — Codebase Cleanup
+- Deleted 4 unused component files: `TutorialCenter.tsx`, `AIChatbot.tsx`, `AppSwitcherDrawer.tsx`, `TutorialOverlay.tsx` (none imported anywhere — reduces JS bundle)
+- Removed 4 unguarded `console.log` statements from `quote-calculator.tsx` that were firing in production on every page load (filter validation logs, PDF retry log)
+
+### April 2 — Task Inbox Overhaul (Task #8, merged)
+- Tasks navigation moved to always-visible main sidebar (no longer buried under "Automations")
+- Auto-task generation from call logs (AI-extracted + manual date picker)
+- "Emails Not Replied" auto-tasks after 5-day threshold with subject keyword detection
+- Drip sequence follow-up auto-tasks (3 days after step completion)
+- `follow_up_tasks` table gained `leadId` column for lead-scoped tasks
+
+### April 1 — Integrations Page Rebuild
+- Gmail: real "Connect Gmail" OAuth button (`/api/gmail-oauth/connect`) + Disconnect button
+- Calendar: step-by-step reconnect guide added
+- Odoo integration panel improved
+
+### April 1 — Bug Fixes
+- **Gmail OAuth crash fixed:** Replaced `require('crypto').randomUUID()` with `const { randomUUID } = await import('node:crypto')` (ESM compatibility)
+- **Customer Journey PATCH fix:** Frontend was calling `PATCH` but only `PUT` existed — added PATCH alias; ISO date coercion added for `completedAt`/`startedAt`
