@@ -1092,19 +1092,28 @@ function TestEmailDialog({
     }
   }, [open]);
 
-  const { data: leads = [] } = useQuery<any[]>({
-    queryKey: ['/api/leads', { limit: 200 }],
+  const [debouncedSearch, setDebouncedSearch] = useState('');
+  useEffect(() => {
+    const t = setTimeout(() => setDebouncedSearch(search), 300);
+    return () => clearTimeout(t);
+  }, [search]);
+
+  const { data: leadsData } = useQuery<any>({
+    queryKey: ['/api/leads', 'search', debouncedSearch],
+    queryFn: () => fetch(`/api/leads?search=${encodeURIComponent(debouncedSearch)}&limit=40`, { credentials: 'include' }).then(r => r.json()),
     enabled: open && type === 'lead',
   });
-  const { data: customers = [] } = useQuery<any[]>({
-    queryKey: ['/api/customers', { limit: 200 }],
+  const { data: customersResult } = useQuery<any>({
+    queryKey: ['/api/customers', 'search', debouncedSearch],
+    queryFn: () => fetch(`/api/customers?paginated=true&search=${encodeURIComponent(debouncedSearch)}&limit=40`, { credentials: 'include' }).then(r => r.json()),
     enabled: open && type === 'customer',
   });
+  const leadsResult: any[] = leadsData?.leads ?? (Array.isArray(leadsData) ? leadsData : []);
+  const customerList: any[] = customersResult?.data ?? (Array.isArray(customersResult) ? customersResult : []);
 
-  const items = (type === 'lead'
-    ? (leads as any[]).map(l => ({ id: String(l.id), label: [l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim(), l.company].filter(Boolean).join(' — ') }))
-    : (customers as any[]).map(c => ({ id: String(c.id), label: [c.firstName && c.lastName ? `${c.firstName} ${c.lastName}` : '', c.company].filter(Boolean).join(' — ') }))
-  ).filter(i => i.label.toLowerCase().includes(search.toLowerCase()));
+  const items = type === 'lead'
+    ? leadsResult.map((l: any) => ({ id: String(l.id), label: [l.name || [l.firstName, l.lastName].filter(Boolean).join(' '), l.company].filter(Boolean).join(' — ') }))
+    : customerList.map((c: any) => ({ id: String(c.id), label: [[c.firstName, c.lastName].filter(Boolean).join(' '), c.company].filter((i: any) => i != null && String(i).trim()).join(' — ') || c.email || 'Unknown' }));
 
   const sendTest = useMutation({
     mutationFn: async () => {

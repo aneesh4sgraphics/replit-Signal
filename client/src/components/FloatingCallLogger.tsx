@@ -1,6 +1,6 @@
 import { useState, useCallback } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
-import { Phone, Loader2, X } from "lucide-react";
+import { Phone, Loader2, X, Calendar } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   Dialog,
@@ -87,6 +87,8 @@ export default function FloatingCallLogger() {
   const [outcome, setOutcome] = useState("");
   const [notes, setNotes] = useState("");
   const [showResults, setShowResults] = useState(false);
+  const [followUpDate, setFollowUpDate] = useState("");
+  const [followUpNote, setFollowUpNote] = useState("");
   const { toast } = useToast();
 
   const searchEnabled = open && searchQuery.trim().length >= 2 && !selectedContact;
@@ -138,6 +140,8 @@ export default function FloatingCallLogger() {
           activityType: "call_made",
           summary,
           details: notes,
+          followUpDate: followUpDate || undefined,
+          followUpNote: followUpNote || undefined,
         });
         if (!res.ok) throw new Error("Failed to log call for lead");
         return res.json();
@@ -148,13 +152,15 @@ export default function FloatingCallLogger() {
           title: `Call — ${outcomeLabel}`,
           description: notes || null,
           sourceType: "manual",
+          followUpDate: followUpDate || undefined,
+          followUpNote: followUpNote || undefined,
         });
         if (!res.ok) throw new Error("Failed to log call for customer");
         return res.json();
       }
     },
     onSuccess: () => {
-      toast({ title: "Call logged", description: "The call has been recorded successfully." });
+      toast({ title: "Call logged", description: followUpDate ? "Call recorded with follow-up task scheduled." : "The call has been recorded successfully." });
       const contact = selectedContact;
       handleClose();
       if (contact?.type === "lead") {
@@ -163,6 +169,8 @@ export default function FloatingCallLogger() {
         queryClient.invalidateQueries({ queryKey: ["/api/customer-activity/events"] });
         queryClient.invalidateQueries({ queryKey: [`/api/customers/${contact.id}/activities`] });
       }
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/summary"] });
+      queryClient.invalidateQueries({ queryKey: ["/api/tasks/list"] });
     },
     onError: (error: Error) => {
       toast({ title: "Failed to log call", description: error.message, variant: "destructive" });
@@ -176,6 +184,8 @@ export default function FloatingCallLogger() {
     setOutcome("");
     setNotes("");
     setShowResults(false);
+    setFollowUpDate("");
+    setFollowUpNote("");
   }, []);
 
   const handleSelectContact = (contact: ContactResult) => {
@@ -321,6 +331,39 @@ export default function FloatingCallLogger() {
                 rows={3}
                 className="resize-none"
               />
+            </div>
+
+            {/* Schedule follow-up (optional) */}
+            <div className="border-t pt-3 space-y-3">
+              <p className="text-xs font-medium text-gray-500 flex items-center gap-1.5">
+                <Calendar className="h-3.5 w-3.5" />
+                Schedule Follow-up (optional)
+              </p>
+              <div className="grid grid-cols-2 gap-2">
+                <div className="space-y-1.5">
+                  <Label htmlFor="follow-up-date" className="text-xs">Follow-up Date</Label>
+                  <Input
+                    id="follow-up-date"
+                    type="date"
+                    value={followUpDate}
+                    onChange={(e) => setFollowUpDate(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+                <div className="space-y-1.5">
+                  <Label htmlFor="follow-up-note" className="text-xs">Note</Label>
+                  <Input
+                    id="follow-up-note"
+                    placeholder="What to follow up on..."
+                    value={followUpNote}
+                    onChange={(e) => setFollowUpNote(e.target.value)}
+                    className="text-sm"
+                  />
+                </div>
+              </div>
+              {!followUpDate && notes.trim().length > 20 && (
+                <p className="text-xs text-blue-600">AI will scan your notes for a follow-up date if you don't set one.</p>
+              )}
             </div>
 
             {/* Actions */}

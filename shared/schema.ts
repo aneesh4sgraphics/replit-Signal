@@ -1485,7 +1485,8 @@ export type FollowUpPriority = typeof FOLLOW_UP_PRIORITY[number];
 // Follow-up Tasks - scheduled actions for sales team (auto-created from events)
 export const followUpTasks = pgTable("follow_up_tasks", {
   id: serial("id").primaryKey(),
-  customerId: varchar("customer_id").notNull().references(() => customers.id, { onDelete: "cascade" }),
+  customerId: varchar("customer_id").references(() => customers.id, { onDelete: "cascade" }),
+  leadId: integer("lead_id").references(() => leads.id, { onDelete: "cascade" }),
   
   // Task details
   title: varchar("title", { length: 255 }).notNull(), // e.g., "Follow up on Quote #Q-1234"
@@ -1698,6 +1699,7 @@ export const emailSends = pgTable("email_sends", {
   status: varchar("status", { length: 50 }).default("sent"), // draft, sent, failed
   sentBy: varchar("sent_by", { length: 255 }),
   sentAt: timestamp("sent_at").defaultNow(),
+  replyReceivedAt: timestamp("reply_received_at"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_email_sends_customer_id").on(table.customerId),

@@ -703,6 +703,29 @@ class OdooClient {
     ], { limit: 50, order: 'date_order desc' });
   }
 
+  // Fetch Sales Orders containing products whose internal reference ends with "Samples"
+  async getPressTestSampleOrders(sinceDate: string = '2025-01-01'): Promise<any[]> {
+    return this.searchRead('sale.order', [
+      ['state', 'in', ['sale', 'done', 'sent']],
+      ['date_order', '>=', sinceDate],
+      ['order_line.product_id.default_code', 'ilike', 'Samples'],
+    ], [
+      'id', 'name', 'partner_id', 'state', 'date_order', 'amount_total',
+    ], { limit: 200, order: 'date_order desc' });
+  }
+
+  // Fetch Invoices (account.move) containing products whose internal reference ends with "Samples"
+  async getPressTestSampleInvoices(sinceDate: string = '2025-01-01'): Promise<any[]> {
+    return this.searchRead('account.move', [
+      ['move_type', 'in', ['out_invoice']],
+      ['state', 'in', ['posted', 'draft']],
+      ['invoice_date', '>=', sinceDate],
+      ['invoice_line_ids.product_id.default_code', 'ilike', 'Samples'],
+    ], [
+      'id', 'name', 'partner_id', 'state', 'invoice_date', 'amount_total',
+    ], { limit: 200, order: 'invoice_date desc' });
+  }
+
   async getInvoicesByPartner(partnerId: number): Promise<any[]> {
     // Use child_of so invoices billed to child contacts (e.g. "Mac Papers, Brandon Conlee")
     // are included, not just the parent company. Also try commercial_partner_id for any

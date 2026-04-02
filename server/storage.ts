@@ -203,6 +203,7 @@ import {
   sketchboardEntries,
   type SketchboardEntry,
   type InsertSketchboardEntry,
+  leads,
 } from "@shared/schema";
 import { parseCustomerCSV } from "./customer-parser";
 import { db } from "./db";
@@ -2678,15 +2679,20 @@ export class DatabaseStorage implements IStorage {
     try {
       const { createCalendarEvent } = await import('./calendar-client');
       
-      // Get customer name for the calendar event
-      let customerName = 'Unknown Customer';
+      // Get customer/lead name for the calendar event
+      let customerName = 'Unknown';
       try {
-        const [customer] = await db.select().from(customers).where(eq(customers.id, task.customerId));
-        if (customer) {
-          customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer';
+        if (task.customerId) {
+          const [customer] = await db.select().from(customers).where(eq(customers.id, task.customerId));
+          if (customer) {
+            customerName = customer.company || `${customer.firstName || ''} ${customer.lastName || ''}`.trim() || 'Customer';
+          }
+        } else if (task.leadId) {
+          const [lead] = await db.select({ name: leads.name }).from(leads).where(eq(leads.id, task.leadId));
+          if (lead) customerName = lead.name || 'Lead';
         }
       } catch (e) {
-        console.warn('[Calendar] Failed to get customer name:', e);
+        console.warn('[Calendar] Failed to get record name:', e);
       }
       
       const eventId = await createCalendarEvent({

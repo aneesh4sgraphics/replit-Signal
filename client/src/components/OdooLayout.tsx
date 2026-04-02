@@ -83,6 +83,7 @@ const TOP_ITEMS: NavItemDef[] = [
 
 // ── Main flat list (no section header) ───────────────────────────────────────
 const MAIN_ITEMS: NavItemDef[] = [
+  { path: '/tasks', label: 'Tasks', icon: ListChecks, iconColor: '#f59e0b' },
   { path: '/leads', label: 'Leads', icon: Zap, iconColor: '#10b981' },
   { path: '/odoo-contacts', label: 'Contacts', icon: Contact, iconColor: '#6366f1' },
   { path: '/customer-management', label: 'Companies', icon: Building2, iconColor: '#8b5cf6' },
@@ -103,7 +104,6 @@ const LABEL_ITEMS: NavItemDef[] = [
 
 // ── Automations section (collapsible) ─────────────────────────────────────────
 const AUTOMATION_ITEMS: NavItemDef[] = [
-  { path: '/tasks', label: 'Tasks', icon: ListChecks, iconColor: '#f59e0b' },
   { path: '/sequences', label: 'Email Sequences', icon: Zap, iconColor: '#6366f1' },
   { path: '/crm-journey', label: 'CRM Journey', icon: Target, iconColor: '#8b5cf6' },
   { path: '/calendar', label: 'Calendar', icon: Calendar, iconColor: '#ef4444' },
@@ -136,8 +136,27 @@ function getUserInitials(email: string | undefined): string {
   return email.slice(0, 2).toUpperCase();
 }
 
-function NavLink({ item, isActive, onClick }: { item: NavItemDef; isActive: boolean; onClick?: () => void }) {
+function NavLink({ item, isActive, onClick, iconOnly }: { item: NavItemDef; isActive: boolean; onClick?: () => void; iconOnly?: boolean }) {
   const Icon = item.icon;
+  if (iconOnly) {
+    return (
+      <Link
+        href={item.path}
+        onClick={onClick}
+        title={item.label}
+        className={`flex items-center justify-center py-1.5 rounded-md transition-colors duration-100 ${
+          isActive ? 'bg-gray-100' : 'hover:bg-gray-50'
+        }`}
+      >
+        <span
+          className="flex-shrink-0 h-[28px] w-[28px] rounded-[6px] flex items-center justify-center"
+          style={{ backgroundColor: item.iconColor }}
+        >
+          <Icon className="h-[14px] w-[14px] text-white" style={{ color: '#ffffff' }} />
+        </span>
+      </Link>
+    );
+  }
   return (
     <Link
       href={item.path}
@@ -166,6 +185,7 @@ function CollapsibleSection({
   location,
   storageKey,
   onNavClick,
+  iconOnly,
 }: {
   label: string;
   items: NavItemDef[];
@@ -173,6 +193,7 @@ function CollapsibleSection({
   location: string;
   storageKey: string;
   onNavClick?: () => void;
+  iconOnly?: boolean;
 }) {
   const [open, setOpen] = useState(() => {
     try { return localStorage.getItem(storageKey) !== 'false'; } catch { return true; }
@@ -180,6 +201,16 @@ function CollapsibleSection({
 
   const visibleItems = items.filter(i => !i.adminOnly || isAdmin);
   if (visibleItems.length === 0) return null;
+
+  if (iconOnly) {
+    return (
+      <div className="mt-2 space-y-px">
+        {visibleItems.map(item => (
+          <NavLink key={item.path} item={item} isActive={location === item.path} onClick={onNavClick} iconOnly />
+        ))}
+      </div>
+    );
+  }
 
   const toggle = () => {
     const next = !open;
@@ -224,6 +255,7 @@ function SidebarContent({
   isLoggingOut,
   onNavClick,
   onOpenCommand,
+  iconOnly,
 }: {
   location: string;
   isAdmin: boolean;
@@ -233,10 +265,41 @@ function SidebarContent({
   isLoggingOut: boolean;
   onNavClick?: () => void;
   onOpenCommand: () => void;
+  iconOnly?: boolean;
 }) {
   const [showResetDialog, setShowResetDialog] = useState(false);
   const userEmail = user?.email as string | undefined;
   const visibleMainItems = filterAppsByUser(MAIN_ITEMS, userEmail);
+
+  if (iconOnly) {
+    return (
+      <div className="h-full flex flex-col bg-white select-none items-center py-2 px-2.5 gap-0.5">
+        {/* Logo only */}
+        <div className="flex items-center justify-center h-11 flex-shrink-0">
+          <img src={logoPath} alt="4S Graphics" className="w-6 h-6 object-contain" />
+        </div>
+        <div className="w-full border-t border-gray-100 my-1" />
+        {/* All nav items as icons — scrollable */}
+        <nav className="flex-1 overflow-y-auto w-full space-y-px">
+          {[...TOP_ITEMS, ...visibleMainItems].map(item => (
+            <NavLink key={item.path} item={item} isActive={location === item.path} onClick={onNavClick} iconOnly />
+          ))}
+          <div className="w-full border-t border-gray-100 my-1" />
+          <CollapsibleSection label="Labels" items={LABEL_ITEMS} isAdmin={isAdmin} location={location} storageKey="4s-nav-labels" onNavClick={onNavClick} iconOnly />
+          <CollapsibleSection label="Automations" items={AUTOMATION_ITEMS} isAdmin={isAdmin} location={location} storageKey="4s-nav-automations" onNavClick={onNavClick} iconOnly />
+          {isAdmin && <CollapsibleSection label="Admin" items={ADMIN_ITEMS} isAdmin={isAdmin} location={location} storageKey="4s-nav-admin" onNavClick={onNavClick} iconOnly />}
+        </nav>
+        {/* Avatar footer */}
+        <div className="flex-shrink-0 pt-1 border-t border-gray-100 w-full flex justify-center pb-1">
+          <Avatar className="h-6 w-6" title={user?.email}>
+            <AvatarFallback className="bg-gray-800 text-white text-[9px] font-semibold">
+              {userInitials}
+            </AvatarFallback>
+          </Avatar>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="h-full flex flex-col bg-white select-none">
@@ -402,6 +465,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
   const isAdmin = (user as any)?.role === 'admin';
   const userEmail = (user as any)?.email;
   const userInitials = getUserInitials(userEmail);
+  const iconOnly = location === '/tasks';
 
   const sidebarProps = {
     location,
@@ -411,6 +475,7 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
     onLogout: logout,
     isLoggingOut,
     onOpenCommand: () => setCommandOpen(true),
+    iconOnly,
   };
 
   return (
@@ -427,23 +492,25 @@ function OdooLayoutContent({ children }: OdooLayoutProps) {
             </button>
           </SheetTrigger>
           <SheetContent side="left" className="w-[224px] p-0">
-            <SidebarContent {...sidebarProps} onNavClick={() => {}} />
+            <SidebarContent {...sidebarProps} iconOnly={false} onNavClick={() => {}} />
           </SheetContent>
         </Sheet>
       )}
 
-      {/* Desktop sidebar */}
-      <aside className="hidden lg:flex w-56 h-screen flex-col fixed left-0 top-0 z-40 bg-white border-r border-gray-100">
+      {/* Desktop sidebar — icon-only when on /tasks */}
+      <aside className={`hidden lg:flex h-screen flex-col fixed left-0 top-0 z-40 bg-white border-r border-gray-100 transition-all duration-200 ${iconOnly ? 'w-16' : 'w-56'}`}>
         <SidebarContent {...sidebarProps} />
       </aside>
 
       {/* Main content */}
-      <main className={`flex-1 ${isMobile ? 'ml-0 pt-16' : 'lg:ml-56'} min-h-screen`}>
-        <div className="p-6">
-          <div className="max-w-[1400px] mx-auto">
-            {children}
+      <main className={`flex-1 ${isMobile ? 'ml-0 pt-16' : iconOnly ? 'lg:ml-16' : 'lg:ml-56'} min-h-screen`}>
+        {iconOnly ? children : (
+          <div className="p-6">
+            <div className="max-w-[1400px] mx-auto">
+              {children}
+            </div>
           </div>
-        </div>
+        )}
       </main>
 
       <CommandPalette open={commandOpen} onOpenChange={setCommandOpen} />
