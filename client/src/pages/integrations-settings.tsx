@@ -27,7 +27,7 @@ export default function IntegrationsSettings() {
   const [gmailConnecting, setGmailConnecting] = useState(false);
   const [gmailDisconnecting, setGmailDisconnecting] = useState(false);
 
-  const { data: status, isLoading, refetch, isFetching } = useQuery<ConnectionStatus>({
+  const { data: status, refetch, isFetching } = useQuery<ConnectionStatus>({
     queryKey: ['/api/integrations/status'],
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
@@ -154,9 +154,7 @@ export default function IntegrationsSettings() {
         <CardContent className="py-4">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-3">
-              {isLoading ? (
-                <div className="h-10 w-10 rounded-full bg-gray-100 animate-pulse" />
-              ) : connectedCount === 3 ? (
+              {connectedCount === 3 ? (
                 <div className="h-10 w-10 rounded-full bg-green-100 flex items-center justify-center">
                   <CheckCircle2 className="h-6 w-6 text-green-600" />
                 </div>
@@ -167,7 +165,8 @@ export default function IntegrationsSettings() {
               )}
               <div>
                 <div className="font-medium">
-                  {isLoading ? 'Checking connections...' : `${connectedCount} of 3 services connected`}
+                  {`${connectedCount} of 3 services connected`}
+                  {isFetching && <Loader2 className="inline h-3.5 w-3.5 ml-2 animate-spin text-muted-foreground" />}
                 </div>
                 <div className="text-sm text-muted-foreground">
                   {connectedCount === 3 
@@ -177,22 +176,18 @@ export default function IntegrationsSettings() {
               </div>
             </div>
             <div className="flex gap-2">
-              {!isLoading && status && (
-                <>
-                  <Badge variant={gmailConnected ? "default" : "secondary"} className="gap-1">
-                    <Mail className="h-3 w-3" />
-                    Gmail
-                  </Badge>
-                  <Badge variant={calendarConnected ? "default" : "secondary"} className="gap-1">
-                    <Calendar className="h-3 w-3" />
-                    Calendar
-                  </Badge>
-                  <Badge variant={odooConnected ? "default" : "secondary"} className="gap-1">
-                    <Database className="h-3 w-3" />
-                    Odoo
-                  </Badge>
-                </>
-              )}
+              <Badge variant={gmailConnected ? "default" : "secondary"} className="gap-1">
+                <Mail className="h-3 w-3" />
+                Gmail
+              </Badge>
+              <Badge variant={calendarConnected ? "default" : "secondary"} className="gap-1">
+                <Calendar className="h-3 w-3" />
+                Calendar
+              </Badge>
+              <Badge variant={odooConnected ? "default" : "secondary"} className="gap-1">
+                <Database className="h-3 w-3" />
+                Odoo
+              </Badge>
             </div>
           </div>
         </CardContent>
@@ -202,7 +197,7 @@ export default function IntegrationsSettings() {
 
         {/* ── Gmail ── */}
         <Card
-          className={cn("transition-all", gmailConnected && "border-green-200 bg-green-50/30")}
+          className={cn(gmailConnected && "border-green-200 bg-green-50/30")}
           data-testid="card-integration-gmail"
         >
           <CardHeader className="pb-3">
@@ -214,9 +209,7 @@ export default function IntegrationsSettings() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     Gmail
-                    {isLoading ? (
-                      <Badge variant="secondary" className="animate-pulse">Checking...</Badge>
-                    ) : gmailConnected ? (
+                    {gmailConnected ? (
                       <Badge className="bg-green-600 hover:bg-green-700 gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         Connected
@@ -232,35 +225,32 @@ export default function IntegrationsSettings() {
                 </div>
               </div>
 
-              {/* Connect / Disconnect buttons */}
-              {!isLoading && (
-                gmailConnected ? (
-                  <Button
-                    variant="outline"
-                    size="sm"
-                    onClick={handleDisconnectGmail}
-                    disabled={gmailDisconnecting}
-                    data-testid="btn-disconnect-gmail"
-                  >
-                    {gmailDisconnecting
-                      ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      : <LogOut className="h-4 w-4 mr-1" />}
-                    Disconnect
-                  </Button>
-                ) : (
-                  <Button
-                    size="sm"
-                    onClick={handleConnectGmail}
-                    disabled={gmailConnecting}
-                    className="bg-red-600 hover:bg-red-700 text-white"
-                    data-testid="btn-connect-gmail"
-                  >
-                    {gmailConnecting
-                      ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
-                      : <Mail className="h-4 w-4 mr-1" />}
-                    Connect Gmail
-                  </Button>
-                )
+              {gmailConnected ? (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={handleDisconnectGmail}
+                  disabled={gmailDisconnecting}
+                  data-testid="btn-disconnect-gmail"
+                >
+                  {gmailDisconnecting
+                    ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    : <LogOut className="h-4 w-4 mr-1" />}
+                  Disconnect
+                </Button>
+              ) : (
+                <Button
+                  size="sm"
+                  onClick={handleConnectGmail}
+                  disabled={gmailConnecting}
+                  className="bg-red-600 hover:bg-red-700 text-white"
+                  data-testid="btn-connect-gmail"
+                >
+                  {gmailConnecting
+                    ? <Loader2 className="h-4 w-4 animate-spin mr-1" />
+                    : <Mail className="h-4 w-4 mr-1" />}
+                  Connect Gmail
+                </Button>
               )}
             </div>
           </CardHeader>
@@ -323,7 +313,7 @@ export default function IntegrationsSettings() {
 
         {/* ── Google Calendar ── */}
         <Card
-          className={cn("transition-all", calendarConnected && "border-green-200 bg-green-50/30")}
+          className={cn(calendarConnected && "border-green-200 bg-green-50/30")}
           data-testid="card-integration-calendar"
         >
           <CardHeader className="pb-3">
@@ -335,9 +325,7 @@ export default function IntegrationsSettings() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     Google Calendar
-                    {isLoading ? (
-                      <Badge variant="secondary" className="animate-pulse">Checking...</Badge>
-                    ) : calendarConnected ? (
+                    {calendarConnected ? (
                       <Badge className="bg-green-600 hover:bg-green-700 gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         Connected
@@ -416,7 +404,7 @@ export default function IntegrationsSettings() {
 
         {/* ── Odoo ── */}
         <Card
-          className={cn("transition-all", odooConnected && "border-green-200 bg-green-50/30")}
+          className={cn(odooConnected && "border-green-200 bg-green-50/30")}
           data-testid="card-integration-odoo"
         >
           <CardHeader className="pb-3">
@@ -428,9 +416,7 @@ export default function IntegrationsSettings() {
                 <div>
                   <CardTitle className="text-lg flex items-center gap-2">
                     Odoo ERP
-                    {isLoading ? (
-                      <Badge variant="secondary" className="animate-pulse">Checking...</Badge>
-                    ) : odooConnected ? (
+                    {odooConnected ? (
                       <Badge className="bg-green-600 hover:bg-green-700 gap-1">
                         <CheckCircle2 className="h-3 w-3" />
                         Connected
