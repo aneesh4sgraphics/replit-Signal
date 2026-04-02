@@ -6,6 +6,10 @@ import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import TiptapImage from '@tiptap/extension-image';
+import Placeholder from '@tiptap/extension-placeholder';
 import {
   Select,
   SelectContent,
@@ -70,6 +74,9 @@ import {
   User,
   Building2,
   Braces,
+  Bold,
+  Italic,
+  ImagePlus,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -187,16 +194,55 @@ function StepCard({
   onDelete: (id: number) => void;
 }) {
   const [subject, setSubject] = useState(step.subject || '');
-  const [body, setBody] = useState(step.body || '');
   const [showVars, setShowVars] = useState(false);
+  const [showImagePanel, setShowImagePanel] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
   const [activeField, setActiveField] = useState<'subject' | 'body'>('body');
+  const [isImageSelected, setIsImageSelected] = useState(false);
 
   const subjectRef = useRef<HTMLInputElement>(null);
-  const bodyRef = useRef<HTMLTextAreaElement>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSubject(step.subject || ''); }, [step.subject]);
-  useEffect(() => { setBody(step.body || ''); }, [step.body]);
 
+  // ── TipTap rich-text editor ───────────────────────────────────────────────
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: false, codeBlock: false, blockquote: false }),
+      TiptapImage.configure({ allowBase64: true, inline: false }),
+      Placeholder.configure({ placeholder: 'Start typing your email…' }),
+    ],
+    content: step.body || '',
+    onFocus: () => { setActiveField('body'); setShowVars(false); },
+    onBlur: ({ editor: ed }) => {
+      const html = ed.getHTML();
+      if (html !== (step.body || '')) onUpdate(step.id, { body: html });
+    },
+  });
+
+  // Sync external changes (e.g. server update) into editor
+  useEffect(() => {
+    if (editor && !editor.isFocused) {
+      const current = editor.getHTML();
+      if (current !== (step.body || '')) {
+        editor.commands.setContent(step.body || '', false);
+      }
+    }
+  }, [step.body]);
+
+  // Track whether an image node is selected
+  useEffect(() => {
+    if (!editor) return;
+    const update = () => setIsImageSelected(editor.isActive('image'));
+    editor.on('selectionUpdate', update);
+    editor.on('transaction', update);
+    return () => {
+      editor.off('selectionUpdate', update);
+      editor.off('transaction', update);
+    };
+  }, [editor]);
+
+  // ── Variable insertion ────────────────────────────────────────────────────
   function insertVariable(token: string) {
     if (activeField === 'subject' && subjectRef.current) {
       const el = subjectRef.current;
@@ -204,25 +250,51 @@ function StepCard({
       const end = el.selectionEnd ?? subject.length;
       const newVal = subject.slice(0, start) + token + subject.slice(end);
       setSubject(newVal);
-      // Restore cursor after token
       requestAnimationFrame(() => {
         el.focus();
         el.setSelectionRange(start + token.length, start + token.length);
       });
       onUpdate(step.id, { subject: newVal });
-    } else if (bodyRef.current) {
-      const el = bodyRef.current;
-      const start = el.selectionStart ?? body.length;
-      const end = el.selectionEnd ?? body.length;
-      const newVal = body.slice(0, start) + token + body.slice(end);
-      setBody(newVal);
-      requestAnimationFrame(() => {
-        el.focus();
-        el.setSelectionRange(start + token.length, start + token.length);
-      });
-      onUpdate(step.id, { body: newVal });
+    } else if (editor) {
+      editor.chain().focus().insertContent(token).run();
+      onUpdate(step.id, { body: editor.getHTML() });
     }
     setShowVars(false);
+  }
+
+  // ── Image helpers ─────────────────────────────────────────────────────────
+  function insertImageUrl() {
+    if (!imageUrl.trim() || !editor) return;
+    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    onUpdate(step.id, { body: editor.getHTML() });
+    setImageUrl('');
+    setShowImagePanel(false);
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      const src = reader.result as string;
+      editor.chain().focus().setImage({ src }).run();
+      onUpdate(step.id, { body: editor.getHTML() });
+      setShowImagePanel(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  function resizeSelectedImage(width: string) {
+    if (!editor) return;
+    const { state, view } = editor;
+    const { selection } = state;
+    const node = state.doc.nodeAt(selection.from);
+    if (node?.type.name === 'image') {
+      const attrs = { ...node.attrs, width };
+      view.dispatch(state.tr.setNodeMarkup(selection.from, undefined, attrs));
+      setTimeout(() => onUpdate(step.id, { body: editor.getHTML() }), 0);
+    }
   }
 
   return (
@@ -305,37 +377,106 @@ function StepCard({
         />
       </div>
 
-      {/* Body */}
-      <div className="px-4 py-3">
-        <textarea
-          ref={bodyRef}
-          className="w-full text-sm text-gray-700 bg-transparent outline-none resize-none placeholder:text-gray-300 min-h-[80px]"
-          placeholder="Start typing, or pick a template (use ↑↓ to navigate)"
-          value={body}
-          onChange={e => setBody(e.target.value)}
-          onFocus={() => { setActiveField('body'); setShowVars(false); }}
-          onBlur={() => {
-            if (body !== (step.body || '')) onUpdate(step.id, { body });
-          }}
-          rows={4}
-        />
-        <div className="mt-2 pt-2 border-t border-gray-100">
-          <p className="text-[10px] font-semibold tracking-wider text-gray-400 uppercase mb-1">
-            Favorite Templates
-          </p>
-          <p className="text-xs text-gray-300">Templates that you favorite will appear here</p>
-          <div className="mt-2 flex items-center gap-1.5 text-xs text-indigo-500 cursor-pointer hover:text-indigo-700">
-            <div className="w-4 h-4 rounded border border-indigo-300 flex items-center justify-center">
-              <Mail className="h-2.5 w-2.5" />
-            </div>
-            View all templates
-          </div>
-        </div>
+      {/* Formatting toolbar */}
+      <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-gray-100 bg-gray-50/60">
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run(); }}
+          className={`h-6 w-6 flex items-center justify-center rounded text-xs font-bold transition-colors ${
+            editor?.isActive('bold') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+          }`}
+          title="Bold (Ctrl+B)"
+        >
+          <Bold className="h-3.5 w-3.5" />
+        </button>
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run(); }}
+          className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${
+            editor?.isActive('italic') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+          }`}
+          title="Italic (Ctrl+I)"
+        >
+          <Italic className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button
+          type="button"
+          onMouseDown={e => { e.preventDefault(); setShowImagePanel(v => !v); }}
+          className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${
+            showImagePanel ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'
+          }`}
+          title="Insert image"
+        >
+          <ImagePlus className="h-3.5 w-3.5" />
+        </button>
       </div>
 
-      {/* Click-outside overlay to close vars panel */}
-      {showVars && (
-        <div className="fixed inset-0 z-40" onClick={() => setShowVars(false)} />
+      {/* Image insert panel */}
+      {showImagePanel && (
+        <div className="px-4 py-2.5 border-b border-gray-100 bg-indigo-50/40 flex items-center gap-2">
+          <input
+            type="text"
+            className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-white outline-none focus:border-indigo-400"
+            placeholder="Paste image URL…"
+            value={imageUrl}
+            onChange={e => setImageUrl(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') insertImageUrl(); if (e.key === 'Escape') setShowImagePanel(false); }}
+            autoFocus
+          />
+          <Button size="sm" className="h-7 text-xs px-3" onClick={insertImageUrl} disabled={!imageUrl.trim()}>
+            Insert
+          </Button>
+          <span className="text-xs text-gray-400">or</span>
+          <Button
+            size="sm"
+            variant="outline"
+            className="h-7 text-xs px-3"
+            onClick={() => fileInputRef.current?.click()}
+          >
+            Upload
+          </Button>
+          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+          <button
+            type="button"
+            className="text-gray-400 hover:text-gray-600 ml-1"
+            onClick={() => setShowImagePanel(false)}
+          >
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Image resize bar — appears when an image is selected in the editor */}
+      {isImageSelected && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-indigo-100 bg-indigo-50/50">
+          <span className="text-[10px] text-indigo-500 font-semibold uppercase tracking-wide mr-1">Image size:</span>
+          {[
+            { label: 'Small', width: '180px' },
+            { label: 'Medium', width: '360px' },
+            { label: 'Large', width: '540px' },
+            { label: 'Full width', width: '100%' },
+          ].map(({ label, width }) => (
+            <button
+              key={label}
+              type="button"
+              onMouseDown={e => { e.preventDefault(); resizeSelectedImage(width); }}
+              className="px-2 py-0.5 rounded text-xs font-medium bg-white border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-400 hover:text-indigo-700 text-gray-600 transition-colors shadow-sm"
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Body — TipTap rich text editor */}
+      <div className="px-4 py-3">
+        <EditorContent editor={editor} />
+      </div>
+
+      {/* Click-outside overlay to close panels */}
+      {(showVars || showImagePanel) && (
+        <div className="fixed inset-0 z-40" onClick={() => { setShowVars(false); setShowImagePanel(false); }} />
       )}
     </div>
   );
