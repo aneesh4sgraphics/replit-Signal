@@ -525,7 +525,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
       // Check Gmail connection — true if the user has a personal OAuth connection OR the shared connector works
       (async () => {
         try {
-          const authUserId = req.user?.id;
+          const authUserId = (req.user as any)?.claims?.sub || req.user?.id;
 
           // 1. Check per-user OAuth first (most common path)
           if (authUserId) {
