@@ -101,6 +101,14 @@ interface CommandPaletteProps {
   onOpenChange: (open: boolean) => void;
 }
 
+/** Match a nav item against a query string — checks label + keywords */
+function matchesQuery(item: NavItem, q: string): boolean {
+  if (!q) return true;
+  const lower = q.toLowerCase();
+  if (item.label.toLowerCase().includes(lower)) return true;
+  return (item.keywords || []).some(k => k.toLowerCase().includes(lower));
+}
+
 export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
   const [, navigate] = useLocation();
   const { user } = useAuth();
@@ -122,7 +130,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     }
   }, [open]);
 
-  // Debounced live search
+  // Debounced live data search — fires 300ms after user stops typing
   useEffect(() => {
     if (debounceRef.current) clearTimeout(debounceRef.current);
 
@@ -136,20 +144,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     debounceRef.current = setTimeout(async () => {
       try {
         const res = await fetch(`/api/search?q=${encodeURIComponent(query)}`);
-        if (res.ok) {
-          const data = await res.json();
-          setSearchResults(data);
-        }
+        if (res.ok) setSearchResults(await res.json());
       } catch {
-        // silently ignore
+        // ignore network errors silently
       } finally {
         setSearching(false);
       }
-    }, 200);
+    }, 300);
 
-    return () => {
-      if (debounceRef.current) clearTimeout(debounceRef.current);
-    };
+    return () => { if (debounceRef.current) clearTimeout(debounceRef.current); };
   }, [query]);
 
   const handleSelect = useCallback((path: string) => {
@@ -170,10 +173,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     onOpenChange(false);
   }, [onOpenChange]);
 
-  // Filter by admin access, then by user-specific restrictions
+  // Filter by admin access, then by user restrictions, then by query
   const adminFilteredItems = NAV_ITEMS.filter(item => !item.adminOnly || isAdmin);
-  const filteredItems = filterAppsByUser(adminFilteredItems, user?.email);
-  const recentItems = filteredItems.filter(item => recentPaths.includes(item.path));
+  const userFilteredItems = filterAppsByUser(adminFilteredItems, user?.email);
+  const recentItems = userFilteredItems.filter(item => recentPaths.includes(item.path));
+
+  // Manual query filtering for apps — we control all filtering (shouldFilter=false always)
+  const visibleApps = query.length >= 2
+    ? userFilteredItems.filter(item => matchesQuery(item, query))
+    : userFilteredItems;
 
   const hasDataResults = searchResults && (
     searchResults.leads.length > 0 ||
@@ -181,20 +189,34 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
     searchResults.contacts.length > 0
   );
 
+  const showRecent = query.length < 2 && recentItems.length > 0;
+  const isSearching = query.length >= 2;
+
+  const hasAnyResults = hasDataResults || visibleApps.length > 0;
+
   return (
     <CommandDialog open={open} onOpenChange={onOpenChange}>
-      <Command className="rounded-lg border-0 shadow-2xl" shouldFilter={!searching && query.length >= 2 ? false : undefined}>
+      {/*
+        shouldFilter is ALWAYS false — we do all filtering ourselves.
+        This prevents cmdk from re-ordering items or accidentally
+        matching the "Log Out" button against user-typed queries.
+      */}
+      <Command className="rounded-lg border-0 shadow-2xl" shouldFilter={false}>
         <CommandInput
           placeholder="Search pages, leads, companies, contacts..."
           className="h-12"
           data-testid="command-input"
-          value={query}
           onValueChange={setQuery}
         />
         <CommandList className="max-h-[480px]">
-          <CommandEmpty>{searching ? 'Searching…' : 'No results found.'}</CommandEmpty>
+          {!hasAnyResults && !searching && (
+            <CommandEmpty>{isSearching ? 'No results found.' : 'Type to search…'}</CommandEmpty>
+          )}
+          {searching && (
+            <div className="px-4 py-3 text-sm text-gray-400">Searching…</div>
+          )}
 
-          {/* Live data results — shown when user has typed 2+ chars */}
+          {/* ── Live data results (shown when query ≥ 2 chars and data loaded) ── */}
           {hasDataResults && (
             <>
               {searchResults!.leads.length > 0 && (
@@ -202,9 +224,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   {searchResults!.leads.map(lead => (
                     <CommandItem
                       key={`lead-${lead.id}`}
+                      value={`lead-${lead.id}`}
                       onSelect={() => handleSelect(`/leads/${lead.id}`)}
                       className="flex items-center gap-3 py-2.5 cursor-pointer"
-                      value={`lead-${lead.id}-${lead.name}`}
                     >
                       <div className="w-7 h-7 rounded-full bg-emerald-100 flex items-center justify-center flex-shrink-0">
                         <User className="h-3.5 w-3.5 text-emerald-600" />
@@ -224,9 +246,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   {searchResults!.customers.map(c => (
                     <CommandItem
                       key={`customer-${c.id}`}
+                      value={`customer-${c.id}`}
                       onSelect={() => handleSelect(`/odoo-contacts/${c.id}`)}
                       className="flex items-center gap-3 py-2.5 cursor-pointer"
-                      value={`customer-${c.id}-${c.company}`}
                     >
                       <div className="w-7 h-7 rounded-full bg-purple-100 flex items-center justify-center flex-shrink-0">
                         <Building2 className="h-3.5 w-3.5 text-purple-600" />
@@ -245,9 +267,9 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
                   {searchResults!.contacts.map(ct => (
                     <CommandItem
                       key={`contact-${ct.id}`}
+                      value={`contact-${ct.id}`}
                       onSelect={() => handleSelect(`/contacts/${ct.id}`)}
                       className="flex items-center gap-3 py-2.5 cursor-pointer"
-                      value={`contact-${ct.id}-${ct.name}`}
                     >
                       <div className="w-7 h-7 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
                         <UserCheck className="h-3.5 w-3.5 text-blue-600" />
@@ -265,14 +287,15 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </>
           )}
 
-          {/* Recent — hidden when typing a data search */}
-          {recentItems.length > 0 && query.length < 2 && (
+          {/* ── Recent apps (only shown when not searching) ── */}
+          {showRecent && (
             <CommandGroup heading="Recent">
               {recentItems.map((item) => {
                 const Icon = item.icon;
                 return (
                   <CommandItem
                     key={`recent-${item.path}`}
+                    value={`recent-${item.path}`}
                     onSelect={() => handleSelect(item.path)}
                     className="flex items-center gap-3 py-3 cursor-pointer"
                     data-testid={`cmd-recent-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
@@ -290,35 +313,39 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
             </CommandGroup>
           )}
 
-          <CommandGroup heading="Apps">
-            {filteredItems.map((item) => {
-              const Icon = item.icon;
-              return (
-                <CommandItem
-                  key={item.path}
-                  onSelect={() => handleSelect(item.path)}
-                  className="flex items-center gap-3 py-3 cursor-pointer"
-                  data-testid={`cmd-app-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
-                  value={`${item.label} ${item.keywords?.join(' ') || ''}`}
-                >
-                  <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
-                    <Icon className="h-4 w-4 text-gray-600" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{item.label}</p>
-                  </div>
-                  {item.adminOnly && (
-                    <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Admin</span>
-                  )}
-                </CommandItem>
-              );
-            })}
-          </CommandGroup>
+          {/* ── Apps — always shown, filtered by query when typing ── */}
+          {visibleApps.length > 0 && (
+            <CommandGroup heading={isSearching ? 'Matching Pages' : 'Apps'}>
+              {visibleApps.map((item) => {
+                const Icon = item.icon;
+                return (
+                  <CommandItem
+                    key={`app-${item.path}`}
+                    value={`app-${item.path}`}
+                    onSelect={() => handleSelect(item.path)}
+                    className="flex items-center gap-3 py-3 cursor-pointer"
+                    data-testid={`cmd-app-${item.label.toLowerCase().replace(/\s+/g, '-')}`}
+                  >
+                    <div className="w-8 h-8 rounded-lg bg-gray-100 flex items-center justify-center">
+                      <Icon className="h-4 w-4 text-gray-600" />
+                    </div>
+                    <div>
+                      <p className="font-medium">{item.label}</p>
+                    </div>
+                    {item.adminOnly && (
+                      <span className="ml-auto text-xs bg-purple-100 text-purple-700 px-2 py-0.5 rounded-full">Admin</span>
+                    )}
+                  </CommandItem>
+                );
+              })}
+            </CommandGroup>
+          )}
 
+          {/* ── Quick Actions — always at the bottom, separated ── */}
           <CommandSeparator />
-
           <CommandGroup heading="Quick Actions">
             <CommandItem
+              value="action-reset-cache"
               onSelect={handleResetCache}
               className="flex items-center gap-3 py-3 cursor-pointer"
               data-testid="cmd-reset-cache"
@@ -329,6 +356,7 @@ export function CommandPalette({ open, onOpenChange }: CommandPaletteProps) {
               <p className="font-medium">Reset App Cache</p>
             </CommandItem>
             <CommandItem
+              value="action-logout"
               onSelect={handleLogout}
               className="flex items-center gap-3 py-3 cursor-pointer"
               data-testid="cmd-logout"
@@ -352,12 +380,12 @@ export function useCommandPalette() {
     const handleKeyDown = (e: KeyboardEvent) => {
       const target = e.target as HTMLElement;
       const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
-      
+
       if (e.key === '/' && !isInput) {
         e.preventDefault();
         setOpen(true);
       }
-      
+
       if ((e.metaKey || e.ctrlKey) && e.key === 'k') {
         e.preventDefault();
         setOpen(true);
