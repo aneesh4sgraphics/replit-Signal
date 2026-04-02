@@ -1,0 +1,63 @@
+Make the following targeted fixes across server/routes.ts and server/gmail-intelligence.ts. Do NOT touch any other files.
+
+--- FIX 1: Add auth to 3 unprotected API routes (server/routes.ts) ---
+
+1. Line ~5676: Change `app.get("/api/customers/count", async (req, res) => {`
+   to `app.get("/api/customers/count", isAuthenticated, async (req: any, res) => {`
+
+2. Line ~7266: Change `app.get("/api/file-uploads/:fileType", async (req, res) => {`
+   to `app.get("/api/file-uploads/:fileType", isAuthenticated, async (req: any, res) => {`
+
+3. Line ~9414: Change `app.get("/api/sent-quotes/:id", async (req, res) => {`
+   to `app.get("/api/sent-quotes/:id", isAuthenticated, async (req: any, res) => {`
+
+--- FIX 2: Cache bounce investigation AI result to prevent re-calling OpenAI on every page load (server/routes.ts) ---
+
+In the `app.get("/api/bounce-investigation/:bounceId", ...)` handler (around line 28139):
+
+Before the `// Generate AI research` block, add a check: if the bounce record already has a non-null `aiResearch` field in the database, skip the OpenAI call and use the cached value instead. After a successful OpenAI call, save the result back to the bouncedEmails record so future page loads skip the API call entirely.
+
+Use this pattern:
+- Check: `if (bounce.aiResearch) { aiResearch = bounce.aiResearch; }` (skip OpenAI)
+- After successful OpenAI call: `await db.update(bouncedEmails).set({ aiResearch: aiResearch }).where(eq(bouncedEmails.id, bounceId));`
+
+Make sure the bouncedEmails schema in shared/schema.ts has an `aiResearch` jsonb column — add it if missing: `aiResearch: jsonb('ai_research')` and run the migration.
+
+--- FIX 3: Only run Gmail AI analysis during business hours (server/gmail-intelligence.ts) ---
+
+In the `syncAllConnectedUsers()` function, before the call to `analyzeMessagesForInsights(...)`, add a business hours guard:
+```typescript
+const hour = new Date().getHours(); // server local time
+const isBusinessHours = hour >= 7 && hour < 20; // 7am–8pm
+if (!isBusinessHours) {
+  console.log('[Gmail Intelligence] Skipping AI analysis outside business hours');
+  // still continue with email sync (no AI), just skip analysis
+  continue; // or skip only the analyzeMessagesForInsights call
+}
+```
+
+This keeps email syncing 24/7 but stops AI analysis calls between 8pm–7am when nobody is using the app.
+
+--- FIX 4: Add DOMPurify to sanitize HTML in email previews (install + apply) ---
+
+Run: `npm install dompurify @types/dompurify`
+
+Then in these 3 files, import DOMPurify at the top:
+`import DOMPurify from 'dompurify';`
+
+And wrap every `dangerouslySetInnerHTML={{ __html: someHtml }}` like this:
+`dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(someHtml || '') }}`
+
+Files to update:
+- client/src/pages/sequences.tsx (lines 612, 651, 1025, 2356, 2377)
+- client/src/pages/email-app.tsx (lines 768, 817, 1020, 1258, 1305)
+- client/src/components/DripCampaignBuilder.tsx (lines 947, 979)
+
+Also in the `buildFourSSignatureHtml(name, cellPhone)` function in both sequences.tsx and email-app.tsx, escape user inputs before interpolating into HTML:
+```typescript
+const escapedName = (name || 'Your Name').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+const escapedPhone = (cellPhone || '').replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;');
+```
+Use escapedName and escapedPhone in the HTML template instead of the raw values.
+
+After all changes, verify the build compiles cleanly.

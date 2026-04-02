@@ -5673,7 +5673,7 @@ export async function registerRoutes(app: Express): Promise<Server> {
 
   // Customer management routes
   // Live customer count endpoint with data quality stats
-  app.get("/api/customers/count", async (req, res) => {
+  app.get("/api/customers/count", isAuthenticated, async (req: any, res) => {
     try {
       const customers = await storage.getCustomers();
       
@@ -7263,7 +7263,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   });
 
   // File Upload Tracking routes
-  app.get("/api/file-uploads/:fileType", async (req, res) => {
+  app.get("/api/file-uploads/:fileType", isAuthenticated, async (req: any, res) => {
     try {
       const fileType = req.params.fileType;
       const activeFile = await storage.getActiveFileUpload(fileType);
@@ -9411,7 +9411,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   });
 
   // Get sent quote by ID
-  app.get("/api/sent-quotes/:id", async (req, res) => {
+  app.get("/api/sent-quotes/:id", isAuthenticated, async (req: any, res) => {
     try {
       const id = parseInt(req.params.id);
       if (isNaN(id)) {
@@ -28205,8 +28205,11 @@ Return ONLY a JSON object with these keys (use null for not found):
         };
       }
 
-      // Generate AI research
+      // Generate AI research (use cached value if already computed)
       let aiResearch = null;
+      if (bounce.aiResearch) {
+        aiResearch = bounce.aiResearch;
+      } else {
       const openaiApiKey = process.env.OPENAI_API_KEY || process.env.AI_INTEGRATIONS_OPENAI_API_KEY;
       if (openaiApiKey) {
         try {
@@ -28255,11 +28258,14 @@ Analyze this bounced email and provide insights in JSON format:
           const content = completion.choices[0]?.message?.content;
           if (content) {
             aiResearch = JSON.parse(content);
+            // Cache result so future loads skip the API call
+            await db.update(bouncedEmails).set({ aiResearch }).where(eq(bouncedEmails.id, bounceId));
           }
         } catch (aiError) {
           console.error('[Bounce Investigation] AI error:', aiError);
         }
       }
+      } // end else (no cached aiResearch)
 
       res.json({
         bounce: {

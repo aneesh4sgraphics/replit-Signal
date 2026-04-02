@@ -1,4 +1,5 @@
 import { useState, useCallback, useRef } from "react";
+import DOMPurify from 'dompurify';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -944,7 +945,7 @@ export default function DripCampaignBuilder() {
                           <div
                             className={`px-4 py-3 text-sm overflow-y-auto prose prose-sm max-w-none ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
                             style={{ maxHeight: '380px', fontSize: '13px', lineHeight: '1.5' }}
-                            dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                            dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body || '<p style="color:#999">No content yet</p>') }}
                           />
                         </div>
                         <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
@@ -976,7 +977,7 @@ export default function DripCampaignBuilder() {
                       <div
                         className={`px-6 py-5 prose prose-sm max-w-none overflow-y-auto ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
                         style={{ maxHeight: '440px', fontSize: '14px', lineHeight: '1.6' }}
-                        dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body || '<p style="color:#999">No content yet</p>') }}
                       />
                     </div>
                   );

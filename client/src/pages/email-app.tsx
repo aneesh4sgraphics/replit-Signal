@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect, useMemo } from "react";
+import DOMPurify from 'dompurify';
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { queryClient, apiRequest } from "@/lib/queryClient";
 import { useAuth } from "@/hooks/useAuth";
@@ -128,14 +129,16 @@ export default function EmailApp() {
 
   // Build the 4S Graphics branded signature HTML
   function buildFourSSignatureHtml(name: string, cellPhone: string): string {
-    const cellLine = cellPhone
-      ? `\n  <div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${cellPhone}</div>`
+    const escapedName = (name || 'Your Name').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const escapedPhone = (cellPhone || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    const cellLine = escapedPhone
+      ? `\n  <div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${escapedPhone}</div>`
       : '';
     return `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.5;">
   <img src="${window.location.origin}/4s-logo.png" alt="4S Graphics" style="width: 60px; height: auto; margin-bottom: 6px; display: block;" />
   <div style="font-weight: bold; margin-bottom: 10px; color: #333;">Synthetic &amp; Specialty Substrates Suppliers</div>
   <div style="margin-bottom: 6px; color: #333;">-</div>
-  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${name || 'Your Name'}</div>${cellLine}
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${escapedName}</div>${cellLine}
   <div style="font-weight: bold; margin-bottom: 4px; color: #333;">T. (954) 493.6484 x 101</div>
   <div style="margin-bottom: 4px; color: #333;">764 NW 57th Court, Fort Lauderdale, FL - 33309</div>
   <div><a href="https://www.4sgraphics.com" style="color: #22963e; text-decoration: none;">www.4sgraphics.com</a></div>
@@ -765,7 +768,7 @@ export default function EmailApp() {
                                     : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
                                 }`}
                                 style={{ maxHeight: '360px', fontSize: '13px', lineHeight: '1.5' }}
-                                dangerouslySetInnerHTML={{ __html: renderTemplate(selectedTemplate).body }}
+                                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderTemplate(selectedTemplate).body) }}
                               />
                             </div>
                             <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${
@@ -814,7 +817,7 @@ export default function EmailApp() {
                                   : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
                               }`}
                               style={{ maxHeight: '400px' }}
-                              dangerouslySetInnerHTML={{ __html: renderTemplate(selectedTemplate).body }}
+                              dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(renderTemplate(selectedTemplate).body) }}
                             />
                           </div>
                         )}
@@ -1017,7 +1020,7 @@ export default function EmailApp() {
                   <Label className="text-sm text-gray-500">Preview:</Label>
                   <div 
                     className="mt-2 p-4 bg-white rounded-lg border prose prose-sm max-w-none"
-                    dangerouslySetInnerHTML={{ __html: signatureForm.signatureHtml }}
+                    dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(signatureForm.signatureHtml || '') }}
                   />
                 </div>
               )}
@@ -1255,7 +1258,7 @@ Start typing your email content here. Use the toolbar above to format text, add 
                             : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
                         }`}
                         style={{ maxHeight: '360px', fontSize: '13px', lineHeight: '1.5' }}
-                        dangerouslySetInnerHTML={{ __html: templateToPreview.body }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(templateToPreview.body || '') }}
                       />
                     </div>
                     <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${
@@ -1302,7 +1305,7 @@ Start typing your email content here. Use the toolbar above to format text, add 
                           : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'
                       }`}
                       style={{ maxHeight: '400px' }}
-                      dangerouslySetInnerHTML={{ __html: templateToPreview.body }}
+                      dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(templateToPreview.body || '') }}
                     />
                   </div>
                 )}

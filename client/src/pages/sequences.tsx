@@ -1,4 +1,5 @@
 import { useState, useRef, useEffect } from 'react';
+import DOMPurify from 'dompurify';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import { queryClient, apiRequest } from '@/lib/queryClient';
 import { Button } from '@/components/ui/button';
@@ -495,14 +496,16 @@ function StepCard({
 const FOUR_S_LOGO_URL = `${window.location.origin}/4s-logo.png`;
 
 function buildFourSSignatureHtml(name: string, cellPhone: string): string {
-  const cellLine = cellPhone
-    ? `<div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${cellPhone}</div>`
+  const escapedName = (name || 'Your Name').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const escapedPhone = (cellPhone || '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const cellLine = escapedPhone
+    ? `<div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${escapedPhone}</div>`
     : '';
   return `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.5;">
   <img src="${FOUR_S_LOGO_URL}" alt="4S Graphics" style="width: 60px; height: auto; margin-bottom: 6px; display: block;" />
   <div style="font-weight: bold; margin-bottom: 10px; color: #333;">Synthetic &amp; Specialty Substrates Suppliers</div>
   <div style="margin-bottom: 6px; color: #333;">-</div>
-  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${name || 'Your Name'}</div>
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${escapedName}</div>
   ${cellLine}
   <div style="font-weight: bold; margin-bottom: 4px; color: #333;">T. (954) 493.6484 x 101</div>
   <div style="margin-bottom: 4px; color: #333;">764 NW 57th Court, Fort Lauderdale, FL - 33309</div>
@@ -609,7 +612,7 @@ function SignatureTab() {
             {preview && (
               <div
                 className="bg-white border border-gray-200 rounded-lg p-5"
-                dangerouslySetInnerHTML={{ __html: form.signatureHtml }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(form.signatureHtml || '') }}
               />
             )}
           </div>
@@ -649,7 +652,7 @@ function SignatureTab() {
         <div
           className="bg-white rounded-lg p-4 border border-gray-100"
           dangerouslySetInnerHTML={{
-            __html: buildFourSSignatureHtml(form.name || 'Your Name', form.cellPhone),
+            __html: DOMPurify.sanitize(buildFourSSignatureHtml(form.name || 'Your Name', form.cellPhone)),
           }}
         />
       </div>
@@ -1022,7 +1025,7 @@ function TemplatesTab({ isAdmin }: { isAdmin: boolean }) {
                 <span className="text-gray-800 font-medium">{previewTpl.subject}</span>
               </div>
               <div className="border border-gray-200 rounded-lg px-4 py-4 text-sm text-gray-700 whitespace-pre-wrap min-h-[120px] bg-white"
-                dangerouslySetInnerHTML={{ __html: previewTpl.body?.replace(/\n/g, '<br/>') || '' }}
+                dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(previewTpl.body?.replace(/\n/g, '<br/>') || '') }}
               />
               <div className="flex justify-end gap-2 pt-1">
                 <Button variant="outline" size="sm" onClick={() => copyToClipboard(previewTpl.body)} className="gap-1.5">
@@ -2353,7 +2356,7 @@ export default function SequencesPage() {
                         <div
                           className={`px-4 py-3 text-sm overflow-y-auto prose prose-sm max-w-none ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
                           style={{ maxHeight: '380px', fontSize: '13px', lineHeight: '1.5' }}
-                          dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                          dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body || '<p style="color:#999">No content yet</p>') }}
                         />
                       </div>
                       <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
@@ -2374,7 +2377,7 @@ export default function SequencesPage() {
                       <div
                         className={`px-6 py-5 prose prose-sm max-w-none overflow-y-auto ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
                         style={{ maxHeight: '440px', fontSize: '14px', lineHeight: '1.6' }}
-                        dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                        dangerouslySetInnerHTML={{ __html: DOMPurify.sanitize(body || '<p style="color:#999">No content yet</p>') }}
                       />
                     </div>
                   )}

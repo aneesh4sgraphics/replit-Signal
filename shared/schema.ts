@@ -2974,6 +2974,7 @@ export const bouncedEmails = pgTable("bounced_emails", {
   resolution: varchar("resolution", { length: 50 }),
   bounceType: varchar("bounce_type", { length: 30 }),
   outreachHistorySnapshot: text("outreach_history_snapshot"),
+  aiResearch: jsonb("ai_research"),
   createdAt: timestamp("created_at").defaultNow(),
 }, (table) => [
   index("IDX_bounced_emails_email_normalized").on(table.bouncedEmailNormalized),

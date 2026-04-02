@@ -1247,13 +1247,17 @@ export async function syncAllConnectedUsers(): Promise<{ synced: number; failed:
         // Run AI insight extraction on select messages (limit to 20 per cycle to reduce costs)
         // Check admin setting to see if AI analysis is enabled (cost optimization toggle)
         const aiAnalysisEnabled = await isAIEmailAnalysisEnabled();
-        if (result.newMessages > 0 && aiAnalysisEnabled) {
+        const currentHour = new Date().getHours();
+        const isBusinessHours = currentHour >= 7 && currentHour < 20;
+        if (result.newMessages > 0 && aiAnalysisEnabled && isBusinessHours) {
           const analysisResult = await analyzeMessagesForInsights(connection.userId, 20);
           if (analysisResult.insights > 0) {
             console.log(`[Gmail Sync] User ${connection.userId}: ${analysisResult.insights} AI insights extracted`);
           }
         } else if (result.newMessages > 0 && !aiAnalysisEnabled) {
           console.log(`[Gmail Sync] User ${connection.userId}: Skipping AI analysis (disabled in admin settings)`);
+        } else if (result.newMessages > 0 && aiAnalysisEnabled && !isBusinessHours) {
+          console.log(`[Gmail Sync] User ${connection.userId}: Skipping AI analysis outside business hours (${currentHour}:xx)`);
         }
         
         // Sync sent mail and log as email_sent activities on customers/leads
