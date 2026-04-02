@@ -505,17 +505,6 @@ export async function registerRoutes(app: Express): Promise<Server> {
       calendar: { connected: false, error: null as string | null },
     };
     
-    // Helper to get Replit token
-    const getReплитToken = () => {
-      const hostname = process.env.REPLIT_CONNECTORS_HOSTNAME;
-      const xReplitToken = process.env.REPL_IDENTITY 
-        ? 'repl ' + process.env.REPL_IDENTITY 
-        : process.env.WEB_REPL_RENEWAL 
-        ? 'depl ' + process.env.WEB_REPL_RENEWAL 
-        : null;
-      return { hostname, xReplitToken };
-    };
-    
     // Check all connections in parallel for speed
     const checks = await Promise.allSettled([
       // Check Odoo connection
@@ -533,66 +522,26 @@ export async function registerRoutes(app: Express): Promise<Server> {
         }
       })(),
       
-      // Check Gmail connection - validate by actually testing the token
+      // Check Gmail connection using the same client used for sending
       (async () => {
         try {
-          const { hostname, xReplitToken } = getReплитToken();
-          if (!hostname || !xReplitToken) {
-            connectionStatus.gmail.connected = false;
-            connectionStatus.gmail.error = 'Replit connector not available';
-            return;
-          }
-          
-          const response = await fetch(
-            'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-mail',
-            { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
-          );
-          const data = await response.json();
-          const gmailConnection = data.items?.[0];
-          
-          const accessToken = gmailConnection?.settings?.access_token || 
-                              gmailConnection?.settings?.oauth?.credentials?.access_token;
-          
-          if (!accessToken) {
-            connectionStatus.gmail.connected = false;
-            connectionStatus.gmail.error = 'Gmail not connected - please reconnect in Integrations panel';
-          } else {
-            // Token presence is sufficient — Replit auto-refreshes when tokens are used
-            connectionStatus.gmail.connected = true;
-          }
+          const { checkGmailConnection } = await import('./gmail-client');
+          const ok = await checkGmailConnection();
+          connectionStatus.gmail.connected = ok;
+          if (!ok) connectionStatus.gmail.error = 'Gmail not connected - please reconnect in Integrations panel';
         } catch (error: any) {
           connectionStatus.gmail.connected = false;
           connectionStatus.gmail.error = error.message || 'Gmail check failed';
         }
       })(),
-      
-      // Check Google Calendar connection
+
+      // Check Google Calendar connection using the same client used for reading events
       (async () => {
         try {
-          const { hostname, xReplitToken } = getReплитToken();
-          if (!hostname || !xReplitToken) {
-            connectionStatus.calendar.connected = false;
-            connectionStatus.calendar.error = 'Replit connector not available';
-            return;
-          }
-          
-          const response = await fetch(
-            'https://' + hostname + '/api/v2/connection?include_secrets=true&connector_names=google-calendar',
-            { headers: { 'Accept': 'application/json', 'X_REPLIT_TOKEN': xReplitToken } }
-          );
-          const data = await response.json();
-          const calendarConnection = data.items?.[0];
-          
-          const accessToken = calendarConnection?.settings?.access_token || 
-                              calendarConnection?.settings?.oauth?.credentials?.access_token;
-          
-          if (!accessToken) {
-            connectionStatus.calendar.connected = false;
-            connectionStatus.calendar.error = 'Google Calendar not connected - please reconnect in Integrations panel';
-          } else {
-            // Token presence is sufficient — Replit auto-refreshes when tokens are used
-            connectionStatus.calendar.connected = true;
-          }
+          const { isGoogleCalendarConnected } = await import('./google-calendar-client');
+          const ok = await isGoogleCalendarConnected();
+          connectionStatus.calendar.connected = ok;
+          if (!ok) connectionStatus.calendar.error = 'Google Calendar not connected - please reconnect in Integrations panel';
         } catch (error: any) {
           connectionStatus.calendar.connected = false;
           connectionStatus.calendar.error = error.message || 'Calendar check failed';
