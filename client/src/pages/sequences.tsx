@@ -5,7 +5,6 @@ import { Button } from '@/components/ui/button';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import TiptapImage from '@tiptap/extension-image';
@@ -668,6 +667,154 @@ const TEMPLATE_CATEGORIES = [
   { value: 'other', label: 'Other' },
 ];
 
+const TEMPLATE_VARS = [
+  { label: '{{client.first_name}}', token: '{{client.first_name}}' },
+  { label: '{{client.last_name}}', token: '{{client.last_name}}' },
+  { label: '{{client.name}}', token: '{{client.name}}' },
+  { label: '{{client.company}}', token: '{{client.company}}' },
+  { label: '{{client.email}}', token: '{{client.email}}' },
+  { label: '{{user.name}}', token: '{{user.name}}' },
+];
+
+function TemplateBodyEditor({ value, onChange }: { value: string; onChange: (html: string) => void }) {
+  const [showImagePanel, setShowImagePanel] = useState(false);
+  const [imageUrl, setImageUrl] = useState('');
+  const [isImageSelected, setIsImageSelected] = useState(false);
+  const uploadId = useRef(`tpl-upload-${Math.random().toString(36).slice(2)}`);
+
+  const editor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: false, codeBlock: false, blockquote: false }),
+      TiptapImage.configure({ allowBase64: true, inline: false }),
+      Placeholder.configure({ placeholder: 'Write your email body here…' }),
+    ],
+    content: value || '',
+    onUpdate: ({ editor: ed }) => onChange(ed.getHTML()),
+  });
+
+  useEffect(() => {
+    if (editor && !editor.isFocused) {
+      const current = editor.getHTML();
+      if (current !== (value || '')) editor.commands.setContent(value || '', false);
+    }
+  }, [value]);
+
+  useEffect(() => {
+    if (!editor) return;
+    const update = () => setIsImageSelected(editor.isActive('image'));
+    editor.on('selectionUpdate', update);
+    editor.on('transaction', update);
+    return () => { editor.off('selectionUpdate', update); editor.off('transaction', update); };
+  }, [editor]);
+
+  function insertImageUrl() {
+    if (!imageUrl.trim() || !editor) return;
+    editor.chain().focus().setImage({ src: imageUrl.trim() }).run();
+    onChange(editor.getHTML());
+    setImageUrl('');
+    setShowImagePanel(false);
+  }
+
+  function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !editor) return;
+    const reader = new FileReader();
+    reader.onload = () => {
+      editor.chain().focus().setImage({ src: reader.result as string }).run();
+      setTimeout(() => onChange(editor.getHTML()), 0);
+      setShowImagePanel(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = '';
+  }
+
+  return (
+    <div className="border border-gray-200 rounded-lg overflow-hidden">
+      {/* Toolbar */}
+      <div className="flex items-center gap-0.5 px-3 py-1.5 border-b border-gray-100 bg-gray-50/60">
+        <button type="button" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleBold().run(); }}
+          className={`h-6 w-6 flex items-center justify-center rounded text-xs font-bold transition-colors ${editor?.isActive('bold') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+          title="Bold">
+          <Bold className="h-3.5 w-3.5" />
+        </button>
+        <button type="button" onMouseDown={e => { e.preventDefault(); editor?.chain().focus().toggleItalic().run(); }}
+          className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${editor?.isActive('italic') ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+          title="Italic">
+          <Italic className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <button type="button" onMouseDown={e => { e.preventDefault(); setShowImagePanel(v => !v); }}
+          className={`h-6 w-6 flex items-center justify-center rounded transition-colors ${showImagePanel ? 'bg-indigo-100 text-indigo-700' : 'text-gray-500 hover:bg-gray-100 hover:text-gray-800'}`}
+          title="Insert image">
+          <ImagePlus className="h-3.5 w-3.5" />
+        </button>
+        <div className="w-px h-4 bg-gray-200 mx-1" />
+        <DropdownMenu>
+          <DropdownMenuTrigger asChild>
+            <button type="button" className="h-6 px-1.5 flex items-center gap-1 rounded text-xs text-gray-500 hover:bg-gray-100 hover:text-gray-800 transition-colors">
+              <Braces className="h-3.5 w-3.5" />
+              <span className="text-[11px]">Variables</span>
+            </button>
+          </DropdownMenuTrigger>
+          <DropdownMenuContent align="start" className="w-52">
+            {TEMPLATE_VARS.map(v => (
+              <DropdownMenuItem key={v.token} className="text-xs font-mono" onSelect={() => editor?.chain().focus().insertContent(v.token).run()}>
+                {v.label}
+              </DropdownMenuItem>
+            ))}
+          </DropdownMenuContent>
+        </DropdownMenu>
+      </div>
+
+      {/* Image panel */}
+      {showImagePanel && (
+        <div className="px-4 py-2.5 border-b border-gray-100 bg-indigo-50/40 flex items-center gap-2">
+          <input type="text" className="flex-1 text-xs border border-gray-200 rounded px-2 py-1 bg-white outline-none focus:border-indigo-400"
+            placeholder="Paste image URL…" value={imageUrl} onChange={e => setImageUrl(e.target.value)}
+            onKeyDown={e => { if (e.key === 'Enter') insertImageUrl(); if (e.key === 'Escape') setShowImagePanel(false); }} autoFocus />
+          <Button size="sm" className="h-7 text-xs px-3" onClick={insertImageUrl} disabled={!imageUrl.trim()}>Insert</Button>
+          <span className="text-xs text-gray-400">or</span>
+          <label htmlFor={uploadId.current} className="h-7 text-xs px-3 inline-flex items-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer select-none font-medium transition-colors">
+            Upload
+          </label>
+          <input id={uploadId.current} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+          <button type="button" className="text-gray-400 hover:text-gray-600 ml-1" onClick={() => setShowImagePanel(false)}>
+            <XCircle className="h-4 w-4" />
+          </button>
+        </div>
+      )}
+
+      {/* Image resize bar */}
+      {isImageSelected && (
+        <div className="flex items-center gap-1.5 px-4 py-1.5 border-b border-indigo-100 bg-indigo-50/50">
+          <span className="text-[10px] text-indigo-500 font-semibold uppercase tracking-wide mr-1">Image size:</span>
+          {[{ label: 'Small', width: '180px' }, { label: 'Medium', width: '360px' }, { label: 'Large', width: '540px' }, { label: 'Full width', width: '100%' }].map(({ label, width }) => (
+            <button key={label} type="button"
+              onMouseDown={e => {
+                e.preventDefault();
+                if (!editor) return;
+                const { state, view } = editor;
+                const node = state.doc.nodeAt(state.selection.from);
+                if (node?.type.name === 'image') {
+                  view.dispatch(state.tr.setNodeMarkup(state.selection.from, undefined, { ...node.attrs, width }));
+                  setTimeout(() => onChange(editor.getHTML()), 0);
+                }
+              }}
+              className="px-2 py-0.5 rounded text-xs font-medium bg-white border border-indigo-200 hover:bg-indigo-100 hover:border-indigo-400 hover:text-indigo-700 text-gray-600 transition-colors shadow-sm">
+              {label}
+            </button>
+          ))}
+        </div>
+      )}
+
+      {/* Editor area */}
+      <div className="px-4 py-3 min-h-[180px] prose prose-sm max-w-none">
+        <EditorContent editor={editor} />
+      </div>
+    </div>
+  );
+}
+
 function TemplatesTab({ isAdmin }: { isAdmin: boolean }) {
   const { toast } = useToast();
   const [showEditor, setShowEditor] = useState(false);
@@ -809,7 +956,7 @@ function TemplatesTab({ isAdmin }: { isAdmin: boolean }) {
 
       {/* Create / Edit Dialog */}
       <Dialog open={showEditor} onOpenChange={v => { if (!v) { setShowEditor(false); setEditingTpl(null); resetForm(); } }}>
-        <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+        <DialogContent className="max-w-3xl max-h-[90vh] overflow-y-auto">
           <DialogHeader>
             <DialogTitle>{editingTpl ? 'Edit Template' : 'New Email Template'}</DialogTitle>
           </DialogHeader>
@@ -839,13 +986,10 @@ function TemplatesTab({ isAdmin }: { isAdmin: boolean }) {
             </div>
             <div>
               <p className="text-xs font-medium text-gray-600 mb-1">Body *</p>
-              <Textarea
+              <TemplateBodyEditor
                 value={form.body}
-                onChange={e => setForm(f => ({ ...f, body: e.target.value }))}
-                placeholder="Write your email body here. Use {{client.name}}, {{client.company}}, etc. for variables."
-                className="min-h-[180px] text-sm font-mono"
+                onChange={html => setForm(f => ({ ...f, body: html }))}
               />
-              <p className="text-[10px] text-gray-400 mt-1">Variables: {'{{client.name}}'}, {'{{client.company}}'}, {'{{client.email}}'}, {'{{user.name}}'}</p>
             </div>
           </div>
           <DialogFooter>
