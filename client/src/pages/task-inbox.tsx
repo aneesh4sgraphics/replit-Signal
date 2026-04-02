@@ -836,31 +836,33 @@ export default function TaskInboxPage() {
                     </Link>
                   ) : null;
                 })()}
-                {((selectedTask.contactEmail || selectedTask.senderEmail) || selectedTask.taskType === 'email_engagement') && (() => {
-                  // For email engagement tasks, only show Go to Gmail if the email was sent by the current user
+                {(() => {
+                  // Show "Open Email" whenever there is a subject or a contact email to search by
+                  const hasEmail = !!(selectedTask.contactEmail || selectedTask.senderEmail || selectedTask.emailSubject || selectedTask.taskType === 'email_engagement');
+                  if (!hasEmail) return null;
+
+                  // For email engagement tasks, only show if sent by the current user
                   const sentBy = selectedTask.assignedTo?.toLowerCase();
                   if (selectedTask.taskType === 'email_engagement' && sentBy && sentBy !== currentUserEmail) return null;
 
-                  // Prefer the actual sender's email over the CRM contact email
                   const emailForSearch = selectedTask.senderEmail || selectedTask.contactEmail;
-
                   let gmailSearch = '';
+
                   if (selectedTask.taskType === 'email_engagement') {
-                    // Strip "Email Opened: " / "Email Link Clicked: " prefix to get the exact subject
                     const subject = selectedTask.title
                       .replace(/^Email Opened:\s*/i, '')
                       .replace(/^Email Link Clicked:\s*/i, '');
-                    // Combine subject + recipient email to pinpoint the exact email thread
                     gmailSearch = emailForSearch
                       ? `subject:"${subject}" (to:${emailForSearch} OR from:${emailForSearch})`
                       : `subject:"${subject}"`;
+                  } else if (emailForSearch && selectedTask.emailSubject) {
+                    gmailSearch = `subject:"${selectedTask.emailSubject}" (to:${emailForSearch} OR from:${emailForSearch})`;
                   } else if (emailForSearch) {
-                    if (selectedTask.emailSubject) {
-                      gmailSearch = `subject:"${selectedTask.emailSubject}" (to:${emailForSearch} OR from:${emailForSearch})`;
-                    } else {
-                      gmailSearch = `from:${emailForSearch} OR to:${emailForSearch}`;
-                    }
+                    gmailSearch = `from:${emailForSearch} OR to:${emailForSearch}`;
+                  } else if (selectedTask.emailSubject) {
+                    gmailSearch = `subject:"${selectedTask.emailSubject}"`;
                   }
+
                   if (!gmailSearch) return null;
                   return (
                     <a
@@ -870,7 +872,7 @@ export default function TaskInboxPage() {
                     >
                       <Button variant="outline" size="sm" className="gap-2 text-blue-600 border-blue-200 hover:bg-blue-50">
                         <Mail className="h-4 w-4" />
-                        Go to Gmail
+                        Open Email
                       </Button>
                     </a>
                   );
@@ -887,6 +889,20 @@ export default function TaskInboxPage() {
                     Create Follow-up Task
                   </Button>
                 )}
+                {typeof selectedTask.id === "number" && selectedTask.source !== "email_not_replied" && (
+                  <Button
+                    size="sm"
+                    variant={selectedTask.priority === "critical" ? "default" : "outline"}
+                    onClick={() => markCriticalMutation.mutate({ taskId: selectedTask.id as number, critical: selectedTask.priority !== "critical" })}
+                    disabled={markCriticalMutation.isPending}
+                    className={selectedTask.priority === "critical"
+                      ? "gap-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
+                      : "gap-2 text-red-600 border-red-200 hover:bg-red-50"}
+                  >
+                    <Flame className="h-4 w-4" />
+                    {selectedTask.priority === "critical" ? "Unmark Critical" : "Mark Critical"}
+                  </Button>
+                )}
                 {selectedTask.source === "calendar" && typeof selectedTask.id === "number" && (
                   <>
                     <Button
@@ -897,18 +913,6 @@ export default function TaskInboxPage() {
                     >
                       <CheckCircle2 className="h-4 w-4" />
                       Complete
-                    </Button>
-                    <Button
-                      size="sm"
-                      variant={selectedTask.priority === "critical" ? "default" : "outline"}
-                      onClick={() => markCriticalMutation.mutate({ taskId: selectedTask.id as number, critical: selectedTask.priority !== "critical" })}
-                      disabled={markCriticalMutation.isPending}
-                      className={selectedTask.priority === "critical"
-                        ? "gap-2 bg-red-600 hover:bg-red-700 text-white border-red-600"
-                        : "gap-2 text-red-600 border-red-200 hover:bg-red-50"}
-                    >
-                      <Flame className="h-4 w-4" />
-                      {selectedTask.priority === "critical" ? "Unmark Critical" : "Mark Critical"}
                     </Button>
                     <Button
                       size="sm"
