@@ -31,6 +31,7 @@ export default function IntegrationsSettings() {
     queryKey: ['/api/integrations/status'],
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
+    placeholderData: (prev) => prev,
   });
 
   // Handle return from Gmail OAuth — show toast and strip query params from URL

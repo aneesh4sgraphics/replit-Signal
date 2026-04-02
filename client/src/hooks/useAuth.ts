@@ -1,5 +1,7 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, keepPreviousData } from "@tanstack/react-query";
 import { resetAuthFailed } from "@/lib/queryClient";
+
+const AUTH_CACHE_KEY = 'cachedAuthUser';
 
 interface AuthUser {
   id: string;
@@ -13,6 +15,16 @@ interface AuthUser {
   lastLoginDate?: string;
 }
 
+function getCachedUser(): AuthUser | undefined {
+  try {
+    const raw = sessionStorage.getItem(AUTH_CACHE_KEY);
+    if (!raw) return undefined;
+    return JSON.parse(raw) as AuthUser;
+  } catch {
+    return undefined;
+  }
+}
+
 async function fetchAuthUser(): Promise<AuthUser | null> {
   const res = await fetch("/api/auth/user", {
     credentials: "include",
@@ -22,6 +34,7 @@ async function fetchAuthUser(): Promise<AuthUser | null> {
   });
 
   if (res.status === 401) {
+    sessionStorage.removeItem(AUTH_CACHE_KEY);
     return null;
   }
 
@@ -31,11 +44,12 @@ async function fetchAuthUser(): Promise<AuthUser | null> {
 
   const user = await res.json();
 
-  // Record successful auth timestamp so grace periods work correctly
-  // and reset the globalAuthFailed flag so background queries can resume
   if (user) {
     sessionStorage.setItem('authTimestamp', String(Date.now()));
+    sessionStorage.setItem(AUTH_CACHE_KEY, JSON.stringify(user));
     resetAuthFailed();
+  } else {
+    sessionStorage.removeItem(AUTH_CACHE_KEY);
   }
 
   return user;
@@ -45,12 +59,14 @@ export function useAuth() {
   const { data: user, isLoading, error, refetch } = useQuery<AuthUser | null>({
     queryKey: ["/api/auth/user"],
     queryFn: fetchAuthUser,
+    initialData: getCachedUser() ?? undefined,
     retry: 2,
     retryDelay: (attemptIndex) => Math.min(1000 * (attemptIndex + 1), 3000),
     staleTime: 5 * 60 * 1000,
     gcTime: 10 * 60 * 1000,
     refetchOnWindowFocus: false,
     refetchOnMount: true,
+    placeholderData: keepPreviousData,
   });
 
   const isAuthenticated = !!user && !error;
