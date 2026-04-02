@@ -14558,6 +14558,90 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
   // ========================================
   // DRIP CAMPAIGN ASSIGNMENTS APIs
   // ========================================
+  // TEST-SEND: send one step to the logged-in user with real recipient data
+  // ========================================
+  app.post("/api/drip-campaigns/:campaignId/steps/:stepId/test-send", isAuthenticated, async (req: any, res) => {
+    try {
+      const stepId   = parseInt(req.params.stepId);
+      const { recipientType, recipientId } = req.body as {
+        recipientType: 'lead' | 'customer';
+        recipientId: string;
+      };
+
+      // 1. Get the drip step
+      const [step] = await db.select().from(dripCampaignSteps).where(eq(dripCampaignSteps.id, stepId));
+      if (!step) return res.status(404).json({ error: 'Step not found' });
+
+      // 2. Gather recipient info
+      let firstName = '', lastName = '', company = '', recipientEmail = '';
+      if (recipientType === 'lead') {
+        const [lead] = await db.select().from(leads).where(eq(leads.id, parseInt(recipientId)));
+        if (!lead) return res.status(404).json({ error: 'Lead not found' });
+        const nameParts = (lead.name || '').split(' ');
+        firstName = nameParts[0] || '';
+        lastName  = nameParts.slice(1).join(' ');
+        company   = lead.company || '';
+        recipientEmail = lead.email || '';
+      } else {
+        const [cust] = await db.select().from(customers).where(eq(customers.id, recipientId));
+        if (!cust) return res.status(404).json({ error: 'Customer not found' });
+        firstName = cust.firstName || '';
+        lastName  = cust.lastName  || '';
+        company   = cust.company   || '';
+        recipientEmail = cust.email || '';
+      }
+
+      // 3. Variable substitution (mirror replaceVariables logic)
+      const recipientName = `${firstName} ${lastName}`.trim() || company || 'Valued Customer';
+      const replacements: Record<string, string> = {
+        'First Name': firstName, 'Last Name': lastName, 'Full Name': recipientName,
+        'Email': recipientEmail, 'Company': company,
+        'Sales Rep Name': '4S Graphics Team', 'Unsubscribe Link': '#unsubscribe',
+        'client.first_name': firstName, 'client.last_name': lastName,
+        'client.company': company, 'client.email': recipientEmail, 'client.name': recipientName,
+        'customer.first_name': firstName, 'customer.last_name': lastName,
+        'customer.company': company, 'customer.email': recipientEmail, 'customer.name': recipientName,
+        'company_name': company, 'current_date': new Date().toLocaleDateString('en-US', { year: 'numeric', month: 'long', day: 'numeric' }),
+        'current_year': new Date().getFullYear().toString(),
+      };
+      const applyVars = (text: string) => {
+        let out = text || '';
+        for (const [key, val] of Object.entries(replacements)) {
+          const rx = new RegExp(`\\{\\{\\s*${key.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\}\\}`, 'gi');
+          out = out.replace(rx, val);
+        }
+        return out.replace(/\{\{[^}]*\}\}/g, '');
+      };
+
+      const finalSubject = `[TEST] ${applyVars(step.subject || '')}`;
+      const finalBody    = applyVars(step.body || '');
+
+      // 4. Send to the logged-in user's email
+      const authUserId = req.user?.userId || req.user?.id;
+      const dbUser = await storage.getUser(authUserId);
+      const toEmail = dbUser?.email;
+      if (!toEmail) return res.status(400).json({ error: 'Could not determine your email address' });
+
+      const { sendEmailAsUser, getUserGmailConnection } = await import("./user-gmail-oauth");
+      const { sendEmail } = await import("./gmail-client");
+      const userGmailConn = await getUserGmailConnection(authUserId);
+      const plain = finalBody.replace(/<[^>]+>/g, '').replace(/&nbsp;/g, ' ').trim();
+
+      if (userGmailConn?.isActive && userGmailConn.scope?.includes('gmail.send')) {
+        await sendEmailAsUser(authUserId, toEmail, finalSubject, plain, finalBody);
+      } else {
+        await sendEmail(toEmail, finalSubject, plain, finalBody);
+      }
+
+      console.log(`[Test Send] Step "${step.name}" sent to ${toEmail} using data from ${recipientType} ${recipientId}`);
+      res.json({ success: true, sentTo: toEmail });
+    } catch (error) {
+      console.error("Error sending test email:", error);
+      res.status(500).json({ error: "Failed to send test email" });
+    }
+  });
+
+  // ========================================
 
   // Get assignments for a campaign or customer
   app.get("/api/drip-campaigns/:campaignId/assignments", isAuthenticated, async (req: any, res) => {

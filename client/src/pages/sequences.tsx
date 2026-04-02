@@ -77,6 +77,13 @@ import {
   Bold,
   Italic,
   ImagePlus,
+  Smartphone,
+  Monitor,
+  Sun,
+  Moon,
+  Eye,
+  Send,
+  FlaskConical,
 } from 'lucide-react';
 
 // ─── Types ────────────────────────────────────────────────────────────────────
@@ -482,6 +489,181 @@ function StepCard({
   );
 }
 
+// ─── Test Email Dialog ────────────────────────────────────────────────────────
+function TestEmailDialog({
+  open,
+  onClose,
+  campaignId,
+  steps,
+}: {
+  open: boolean;
+  onClose: () => void;
+  campaignId: number;
+  steps: DripStep[];
+}) {
+  const { toast } = useToast();
+  const [stepId, setStepId] = useState<number | null>(steps[0]?.id ?? null);
+  const [type, setType] = useState<'lead' | 'customer'>('lead');
+  const [search, setSearch] = useState('');
+  const [selected, setSelected] = useState<{ id: string; label: string } | null>(null);
+  const [step, setStep] = useState<'pick-contact' | 'confirm'>('pick-contact');
+
+  // Reset when opened
+  useEffect(() => {
+    if (open) {
+      setStepId(steps[0]?.id ?? null);
+      setType('lead');
+      setSearch('');
+      setSelected(null);
+      setStep('pick-contact');
+    }
+  }, [open]);
+
+  const { data: leads = [] } = useQuery<any[]>({
+    queryKey: ['/api/leads', { limit: 200 }],
+    enabled: open && type === 'lead',
+  });
+  const { data: customers = [] } = useQuery<any[]>({
+    queryKey: ['/api/customers', { limit: 200 }],
+    enabled: open && type === 'customer',
+  });
+
+  const items = (type === 'lead'
+    ? (leads as any[]).map(l => ({ id: String(l.id), label: [l.name || `${l.firstName || ''} ${l.lastName || ''}`.trim(), l.company].filter(Boolean).join(' — ') }))
+    : (customers as any[]).map(c => ({ id: String(c.id), label: [c.firstName && c.lastName ? `${c.firstName} ${c.lastName}` : '', c.company].filter(Boolean).join(' — ') }))
+  ).filter(i => i.label.toLowerCase().includes(search.toLowerCase()));
+
+  const sendTest = useMutation({
+    mutationFn: async () => {
+      if (!stepId || !selected) throw new Error('Missing step or contact');
+      return apiRequest('POST', `/api/drip-campaigns/${campaignId}/steps/${stepId}/test-send`, {
+        recipientType: type,
+        recipientId: selected.id,
+      });
+    },
+    onSuccess: async (res: any) => {
+      const data = await res.json();
+      toast({ title: `Test email sent to ${data.sentTo}`, description: 'Check your inbox in a few seconds.' });
+      onClose();
+    },
+    onError: () => toast({ title: 'Failed to send test email', variant: 'destructive' }),
+  });
+
+  const selectedStep = steps.find(s => s.id === stepId);
+
+  return (
+    <Dialog open={open} onOpenChange={v => { if (!v) onClose(); }}>
+      <DialogContent className="max-w-md">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <FlaskConical className="h-4 w-4 text-indigo-500" />
+            Send Test Email
+          </DialogTitle>
+        </DialogHeader>
+
+        <div className="space-y-4">
+          {/* Step picker */}
+          {steps.length > 1 && (
+            <div>
+              <p className="text-xs font-medium text-gray-500 mb-1.5">Which step to test?</p>
+              <div className="flex flex-wrap gap-1.5">
+                {steps.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setStepId(s.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      stepId === s.id
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400 hover:text-indigo-600'
+                    }`}
+                  >
+                    {s.name || `Step ${s.stepOrder}`}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Type toggle */}
+          <div>
+            <p className="text-xs font-medium text-gray-500 mb-1.5">Select a contact to preview with their data</p>
+            <div className="flex rounded-lg border border-gray-200 overflow-hidden text-sm">
+              {(['lead', 'customer'] as const).map(t => (
+                <button
+                  key={t}
+                  type="button"
+                  onClick={() => { setType(t); setSelected(null); setSearch(''); }}
+                  className={`flex-1 py-1.5 font-medium transition-colors ${
+                    type === t ? 'bg-indigo-600 text-white' : 'bg-white text-gray-500 hover:bg-gray-50'
+                  }`}
+                >
+                  {t === 'lead' ? 'Lead' : 'Customer'}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          {/* Search */}
+          <div className="relative">
+            <Search className="absolute left-2.5 top-2.5 h-3.5 w-3.5 text-gray-400" />
+            <Input
+              value={search}
+              onChange={e => setSearch(e.target.value)}
+              placeholder={`Search ${type}s…`}
+              className="pl-8 text-sm h-9"
+            />
+          </div>
+
+          {/* List */}
+          <div className="max-h-48 overflow-y-auto border border-gray-200 rounded-lg divide-y divide-gray-100">
+            {items.length === 0 ? (
+              <p className="text-xs text-gray-400 text-center py-6">No {type}s found</p>
+            ) : items.slice(0, 40).map(item => (
+              <button
+                key={item.id}
+                type="button"
+                onClick={() => setSelected(item)}
+                className={`w-full text-left px-3 py-2.5 text-sm transition-colors ${
+                  selected?.id === item.id
+                    ? 'bg-indigo-50 text-indigo-700 font-medium'
+                    : 'text-gray-700 hover:bg-gray-50'
+                }`}
+              >
+                {item.label || '(No name)'}
+              </button>
+            ))}
+          </div>
+
+          {/* Selected + info */}
+          {selected && (
+            <div className="flex items-start gap-2 bg-green-50 border border-green-200 rounded-lg px-3 py-2.5 text-xs text-green-800">
+              <CheckCircle2 className="h-3.5 w-3.5 mt-0.5 flex-shrink-0 text-green-600" />
+              <div>
+                <p className="font-medium">{selected.label}</p>
+                <p className="text-green-600 mt-0.5">Their name & details will fill in the template. The email will arrive in <strong>your</strong> inbox.</p>
+              </div>
+            </div>
+          )}
+        </div>
+
+        <DialogFooter>
+          <Button variant="ghost" onClick={onClose} size="sm">Cancel</Button>
+          <Button
+            size="sm"
+            className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+            disabled={!selected || !stepId || sendTest.isPending}
+            onClick={() => sendTest.mutate()}
+          >
+            <Send className="h-3.5 w-3.5" />
+            {sendTest.isPending ? 'Sending…' : 'Send to my inbox'}
+          </Button>
+        </DialogFooter>
+      </DialogContent>
+    </Dialog>
+  );
+}
+
 // ─── Enroll Dialog ────────────────────────────────────────────────────────────
 function EnrollDialog({
   open,
@@ -663,6 +845,13 @@ export default function SequencesPage() {
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [addingStep, setAddingStep] = useState(false);
   const [newStepName, setNewStepName] = useState('');
+
+  // Preview & test-email modal state
+  const [showPreview, setShowPreview] = useState(false);
+  const [previewStepId, setPreviewStepId] = useState<number | null>(null);
+  const [previewDevice, setPreviewDevice] = useState<'mobile' | 'desktop'>('mobile');
+  const [previewTheme, setPreviewTheme] = useState<'light' | 'dark'>('light');
+  const [showTestEmail, setShowTestEmail] = useState(false);
 
   // ── Queries ──────────────────────────────────────────────────────────────
   const { data: campaigns = [], isLoading } = useQuery<DripCampaign[]>({
@@ -1101,6 +1290,40 @@ export default function SequencesPage() {
                   </button>
                 )}
               </div>
+
+              {/* ── Test / Preview strip ─────────────────────────────── */}
+              {steps.length > 0 && (
+                <div className="mt-8 w-full max-w-2xl">
+                  <div className="flex items-center gap-3 bg-gradient-to-r from-indigo-50 to-purple-50 border border-indigo-200 rounded-xl px-5 py-4">
+                    <div className="flex-1">
+                      <p className="text-sm font-semibold text-indigo-800">Want to test this sequence?</p>
+                      <p className="text-xs text-indigo-500 mt-0.5">Send yourself a preview with real contact data, or see how it looks on a phone.</p>
+                    </div>
+                    <div className="flex items-center gap-2 flex-shrink-0">
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        className="border-indigo-300 text-indigo-700 hover:bg-indigo-100 gap-1.5"
+                        onClick={() => {
+                          setPreviewStepId(steps[0]?.id ?? null);
+                          setShowPreview(true);
+                        }}
+                      >
+                        <Eye className="h-3.5 w-3.5" />
+                        See Preview
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+                        onClick={() => setShowTestEmail(true)}
+                      >
+                        <Send className="h-3.5 w-3.5" />
+                        Send Test Email
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              )}
             </div>
           )}
 
@@ -1390,6 +1613,158 @@ export default function SequencesPage() {
       </div>
 
       {/* ── Dialogs ─────────────────────────────────────────────────────── */}
+
+      {/* Test Email Dialog */}
+      <TestEmailDialog
+        open={showTestEmail}
+        onClose={() => setShowTestEmail(false)}
+        campaignId={selectedId}
+        steps={steps}
+      />
+
+      {/* Preview Modal */}
+      <Dialog open={showPreview} onOpenChange={setShowPreview}>
+        <DialogContent className="max-w-3xl max-h-[92vh] overflow-y-auto">
+          <DialogHeader>
+            <div className="flex items-center justify-between">
+              <DialogTitle className="flex items-center gap-2">
+                <Eye className="h-5 w-5 text-indigo-600" />
+                Email Preview
+              </DialogTitle>
+              <div className="flex items-center gap-1 bg-gray-100 rounded-lg p-0.5 mr-8">
+                <button
+                  onClick={() => setPreviewDevice('mobile')}
+                  className={`p-1.5 rounded-md transition-all ${previewDevice === 'mobile' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Mobile preview"
+                >
+                  <Smartphone className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setPreviewDevice('desktop')}
+                  className={`p-1.5 rounded-md transition-all ${previewDevice === 'desktop' ? 'bg-white shadow-sm text-indigo-600' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Desktop preview"
+                >
+                  <Monitor className="h-4 w-4" />
+                </button>
+                <div className="w-px h-5 bg-gray-300 mx-0.5" />
+                <button
+                  onClick={() => setPreviewTheme('light')}
+                  className={`p-1.5 rounded-md transition-all ${previewTheme === 'light' ? 'bg-white shadow-sm text-amber-500' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Light mode"
+                >
+                  <Sun className="h-4 w-4" />
+                </button>
+                <button
+                  onClick={() => setPreviewTheme('dark')}
+                  className={`p-1.5 rounded-md transition-all ${previewTheme === 'dark' ? 'bg-gray-700 shadow-sm text-blue-300' : 'text-gray-400 hover:text-gray-600'}`}
+                  title="Dark mode"
+                >
+                  <Moon className="h-4 w-4" />
+                </button>
+              </div>
+            </div>
+            {/* Step selector (tabs) */}
+            {steps.length > 1 && (
+              <div className="flex flex-wrap gap-1.5 mt-3">
+                {steps.map(s => (
+                  <button
+                    key={s.id}
+                    type="button"
+                    onClick={() => setPreviewStepId(s.id)}
+                    className={`px-2.5 py-1 rounded-full text-xs font-medium border transition-colors ${
+                      previewStepId === s.id
+                        ? 'bg-indigo-600 text-white border-indigo-600'
+                        : 'bg-white text-gray-600 border-gray-200 hover:border-indigo-400 hover:text-indigo-600'
+                    }`}
+                  >
+                    {s.name || `Step ${s.stepOrder}`}
+                  </button>
+                ))}
+              </div>
+            )}
+            <p className="text-xs text-gray-400 mt-1">Variables are shown with sample data — real names fill in when the email sends</p>
+          </DialogHeader>
+
+          <div className="flex justify-center py-2">
+            {(() => {
+              const previewStep = steps.find(s => s.id === previewStepId) || steps[0];
+              if (!previewStep) return <p className="text-sm text-gray-400">No steps yet</p>;
+
+              // Sample variable substitution for preview
+              const sampleVars: Record<string, string> = {
+                'First Name': 'Jane', 'Last Name': 'Smith', 'Full Name': 'Jane Smith',
+                'Email': 'jane@acmecorp.com', 'Company': 'Acme Corporation',
+                'Sales Rep Name': '4S Graphics Team', 'Unsubscribe Link': '#',
+              };
+              const applyPreviewVars = (t: string) => {
+                let out = t || '';
+                for (const [k, v] of Object.entries(sampleVars)) {
+                  out = out.replace(new RegExp(`\\{\\{\\s*${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*\\}\\}`, 'gi'), v);
+                }
+                return out.replace(/\{\{[^}]*\}\}/g, '');
+              };
+              const subject = applyPreviewVars(previewStep.subject || '');
+              const body    = applyPreviewVars(previewStep.body || '');
+
+              return (
+                <div className={`relative transition-all duration-300 ${previewDevice === 'mobile' ? 'w-[320px]' : 'w-full max-w-[600px]'}`}>
+                  {previewDevice === 'mobile' ? (
+                    <div className={`rounded-[2.5rem] border-[6px] p-1 shadow-xl ${previewTheme === 'dark' ? 'border-gray-700 bg-gray-800' : 'border-gray-300 bg-gray-100'}`}>
+                      <div className={`w-12 h-1.5 rounded-full mx-auto mt-1 mb-2 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                      <div className={`rounded-[1.8rem] overflow-hidden ${previewTheme === 'dark' ? 'bg-gray-900' : 'bg-white'}`}>
+                        <div className={`px-4 py-2.5 border-b ${previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                          <div className="flex items-center gap-2 mb-1.5">
+                            <div className={`w-8 h-8 rounded-full flex items-center justify-center text-xs font-bold ${previewTheme === 'dark' ? 'bg-indigo-800 text-indigo-200' : 'bg-indigo-100 text-indigo-600'}`}>
+                              4S
+                            </div>
+                            <div className="flex-1 min-w-0">
+                              <p className={`text-xs font-semibold truncate ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>4S Graphics</p>
+                              <p className={`text-[10px] truncate ${previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>to jane@acmecorp.com</p>
+                            </div>
+                            <span className={`text-[10px] ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Now</span>
+                          </div>
+                          <p className={`text-sm font-semibold truncate ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{subject || '(No subject)'}</p>
+                        </div>
+                        <div
+                          className={`px-4 py-3 text-sm overflow-y-auto prose prose-sm max-w-none ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
+                          style={{ maxHeight: '380px', fontSize: '13px', lineHeight: '1.5' }}
+                          dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                        />
+                      </div>
+                      <div className={`w-16 h-1.5 rounded-full mx-auto mt-2 mb-1 ${previewTheme === 'dark' ? 'bg-gray-600' : 'bg-gray-300'}`} />
+                    </div>
+                  ) : (
+                    <div className={`rounded-xl border shadow-lg overflow-hidden ${previewTheme === 'dark' ? 'border-gray-700 bg-gray-900' : 'border-gray-200 bg-white'}`}>
+                      <div className={`px-4 py-3 border-b ${previewTheme === 'dark' ? 'bg-gray-800 border-gray-700' : 'bg-gray-50 border-gray-200'}`}>
+                        <div className="flex items-center gap-2 mb-2">
+                          <div className={`w-9 h-9 rounded-full flex items-center justify-center text-sm font-bold ${previewTheme === 'dark' ? 'bg-indigo-800 text-indigo-200' : 'bg-indigo-100 text-indigo-600'}`}>4S</div>
+                          <div className="flex-1 min-w-0">
+                            <p className={`text-sm font-semibold ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>4S Graphics</p>
+                            <p className={`text-xs ${previewTheme === 'dark' ? 'text-gray-400' : 'text-gray-500'}`}>to jane@acmecorp.com</p>
+                          </div>
+                          <span className={`text-xs ${previewTheme === 'dark' ? 'text-gray-500' : 'text-gray-400'}`}>Just now</span>
+                        </div>
+                        <p className={`text-base font-semibold ${previewTheme === 'dark' ? 'text-gray-100' : 'text-gray-900'}`}>{subject || '(No subject)'}</p>
+                      </div>
+                      <div
+                        className={`px-6 py-5 prose prose-sm max-w-none overflow-y-auto ${previewTheme === 'dark' ? 'text-gray-200 prose-headings:text-gray-100 prose-a:text-blue-400 prose-strong:text-gray-100' : 'text-gray-800 prose-headings:text-gray-900 prose-a:text-blue-600'}`}
+                        style={{ maxHeight: '440px', fontSize: '14px', lineHeight: '1.6' }}
+                        dangerouslySetInnerHTML={{ __html: body || '<p style="color:#999">No content yet</p>' }}
+                      />
+                    </div>
+                  )}
+                </div>
+              );
+            })()}
+          </div>
+
+          <div className="flex items-center gap-2 p-3 rounded-lg text-xs bg-gray-50 text-gray-500">
+            <User className="h-3.5 w-3.5 flex-shrink-0" />
+            <span>Preview uses sample data: <strong>Jane Smith</strong> at <strong>Acme Corporation</strong>. Real names and details will be filled in when the email sends.</span>
+          </div>
+        </DialogContent>
+      </Dialog>
+
       <EnrollDialog
         open={showEnroll}
         onClose={() => setShowEnroll(false)}
