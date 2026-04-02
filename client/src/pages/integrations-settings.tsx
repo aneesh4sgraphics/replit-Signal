@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -32,6 +32,35 @@ export default function IntegrationsSettings() {
     refetchOnWindowFocus: false,
     staleTime: 5 * 60 * 1000,
   });
+
+  // Handle return from Gmail OAuth — show toast and strip query params from URL
+  useEffect(() => {
+    const params = new URLSearchParams(window.location.search);
+    const gmailConnected = params.get('gmail_connected');
+    const gmailError = params.get('gmail_error');
+    const email = params.get('email');
+
+    if (gmailConnected === 'true') {
+      toast({
+        title: 'Gmail connected',
+        description: email ? `Connected as ${email}` : 'Your Gmail account is now linked.',
+      });
+      qc.invalidateQueries({ queryKey: ['/api/integrations/status'] });
+      window.history.replaceState({}, '', '/integrations');
+    } else if (gmailError) {
+      const messages: Record<string, string> = {
+        missing_params: 'OAuth response was incomplete. Please try again.',
+        invalid_state: 'Security check failed. Please try again.',
+        access_denied: 'You declined the Gmail permission request.',
+      };
+      toast({
+        title: 'Gmail connection failed',
+        description: messages[gmailError] || gmailError,
+        variant: 'destructive',
+      });
+      window.history.replaceState({}, '', '/integrations');
+    }
+  }, []);
 
   const { data: userPrefs } = useQuery<{ spotlightDigestEnabled: boolean }>({
     queryKey: ['/api/users/me/spotlight-digest'],

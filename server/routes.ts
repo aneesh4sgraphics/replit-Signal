@@ -11128,11 +11128,11 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       
       if (oauthError) {
         console.error("Gmail OAuth error:", oauthError);
-        return res.redirect("/?gmail_error=" + encodeURIComponent(oauthError as string));
+        return res.redirect("/integrations?gmail_error=" + encodeURIComponent(oauthError as string));
       }
       
       if (!code || !nonce) {
-        return res.redirect("/?gmail_error=missing_params");
+        return res.redirect("/integrations?gmail_error=missing_params");
       }
 
       // Verify nonce matches session to prevent OAuth CSRF / account-linking abuse
@@ -11140,7 +11140,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       const userId = req.session?.gmailOAuthUserId;
       if (!sessionNonce || sessionNonce !== nonce || !userId) {
         console.error("[Gmail OAuth] State nonce mismatch — possible CSRF attempt");
-        return res.redirect("/?gmail_error=invalid_state");
+        return res.redirect("/integrations?gmail_error=invalid_state");
       }
       // Consume the nonce so it can't be replayed
       delete req.session.gmailOAuthNonce;
@@ -11149,10 +11149,10 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       const { handleCallback } = await import("./user-gmail-oauth");
       const result = await handleCallback(code as string, userId as string);
       
-      res.redirect(`/gmail-insights?connected=true&email=${encodeURIComponent(result.email)}`);
+      res.redirect(`/integrations?gmail_connected=true&email=${encodeURIComponent(result.email)}`);
     } catch (error: any) {
       console.error("Error handling Gmail OAuth callback:", error);
-      res.redirect("/?gmail_error=" + encodeURIComponent(error.message || "callback_failed"));
+      res.redirect("/integrations?gmail_error=" + encodeURIComponent(error.message || "callback_failed"));
     }
   });
 
