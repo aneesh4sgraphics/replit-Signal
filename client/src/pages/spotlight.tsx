@@ -2074,6 +2074,14 @@ export default function Spotlight() {
       toast({ title: 'Missing fields', description: 'Please fill in recipient, subject, and message', variant: 'destructive' });
       return;
     }
+    if (!userSignature) {
+      toast({
+        title: 'Signature required',
+        description: 'Please set up your email signature before sending. Go to Email Sequences → Signature tab.',
+        variant: 'destructive',
+      });
+      return;
+    }
     // For lead tasks, don't pass lead-prefixed customerId - it's not a valid customer ID
     const taskCustomerId = currentTask?.task?.customer?.id;
     const validCustomerId = taskCustomerId && !taskCustomerId.startsWith('lead-') ? taskCustomerId : undefined;
@@ -7109,6 +7117,17 @@ export default function Spotlight() {
           </DialogHeader>
 
           <div className="space-y-4 py-4">
+            {/* Signature warning */}
+            {!userSignature && (
+              <div className="flex items-center gap-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-3">
+                <AlertCircle className="h-4 w-4 text-amber-500 flex-shrink-0" />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-medium text-amber-800">No email signature set up</p>
+                  <p className="text-xs text-amber-700 mt-0.5">Set up your signature in <strong>Email Sequences → Signature</strong> before sending.</p>
+                </div>
+              </div>
+            )}
+
             {/* Template Selector */}
             {emailTemplates.length > 0 && (
               <div className="space-y-2">

@@ -495,6 +495,172 @@ function StepCard({
   );
 }
 
+// ─── Signature Tab ────────────────────────────────────────────────────────────
+const FOUR_S_LOGO_URL = 'https://www.4sgraphics.com/wp-content/uploads/2019/02/4S-FINAL-LOGO-2.jpg';
+
+function buildFourSSignatureHtml(name: string, cellPhone: string): string {
+  const cellLine = cellPhone
+    ? `<div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${cellPhone}</div>`
+    : '';
+  return `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.5;">
+  <img src="${FOUR_S_LOGO_URL}" alt="4S Graphics" style="width: 100px; height: auto; margin-bottom: 6px; display: block;" />
+  <div style="font-weight: bold; margin-bottom: 10px; color: #333;">Synthetic &amp; Specialty Substrates Suppliers</div>
+  <div style="margin-bottom: 6px; color: #333;">-</div>
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${name || 'Your Name'}</div>
+  ${cellLine}
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">T. (954) 493.6484 x 101</div>
+  <div style="margin-bottom: 4px; color: #333;">764 NW 57th Court, Fort Lauderdale, FL - 33309</div>
+  <div><a href="https://www.4sgraphics.com" style="color: #22963e; text-decoration: none;">www.4sgraphics.com</a></div>
+</div>`;
+}
+
+function SignatureTab() {
+  const { toast } = useToast();
+  const [form, setForm] = useState({ name: '', cellPhone: '', signatureHtml: '' });
+  const [preview, setPreview] = useState(false);
+
+  const { data: sig, isLoading } = useQuery<any | null>({
+    queryKey: ['/api/email/signature'],
+  });
+
+  useEffect(() => {
+    if (sig) {
+      setForm({
+        name: sig.name || '',
+        cellPhone: sig.cellPhone || '',
+        signatureHtml: sig.signatureHtml || '',
+      });
+    }
+  }, [sig]);
+
+  const saveSig = useMutation({
+    mutationFn: () => apiRequest('POST', '/api/email/signature', { ...form }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email/signature'] });
+      toast({ title: 'Signature saved' });
+    },
+    onError: () => toast({ title: 'Failed to save signature', variant: 'destructive' }),
+  });
+
+  const deleteSig = useMutation({
+    mutationFn: () => apiRequest('DELETE', '/api/email/signature'),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['/api/email/signature'] });
+      setForm({ name: '', cellPhone: '', signatureHtml: '' });
+      toast({ title: 'Signature removed' });
+    },
+    onError: () => toast({ title: 'Failed to remove signature', variant: 'destructive' }),
+  });
+
+  return (
+    <div className="p-6 max-w-2xl">
+      <div className="mb-6">
+        <h2 className="text-base font-semibold text-gray-900">Email Signature</h2>
+        <p className="text-xs text-gray-500 mt-0.5">Your signature is automatically appended to every email you send. It must be configured before sending.</p>
+      </div>
+
+      {/* Alert if no signature */}
+      {!isLoading && !sig && (
+        <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-xl p-4 mb-6">
+          <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+            <span className="text-white text-xs font-bold">!</span>
+          </div>
+          <div>
+            <p className="text-sm font-semibold text-amber-800">No signature set up yet</p>
+            <p className="text-xs text-amber-700 mt-0.5">Fill in your name and cell phone below, then click "Generate Signature" to create your branded 4S Graphics email footer.</p>
+          </div>
+        </div>
+      )}
+
+      <div className="bg-white border border-gray-200 rounded-xl p-6 space-y-5">
+        {/* Name + Cell */}
+        <div className="grid grid-cols-2 gap-4">
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">Your name <span className="text-red-500">*</span></p>
+            <Input value={form.name} onChange={e => setForm(f => ({ ...f, name: e.target.value }))} placeholder="e.g. Aneesh Prabhu" />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-gray-700 mb-1">Cell phone <span className="text-xs text-gray-400">(shown in green)</span></p>
+            <Input value={form.cellPhone} onChange={e => setForm(f => ({ ...f, cellPhone: e.target.value }))} placeholder="e.g. (260) 580.0526" />
+            <p className="text-[10px] text-gray-400 mt-1">Leave blank to hide from signature.</p>
+          </div>
+        </div>
+
+        {/* Generate button */}
+        <div className="flex items-center gap-3">
+          <Button
+            variant="outline"
+            size="sm"
+            disabled={!form.name}
+            className="gap-1.5 border-green-300 text-green-700 hover:bg-green-50"
+            onClick={() => setForm(f => ({ ...f, signatureHtml: buildFourSSignatureHtml(f.name, f.cellPhone) }))}
+          >
+            <Zap className="h-3.5 w-3.5" />
+            Generate 4S Graphics Signature
+          </Button>
+          <p className="text-xs text-gray-400">Builds branded footer with logo, office phone & address.</p>
+        </div>
+
+        {/* Preview */}
+        {form.signatureHtml && (
+          <div>
+            <div className="flex items-center justify-between mb-2">
+              <p className="text-xs font-medium text-gray-700">Signature preview</p>
+              <button onClick={() => setPreview(p => !p)} className="text-xs text-indigo-600 hover:underline">
+                {preview ? 'Hide' : 'Show'} preview
+              </button>
+            </div>
+            {preview && (
+              <div
+                className="bg-white border border-gray-200 rounded-lg p-5"
+                dangerouslySetInnerHTML={{ __html: form.signatureHtml }}
+              />
+            )}
+          </div>
+        )}
+
+        {/* Actions */}
+        <div className="flex items-center justify-between pt-2 border-t border-gray-100">
+          {sig && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="text-red-500 hover:text-red-600 hover:bg-red-50 gap-1.5"
+              disabled={deleteSig.isPending}
+              onClick={() => deleteSig.mutate()}
+            >
+              <Trash2 className="h-3.5 w-3.5" />
+              Remove signature
+            </Button>
+          )}
+          <div className="ml-auto">
+            <Button
+              size="sm"
+              disabled={!form.name || !form.signatureHtml || saveSig.isPending}
+              className="bg-indigo-600 hover:bg-indigo-700 text-white gap-1.5"
+              onClick={() => saveSig.mutate()}
+            >
+              {saveSig.isPending ? <Loader2 className="h-3.5 w-3.5 animate-spin" /> : <Save className="h-3.5 w-3.5" />}
+              Save Signature
+            </Button>
+          </div>
+        </div>
+      </div>
+
+      {/* Example of what it looks like */}
+      <div className="mt-6 bg-gray-50 border border-gray-200 rounded-xl p-4">
+        <p className="text-xs font-medium text-gray-500 mb-3">What your signature will look like in emails:</p>
+        <div
+          className="bg-white rounded-lg p-4 border border-gray-100"
+          dangerouslySetInnerHTML={{
+            __html: buildFourSSignatureHtml(form.name || 'Your Name', form.cellPhone),
+          }}
+        />
+      </div>
+    </div>
+  );
+}
+
 // ─── Templates Tab ────────────────────────────────────────────────────────────
 const TEMPLATE_CATEGORIES = [
   { value: 'general', label: 'General' },
@@ -1106,7 +1272,7 @@ export default function SequencesPage() {
   const { toast } = useToast();
   const [selectedId, setSelectedId] = useState<number | null>(null);
   const [activeTab, setActiveTab] = useState<'editor' | 'recipients' | 'settings'>('editor');
-  const [mainView, setMainView] = useState<'sequences' | 'templates'>('sequences');
+  const [mainView, setMainView] = useState<'sequences' | 'templates' | 'signature'>('sequences');
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showEnroll, setShowEnroll] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -1252,6 +1418,12 @@ export default function SequencesPage() {
               >
                 Templates
               </button>
+              <button
+                onClick={() => setMainView('signature')}
+                className={`px-3 py-1 text-xs font-medium rounded-md transition-colors ${mainView === 'signature' ? 'bg-white text-gray-900 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              >
+                Signature
+              </button>
             </div>
           </div>
           {mainView === 'sequences' && (
@@ -1270,6 +1442,13 @@ export default function SequencesPage() {
         {mainView === 'templates' && (
           <div className="flex-1 overflow-auto">
             <TemplatesTab isAdmin={true} />
+          </div>
+        )}
+
+        {/* Signature View */}
+        {mainView === 'signature' && (
+          <div className="flex-1 overflow-auto">
+            <SignatureTab />
           </div>
         )}
 

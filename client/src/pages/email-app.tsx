@@ -110,6 +110,7 @@ export default function EmailApp() {
     name: "",
     title: "",
     phone: "",
+    cellPhone: "",
     signatureHtml: "",
   });
 
@@ -119,10 +120,27 @@ export default function EmailApp() {
         name: userSignature.name || "",
         title: userSignature.title || "",
         phone: userSignature.phone || "",
+        cellPhone: (userSignature as any).cellPhone || "",
         signatureHtml: userSignature.signatureHtml || "",
       });
     }
   }, [userSignature]);
+
+  // Build the 4S Graphics branded signature HTML
+  function buildFourSSignatureHtml(name: string, cellPhone: string): string {
+    const cellLine = cellPhone
+      ? `\n  <div style="font-weight: bold; margin-bottom: 4px; color: #22963e;">C: ${cellPhone}</div>`
+      : '';
+    return `<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333; line-height: 1.5;">
+  <img src="https://www.4sgraphics.com/wp-content/uploads/2019/02/4S-FINAL-LOGO-2.jpg" alt="4S Graphics" style="width: 100px; height: auto; margin-bottom: 6px; display: block;" />
+  <div style="font-weight: bold; margin-bottom: 10px; color: #333;">Synthetic &amp; Specialty Substrates Suppliers</div>
+  <div style="margin-bottom: 6px; color: #333;">-</div>
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">${name || 'Your Name'}</div>${cellLine}
+  <div style="font-weight: bold; margin-bottom: 4px; color: #333;">T. (954) 493.6484 x 101</div>
+  <div style="margin-bottom: 4px; color: #333;">764 NW 57th Court, Fort Lauderdale, FL - 33309</div>
+  <div><a href="https://www.4sgraphics.com" style="color: #22963e; text-decoration: none;">www.4sgraphics.com</a></div>
+</div>`;
+  }
   
   // Set manual recipient from URL params (from Lead/Contact compose links)
   useEffect(() => {
@@ -920,56 +938,70 @@ export default function EmailApp() {
                 Email Signature
               </CardTitle>
               <CardDescription>
-                Create your personal email signature. This will be automatically appended to emails when you use the {`{{user.signature}}`} variable.
+                Your signature is automatically appended to every email you send. Fill in your name and cell phone, then click "Generate Signature" to build a branded 4S Graphics signature.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
+              {!userSignature && (
+                <div className="flex items-start gap-3 bg-amber-50 border border-amber-200 rounded-lg p-4">
+                  <div className="w-5 h-5 rounded-full bg-amber-400 flex items-center justify-center flex-shrink-0 mt-0.5">
+                    <span className="text-white text-xs font-bold">!</span>
+                  </div>
+                  <div>
+                    <p className="text-sm font-medium text-amber-800">Signature required before sending emails</p>
+                    <p className="text-xs text-amber-700 mt-0.5">Set up your signature below so recipients know who you are. Every outgoing email will include it automatically.</p>
+                  </div>
+                </div>
+              )}
               <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Your Name</Label>
+                  <Label>Your Name <span className="text-red-500">*</span></Label>
                   <Input
                     value={signatureForm.name}
                     onChange={(e) => setSignatureForm(prev => ({ ...prev, name: e.target.value }))}
-                    placeholder="John Smith"
+                    placeholder="Aneesh Prabhu"
                   />
                 </div>
                 <div className="space-y-2">
-                  <Label>Title/Role</Label>
+                  <Label>Cell Phone <span className="text-gray-400 text-xs">(shown in green if set)</span></Label>
                   <Input
-                    value={signatureForm.title}
-                    onChange={(e) => setSignatureForm(prev => ({ ...prev, title: e.target.value }))}
-                    placeholder="Sales Representative"
+                    value={signatureForm.cellPhone}
+                    onChange={(e) => setSignatureForm(prev => ({ ...prev, cellPhone: e.target.value }))}
+                    placeholder="(260) 580.0526"
                   />
                 </div>
               </div>
-              <div className="space-y-2">
-                <Label>Phone Number</Label>
-                <Input
-                  value={signatureForm.phone}
-                  onChange={(e) => setSignatureForm(prev => ({ ...prev, phone: e.target.value }))}
-                  placeholder="+1 (555) 123-4567"
-                />
+              <div className="flex items-center gap-3">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  className="gap-1.5 border-green-300 text-green-700 hover:bg-green-50"
+                  onClick={() => setSignatureForm(prev => ({
+                    ...prev,
+                    signatureHtml: buildFourSSignatureHtml(prev.name, prev.cellPhone),
+                  }))}
+                  disabled={!signatureForm.name}
+                >
+                  <Zap className="h-3.5 w-3.5" />
+                  Generate 4S Graphics Signature
+                </Button>
+                <p className="text-xs text-gray-400">Auto-builds the branded signature with logo, office phone & address.</p>
               </div>
               <div className="space-y-2">
-                <Label>Signature Content</Label>
+                <Label>Signature HTML <span className="text-gray-400 text-xs">(auto-generated or custom)</span></Label>
                 <EmailRichTextEditor
                   content={signatureForm.signatureHtml}
                   onChange={(html) => setSignatureForm(prev => ({ ...prev, signatureHtml: html }))}
-                  placeholder="Best regards,
-
-John Smith
-Sales Representative
-4S Graphics, Inc.
-+1 (555) 123-4567"
+                  placeholder="Click 'Generate 4S Graphics Signature' above, or write your own…"
                 />
               </div>
               <div className="flex items-center justify-between pt-4">
                 <p className="text-sm text-gray-500">
-                  Use {`{{user.signature}}`} in your templates to insert this signature automatically.
+                  Your signature is appended to every email you send.
                 </p>
                 <Button
                   onClick={() => saveSignatureMutation.mutate(signatureForm)}
-                  disabled={saveSignatureMutation.isPending || !signatureForm.signatureHtml}
+                  disabled={saveSignatureMutation.isPending || !signatureForm.signatureHtml || !signatureForm.name}
                   className="bg-purple-600 hover:bg-purple-700"
                 >
                   {saveSignatureMutation.isPending ? (
@@ -984,7 +1016,7 @@ Sales Representative
                 <div className="pt-4 border-t">
                   <Label className="text-sm text-gray-500">Preview:</Label>
                   <div 
-                    className="mt-2 p-4 bg-gray-50 rounded-lg border prose prose-sm max-w-none"
+                    className="mt-2 p-4 bg-white rounded-lg border prose prose-sm max-w-none"
                     dangerouslySetInnerHTML={{ __html: signatureForm.signatureHtml }}
                   />
                 </div>

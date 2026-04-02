@@ -14104,24 +14104,9 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
       }
       const signature = await storage.getEmailSignature(userId);
       
-      // If no saved signature, return a default signature with the user's name
+      // If no saved signature, return null so frontend knows to prompt setup
       if (!signature) {
-        const userName = req.user?.firstName && req.user?.lastName 
-          ? `${req.user.firstName} ${req.user.lastName}` 
-          : req.user?.email?.split('@')[0] || 'Sales Team';
-        
-        const defaultSignatureHtml = `
-<div style="font-family: Arial, sans-serif; font-size: 14px; color: #333;">
-  <img src="https://i.imgur.com/YfVpXqG.png" alt="4S Graphics" style="width: 80px; height: auto; margin-bottom: 8px;" />
-  <div style="font-weight: bold; margin-bottom: 12px;">Synthetic & Specialty Substrates Suppliers</div>
-  <div style="margin-bottom: 4px;">-</div>
-  <div style="font-weight: bold; margin-bottom: 4px;">${userName}</div>
-  <div style="margin-bottom: 4px;">T. (954) 493.6484 x 101</div>
-  <div style="margin-bottom: 4px;">764 NW 57th Court, Fort Lauderdale, FL - 33309</div>
-  <div><a href="https://www.4sgraphics.com" style="color: #1a73e8;">www.4sgraphics.com</a></div>
-</div>`;
-        
-        return res.json({ signatureHtml: defaultSignatureHtml });
+        return res.json(null);
       }
       
       res.json(signature);
@@ -14139,7 +14124,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         return res.status(401).json({ error: "User not authenticated" });
       }
 
-      const { name, title, phone, signatureHtml } = req.body;
+      const { name, title, phone, cellPhone, signatureHtml } = req.body;
       
       if (!signatureHtml) {
         return res.status(400).json({ error: "Signature HTML is required" });
@@ -14152,6 +14137,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
           name,
           title,
           phone,
+          cellPhone,
           signatureHtml,
         });
         res.json(updated);
@@ -14161,6 +14147,7 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
           name,
           title,
           phone,
+          cellPhone,
           signatureHtml,
           isActive: true,
         });

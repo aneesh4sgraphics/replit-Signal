@@ -1810,6 +1810,7 @@ export const emailSignatures = pgTable("email_signatures", {
   name: varchar("name", { length: 255 }),
   title: varchar("title", { length: 255 }),
   phone: varchar("phone", { length: 50 }),
+  cellPhone: varchar("cell_phone", { length: 50 }),
   signatureHtml: text("signature_html").notNull(),
   isActive: boolean("is_active").default(true),
   createdAt: timestamp("created_at").defaultNow(),
