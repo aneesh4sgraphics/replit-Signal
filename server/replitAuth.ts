@@ -61,12 +61,23 @@ function getUserStatus(email: string, existingStatus?: string): "approved" | "pe
 
 const getOidcConfig = memoize(
   async () => {
-    return await client.discovery(
-      new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
-      process.env.REPL_ID!
-    );
+    const maxRetries = 3;
+    const baseDelay = 2000;
+    for (let attempt = 1; attempt <= maxRetries; attempt++) {
+      try {
+        return await client.discovery(
+          new URL(process.env.ISSUER_URL ?? "https://replit.com/oidc"),
+          process.env.REPL_ID!
+        );
+      } catch (err: any) {
+        console.error(`[Auth] OIDC discovery attempt ${attempt}/${maxRetries} failed:`, err.message);
+        if (attempt === maxRetries) throw err;
+        await new Promise(r => setTimeout(r, baseDelay * attempt));
+      }
+    }
+    throw new Error("OIDC discovery exhausted retries");
   },
-  { maxAge: 3600 * 1000 }
+  { maxAge: 3600 * 1000, promise: true, preFetch: true }
 );
 
 function createSessionMiddleware(): ReturnType<typeof session> {
@@ -227,7 +238,9 @@ function promisifiedSessionRegenerate(req: Request): Promise<void> {
 export async function setupAuth(app: Express) {
   if (!process.env.REPLIT_DOMAINS) {
     console.error("[Auth] REPLIT_DOMAINS not set - auth will not work in production");
-    setupFallbackRoutes(app);
+    app.get("/api/login", (_req, res) => res.status(503).json({ message: "Authentication service unavailable — REPLIT_DOMAINS not set" }));
+    app.get("/api/callback", (_req, res) => res.redirect("/"));
+    app.get("/api/logout", (_req, res) => res.redirect("/"));
     return;
   }
 
@@ -282,80 +295,108 @@ export async function setupAuth(app: Express) {
     }
   });
 
-  try {
-    const config = await getOidcConfig();
+  const verify: VerifyFunction = async (tokens, verified) => {
+    try {
+      const claims = tokens.claims();
+      const rawEmail = claims?.["email"];
+      const email = typeof rawEmail === 'string' ? rawEmail.toLowerCase() : null;
 
-    const verify: VerifyFunction = async (tokens, verified) => {
-      try {
-        const claims = tokens.claims();
-        const rawEmail = claims?.["email"];
-        const email = typeof rawEmail === 'string' ? rawEmail.toLowerCase() : null;
-
-        if (!isAllowedEmail(email)) {
-          return verified(new Error(`Access denied: Only ${ALLOWED_DOMAIN} emails allowed`), null);
-        }
-
-        const user: any = {};
-        updateUserTokens(user, tokens);
-        await upsertUserFromClaims(claims);
-
-        console.log(`[Auth] User verified: ${email}`);
-        verified(null, user);
-      } catch (error) {
-        console.error("[Auth] Verification failed:", error);
-        verified(error, null);
+      if (!isAllowedEmail(email)) {
+        return verified(new Error(`Access denied: Only ${ALLOWED_DOMAIN} emails allowed`), null);
       }
-    };
 
-    // Collect all domains: production domains from REPLIT_DOMAINS, dev domain from REPLIT_DEV_DOMAIN
-    const allDomains: string[] = [];
-    if (process.env.REPLIT_DOMAINS) {
-      allDomains.push(...process.env.REPLIT_DOMAINS.split(",").map(d => d.trim()).filter(Boolean));
-    }
-    if (process.env.REPLIT_DEV_DOMAIN) {
-      allDomains.push(...process.env.REPLIT_DEV_DOMAIN.split(",").map(d => d.trim()).filter(Boolean));
-    }
-    
-    console.log(`[Auth] Registering strategies for domains: ${allDomains.join(", ")}`);
-    
-    for (const domain of allDomains) {
-      const strategy = new Strategy(
-        {
-          name: `replitauth:${domain}`,
-          config,
-          scope: "openid email profile offline_access",
-          callbackURL: `https://${domain}/api/callback`,
-        },
-        verify
-      );
-      passport.use(strategy);
-    }
+      const user: any = {};
+      updateUserTokens(user, tokens);
+      await upsertUserFromClaims(claims);
 
-    app.get("/api/login", (req, res, next) => {
-      console.log(`[Auth] Login initiated from ${req.hostname}`);
-      console.log(`[Auth] Available strategies - REPLIT_DOMAINS: ${process.env.REPLIT_DOMAINS}, DEV_DOMAIN: ${process.env.REPLIT_DEV_DOMAIN}`);
-      
-      // Check if strategy exists for this hostname
+      console.log(`[Auth] User verified: ${email}`);
+      verified(null, user);
+    } catch (error) {
+      console.error("[Auth] Verification failed:", error);
+      verified(error, null);
+    }
+  };
+
+  let strategiesReady = false;
+
+  async function ensureStrategies(): Promise<boolean> {
+    if (strategiesReady) return true;
+
+    try {
+      const config = await getOidcConfig();
+
+      const allDomains: string[] = [];
+      if (process.env.REPLIT_DOMAINS) {
+        allDomains.push(...process.env.REPLIT_DOMAINS.split(",").map(d => d.trim()).filter(Boolean));
+      }
+      if (process.env.REPLIT_DEV_DOMAIN) {
+        allDomains.push(...process.env.REPLIT_DEV_DOMAIN.split(",").map(d => d.trim()).filter(Boolean));
+      }
+
+      console.log(`[Auth] Registering strategies for domains: ${allDomains.join(", ")}`);
+
+      for (const domain of allDomains) {
+        const strategy = new Strategy(
+          {
+            name: `replitauth:${domain}`,
+            config,
+            scope: "openid email profile offline_access",
+            callbackURL: `https://${domain}/api/callback`,
+          },
+          verify
+        );
+        passport.use(strategy);
+      }
+
+      strategiesReady = true;
+      console.log("[Auth] OIDC authentication configured successfully");
+      return true;
+    } catch (error) {
+      console.error("[Auth] Failed to configure OIDC strategies:", error);
+      return false;
+    }
+  }
+
+  try {
+    await ensureStrategies();
+  } catch (error) {
+    console.error("[Auth] Initial OIDC setup failed — login will retry on demand:", error);
+  }
+
+  {
+    app.get("/api/login", async (req, res, next) => {
+      if (!strategiesReady) {
+        const ok = await ensureStrategies();
+        if (!ok) {
+          return res.status(503).json({ message: "Authentication service is starting up. Please try again in a moment." });
+        }
+      }
+
       const strategyName = `replitauth:${req.hostname}`;
       if (!passport._strategies[strategyName]) {
         console.error(`[Auth] No strategy registered for ${req.hostname}. Available domains: ${process.env.REPLIT_DOMAINS}`);
         return res.redirect("/?error=domain_not_configured");
       }
-      
+
       passport.authenticate(strategyName, {
         prompt: "login consent",
         scope: ["openid", "email", "profile", "offline_access"],
       })(req, res, next);
     });
 
-    app.get("/api/callback", (req, res, next) => {
+    app.get("/api/callback", async (req, res, next) => {
+      if (!strategiesReady) {
+        const ok = await ensureStrategies();
+        if (!ok) {
+          return res.redirect("/?error=auth_service_unavailable");
+        }
+      }
+
       const callbackStart = Date.now();
-      console.log(`[Auth] Callback received from ${req.hostname}`);
       passport.authenticate(`replitauth:${req.hostname}`, async (err: any, user: any, info: any) => {
         const authTime = Date.now() - callbackStart;
         console.log(`[Auth] OIDC authentication took ${authTime}ms`);
-        console.log(`[Auth] Callback details - err: ${err ? err.message || err : 'none'}, user: ${user ? 'present' : 'null'}, info: ${JSON.stringify(info)}`);
-        
+
         if (err) {
           console.error("[Auth] Callback error:", err);
           return res.redirect("/?error=auth_failed");
@@ -363,7 +404,6 @@ export async function setupAuth(app: Express) {
 
         if (!user) {
           console.log("[Auth] No user returned from OIDC - info:", info);
-          console.log("[Auth] Hostname:", req.hostname, "REPLIT_DOMAINS:", process.env.REPLIT_DOMAINS);
           return res.redirect("/?error=no_user");
         }
 
@@ -371,14 +411,13 @@ export async function setupAuth(app: Express) {
           const loginStart = Date.now();
           await promisifiedLogin(req, user);
           console.log(`[Auth] Login took ${Date.now() - loginStart}ms`);
-          
+
           const saveStart = Date.now();
           await promisifiedSessionSave(req);
           console.log(`[Auth] Session save took ${Date.now() - saveStart}ms`);
 
           const totalTime = Date.now() - callbackStart;
           console.log(`[Auth] Login successful in ${totalTime}ms. Session ID: ${req.sessionID}`);
-          console.log(`[Auth] User authenticated: ${req.user?.claims?.email}`);
 
           res.redirect("/");
         } catch (loginErr) {
@@ -390,18 +429,18 @@ export async function setupAuth(app: Express) {
 
     app.get("/api/logout", async (req, res) => {
       const config = await getOidcConfig();
-      
+
       req.logout(() => {
         req.session.destroy((err) => {
           if (err) console.error("[Auth] Session destroy error:", err);
-          
+
           res.clearCookie("connect.sid", { path: "/" });
-          
+
           const logoutUrl = client.buildEndSessionUrl(config, {
             client_id: process.env.REPL_ID!,
             post_logout_redirect_uri: `https://${req.hostname}`,
           }).href;
-          
+
           res.redirect(logoutUrl);
         });
       });
@@ -482,23 +521,7 @@ export async function setupAuth(app: Express) {
       });
     });
 
-    console.log("[Auth] OIDC authentication configured successfully");
-  } catch (error) {
-    console.error("[Auth] Failed to configure OIDC:", error);
-    setupFallbackRoutes(app);
   }
-}
-
-function setupFallbackRoutes(app: Express) {
-  app.get("/api/login", (req, res) => {
-    res.status(503).json({ message: "Authentication service unavailable" });
-  });
-  app.get("/api/callback", (req, res) => {
-    res.redirect("/");
-  });
-  app.get("/api/logout", (req, res) => {
-    res.redirect("/");
-  });
 }
 
 export const isAuthenticated: RequestHandler = async (req: Request, res: Response, next: NextFunction) => {
