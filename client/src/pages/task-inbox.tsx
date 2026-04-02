@@ -45,6 +45,19 @@ import {
 } from "lucide-react";
 import { format, isToday, isPast, isThisWeek } from "date-fns";
 
+function formatTaskTitle(title: string, task: { contactEmail?: string | null; senderEmail?: string | null; contactDisplayName?: string | null }): string {
+  const displayName = task.contactDisplayName;
+  if (!displayName) return title;
+  let result = title;
+  const emailsToReplace = [task.contactEmail, task.senderEmail].filter(Boolean) as string[];
+  for (const email of emailsToReplace) {
+    if (result.toLowerCase().includes(email.toLowerCase())) {
+      result = result.replace(new RegExp(email.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'), 'gi'), displayName);
+    }
+  }
+  return result;
+}
+
 function extractTrackingNumbers(text: string | undefined | null): string[] {
   if (!text) return [];
   const found = new Set<string>();
@@ -86,6 +99,7 @@ interface UnifiedTask {
   contactEmail?: string | null;
   emailSubject?: string | null;
   senderEmail?: string | null;
+  contactDisplayName?: string | null;
 }
 
 interface TaskSummary {
@@ -686,7 +700,7 @@ export default function TaskInboxPage() {
       <Dialog open={showTaskDetail} onOpenChange={setShowTaskDetail}>
         <DialogContent className="max-w-lg">
           <DialogHeader>
-            <DialogTitle>{selectedTask?.title}</DialogTitle>
+            <DialogTitle>{selectedTask ? formatTaskTitle(selectedTask.title, selectedTask) : ''}</DialogTitle>
             <DialogDescription>{selectedTask?.description || "No description provided"}</DialogDescription>
           </DialogHeader>
 
@@ -1147,7 +1161,7 @@ function TaskRows({ tasks, onTaskClick, onComplete, isCompletePending, getTaskTy
                       <span className={`text-sm font-medium truncate ${
                         isOverdue ? "text-red-700" : "text-gray-800"
                       }`}>
-                        {task.title}
+                        {formatTaskTitle(task.title, task)}
                       </span>
                       {task.priority === "critical" && (
                         <span className="flex-shrink-0 text-[10px] font-bold text-red-600 bg-red-50 px-1.5 py-0.5 rounded-full flex items-center gap-0.5">

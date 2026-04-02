@@ -28662,7 +28662,11 @@ Analyze this bounced email and provide insights in JSON format:
         .from(customers)
         .where(eq(customers.id, task.customerId));
       recordName = customer?.company || `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim() || 'Unknown';
-      return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: customer?.email || null };
+      const personName = `${customer?.firstName || ''} ${customer?.lastName || ''}`.trim();
+      const contactDisplayName = personName && customer?.company
+        ? `${personName} (${customer.company})`
+        : personName || customer?.company || null;
+      return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: customer?.email || null, contactDisplayName };
     } else if (task.leadId) {
       recordType = 'lead';
       recordId = task.leadId;
@@ -28671,10 +28675,13 @@ Analyze this bounced email and provide insights in JSON format:
         .from(leads)
         .where(eq(leads.id, task.leadId));
       recordName = lead?.name || lead?.company || 'Unknown';
-      return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: lead?.email || null };
+      const leadDisplayName = lead?.name && lead?.company
+        ? `${lead.name} (${lead.company})`
+        : lead?.name || lead?.company || null;
+      return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: lead?.email || null, contactDisplayName: leadDisplayName };
     }
 
-    return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: null };
+    return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail: null, contactDisplayName: null };
   }
 
   // Unified task summary for dashboard
@@ -28958,6 +28965,7 @@ Analyze this bounced email and provide insights in JSON format:
         let recordType: 'customer' | 'lead' | null = null;
         let recordId: string | number | null = null;
         let contactEmail: string | null = null;
+        let contactDisplayName: string | null = null;
 
         if (task.customerId) {
           const c = customerMap.get(task.customerId);
@@ -28965,12 +28973,19 @@ Analyze this bounced email and provide insights in JSON format:
           recordType = 'customer';
           recordId = task.customerId;
           contactEmail = c?.email || trackingEmailMap.get(task.customerId) || null;
+          const cPersonName = `${c?.firstName || ''} ${c?.lastName || ''}`.trim();
+          contactDisplayName = cPersonName && c?.company
+            ? `${cPersonName} (${c.company})`
+            : cPersonName || c?.company || null;
         } else if (task.leadId) {
           const l = leadMap.get(task.leadId);
           recordName = l?.name || l?.company || 'Unknown';
           recordType = 'lead';
           recordId = task.leadId;
           contactEmail = l?.email || null;
+          contactDisplayName = l?.name && l?.company
+            ? `${l.name} (${l.company})`
+            : l?.name || l?.company || null;
         }
 
         const dueDate = new Date(task.dueDate);
@@ -28978,7 +28993,7 @@ Analyze this bounced email and provide insights in JSON format:
         const sourceEventId = (task.sourceType === 'email_event' && task.sourceId) ? parseInt(task.sourceId, 10) : NaN;
         const emailSubject = !isNaN(sourceEventId) ? emailSubjectMap.get(sourceEventId) || null : null;
         const senderEmail = !isNaN(sourceEventId) ? senderEmailMap.get(sourceEventId) || null : null;
-        return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail, emailSubject, senderEmail, source: 'calendar', category: isOverdue ? 'overdue' : 'today' };
+        return { ...task, recordName, recordType, recordId, customerName: recordName, contactEmail, emailSubject, senderEmail, contactDisplayName, source: 'calendar', category: isOverdue ? 'overdue' : 'today' };
       });
 
       if ((filter === 'overdue' || filter === 'pending' || filter === 'all') && !typeFilter && !priorityFilter) {
