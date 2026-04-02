@@ -214,7 +214,6 @@ function StepCard({
   const [isImageSelected, setIsImageSelected] = useState(false);
 
   const subjectRef = useRef<HTMLInputElement>(null);
-  const fileInputRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => { setSubject(step.subject || ''); }, [step.subject]);
 
@@ -441,15 +440,13 @@ function StepCard({
             Insert
           </Button>
           <span className="text-xs text-gray-400">or</span>
-          <Button
-            size="sm"
-            variant="outline"
-            className="h-7 text-xs px-3"
-            onClick={() => fileInputRef.current?.click()}
+          <label
+            htmlFor={`img-upload-${step.id}`}
+            className="h-7 text-xs px-3 inline-flex items-center rounded-md border border-input bg-background hover:bg-accent hover:text-accent-foreground cursor-pointer select-none font-medium transition-colors"
           >
             Upload
-          </Button>
-          <input ref={fileInputRef} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
+          </label>
+          <input id={`img-upload-${step.id}`} type="file" accept="image/*" className="hidden" onChange={handleFileUpload} />
           <button
             type="button"
             className="text-gray-400 hover:text-gray-600 ml-1"
