@@ -1,0 +1,418 @@
+Make the following surgical changes to add 3 new opportunity signals and expected revenue to the scoring engine. Touch only these 3 files: shared/schema.ts, server/opportunity-engine.ts, server/routes.ts. Do NOT touch the frontend.
+
+========================================
+FILE 1: shared/schema.ts — THREE changes
+========================================
+
+--- CHANGE 1A: Add 'quote_pending' to OPPORTUNITY_TYPES ---
+
+Find line ~3611:
+  export const OPPORTUNITY_TYPES = [
+    'sample_no_order',
+    'went_quiet',
+    'upsell_potential',
+    'new_fit',
+    'reorder_due',
+    'machine_match',
+  ] as const;
+
+Replace with:
+  export const OPPORTUNITY_TYPES = [
+    'sample_no_order',
+    'went_quiet',
+    'upsell_potential',
+    'new_fit',
+    'reorder_due',
+    'machine_match',
+    'quote_pending',
+  ] as const;
+
+
+--- CHANGE 1B: Add 'quote_pending' to OPPORTUNITY_TYPE_LABELS ---
+
+Find (just below OPPORTUNITY_TYPES):
+  export const OPPORTUNITY_TYPE_LABELS: Record<OpportunityType, string> = {
+    'sample_no_order': 'Samples Sent, No Order Yet',
+    'went_quiet': 'Went Quiet After Interest',
+    'upsell_potential': 'Small Order — Upsell Potential',
+    'new_fit': 'Great Fit — Not Contacted Yet',
+    'reorder_due': 'Reorder Due Soon',
+    'machine_match': 'Has Target Machines — Worth Pursuing',
+  };
+
+Replace with:
+  export const OPPORTUNITY_TYPE_LABELS: Record<OpportunityType, string> = {
+    'sample_no_order': 'Samples Sent, No Order Yet',
+    'went_quiet': 'Went Quiet After Interest',
+    'upsell_potential': 'Small Order — Upsell Potential',
+    'new_fit': 'Great Fit — Not Contacted Yet',
+    'reorder_due': 'Reorder Due Soon',
+    'machine_match': 'Has Target Machines — Worth Pursuing',
+    'quote_pending': 'Quote Sent — No Response Yet',
+  };
+
+
+--- CHANGE 1C: Add 3 new scoring weights ---
+
+Find:
+  export const OPPORTUNITY_SCORING_WEIGHTS = {
+    isPrintingCompany: 20,
+    hasDigitalMachines: 15,
+    sampleSentNoOrder: 15,
+    emailEngagement: 10,
+    highPerformingRegion: 10,
+    smallOrderUpsell: 15,
+    wentQuietAfterInterest: 10,
+    hasWebsite: 5,
+  } as const;
+
+Replace with:
+  export const OPPORTUNITY_SCORING_WEIGHTS = {
+    isPrintingCompany: 20,
+    hasDigitalMachines: 15,
+    sampleSentNoOrder: 15,
+    emailEngagement: 10,
+    emailOpenEngagement: 20,
+    highPerformingRegion: 10,
+    smallOrderUpsell: 15,
+    wentQuietAfterInterest: 10,
+    hasWebsite: 5,
+    quotePending: 25,
+    categoryExpansion: 15,
+  } as const;
+
+
+========================================
+FILE 2: server/routes.ts — ONE change
+========================================
+
+--- CHANGE 2A: Add boot-time migration for 3 new columns ---
+
+Find line ~393 (just before "// Initialize default follow-up configurations"):
+  } catch (err) {
+    console.error("Migration error (sketchboard_entries):", err);
+  }
+  
+  // Initialize default follow-up configurations on startup
+
+Insert this block between them:
+
+  // Boot-time migration: add expectedRevenue, nextBestAction, opportunityAgedays to opportunity_scores
+  try {
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS expected_revenue decimal(12,2)`);
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS next_best_action text`);
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS opportunity_age_days integer`);
+  } catch (err) {
+    console.error("Migration error (opportunity_scores new columns):", err);
+  }
+
+
+========================================
+FILE 3: server/opportunity-engine.ts — FIVE changes
+========================================
+
+--- CHANGE 3A: Add new imports ---
+
+Find the import block at the top:
+  import {
+    customers, leads, customerMachineProfiles, emailSends, gmailMessages,
+    opportunityScores, sampleShipments, spotlightEvents, labelPrints,
+    shopifyOrders, customerCoachState,
+    OPPORTUNITY_SCORING_WEIGHTS, DIGITAL_PRINTING_MACHINES, HIGH_PERFORMING_REGIONS,
+    UPS_GROUND_TRANSIT_DAYS,
+    type OpportunitySignal, type OpportunityType, type FollowUpEntry,
+  } from "@shared/schema";
+
+Replace with:
+  import {
+    customers, leads, customerMachineProfiles, emailSends, gmailMessages,
+    opportunityScores, sampleShipments, spotlightEvents, labelPrints,
+    shopifyOrders, customerCoachState, sentQuotes, emailTrackingTokens, categoryTrust,
+    OPPORTUNITY_SCORING_WEIGHTS, DIGITAL_PRINTING_MACHINES, HIGH_PERFORMING_REGIONS,
+    UPS_GROUND_TRANSIT_DAYS,
+    type OpportunitySignal, type OpportunityType, type FollowUpEntry,
+  } from "@shared/schema";
+
+
+--- CHANGE 3B: Add 3 new bulk data fetches to the Promise.all in calculateAndStoreScores ---
+
+Find the Promise.all array (line ~374). It currently fetches 8 things:
+  const [
+    allCustomers,
+    allMachineProfiles,
+    sampleShipmentRows,
+    coachStateRows,
+    gmailInboundRows,
+    latestShopifyOrderRows,
+    existingScoreRows,
+    allLeads,
+  ] = await Promise.all([
+    ...8 queries...
+  ]);
+
+Replace with:
+  const [
+    allCustomers,
+    allMachineProfiles,
+    sampleShipmentRows,
+    coachStateRows,
+    gmailInboundRows,
+    latestShopifyOrderRows,
+    existingScoreRows,
+    allLeads,
+    pendingQuoteRows,
+    emailOpenRows,
+    categoryTrustRows,
+  ] = await Promise.all([
+    db.select().from(customers).where(and(eq(customers.doNotContact, false), eq(customers.isCompany, false))),
+    db.select().from(customerMachineProfiles),
+    db.select({ customerId: sampleShipments.customerId, cnt: count() }).from(sampleShipments).where(isNotNull(sampleShipments.customerId)).groupBy(sampleShipments.customerId),
+    db.select({ customerId: customerCoachState.customerId, daysSinceLastOrder: customerCoachState.daysSinceLastOrder }).from(customerCoachState),
+    db.select({ customerId: gmailMessages.customerId, cnt: count() }).from(gmailMessages).where(and(eq(gmailMessages.direction, 'inbound'), isNotNull(gmailMessages.customerId))).groupBy(gmailMessages.customerId),
+    db.execute(sql`SELECT DISTINCT ON (customer_id) customer_id, shopify_created_at, total_price, order_number FROM shopify_orders WHERE customer_id IS NOT NULL ORDER BY customer_id, shopify_created_at DESC`),
+    db.select({ id: opportunityScores.id, customerId: opportunityScores.customerId, leadId: opportunityScores.leadId, opportunityType: opportunityScores.opportunityType, isActive: opportunityScores.isActive }).from(opportunityScores),
+    db.select().from(leads).where(sql`${leads.stage} NOT IN ('converted', 'lost')`),
+    // NEW: pending quotes (sent in last 45 days, not yet won)
+    db.select({ customerId: sentQuotes.customerId, totalAmount: sentQuotes.totalAmount, createdAt: sentQuotes.createdAt })
+      .from(sentQuotes)
+      .where(and(
+        isNotNull(sentQuotes.customerId),
+        eq(sentQuotes.outcome, 'pending'),
+        gte(sentQuotes.createdAt, new Date(Date.now() - 45 * 24 * 60 * 60 * 1000))
+      )),
+    // NEW: email open/click counts per customer
+    db.select({ customerId: emailTrackingTokens.customerId, totalOpens: sql<number>`sum(${emailTrackingTokens.openCount})`, totalClicks: sql<number>`sum(${emailTrackingTokens.clickCount})` })
+      .from(emailTrackingTokens)
+      .where(and(isNotNull(emailTrackingTokens.customerId), gte(emailTrackingTokens.createdAt, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))))
+      .groupBy(emailTrackingTokens.customerId),
+    // NEW: category trust for expansion detection
+    db.select({ customerId: categoryTrust.customerId, categoryCode: categoryTrust.categoryCode, ordersPlaced: categoryTrust.ordersPlaced })
+      .from(categoryTrust)
+      .where(isNotNull(categoryTrust.customerId)),
+  ]);
+
+
+--- CHANGE 3C: Build lookup maps for the 3 new data sources ---
+
+Find the section that builds lookup maps (after the Promise.all, starting with "const machinesByCustomer"). After the existing lastOrderByCustomer map is built, add these 3 new maps:
+
+  // NEW: pending quotes map: customerId → { totalAmount, createdAt }
+  const pendingQuoteByCustomer = new Map<string, { totalAmount: number; createdAt: Date }>();
+  for (const row of pendingQuoteRows) {
+    if (row.customerId && !pendingQuoteByCustomer.has(row.customerId)) {
+      pendingQuoteByCustomer.set(row.customerId, {
+        totalAmount: parseFloat(row.totalAmount || '0'),
+        createdAt: new Date(row.createdAt!),
+      });
+    }
+  }
+
+  // NEW: email engagement map: customerId → { opens, clicks }
+  const emailEngagementByCustomer = new Map<string, { opens: number; clicks: number }>();
+  for (const row of emailOpenRows) {
+    if (row.customerId) {
+      emailEngagementByCustomer.set(row.customerId, {
+        opens: Number(row.totalOpens) || 0,
+        clicks: Number(row.totalClicks) || 0,
+      });
+    }
+  }
+
+  // NEW: category trust map: customerId → Set of category codes with orders
+  const adoptedCategoriesByCustomer = new Map<string, Set<string>>();
+  for (const row of categoryTrustRows) {
+    if (!row.customerId) continue;
+    if (!adoptedCategoriesByCustomer.has(row.customerId)) {
+      adoptedCategoriesByCustomer.set(row.customerId, new Set());
+    }
+    if ((row.ordersPlaced ?? 0) > 0) {
+      adoptedCategoriesByCustomer.get(row.customerId)!.add(row.categoryCode);
+    }
+  }
+
+
+--- CHANGE 3D: Add 3 new signals inside the customer scoring loop ---
+
+Inside the "for (const customer of allCustomers)" loop, find the line:
+  if (customer.website) {
+    signals.push({ signal: 'has_website', ...
+
+Just BEFORE that website block, add these 3 new signal blocks:
+
+  // SIGNAL: Quote pending — sent in last 45 days with no response
+  const pendingQuote = pendingQuoteByCustomer.get(customer.id);
+  if (pendingQuote) {
+    const daysSinceQuote = Math.floor((now.getTime() - pendingQuote.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+    signals.push({
+      signal: 'quote_pending',
+      points: OPPORTUNITY_SCORING_WEIGHTS.quotePending,
+      detail: `Quote of $${pendingQuote.totalAmount.toFixed(0)} sent ${daysSinceQuote} days ago — no response yet`,
+    });
+    totalScore += OPPORTUNITY_SCORING_WEIGHTS.quotePending;
+    opportunityTypes.push('quote_pending');
+  }
+
+  // SIGNAL: Email open/click engagement heat (replaces raw inbound count)
+  const emailEng = emailEngagementByCustomer.get(customer.id);
+  if (emailEng && emailEng.opens > 0) {
+    const openPoints = emailEng.opens >= 5 ? OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement
+      : emailEng.opens >= 2 ? Math.round(OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement * 0.6)
+      : Math.round(OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement * 0.3);
+    const detail = emailEng.clicks > 0
+      ? `Opened emails ${emailEng.opens}x and clicked ${emailEng.clicks}x — high intent`
+      : `Opened emails ${emailEng.opens}x — showing interest`;
+    signals.push({ signal: 'email_open_engagement', points: openPoints, detail });
+    totalScore += openPoints;
+  }
+
+  // SIGNAL: Category expansion — has ordered 1+ categories, machine compatible with untried ones
+  const adoptedCategories = adoptedCategoriesByCustomer.get(customer.id) || new Set<string>();
+  const machineProfiles = machinesByCustomer.get(customer.id) || [];
+  if (adoptedCategories.size > 0 && machineProfiles.length > 0) {
+    // Simple heuristic: if they have machines and adopted ≤2 categories, flag expansion potential
+    if (adoptedCategories.size >= 1 && adoptedCategories.size <= 2) {
+      signals.push({
+        signal: 'category_expansion',
+        points: OPPORTUNITY_SCORING_WEIGHTS.categoryExpansion,
+        detail: `Ordering ${adoptedCategories.size} product line(s) — machine profile suggests room to expand`,
+      });
+      totalScore += OPPORTUNITY_SCORING_WEIGHTS.categoryExpansion;
+      if (!opportunityTypes.includes('upsell_potential')) {
+        opportunityTypes.push('upsell_potential');
+      }
+    }
+  }
+
+
+--- CHANGE 3E: Add expectedRevenue and nextBestAction to insertOps/updateOps ---
+
+Find the section inside the customer loop where insertOps and updateOps are built (~line 530):
+  const finalScore = Math.min(totalScore, 100);
+
+  if (finalScore >= 20 && opportunityTypes.length > 0) {
+    scored++;
+    for (const oppType of opportunityTypes) {
+      ...
+      if (existingId) {
+        updateOps.push({ id: existingId, score: finalScore, signals: typeSignals, isActive: true });
+      } else {
+        insertOps.push({ customerId: customer.id, score: finalScore, opportunityType: oppType, signals: typeSignals, isActive: true });
+      }
+
+Replace the updateOps.push and insertOps.push calls (both of them) with:
+
+      // Compute expected revenue: avg order value × estimated annual frequency
+      const totalSpent = parseFloat(customer.totalSpent || '0');
+      const totalOrders = customer.totalOrders || 0;
+      const avgOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
+      const lastOrder = lastOrderByCustomer.get(customer.id);
+      const daysSinceLast = lastOrder?.daysSince ?? null;
+      // Estimate annual orders: if we know the gap, use it; else assume quarterly
+      const estimatedAnnualOrders = daysSinceLast && daysSinceLast > 0 ? Math.round(365 / daysSinceLast) : 4;
+      const expectedRevenue = avgOrderValue > 0 ? Math.round(avgOrderValue * Math.min(estimatedAnnualOrders, 12)) : null;
+
+      // Compute next best action from signals
+      let nextBestAction: string | null = null;
+      if (oppType === 'quote_pending') {
+        const qDays = pendingQuote ? Math.floor((now.getTime() - pendingQuote.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : null;
+        nextBestAction = qDays && qDays > 7 ? 'Call to follow up on the pending quote — timing is critical' : 'Send a follow-up email referencing the quote sent';
+      } else if (oppType === 'sample_no_order') {
+        nextBestAction = 'Call and ask how the samples performed — offer a first-order discount';
+      } else if (oppType === 'reorder_due') {
+        nextBestAction = `Re-engage — they haven't ordered in ${daysSinceLast ?? '60+'} days. Call or send a check-in email`;
+      } else if (oppType === 'went_quiet') {
+        nextBestAction = 'They replied before but went quiet. Send a short "still interested?" email';
+      } else if (oppType === 'upsell_potential') {
+        nextBestAction = machineProfiles.length > 0 ? 'Suggest a compatible substrate they haven\'t tried — reference their machine' : 'Upsell to higher volume tier or introduce a second product line';
+      } else if (oppType === 'machine_match') {
+        nextBestAction = 'Lead with machine compatibility — mention specific products that work with their press';
+      }
+
+      const opportunityAgeDays = Math.floor((now.getTime() - (existingId ? now.getTime() : now.getTime())) / (1000 * 60 * 60 * 24));
+
+      if (existingId) {
+        updateOps.push({ id: existingId, score: finalScore, signals: typeSignals, isActive: true, expectedRevenue, nextBestAction });
+      } else {
+        insertOps.push({ customerId: customer.id, score: finalScore, opportunityType: oppType, signals: typeSignals, isActive: true, expectedRevenue, nextBestAction, opportunityAgeDays: 0 });
+      }
+
+Now update the TypeScript types for updateOps and insertOps arrays at their declaration (~line 426):
+
+Find:
+  const updateOps: Array<{ id: number; score: number; signals: OpportunitySignal[]; isActive: boolean }> = [];
+  const insertOps: Array<{ customerId?: string; leadId?: number; score: number; opportunityType: string; signals: OpportunitySignal[]; isActive: boolean }> = [];
+
+Replace with:
+  const updateOps: Array<{ id: number; score: number; signals: OpportunitySignal[]; isActive: boolean; expectedRevenue?: number | null; nextBestAction?: string | null }> = [];
+  const insertOps: Array<{ customerId?: string; leadId?: number; score: number; opportunityType: string; signals: OpportunitySignal[]; isActive: boolean; expectedRevenue?: number | null; nextBestAction?: string | null; opportunityAgeDays?: number }> = [];
+
+Also update the DB write for updateOps to include the new fields. Find:
+  db.update(opportunityScores).set({ score: op.score, signals: op.signals, isActive: op.isActive, lastCalculatedAt: now, updatedAt: now }).where(eq(opportunityScores.id, op.id))
+
+Replace with:
+  db.update(opportunityScores).set({ score: op.score, signals: op.signals, isActive: op.isActive, lastCalculatedAt: now, updatedAt: now, ...(op.expectedRevenue !== undefined ? { expectedRevenue: op.expectedRevenue?.toString() ?? null } : {}), ...(op.nextBestAction !== undefined ? { nextBestAction: op.nextBestAction } : {}) }).where(eq(opportunityScores.id, op.id))
+
+Also update the insert to include new fields. Find:
+  await db.insert(opportunityScores).values(chunk.map(op => ({ ...op, lastCalculatedAt: now })));
+
+Replace with:
+  await db.insert(opportunityScores).values(chunk.map(op => ({ ...op, lastCalculatedAt: now, expectedRevenue: op.expectedRevenue?.toString() ?? null, opportunityAgeDays: op.opportunityAgeDays ?? 0 })));
+
+Also add expectedRevenue and nextBestAction to the ScoredOpportunity interface at line ~43:
+Find:
+  export interface ScoredOpportunity {
+    id: number;
+    customerId: string | null;
+    leadId: number | null;
+    score: number;
+    opportunityType: OpportunityType;
+    signals: OpportunitySignal[];
+    isActive: boolean;
+    entityName: string;
+    entityCompany: string | null;
+    entityEmail: string | null;
+    entityPhone: string | null;
+    entityProvince: string | null;
+    entityCity: string | null;
+    createdAt: Date | null;
+  }
+
+Replace with:
+  export interface ScoredOpportunity {
+    id: number;
+    customerId: string | null;
+    leadId: number | null;
+    score: number;
+    opportunityType: OpportunityType;
+    signals: OpportunitySignal[];
+    isActive: boolean;
+    entityName: string;
+    entityCompany: string | null;
+    entityEmail: string | null;
+    entityPhone: string | null;
+    entityProvince: string | null;
+    entityCity: string | null;
+    createdAt: Date | null;
+    expectedRevenue?: number | null;
+    nextBestAction?: string | null;
+    opportunityAgeDays?: number | null;
+  }
+
+Also add expectedRevenue and nextBestAction to what getTopOpportunities selects and returns. In the db.select() inside getTopOpportunities, add to the select object:
+  expectedRevenue: opportunityScores.expectedRevenue,
+  nextBestAction: opportunityScores.nextBestAction,
+  opportunityAgeDays: opportunityScores.opportunityAgeDays,
+
+And add them to the combined.push() calls for both customer and lead results:
+  expectedRevenue: r.expectedRevenue ? parseFloat(r.expectedRevenue) : null,
+  nextBestAction: (r as any).nextBestAction ?? null,
+  opportunityAgeDays: (r as any).opportunityAgeDays ?? null,
+
+========================================
+AFTER ALL CHANGES — verify:
+========================================
+1. TypeScript compiles with no errors (npx tsc --noEmit)
+2. The app starts and the boot-time migration runs without error
+3. POST /api/opportunities/recalculate returns successfully
+4. The response from GET /api/opportunities includes expectedRevenue and nextBestAction fields on at least some records
+5. No existing functionality is broken — the opportunities page still loads

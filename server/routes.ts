@@ -392,7 +392,16 @@ export async function registerRoutes(app: Express): Promise<Server> {
   } catch (err) {
     console.error("Migration error (sketchboard_entries):", err);
   }
-  
+
+  // Boot-time migration: add expectedRevenue, nextBestAction, opportunityAgeDays to opportunity_scores
+  try {
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS expected_revenue decimal(12,2)`);
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS next_best_action text`);
+    await db.execute(sql`ALTER TABLE opportunity_scores ADD COLUMN IF NOT EXISTS opportunity_age_days integer`);
+  } catch (err) {
+    console.error("Migration error (opportunity_scores new columns):", err);
+  }
+
   // Initialize default follow-up configurations on startup
   try {
     await storage.initDefaultFollowUpConfig();

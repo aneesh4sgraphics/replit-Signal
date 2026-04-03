@@ -2,7 +2,7 @@ import { db } from "./db";
 import {
   customers, leads, customerMachineProfiles, emailSends, gmailMessages,
   opportunityScores, sampleShipments, spotlightEvents, labelPrints,
-  shopifyOrders, customerCoachState,
+  shopifyOrders, customerCoachState, sentQuotes, emailTrackingTokens, categoryTrust,
   OPPORTUNITY_SCORING_WEIGHTS, DIGITAL_PRINTING_MACHINES, HIGH_PERFORMING_REGIONS,
   UPS_GROUND_TRANSIT_DAYS,
   type OpportunitySignal, type OpportunityType, type FollowUpEntry,
@@ -55,6 +55,9 @@ export interface ScoredOpportunity {
   entityProvince: string | null;
   entityCity: string | null;
   createdAt: Date | null;
+  expectedRevenue?: number | null;
+  nextBestAction?: string | null;
+  opportunityAgeDays?: number | null;
 }
 
 export class OpportunityEngine {
@@ -371,6 +374,9 @@ export class OpportunityEngine {
       latestShopifyOrderRows,
       existingScoreRows,
       allLeads,
+      pendingQuoteRows,
+      emailOpenRows,
+      categoryTrustRows,
     ] = await Promise.all([
       db.select().from(customers).where(and(eq(customers.doNotContact, false), eq(customers.isCompany, false))),
       db.select().from(customerMachineProfiles),
@@ -380,6 +386,23 @@ export class OpportunityEngine {
       db.execute(sql`SELECT DISTINCT ON (customer_id) customer_id, shopify_created_at, total_price, order_number FROM shopify_orders WHERE customer_id IS NOT NULL ORDER BY customer_id, shopify_created_at DESC`),
       db.select({ id: opportunityScores.id, customerId: opportunityScores.customerId, leadId: opportunityScores.leadId, opportunityType: opportunityScores.opportunityType, isActive: opportunityScores.isActive }).from(opportunityScores),
       db.select().from(leads).where(sql`${leads.stage} NOT IN ('converted', 'lost')`),
+      // NEW: pending quotes (sent in last 45 days, not yet won)
+      db.select({ customerId: sentQuotes.customerId, totalAmount: sentQuotes.totalAmount, createdAt: sentQuotes.createdAt })
+        .from(sentQuotes)
+        .where(and(
+          isNotNull(sentQuotes.customerId),
+          eq(sentQuotes.outcome, 'pending'),
+          gte(sentQuotes.createdAt, new Date(Date.now() - 45 * 24 * 60 * 60 * 1000))
+        )),
+      // NEW: email open/click counts per customer
+      db.select({ customerId: emailTrackingTokens.customerId, totalOpens: sql<number>`sum(${emailTrackingTokens.openCount})`, totalClicks: sql<number>`sum(${emailTrackingTokens.clickCount})` })
+        .from(emailTrackingTokens)
+        .where(and(isNotNull(emailTrackingTokens.customerId), gte(emailTrackingTokens.createdAt, new Date(Date.now() - 90 * 24 * 60 * 60 * 1000))))
+        .groupBy(emailTrackingTokens.customerId),
+      // NEW: category trust for expansion detection
+      db.select({ customerId: categoryTrust.customerId, categoryCode: categoryTrust.categoryCode, ordersPlaced: categoryTrust.ordersPlaced })
+        .from(categoryTrust)
+        .where(isNotNull(categoryTrust.customerId)),
     ]);
 
     // Build lookup maps for O(1) access
@@ -414,6 +437,40 @@ export class OpportunityEngine {
       lastOrderByCustomer.set(cid, { date, daysSince });
     }
 
+    // NEW: pending quotes map: customerId → { totalAmount, createdAt }
+    const pendingQuoteByCustomer = new Map<string, { totalAmount: number; createdAt: Date }>();
+    for (const row of pendingQuoteRows) {
+      if (row.customerId && !pendingQuoteByCustomer.has(row.customerId)) {
+        pendingQuoteByCustomer.set(row.customerId, {
+          totalAmount: parseFloat(row.totalAmount || '0'),
+          createdAt: new Date(row.createdAt!),
+        });
+      }
+    }
+
+    // NEW: email engagement map: customerId → { opens, clicks }
+    const emailEngagementByCustomer = new Map<string, { opens: number; clicks: number }>();
+    for (const row of emailOpenRows) {
+      if (row.customerId) {
+        emailEngagementByCustomer.set(row.customerId, {
+          opens: Number(row.totalOpens) || 0,
+          clicks: Number(row.totalClicks) || 0,
+        });
+      }
+    }
+
+    // NEW: category trust map: customerId → Set of category codes with orders
+    const adoptedCategoriesByCustomer = new Map<string, Set<string>>();
+    for (const row of categoryTrustRows) {
+      if (!row.customerId) continue;
+      if (!adoptedCategoriesByCustomer.has(row.customerId)) {
+        adoptedCategoriesByCustomer.set(row.customerId, new Set());
+      }
+      if ((row.ordersPlaced ?? 0) > 0) {
+        adoptedCategoriesByCustomer.get(row.customerId)!.add(row.categoryCode);
+      }
+    }
+
     // Map: "c:{customerId}:{type}" or "l:{leadId}:{type}" → existing score row id
     const existingScoreMap = new Map<string, number>();
     for (const row of existingScoreRows) {
@@ -422,8 +479,8 @@ export class OpportunityEngine {
     }
 
     // ── CUSTOMER SCORING ───────────────────────────────────────────────────────
-    const updateOps: Array<{ id: number; score: number; signals: OpportunitySignal[]; isActive: boolean }> = [];
-    const insertOps: Array<{ customerId?: string; leadId?: number; score: number; opportunityType: string; signals: OpportunitySignal[]; isActive: boolean }> = [];
+    const updateOps: Array<{ id: number; score: number; signals: OpportunitySignal[]; isActive: boolean; expectedRevenue?: number | null; nextBestAction?: string | null }> = [];
+    const insertOps: Array<{ customerId?: string; leadId?: number; score: number; opportunityType: string; signals: OpportunitySignal[]; isActive: boolean; expectedRevenue?: number | null; nextBestAction?: string | null; opportunityAgeDays?: number }> = [];
     const deactivateCustomerIds: string[] = [];
     const deactivateLeadIds: number[] = [];
 
@@ -519,6 +576,48 @@ export class OpportunityEngine {
         opportunityTypes.push('new_fit');
       }
 
+      // SIGNAL: Quote pending — sent in last 45 days with no response
+      const pendingQuote = pendingQuoteByCustomer.get(customer.id);
+      if (pendingQuote) {
+        const daysSinceQuote = Math.floor((now.getTime() - pendingQuote.createdAt.getTime()) / (1000 * 60 * 60 * 24));
+        signals.push({
+          signal: 'quote_pending',
+          points: OPPORTUNITY_SCORING_WEIGHTS.quotePending,
+          detail: `Quote of $${pendingQuote.totalAmount.toFixed(0)} sent ${daysSinceQuote} days ago — no response yet`,
+        });
+        totalScore += OPPORTUNITY_SCORING_WEIGHTS.quotePending;
+        opportunityTypes.push('quote_pending');
+      }
+
+      // SIGNAL: Email open/click engagement heat
+      const emailEng = emailEngagementByCustomer.get(customer.id);
+      if (emailEng && emailEng.opens > 0) {
+        const openPoints = emailEng.opens >= 5 ? OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement
+          : emailEng.opens >= 2 ? Math.round(OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement * 0.6)
+          : Math.round(OPPORTUNITY_SCORING_WEIGHTS.emailOpenEngagement * 0.3);
+        const detail = emailEng.clicks > 0
+          ? `Opened emails ${emailEng.opens}x and clicked ${emailEng.clicks}x — high intent`
+          : `Opened emails ${emailEng.opens}x — showing interest`;
+        signals.push({ signal: 'email_open_engagement', points: openPoints, detail });
+        totalScore += openPoints;
+      }
+
+      // SIGNAL: Category expansion — has ordered 1+ categories, machine compatible with untried ones
+      const adoptedCategories = adoptedCategoriesByCustomer.get(customer.id) || new Set<string>();
+      if (adoptedCategories.size > 0 && machineProfiles.length > 0) {
+        if (adoptedCategories.size >= 1 && adoptedCategories.size <= 2) {
+          signals.push({
+            signal: 'category_expansion',
+            points: OPPORTUNITY_SCORING_WEIGHTS.categoryExpansion,
+            detail: `Ordering ${adoptedCategories.size} product line(s) — machine profile suggests room to expand`,
+          });
+          totalScore += OPPORTUNITY_SCORING_WEIGHTS.categoryExpansion;
+          if (!opportunityTypes.includes('upsell_potential')) {
+            opportunityTypes.push('upsell_potential');
+          }
+        }
+      }
+
       // Website
       if (customer.website) {
         signals.push({ signal: 'has_website', points: OPPORTUNITY_SCORING_WEIGHTS.hasWebsite, detail: 'Has a website — can research their business' });
@@ -535,10 +634,37 @@ export class OpportunityEngine {
             : signals;
           const key = `c:${customer.id}:${oppType}`;
           const existingId = existingScoreMap.get(key);
+
+          // Compute expected revenue: avg order value × estimated annual frequency
+          const totalSpent = parseFloat(customer.totalSpent || '0');
+          const totalOrders = customer.totalOrders || 0;
+          const avgOrderValue = totalOrders > 0 ? totalSpent / totalOrders : 0;
+          const lastOrder = lastOrderByCustomer.get(customer.id);
+          const daysSinceLast = lastOrder?.daysSince ?? null;
+          const estimatedAnnualOrders = daysSinceLast && daysSinceLast > 0 ? Math.round(365 / daysSinceLast) : 4;
+          const expectedRevenue = avgOrderValue > 0 ? Math.round(avgOrderValue * Math.min(estimatedAnnualOrders, 12)) : null;
+
+          // Compute next best action from signals
+          let nextBestAction: string | null = null;
+          if (oppType === 'quote_pending') {
+            const qDays = pendingQuote ? Math.floor((now.getTime() - pendingQuote.createdAt.getTime()) / (1000 * 60 * 60 * 24)) : null;
+            nextBestAction = qDays && qDays > 7 ? 'Call to follow up on the pending quote — timing is critical' : 'Send a follow-up email referencing the quote sent';
+          } else if (oppType === 'sample_no_order') {
+            nextBestAction = 'Call and ask how the samples performed — offer a first-order discount';
+          } else if (oppType === 'reorder_due') {
+            nextBestAction = `Re-engage — they haven't ordered in ${daysSinceLast ?? '60+'} days. Call or send a check-in email`;
+          } else if (oppType === 'went_quiet') {
+            nextBestAction = 'They replied before but went quiet. Send a short "still interested?" email';
+          } else if (oppType === 'upsell_potential') {
+            nextBestAction = machineProfiles.length > 0 ? 'Suggest a compatible substrate they haven\'t tried — reference their machine' : 'Upsell to higher volume tier or introduce a second product line';
+          } else if (oppType === 'machine_match') {
+            nextBestAction = 'Lead with machine compatibility — mention specific products that work with their press';
+          }
+
           if (existingId) {
-            updateOps.push({ id: existingId, score: finalScore, signals: typeSignals, isActive: true });
+            updateOps.push({ id: existingId, score: finalScore, signals: typeSignals, isActive: true, expectedRevenue, nextBestAction });
           } else {
-            insertOps.push({ customerId: customer.id, score: finalScore, opportunityType: oppType, signals: typeSignals, isActive: true });
+            insertOps.push({ customerId: customer.id, score: finalScore, opportunityType: oppType, signals: typeSignals, isActive: true, expectedRevenue, nextBestAction, opportunityAgeDays: 0 });
           }
         }
         // Deactivate any types no longer valid for this customer
@@ -630,7 +756,7 @@ export class OpportunityEngine {
     for (let i = 0; i < updateOps.length; i += BATCH) updateChunks.push(updateOps.slice(i, i + BATCH));
     for (const chunk of updateChunks) {
       await Promise.all(chunk.map(op =>
-        db.update(opportunityScores).set({ score: op.score, signals: op.signals, isActive: op.isActive, lastCalculatedAt: now, updatedAt: now }).where(eq(opportunityScores.id, op.id))
+        db.update(opportunityScores).set({ score: op.score, signals: op.signals, isActive: op.isActive, lastCalculatedAt: now, updatedAt: now, ...(op.expectedRevenue !== undefined ? { expectedRevenue: op.expectedRevenue?.toString() ?? null } : {}), ...(op.nextBestAction !== undefined ? { nextBestAction: op.nextBestAction } : {}) }).where(eq(opportunityScores.id, op.id))
       ));
     }
 
@@ -639,7 +765,7 @@ export class OpportunityEngine {
       const insertChunks: typeof insertOps[] = [];
       for (let i = 0; i < insertOps.length; i += 100) insertChunks.push(insertOps.slice(i, i + 100));
       for (const chunk of insertChunks) {
-        await db.insert(opportunityScores).values(chunk.map(op => ({ ...op, lastCalculatedAt: now })));
+        await db.insert(opportunityScores).values(chunk.map(op => ({ ...op, lastCalculatedAt: now, expectedRevenue: op.expectedRevenue?.toString() ?? null, opportunityAgeDays: op.opportunityAgeDays ?? 0 })));
       }
     }
 
@@ -690,6 +816,9 @@ export class OpportunityEngine {
         customerProvince: customers.province,
         customerCity: customers.city,
         customerSalesRepId: customers.salesRepId,
+        expectedRevenue: opportunityScores.expectedRevenue,
+        nextBestAction: opportunityScores.nextBestAction,
+        opportunityAgeDays: opportunityScores.opportunityAgeDays,
       })
       .from(opportunityScores)
       .leftJoin(customers, eq(opportunityScores.customerId, customers.id))
@@ -751,6 +880,9 @@ export class OpportunityEngine {
         entityProvince: r.customerProvince,
         entityCity: r.customerCity,
         createdAt: r.createdAt,
+        expectedRevenue: r.expectedRevenue ? parseFloat(r.expectedRevenue) : null,
+        nextBestAction: (r as any).nextBestAction ?? null,
+        opportunityAgeDays: (r as any).opportunityAgeDays ?? null,
       });
     }
 
@@ -772,6 +904,9 @@ export class OpportunityEngine {
         entityProvince: r.leadState,
         entityCity: r.leadCity,
         createdAt: r.createdAt,
+        expectedRevenue: (r as any).expectedRevenue ? parseFloat((r as any).expectedRevenue) : null,
+        nextBestAction: (r as any).nextBestAction ?? null,
+        opportunityAgeDays: (r as any).opportunityAgeDays ?? null,
       });
     }
 

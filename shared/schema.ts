@@ -3615,6 +3615,7 @@ export const OPPORTUNITY_TYPES = [
   'new_fit',
   'reorder_due',
   'machine_match',
+  'quote_pending',
 ] as const;
 export type OpportunityType = typeof OPPORTUNITY_TYPES[number];
 
@@ -3625,6 +3626,7 @@ export const OPPORTUNITY_TYPE_LABELS: Record<OpportunityType, string> = {
   'new_fit': 'Great Fit — Not Contacted Yet',
   'reorder_due': 'Reorder Due Soon',
   'machine_match': 'Has Target Machines — Worth Pursuing',
+  'quote_pending': 'Quote Sent — No Response Yet',
 };
 
 export const opportunityScores = pgTable("opportunity_scores", {
@@ -3640,6 +3642,9 @@ export const opportunityScores = pgTable("opportunity_scores", {
   nextFollowUpAt: timestamp("next_follow_up_at"),
   lastFollowUpAt: timestamp("last_follow_up_at"),
   followUpHistory: jsonb("follow_up_history").$type<FollowUpEntry[]>().default([]),
+  expectedRevenue: decimal("expected_revenue", { precision: 12, scale: 2 }),
+  nextBestAction: text("next_best_action"),
+  opportunityAgeDays: integer("opportunity_age_days"),
   createdAt: timestamp("created_at").defaultNow(),
   updatedAt: timestamp("updated_at").defaultNow(),
 }, (table) => ({
@@ -3752,10 +3757,13 @@ export const OPPORTUNITY_SCORING_WEIGHTS = {
   hasDigitalMachines: 15,
   sampleSentNoOrder: 15,
   emailEngagement: 10,
+  emailOpenEngagement: 20,
   highPerformingRegion: 10,
   smallOrderUpsell: 15,
   wentQuietAfterInterest: 10,
   hasWebsite: 5,
+  quotePending: 25,
+  categoryExpansion: 15,
 } as const;
 
 export const DIGITAL_PRINTING_MACHINES = [
