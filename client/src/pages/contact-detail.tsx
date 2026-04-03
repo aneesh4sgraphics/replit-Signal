@@ -152,6 +152,7 @@ export default function ContactDetail() {
       return res.json();
     },
     enabled: !!contactId,
+    staleTime: 2 * 60 * 1000,
   });
 
   const linkedCompanyId = data?.companyRecord?.id;

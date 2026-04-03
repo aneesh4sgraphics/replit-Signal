@@ -12235,32 +12235,39 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
     try {
       const contact = await storage.getCustomerContact(parseInt(req.params.id));
       if (!contact) return res.status(404).json({ error: "Contact not found" });
-      // Also pull their company info from the customers table
-      const [customer] = await db
-        .select({ id: customers.id, company: customers.company, city: customers.city, province: customers.province, companyId: customers.companyId })
-        .from(customers)
-        .where(eq(customers.id, contact.customerId))
-        .limit(1);
-      // Build the company field (for backwards compat) and also fetch the companies record for Odoo data
+
+      // Normalise email once
+      const normalizedEmail = contact.emailNormalized
+        ? contact.emailNormalized
+        : (contact.email || "").toLowerCase().replace(/\s/g, "");
+
+      // Run customer lookup and Gmail messages fetch in parallel
+      const [customerRows, emailRows] = await Promise.all([
+        db.select({ id: customers.id, company: customers.company, city: customers.city, province: customers.province, companyId: customers.companyId })
+          .from(customers)
+          .where(eq(customers.id, contact.customerId))
+          .limit(1),
+        normalizedEmail
+          ? db.select({ id: gmailMessages.id, direction: gmailMessages.direction, fromEmail: gmailMessages.fromEmail, fromName: gmailMessages.fromName, toEmail: gmailMessages.toEmail, subject: gmailMessages.subject, snippet: gmailMessages.snippet, sentAt: gmailMessages.sentAt })
+              .from(gmailMessages)
+              .where(or(eq(gmailMessages.fromEmailNormalized, normalizedEmail), eq(gmailMessages.toEmailNormalized, normalizedEmail)))
+              .orderBy(desc(gmailMessages.sentAt))
+              .limit(30)
+          : Promise.resolve([]),
+      ]);
+
+      const customer = customerRows[0] ?? null;
       const company = customer ? { id: customer.id, company: customer.company, city: customer.city, province: customer.province } : null;
+
+      // Company record only needed if customer has a companyId — run after parallel step
       let companyRecord: { id: number; name: string; odooCompanyPartnerId: number | null } | null = null;
       if (customer?.companyId) {
         const [rec] = await db.select({ id: companies.id, name: companies.name, odooCompanyPartnerId: companies.odooCompanyPartnerId })
           .from(companies).where(eq(companies.id, customer.companyId)).limit(1);
-        companyRecord = rec || null;
+        companyRecord = rec ?? null;
       }
-      // Pull emails linked to this contact's email
-      let emails: { id: number; direction: string; fromEmail: string | null; fromName: string | null; toEmail: string | null; subject: string | null; snippet: string | null; sentAt: string | null }[] = [];
-      if (contact.emailNormalized || contact.email) {
-        const normalizedEmail = (contact.emailNormalized || contact.email || "").toLowerCase().replace(/\s/g, "");
-        emails = await db
-          .select({ id: gmailMessages.id, direction: gmailMessages.direction, fromEmail: gmailMessages.fromEmail, fromName: gmailMessages.fromName, toEmail: gmailMessages.toEmail, subject: gmailMessages.subject, snippet: gmailMessages.snippet, sentAt: gmailMessages.sentAt })
-          .from(gmailMessages)
-          .where(or(eq(gmailMessages.fromEmailNormalized, normalizedEmail), eq(gmailMessages.toEmailNormalized, normalizedEmail)))
-          .orderBy(desc(gmailMessages.sentAt))
-          .limit(50);
-      }
-      res.json({ contact, company: company || null, companyRecord, emails });
+
+      res.json({ contact, company, companyRecord, emails: emailRows });
     } catch (error) {
       console.error("Error fetching customer contact:", error);
       res.status(500).json({ error: "Failed to fetch contact" });
