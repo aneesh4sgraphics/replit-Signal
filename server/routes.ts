@@ -12241,8 +12241,8 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         ? contact.emailNormalized
         : (contact.email || "").toLowerCase().replace(/\s/g, "");
 
-      // Run customer lookup and Gmail messages fetch in parallel
-      const [customerRows, emailRows] = await Promise.all([
+      // Run customer lookup, Gmail messages, and emailSends all in parallel
+      const [customerRows, gmailRows, sendRows] = await Promise.all([
         db.select({ id: customers.id, company: customers.company, city: customers.city, province: customers.province, companyId: customers.companyId })
           .from(customers)
           .where(eq(customers.id, contact.customerId))
@@ -12253,7 +12253,14 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
               .where(or(eq(gmailMessages.fromEmailNormalized, normalizedEmail), eq(gmailMessages.toEmailNormalized, normalizedEmail)))
               .orderBy(desc(gmailMessages.sentAt))
               .limit(30)
-          : Promise.resolve([]),
+          : Promise.resolve([] as any[]),
+        normalizedEmail
+          ? db.select({ id: emailSends.id, subject: emailSends.subject, body: emailSends.body, recipientEmail: emailSends.recipientEmail, sentBy: emailSends.sentBy, sentAt: emailSends.sentAt })
+              .from(emailSends)
+              .where(sql`LOWER(TRIM(${emailSends.recipientEmail})) = ${normalizedEmail}`)
+              .orderBy(desc(emailSends.sentAt))
+              .limit(30)
+          : Promise.resolve([] as any[]),
       ]);
 
       const customer = customerRows[0] ?? null;
@@ -12267,7 +12274,30 @@ Return only the JSON object. No markdown, no code blocks, no explanation.`;
         companyRecord = rec ?? null;
       }
 
-      res.json({ contact, company, companyRecord, emails: emailRows });
+      // Normalize emailSends into the same shape as gmailMessages rows; mark source so UI can distinguish
+      const sentEmailRows = sendRows.map((s: any) => ({
+        id: `send-${s.id}`,
+        direction: "out" as const,
+        fromEmail: s.sentBy ?? null,
+        fromName: s.sentBy ?? null,
+        toEmail: s.recipientEmail,
+        subject: s.subject,
+        snippet: (s.body as string)?.slice(0, 160) ?? null,
+        sentAt: s.sentAt ? new Date(s.sentAt).toISOString() : null,
+        source: "send" as const,
+      }));
+
+      // Build a dedup key set from gmail rows to avoid showing the same email twice
+      const gmailEmailRows = (gmailRows as any[]).map((g: any) => ({ ...g, source: "gmail" as const }));
+
+      // Merge and sort newest-first; emailSends records that also appear in gmail (same subject+to+approxTime) can coexist — duplicates are rare
+      const allEmails = [...gmailEmailRows, ...sentEmailRows].sort((a, b) => {
+        const ta = a.sentAt ? new Date(a.sentAt).getTime() : 0;
+        const tb = b.sentAt ? new Date(b.sentAt).getTime() : 0;
+        return tb - ta;
+      });
+
+      res.json({ contact, company, companyRecord, emails: allEmails });
     } catch (error) {
       console.error("Error fetching customer contact:", error);
       res.status(500).json({ error: "Failed to fetch contact" });

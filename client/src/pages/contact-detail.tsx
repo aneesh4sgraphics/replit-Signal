@@ -60,7 +60,7 @@ interface Company {
 }
 
 interface ContactEmail {
-  id: number;
+  id: number | string;
   direction: string;
   fromEmail: string | null;
   fromName: string | null;
@@ -68,6 +68,7 @@ interface ContactEmail {
   subject: string | null;
   snippet: string | null;
   sentAt: string | null;
+  source?: "gmail" | "send";
 }
 
 interface CompanyRecord {
@@ -535,6 +536,7 @@ export default function ContactDetail() {
                 <Button size="sm" variant="outline" onClick={() => emailComposer.open({
                   to: contact.email || "", customerName: contact.name, usageType: "lead_email",
                   variables: { "contact.name": contact.name, "contact.email": contact.email || "" },
+                  onSent: () => queryClientInstance.invalidateQueries({ queryKey: ["/api/crm/customer-contacts", contactId] }),
                 })}>
                   <Plus className="w-4 h-4 mr-1" /> Compose
                 </Button>
@@ -544,23 +546,32 @@ export default function ContactDetail() {
               <EmptyState icon={Mail} title="No emails yet" sub={contact.email ? "Email history will appear here" : "No email address on this contact"} />
             ) : (
               <div className="border border-gray-200 rounded-lg bg-white divide-y divide-gray-100">
-                {emails.map((email) => (
-                  <div key={email.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
-                    <div className={`mt-0.5 shrink-0 ${email.direction === "inbound" ? "text-blue-500" : "text-gray-400"}`}>
-                      {email.direction === "inbound" ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
-                    </div>
-                    <div className="flex-1 min-w-0">
-                      <div className="flex items-center justify-between gap-2">
-                        <span className="text-sm font-medium text-gray-800 truncate">
-                          {email.direction === "inbound" ? (email.fromName || email.fromEmail) : (email.fromName || "You")}
-                        </span>
-                        <span className="text-xs text-gray-400 shrink-0">{relativeTime(email.sentAt)}</span>
+                {emails.map((email) => {
+                  const isInbound = email.direction === "inbound" || email.direction === "in";
+                  const isSentDirect = email.source === "send";
+                  return (
+                    <div key={email.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
+                      <div className={`mt-0.5 shrink-0 ${isInbound ? "text-blue-500" : "text-indigo-400"}`}>
+                        {isInbound ? <ArrowDownLeft className="h-4 w-4" /> : <ArrowUpRight className="h-4 w-4" />}
                       </div>
-                      <p className="text-xs font-medium text-gray-600 truncate mt-0.5">{email.subject || "(no subject)"}</p>
-                      {email.snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{email.snippet}</p>}
+                      <div className="flex-1 min-w-0">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="text-sm font-medium text-gray-800 truncate">
+                              {isInbound ? (email.fromName || email.fromEmail) : (email.fromName || "You")}
+                            </span>
+                            {isSentDirect && (
+                              <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1 py-0 shrink-0">Sent</span>
+                            )}
+                          </div>
+                          <span className="text-xs text-gray-400 shrink-0">{relativeTime(email.sentAt)}</span>
+                        </div>
+                        <p className="text-xs font-medium text-gray-600 truncate mt-0.5">{email.subject || "(no subject)"}</p>
+                        {email.snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{email.snippet}</p>}
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  );
+                })}
               </div>
             )}
           </div>
