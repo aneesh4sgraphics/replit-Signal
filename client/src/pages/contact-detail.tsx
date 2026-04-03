@@ -549,6 +549,7 @@ export default function ContactDetail() {
                 {emails.map((email) => {
                   const isInbound = email.direction === "inbound" || email.direction === "in";
                   const isSentDirect = email.source === "send";
+                  const senderGmail = isSentDirect ? (email.fromEmail || email.fromName) : null;
                   return (
                     <div key={email.id} className="flex items-start gap-3 px-4 py-3 hover:bg-gray-50 transition-colors">
                       <div className={`mt-0.5 shrink-0 ${isInbound ? "text-blue-500" : "text-indigo-400"}`}>
@@ -558,7 +559,7 @@ export default function ContactDetail() {
                         <div className="flex items-center justify-between gap-2">
                           <div className="flex items-center gap-2 min-w-0">
                             <span className="text-sm font-medium text-gray-800 truncate">
-                              {isInbound ? (email.fromName || email.fromEmail) : (email.fromName || "You")}
+                              {isInbound ? (email.fromName || email.fromEmail) : "You"}
                             </span>
                             {isSentDirect && (
                               <span className="text-[10px] font-medium text-indigo-600 bg-indigo-50 border border-indigo-100 rounded px-1 py-0 shrink-0">Sent</span>
@@ -567,7 +568,13 @@ export default function ContactDetail() {
                           <span className="text-xs text-gray-400 shrink-0">{relativeTime(email.sentAt)}</span>
                         </div>
                         <p className="text-xs font-medium text-gray-600 truncate mt-0.5">{email.subject || "(no subject)"}</p>
-                        {email.snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{email.snippet}</p>}
+                        {isSentDirect && senderGmail && (
+                          <p className="text-[11px] text-indigo-500 truncate mt-0.5 flex items-center gap-1">
+                            <Mail className="h-3 w-3 shrink-0" />
+                            Sent via {senderGmail}
+                          </p>
+                        )}
+                        {!isSentDirect && email.snippet && <p className="text-xs text-gray-400 truncate mt-0.5">{email.snippet}</p>}
                       </div>
                     </div>
                   );
