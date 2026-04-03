@@ -845,30 +845,64 @@ export class OpportunityEngine {
     return { score: topScore, signals: uniqueSignals, opportunities };
   }
 
-  async getOpportunitySummary(): Promise<{
+  async getOpportunitySummary(options: { minScore?: number; salesRepId?: string } = {}): Promise<{
     totalActive: number;
     byType: Record<string, number>;
     avgScore: number;
     topScorers: number;
   }> {
-    const activeOpps = await db
+    const { minScore = 20, salesRepId } = options;
+
+    // Use the same logic as getTopOpportunities: pull per-type counts from both
+    // customer-linked and lead-linked records, applying the same score threshold.
+    const baseConditions = [
+      eq(opportunityScores.isActive, true),
+      gte(opportunityScores.score, minScore),
+    ];
+
+    // Customer-linked counts — join customers so we can filter by salesRepId
+    const customerOpps = await db
+      .select({
+        oppType: opportunityScores.opportunityType,
+        cnt: count(),
+        avgScore: sql<number>`AVG(${opportunityScores.score})`,
+        salesRepId: customers.salesRepId,
+      })
+      .from(opportunityScores)
+      .leftJoin(customers, eq(opportunityScores.customerId, customers.id))
+      .where(and(...baseConditions, isNotNull(opportunityScores.customerId)))
+      .groupBy(opportunityScores.opportunityType, customers.salesRepId);
+
+    // Lead-linked counts
+    const leadOpps = await db
       .select({
         oppType: opportunityScores.opportunityType,
         cnt: count(),
         avgScore: sql<number>`AVG(${opportunityScores.score})`,
       })
       .from(opportunityScores)
-      .where(eq(opportunityScores.isActive, true))
+      .leftJoin(leads, eq(opportunityScores.leadId, leads.id))
+      .where(and(...baseConditions, isNotNull(opportunityScores.leadId)))
       .groupBy(opportunityScores.opportunityType);
 
     const byType: Record<string, number> = {};
     let totalActive = 0;
     let totalScoreSum = 0;
 
-    for (const row of activeOpps) {
-      byType[row.oppType] = Number(row.cnt);
-      totalActive += Number(row.cnt);
-      totalScoreSum += Number(row.avgScore) * Number(row.cnt);
+    for (const row of customerOpps) {
+      // Apply salesRepId filter if provided (mirrors getTopOpportunities JS-side filter)
+      if (salesRepId && row.salesRepId && row.salesRepId !== salesRepId) continue;
+      const n = Number(row.cnt);
+      byType[row.oppType] = (byType[row.oppType] || 0) + n;
+      totalActive += n;
+      totalScoreSum += Number(row.avgScore) * n;
+    }
+
+    for (const row of leadOpps) {
+      const n = Number(row.cnt);
+      byType[row.oppType] = (byType[row.oppType] || 0) + n;
+      totalActive += n;
+      totalScoreSum += Number(row.avgScore) * n;
     }
 
     const [topScorers] = await db

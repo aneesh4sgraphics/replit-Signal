@@ -30607,7 +30607,11 @@ Analyze this bounced email and provide insights in JSON format:
   app.get("/api/opportunities/summary", isAuthenticated, async (req: any, res) => {
     try {
       const { opportunityEngine } = await import("./opportunity-engine");
-      const summary = await opportunityEngine.getOpportunitySummary();
+      const isAdmin = req.user?.role === 'admin';
+      const summary = await opportunityEngine.getOpportunitySummary({
+        minScore: 20,
+        salesRepId: isAdmin ? undefined : req.user?.id,
+      });
       res.json(summary);
     } catch (error) {
       console.error("Error fetching opportunity summary:", error);

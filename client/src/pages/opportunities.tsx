@@ -178,6 +178,22 @@ export default function OpportunitiesPage() {
   // Server already filters by type via the ?type= param; use as-is
   const filteredOpps = opportunities;
 
+  // Compute per-type counts from the "all" data so tab badges match content exactly.
+  // We only have this data when activeTab === "all"; otherwise fall back to summary.
+  const { data: allOpps = [] } = useQuery<any[]>({
+    queryKey: ['/api/opportunities', 'all'],
+    queryFn: async () => {
+      const res = await fetch('/api/opportunities?limit=500', { credentials: 'include' });
+      if (!res.ok) throw new Error('Failed');
+      return res.json();
+    },
+    staleTime: 2 * 60 * 1000,
+  });
+  const countByType = allOpps.reduce((acc: Record<string, number>, opp: any) => {
+    acc[opp.opportunityType] = (acc[opp.opportunityType] || 0) + 1;
+    return acc;
+  }, {});
+
   return (
     <div className="min-h-screen bg-[#FDFBF7] p-4 md:p-6">
       <div className="max-w-7xl mx-auto space-y-6">
@@ -280,7 +296,7 @@ export default function OpportunitiesPage() {
           <TabsList className="bg-white/80 border">
             <TabsTrigger value="all">All</TabsTrigger>
             {Object.entries(OPPORTUNITY_TYPE_CONFIG).map(([key, config]) => {
-              const count = summary?.byType?.[key] || 0;
+              const count = countByType[key] || 0;
               return (
                 <TabsTrigger key={key} value={key} className="flex items-center gap-1">
                   <config.icon className="w-3 h-3" />
